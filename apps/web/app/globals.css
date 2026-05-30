@@ -1,8 +1,32 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
 
 @custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-primary: #1a3557; /* dark navy - sidebar, header */
+  --color-primary-foreground: #ffffff;
+
+  --color-accent: #0097a7; /* teal - active nav, buttons, badges */
+  --color-accent-foreground: #ffffff;
+
+  --color-background: #f5f7fa; /* light grey page background */
+  --color-foreground: #1a2744; /* default text */
+
+  --color-card: #ffffff;
+  --color-card-foreground: #1a2744;
+
+  --color-border: #e2e8f0;
+
+  /* Status badge colours */
+  --color-status-pass: #52aa4e; /* ผ่านมาตรฐาน - green */
+  --color-status-warn: #ffc107; /* ต้องปรับปรุง - amber */
+  --color-status-fail: #f44336; /* ไม่ผ่าน - red */
+
+  --color-muted: #64748b;
+  --color-muted-foreground: #94a3b8;
+}
 
 html,
 body {
