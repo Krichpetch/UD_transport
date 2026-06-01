@@ -4,14 +4,12 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
-  SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { LayoutDashboard, Building2, Car, FileText, Settings } from 'lucide-react'
 
@@ -25,21 +23,7 @@ const navItems = [
 
 export function AppSidebar() {
   return (
-    
     <Sidebar collapsible="icon" style={{ '--sidebar-width-icon': '4rem' } as React.CSSProperties}>
-      {/* Logo + app name */}
-      <SidebarHeader className="px-4 py-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-accent flex size-8 shrink-0 items-center justify-center rounded-md">
-            {/* your icon here */}
-          </div>
-          <div className="group-data-[collapsible=icon]:hidden">
-            <p className="text-sidebar-foreground text-sm font-semibold">กระทรวงคมนาคม</p>
-            <p className="text-sidebar-foreground/60 text-xs">ระบบสิ่งอำนวยความสะดวก</p>
-          </div>
-        </div>
-      </SidebarHeader>
-
       {/* Nav items */}
       <SidebarContent>
         <SidebarGroup className="px-3 py-2">
@@ -61,16 +45,6 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* User info at bottom */}
-      <SidebarFooter className="px-4 py-4">
-        <div className="flex items-center gap-3 group-data-[collapsible=icon]:hidden">
-          <div className="bg-primary size-8 shrink-0 rounded-full" />
-          <div>
-            <p className="text-sidebar-foreground text-xs font-medium">ผู้บริหาร</p>
-            <p className="text-sidebar-foreground/60 text-xs">admin@mot.go.th</p>
-          </div>
-        </div>
-      </SidebarFooter>
     </Sidebar>
   )
 }
