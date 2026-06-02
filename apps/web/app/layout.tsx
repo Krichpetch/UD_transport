@@ -1,15 +1,29 @@
 import type { Metadata } from 'next'
 import localFont from 'next/font/local'
 import './globals.css'
-import { Inter } from 'next/font/google'
 import { cn } from '@/lib/utils'
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
-
-const geistSans = localFont({
-  src: './fonts/GeistVF.woff',
-  variable: '--font-geist-sans',
+const lineSeed = localFont({
+  src: [
+    {
+      path: './fonts/LINESeedSansTH_W_Rg.woff2',
+      weight: '400',
+      style: 'normal',
+    },
+    {
+      path: './fonts/LINESeedSansTH_W_Bd.woff2',
+      weight: '700',
+      style: 'normal',
+    },
+    {
+      path: './fonts/LINESeedSansTH_W_XBd.woff2',
+      weight: '800',
+      style: 'normal',
+    },
+  ],
+  variable: '--font-sans',
 })
+
 const geistMono = localFont({
   src: './fonts/GeistMonoVF.woff',
   variable: '--font-geist-mono',
@@ -26,8 +40,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={cn('font-sans', inter.variable)}>
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>{children}</body>
+    <html lang="th" className={cn('font-sans', lineSeed.variable)}>
+      <body className={geistMono.variable}>{children}</body>
     </html>
   )
 }
