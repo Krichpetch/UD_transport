@@ -16,8 +16,8 @@ import { LayoutDashboard, Building2, Car, FileText, Settings } from 'lucide-reac
 const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
   { label: 'จัดการสถานี', icon: Building2, href: '/stations' },
-  { label: 'จัดการยานพาหนะ', icon: Car, href: '/vehicles' },
-  { label: 'รายงาน', icon: FileText, href: '/reports' },
+  // { label: 'จัดการยานพาหนะ', icon: Car, href: '/vehicles' },
+  // { label: 'รายงาน', icon: FileText, href: '/reports' },
   { label: 'ตั้งค่าระบบ', icon: Settings, href: '/settings' },
 ]
 
@@ -44,7 +44,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
     </Sidebar>
   )
 }
