@@ -47,8 +47,9 @@ function ScoreCircle({ score }: { score: number }) {
   )
 }
 
-export default function StationChecklistPage({ params }: { params: { id: string } }) {
-  const station = mockStations.find((s) => s.id === params.id) ?? mockStations[0]!
+export default function StationChecklistPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = React.use(params)
+  const station = mockStations.find((s) => s.id === id) ?? mockStations[0]!
 
   const [items, setItems] = React.useState<ChecklistItem[]>(mockChecklistItems)
 
