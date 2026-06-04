@@ -1,49 +1,55 @@
 'use client'
 
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-} from '@/components/ui/navigation-menu'
+import { SidebarTrigger } from '@/components/ui/sidebar'
+import { Bell, Search } from 'lucide-react'
 import * as React from 'react'
-import { SidebarTrigger } from '../ui/sidebar'
 
-export function AppNavbar() {
+interface AppNavbarProps {
+  title?: string
+  subtitle?: string
+}
+
+export function AppNavbar({ title, subtitle }: AppNavbarProps) {
   return (
-    <div className="border-variant width-full flex items-center justify-between gap-4 px-4 py-4">
-      <div className="flex items-center gap-3 px-4 py-4">
-        <SidebarTrigger />
+    <header className="border-border bg-card/80 supports-[backdrop-filter]:bg-card/60 sticky top-0 z-30 flex items-center justify-between gap-4 border-b px-4 py-3 backdrop-blur">
+      {/* Left: Trigger + Logo */}
+      <div className="flex items-center gap-3">
+        <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
         <div className="bg-accent flex size-8 shrink-0 items-center justify-center rounded-md">
           {/* your icon here */}
         </div>
-        <div>
-          <p className="text-sidebar-secondary text-sm font-semibold">กระทรวงคมนาคม</p>
-          <p className="text-sidebar-secondary/60 text-xs">ระบบสิ่งอำนวยความสะดวก</p>
+        <div className="hidden sm:block">
+          <p className="text-foreground text-sm font-semibold">{title ?? 'กระทรวงคมนาคม'}</p>
+          <p className="text-muted-foreground text-xs">{subtitle ?? 'ระบบสิ่งอำนวยความสะดวก'}</p>
         </div>
       </div>
-      <div className="align-center hidden flex-row gap-6 px-4 py-4 md:flex">
-        <NavigationMenu className="border-variant">
-          <NavigationMenuList>
-            <NavigationMenuItem>
-              <NavigationMenuTrigger>Products</NavigationMenuTrigger>
-              <NavigationMenuContent>
-                <NavigationMenuLink href="/products">Product 1</NavigationMenuLink>
-                <NavigationMenuLink href="/products">Product 2</NavigationMenuLink>
-              </NavigationMenuContent>
-            </NavigationMenuItem>
-          </NavigationMenuList>
-        </NavigationMenu>
-        <div className="flex items-center gap-3 group-data-[collapsible=icon]:hidden">
+
+      {/* Right: Search + Bell + Admin */}
+      <div className="flex items-center gap-3">
+        {/* Search */}
+        <button className="border-border text-muted-foreground hover:bg-secondary hidden items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors sm:flex">
+          <Search size={13} />
+          <span className="hidden sm:inline">ค้นหา...</span>
+          <kbd className="bg-muted hidden rounded px-1 text-[10px] sm:inline">⌘K</kbd>
+        </button>
+
+        {/* Notifications */}
+        <button className="border-border text-muted-foreground hover:bg-secondary relative rounded-lg border p-1.5 transition-colors">
+          <Bell size={15} />
+          <span className="bg-destructive absolute -top-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full text-[8px] text-white">
+            3
+          </span>
+        </button>
+
+        {/* Admin */}
+        <div className="hidden items-center gap-3 md:flex">
           <div className="bg-primary size-8 shrink-0 rounded-full" />
           <div>
-            <p className="text-sidebar-secondary text-xs font-medium">ผู้บริหาร</p>
-            <p className="text-sidebar-secondary/60 text-xs">admin@mot.go.th</p>
+            <p className="text-foreground text-xs font-medium">ผู้บริหาร</p>
+            <p className="text-muted-foreground text-xs">admin@mot.go.th</p>
           </div>
         </div>
       </div>
-    </div>
+    </header>
   )
 }

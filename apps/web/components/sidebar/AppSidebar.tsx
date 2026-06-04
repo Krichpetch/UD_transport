@@ -10,33 +10,37 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
+  SidebarHeader,
 } from '@/components/ui/sidebar'
-import { LayoutDashboard, Building2, Car, FileText, Settings } from 'lucide-react'
+import { LayoutDashboard, Building2, Car, FileText, Settings, LogOut, User } from 'lucide-react'
+import Link from 'next/link'
 
 const navItems = [
-  { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
-  { label: 'จัดการสถานี', icon: Building2, href: '/stations' },
-  // { label: 'จัดการยานพาหนะ', icon: Car, href: '/vehicles' },
-  // { label: 'รายงาน', icon: FileText, href: '/reports' },
-  { label: 'ตั้งค่าระบบ', icon: Settings, href: '/settings' },
+  { label: 'Dashboard', labelTh: 'ภาพรวม', icon: LayoutDashboard, href: '/dashboard' },
+  { label: 'Stations', labelTh: 'จัดการสถานี', icon: Building2, href: '/stations' },
+  // { label: 'Vehicles', labelTh: 'จัดการยานพาหนะ', icon: Car, href: '/vehicles' },
+  // { label: 'Reports', labelTh: 'รายงาน', icon: FileText, href: '/reports' },
+  { label: 'Settings', labelTh: 'ตั้งค่าระบบ', icon: Settings, href: '/settings' },
 ]
 
 export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" style={{ '--sidebar-width-icon': '4rem' } as React.CSSProperties}>
-      {/* Nav items */}
+      {/* Nav */}
       <SidebarContent>
-        <SidebarGroup className="px-3 py-2">
-          <SidebarGroupLabel className="mb-1">เมนูหลัก</SidebarGroupLabel>
+        <SidebarGroup className="px-2 py-2">
+          <SidebarGroupLabel className="text-sidebar-foreground/50 mb-1 text-[10px] tracking-widest uppercase group-data-[collapsible=icon]:hidden">
+            เมนูหลัก
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className="gap-1">
+            <SidebarMenu className="gap-0.5">
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton asChild tooltip={item.label}>
-                    <a href={item.href}>
-                      <item.icon />
-                      <span>{item.label}</span>
-                    </a>
+                  <SidebarMenuButton asChild tooltip={item.labelTh} className="rounded-lg">
+                    <Link href={item.href}>
+                      <item.icon size={18} />
+                      <span>{item.labelTh}</span>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
