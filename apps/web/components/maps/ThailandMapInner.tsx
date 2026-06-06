@@ -2,7 +2,7 @@
 
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
-import { mockStations } from '@/lib/mock-data'
+import { mockStations, getTransportLabel } from '@/lib/mock-data'
 
 const STATUS_COLORS: Record<string, string> = {
   'ผ่านมาตรฐาน': '#52aa4e',
@@ -42,7 +42,7 @@ export default function ThailandMapInner() {
           <Popup>
             <div style={{ minWidth: 160 }}>
               <p style={{ fontWeight: 700, marginBottom: 4 }}>{station.nameTh}</p>
-              <p style={{ fontSize: 12, color: '#64748b', marginBottom: 2 }}>{station.province} · {station.type}</p>
+              <p style={{ fontSize: 12, color: '#64748b', marginBottom: 2 }}>{station.province} · {getTransportLabel(station)}</p>
               <p style={{ fontSize: 12 }}>
                 คะแนน:{' '}
                 <strong style={{ color: STATUS_COLORS[station.status] }}>

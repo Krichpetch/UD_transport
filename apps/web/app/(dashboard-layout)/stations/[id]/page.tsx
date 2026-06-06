@@ -1,11 +1,15 @@
 'use client'
 
 import * as React from 'react'
-import { mockStations, mockChecklistItems, type ChecklistItem } from '@/lib/mock-data'
+import {
+  mockStations,
+  getChecklistTemplate,
+  getTransportLabel,
+  type ChecklistGroup,
+  type ChecklistValue,
+} from '@/lib/mock-data'
 import { ChevronLeft, Download, Send, Save } from 'lucide-react'
 import Link from 'next/link'
-
-type ChecklistValue = 'มี' | 'ไม่มี' | 'ได้มาตรฐาน'
 
 const VALUE_OPTIONS: ChecklistValue[] = ['มี', 'ไม่มี', 'ได้มาตรฐาน']
 
@@ -51,17 +55,31 @@ export default function StationChecklistPage({ params }: { params: Promise<{ id:
   const { id } = React.use(params)
   const station = mockStations.find((s) => s.id === id) ?? mockStations[0]!
 
-  const [items, setItems] = React.useState<ChecklistItem[]>(mockChecklistItems)
-
-  const answered = items.filter((i) => i.value !== null).length
-  const score = Math.round(
-    (items.filter((i) => i.value === 'มี' || i.value === 'ได้มาตรฐาน').length / items.length) * 100
+  const [groups, setGroups] = React.useState<ChecklistGroup[]>(() =>
+    getChecklistTemplate(station.mode)
   )
 
-  const categories = Array.from(new Set(items.map((i) => i.category)))
+  const allItems = groups.flatMap((g) => g.items)
+  const answered = allItems.filter((i) => i.value !== null).length
+  const score = Math.round(
+    (allItems.filter((i) => i.value === 'มี' || i.value === 'ได้มาตรฐาน').length /
+      allItems.length) *
+      100
+  )
 
-  function setItemValue(id: string, value: ChecklistValue) {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, value } : item)))
+  function setItemValue(groupId: string, itemId: string, value: ChecklistValue) {
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.groupId !== groupId
+          ? g
+          : {
+              ...g,
+              items: g.items.map((item) =>
+                item.id === itemId ? { ...item, value } : item
+              ),
+            }
+      )
+    )
   }
 
   return (
@@ -77,7 +95,7 @@ export default function StationChecklistPage({ params }: { params: Promise<{ id:
           </Link>
           <h1 className="text-foreground text-xl font-bold">{station.nameTh}</h1>
           <p className="text-muted-foreground text-sm">
-            {station.province} · {station.type}
+            {station.province} · {getTransportLabel(station)}
           </p>
         </div>
 
@@ -98,46 +116,43 @@ export default function StationChecklistPage({ params }: { params: Promise<{ id:
       <div className="grid gap-4 lg:grid-cols-4">
         {/* Checklist — takes 3 cols */}
         <div className="space-y-4 lg:col-span-3">
-          {categories.map((category) => (
-            <div key={category} className="bg-card border-border overflow-hidden rounded-xl border">
+          {groups.map((group) => (
+            <div key={group.groupId} className="bg-card border-border overflow-hidden rounded-xl border">
               <div className="bg-secondary/40 border-border border-b px-5 py-3">
-                <h2 className="text-foreground text-sm font-semibold">{category}</h2>
+                <h2 className="text-foreground text-sm font-semibold">{group.groupName}</h2>
               </div>
               <div className="divide-border divide-y">
-                {items
-                  .filter((item) => item.category === category)
-                  .map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between gap-4 px-5 py-3.5"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-muted-foreground bg-secondary rounded px-1.5 py-0.5 font-mono text-[10px]">
-                            {item.code}
-                          </span>
-                          <p className="text-foreground text-sm font-medium">{item.labelTh}</p>
-                        </div>
-                        <p className="text-muted-foreground text-xs">{item.label}</p>
-                      </div>
-
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        {VALUE_OPTIONS.map((opt) => (
-                          <button
-                            key={opt}
-                            onClick={() => setItemValue(item.id, opt)}
-                            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
-                              item.value === opt
-                                ? VALUE_STYLES[opt]
-                                : 'border-border text-muted-foreground hover:bg-secondary'
-                            }`}
-                          >
-                            {opt}
-                          </button>
-                        ))}
+                {group.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between gap-4 px-5 py-3.5"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground bg-secondary rounded px-1.5 py-0.5 font-mono text-[10px]">
+                          {item.id}
+                        </span>
+                        <p className="text-foreground text-sm font-medium">{item.labelTh}</p>
                       </div>
                     </div>
-                  ))}
+
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {VALUE_OPTIONS.map((opt) => (
+                        <button
+                          key={opt!}
+                          onClick={() => setItemValue(group.groupId, item.id, opt)}
+                          className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                            item.value === opt
+                              ? VALUE_STYLES[opt!]
+                              : 'border-border text-muted-foreground hover:bg-secondary'
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
@@ -153,25 +168,25 @@ export default function StationChecklistPage({ params }: { params: Promise<{ id:
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">ตอบแล้ว</span>
                   <span className="text-foreground font-medium">
-                    {answered}/{items.length}
+                    {answered}/{allItems.length}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">ผ่านมาตรฐาน</span>
                   <span className="font-medium text-[#52aa4e]">
-                    {items.filter((i) => i.value === 'มี' || i.value === 'ได้มาตรฐาน').length}
+                    {allItems.filter((i) => i.value === 'มี' || i.value === 'ได้มาตรฐาน').length}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">ไม่ผ่าน</span>
                   <span className="font-medium text-[#f44336]">
-                    {items.filter((i) => i.value === 'ไม่มี').length}
+                    {allItems.filter((i) => i.value === 'ไม่มี').length}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">ยังไม่ตอบ</span>
                   <span className="text-muted-foreground font-medium">
-                    {items.filter((i) => i.value === null).length}
+                    {allItems.filter((i) => i.value === null).length}
                   </span>
                 </div>
               </div>
@@ -181,13 +196,13 @@ export default function StationChecklistPage({ params }: { params: Promise<{ id:
                 <div className="mb-1 flex justify-between text-[10px]">
                   <span className="text-muted-foreground">ความคืบหน้า</span>
                   <span className="text-foreground">
-                    {Math.round((answered / items.length) * 100)}%
+                    {Math.round((answered / allItems.length) * 100)}%
                   </span>
                 </div>
                 <div className="bg-secondary h-1.5 w-full overflow-hidden rounded-full">
                   <div
                     className="bg-accent h-full rounded-full transition-all"
-                    style={{ width: `${(answered / items.length) * 100}%` }}
+                    style={{ width: `${(answered / allItems.length) * 100}%` }}
                   />
                 </div>
               </div>
@@ -199,7 +214,7 @@ export default function StationChecklistPage({ params }: { params: Promise<{ id:
             <h2 className="text-foreground mb-3 text-sm font-semibold">ข้อมูลสถานี</h2>
             <div className="space-y-2">
               {[
-                { label: 'ประเภท', value: station.type },
+                { label: 'ประเภท', value: getTransportLabel(station) },
                 { label: 'จังหวัด', value: station.province },
                 { label: 'ภาค', value: station.region },
                 { label: 'ตรวจล่าสุด', value: station.lastInspected ?? '—' },

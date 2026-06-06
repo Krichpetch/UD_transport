@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { mockKpi, mockStations } from '@/lib/mock-data'
+import { mockKpi, mockStations, getTransportLabel } from '@/lib/mock-data'
 import { StationBarChart } from '@/components/charts/StationBarChart'
 import { ThailandMap } from '@/components/maps/ThailandMap'
 import { TrendingUp, TrendingDown, Building2, CheckCircle2, AlertTriangle, XCircle, AlertCircle } from 'lucide-react'
@@ -142,7 +142,7 @@ export default function DashboardPage() {
                   <p className="text-foreground text-xs font-medium leading-snug">{station.nameTh}</p>
                   <StatusBadge status={station.status} />
                 </div>
-                <p className="text-muted-foreground mb-2 text-[10px]">{station.province} · {station.type}</p>
+                <p className="text-muted-foreground mb-2 text-[10px]">{station.province} · {getTransportLabel(station)}</p>
                 {station.urgentIssues.length > 0 && (
                   <ul className="space-y-0.5">
                     {station.urgentIssues.map((issue, i) => (
@@ -187,7 +187,7 @@ export default function DashboardPage() {
                       <p className="text-muted-foreground">{station.province}</p>
                     </td>
                     <td className="px-3 py-3">
-                      <TransportBadge type={station.type} />
+                      <TransportBadge type={getTransportLabel(station)} />
                     </td>
                     <td className="px-3 py-3 text-right">
                       <span

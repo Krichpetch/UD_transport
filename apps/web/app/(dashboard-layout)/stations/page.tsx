@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { mockStations, type Station, type TransportType, type StationStatus } from '@/lib/mock-data'
+import { mockStations, getTransportLabel, type Station, type TransportMode, type StationStatus } from '@/lib/mock-data'
 import { Search, Filter, ClipboardList, Pencil, Building2 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -30,12 +30,12 @@ function ScoreBar({ score }: { score: number }) {
   )
 }
 
-const TRANSPORT_TYPES: TransportType[] = ['รถโดยสาร', 'รถไฟ', 'เรือโดยสาร', 'สนามบิน']
+const TRANSPORT_MODES: TransportMode[] = ['ทางบก', 'ทางราง', 'ทางเรือ', 'ทางอากาศ']
 const STATUS_OPTIONS: StationStatus[] = ['ผ่านมาตรฐาน', 'ต้องปรับปรุง', 'ไม่ผ่าน']
 
 export default function StationsPage() {
   const [search, setSearch] = React.useState('')
-  const [typeFilter, setTypeFilter] = React.useState<TransportType | ''>('')
+  const [typeFilter, setTypeFilter] = React.useState<TransportMode | ''>('')
   const [statusFilter, setStatusFilter] = React.useState<StationStatus | ''>('')
 
   const filtered = mockStations.filter((s) => {
@@ -44,7 +44,7 @@ export default function StationsPage() {
       s.nameTh.includes(search) ||
       s.name.toLowerCase().includes(search.toLowerCase()) ||
       s.province.includes(search)
-    const matchType = !typeFilter || s.type === typeFilter
+    const matchType = !typeFilter || s.mode === typeFilter
     const matchStatus = !statusFilter || s.status === statusFilter
     return matchSearch && matchType && matchStatus
   })
@@ -85,11 +85,11 @@ export default function StationsPage() {
             <Filter size={13} className="text-muted-foreground" />
             <select
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value as TransportType | '')}
+              onChange={(e) => setTypeFilter(e.target.value as TransportMode | '')}
               className="border-input bg-background text-foreground focus:ring-ring rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1"
             >
               <option value="">ประเภทการขนส่ง</option>
-              {TRANSPORT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {TRANSPORT_MODES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
 
@@ -147,7 +147,7 @@ export default function StationsPage() {
                       <p className="text-muted-foreground text-xs">{station.name}</p>
                     </td>
                     <td className="px-3 py-3.5">
-                      <span className="text-foreground text-xs">{station.type}</span>
+                      <span className="text-foreground text-xs">{getTransportLabel(station)}</span>
                     </td>
                     <td className="px-3 py-3.5">
                       <p className="text-foreground text-xs">{station.province}</p>
