@@ -4,7 +4,7 @@ import Link from 'next/link'
 export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <div className="bg-card flex w-full max-w-sm flex-col items-center gap-6 rounded-xl p-8 shadow-lg">
+      <div className="bg-card flex w-full max-w-md flex-col items-center gap-6 rounded-xl p-8 shadow-lg">
 
         {/* Logo / Branding */}
         <div className="flex flex-col items-center gap-2">
@@ -17,7 +17,7 @@ export default function LoginPage() {
             </svg>
           </div>
           <div className="text-center">
-            <h1 className="text-foreground text-xl font-bold tracking-tight">กระทรวงคมนาคม</h1>
+            <h1 className="text-foreground text-xl font-bold tracking-tight">สำนักงานนโยบายและแผนการขนส่งและจราจร </h1>
             <p className="text-muted-foreground mt-1 text-xs leading-snug">
               ระบบฐานข้อมูลติดตามสิ่งอำนวยความสะดวก<br />
               ด้านคมนาคมขนส่งสำหรับคนทุกคน

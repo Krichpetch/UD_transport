@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import localFont from 'next/font/local'
 import './globals.css'
+import 'leaflet/dist/leaflet.css'
 import { cn } from '@/lib/utils'
 
 const lineSeed = localFont({
@@ -26,7 +27,8 @@ const lineSeed = localFont({
 
 export const metadata: Metadata = {
   title: 'UD Transport — ระบบสิ่งอำนวยความสะดวกด้านคมนาคมขนส่ง',
-  description: 'ระบบฐานข้อมูลติดตามสิ่งอำนวยความสะดวกด้านคมนาคมขนส่งสำหรับคนทุกคน — กระทรวงคมนาคม',
+  description:
+    'ระบบฐานข้อมูลติดตามสิ่งอำนวยความสะดวกด้านคมนาคมขนส่งสำหรับคนทุกคน — สำนักงานนโยบายและแผนการขนส่งและจราจร ',
 }
 
 export default function RootLayout({

@@ -19,7 +19,9 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
           {/* your icon here */}
         </div>
         <div className="hidden sm:block">
-          <p className="text-foreground text-sm font-semibold">{title ?? 'กระทรวงคมนาคม'}</p>
+          <p className="text-foreground text-sm font-semibold">
+            {title ?? 'สำนักงานนโยบายและแผนการขนส่งและจราจร '}
+          </p>
           <p className="text-muted-foreground text-xs">{subtitle ?? 'ระบบสิ่งอำนวยความสะดวก'}</p>
         </div>
       </div>
