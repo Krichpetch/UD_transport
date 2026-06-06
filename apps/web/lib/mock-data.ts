@@ -29,10 +29,22 @@ export interface Station {
 
 export type ChecklistValue = 'มี' | 'ไม่มี' | 'ได้มาตรฐาน' | null
 
+export interface ChecklistPhoto {
+  id: string           // unique id for the photo
+  url: string          // object URL (local) or remote URL (Phase 2)
+  filename: string
+  uploadedAt: string
+}
+
 export interface ChecklistSubItem {
   id: string           // e.g. 'A1.1'
   labelTh: string
   value: ChecklistValue
+  // 'ได้มาตรฐาน' is only reachable when value was 'มี' — tracked as separate flag
+  meetsStandard: boolean
+  note: string         // auditor free-text note
+  photos: ChecklistPhoto[]
+  flagged: boolean     // พลิกฉาก / needs review flag
 }
 
 export interface ChecklistGroup {
@@ -95,7 +107,15 @@ export const mockChartData = [
 // ----------------------------------------------------------------
 
 function makeItems(pairs: [string, string][]): ChecklistSubItem[] {
-  return pairs.map(([id, labelTh]) => ({ id, labelTh, value: null }))
+  return pairs.map(([id, labelTh]) => ({
+    id,
+    labelTh,
+    value: null,
+    meetsStandard: false,
+    note: '',
+    photos: [],
+    flagged: false,
+  }))
 }
 
 export const checklistTemplates: ChecklistTemplate = {
@@ -414,7 +434,14 @@ export const checklistTemplates: ChecklistTemplate = {
 export function getChecklistTemplate(mode: TransportMode): ChecklistGroup[] {
   return checklistTemplates[mode].map(group => ({
     ...group,
-    items: group.items.map(item => ({ ...item, value: null as ChecklistValue })),
+    items: group.items.map(item => ({
+      ...item,
+      value: null as ChecklistValue,
+      meetsStandard: false,
+      note: '',
+      photos: [],
+      flagged: false,
+    })),
   }))
 }
 
