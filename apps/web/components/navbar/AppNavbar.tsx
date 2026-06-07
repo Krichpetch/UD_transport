@@ -42,15 +42,6 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
             3
           </span>
         </button>
-
-        {/* Admin */}
-        <div className="hidden items-center gap-3 md:flex">
-          <div className="bg-primary size-8 shrink-0 rounded-full" />
-          <div>
-            <p className="text-foreground text-xs font-medium">ผู้บริหาร</p>
-            <p className="text-muted-foreground text-xs">admin@mot.go.th</p>
-          </div>
-        </div>
       </div>
     </header>
   )

@@ -4,7 +4,6 @@ import * as React from 'react'
 import {
   mockStations,
   getChecklistTemplate,
-  getTransportLabel,
   type ChecklistGroup,
   type ChecklistSubItem,
   type ChecklistPhoto,
@@ -12,10 +11,6 @@ import {
 import {
   ChevronLeft,
   Download,
-  Send,
-  Save,
-  Camera,
-  FileText,
   X,
   ZoomIn,
   Flag,
@@ -66,104 +61,17 @@ function Lightbox({ photo, onClose }: { photo: ChecklistPhoto; onClose: () => vo
   )
 }
 
-// ─── Photo Strip (admin read-only OR auditor upload) ──────────
-function PhotoStrip({
-  photos,
-  itemId,
-  isAdmin,
-  onAdd,
-  onRemove,
-}: {
-  photos: ChecklistPhoto[]
-  itemId: string
-  isAdmin: boolean
-  onAdd: (itemId: string, photo: ChecklistPhoto) => void
-  onRemove: (itemId: string, photoId: string) => void
-}) {
-  const [lightbox, setLightbox] = React.useState<ChecklistPhoto | null>(null)
-  const fileRef = React.useRef<HTMLInputElement>(null)
-
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const url = URL.createObjectURL(file)
-    onAdd(itemId, {
-      id: `${itemId}-${Date.now()}`,
-      url,
-      filename: file.name,
-      uploadedAt: new Date().toLocaleString('th-TH'),
-    })
-    e.target.value = ''
-  }
-
-  if (photos.length === 0 && isAdmin) return null
-
-  return (
-    <>
-      {lightbox && <Lightbox photo={lightbox} onClose={() => setLightbox(null)} />}
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        {photos.map(p => (
-          <div key={p.id} className="group relative">
-            <button onClick={() => setLightbox(p)}
-              className="relative block size-14 overflow-hidden rounded-lg border border-border shadow-sm">
-              <img src={p.url} alt={p.filename} className="size-full object-cover" />
-              <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
-                <ZoomIn size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-            </button>
-            {!isAdmin && (
-              <button onClick={() => onRemove(itemId, p.id)}
-                className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity shadow">
-                <X size={8} />
-              </button>
-            )}
-          </div>
-        ))}
-        {!isAdmin && (
-          <>
-            <button onClick={() => fileRef.current?.click()}
-              className="flex size-14 flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed border-border text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-              <Camera size={16} />
-              <span className="text-[9px]">เพิ่มรูป</span>
-            </button>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-          </>
-        )}
-      </div>
-    </>
-  )
-}
-
 // ─── Checklist Row ────────────────────────────────────────────
-function ChecklistRow({
-  item,
-  isAdmin,
-  onSetValue,
-  onToggleStandard,
-  onToggleFlag,
-  onNoteChange,
-  onAddPhoto,
-  onRemovePhoto,
-}: {
-  item: ChecklistSubItem
-  isAdmin: boolean
-  onSetValue: (id: string, v: 'มี' | 'ไม่มี' | null) => void
-  onToggleStandard: (id: string) => void
-  onToggleFlag: (id: string) => void
-  onNoteChange: (id: string, note: string) => void
-  onAddPhoto: (itemId: string, photo: ChecklistPhoto) => void
-  onRemovePhoto: (itemId: string, photoId: string) => void
-}) {
-  const [noteOpen, setNoteOpen] = React.useState(false)
-  const hasExtras = item.note || item.photos.length > 0
+function ChecklistRow({ item }: { item: ChecklistSubItem }) {
+  const [lightbox, setLightbox] = React.useState<ChecklistPhoto | null>(null)
 
-  // Derived display value for the effective column state
   const isMi = item.value === 'มี'
   const isMaiMi = item.value === 'ไม่มี'
 
   return (
     <div className={`border-b border-border last:border-0 transition-colors ${item.flagged ? 'bg-orange-50/40' : ''}`}>
-      {/* Main row */}
+      {lightbox && <Lightbox photo={lightbox} onClose={() => setLightbox(null)} />}
+
       <div className="grid grid-cols-[3rem_1fr_3.5rem_3.5rem_5rem_4rem_4rem] items-center gap-0 px-0">
 
         {/* Code */}
@@ -173,135 +81,78 @@ function ChecklistRow({
           </span>
         </div>
 
-        {/* Label */}
+        {/* Label + note (read-only) */}
         <div className="px-3 py-3">
           <p className="text-sm text-foreground leading-snug">{item.labelTh}</p>
-          {/* Inline photo strip + note preview */}
-          {(hasExtras || noteOpen) && (
-            <div className="mt-1.5 space-y-1.5">
-              <PhotoStrip
-                photos={item.photos}
-                itemId={item.id}
-                isAdmin={isAdmin}
-                onAdd={onAddPhoto}
-                onRemove={onRemovePhoto}
-              />
-              {noteOpen && !isAdmin && (
-                <textarea
-                  value={item.note}
-                  onChange={e => onNoteChange(item.id, e.target.value)}
-                  placeholder="หมายเหตุ / บันทึกเพิ่มเติม..."
-                  rows={2}
-                  className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-                />
-              )}
-              {isAdmin && item.note && (
-                <p className="text-xs text-muted-foreground italic bg-secondary/60 rounded px-2 py-1">
-                  📝 {item.note}
-                </p>
-              )}
-            </div>
+          {item.note && (
+            <p className="mt-1 text-xs text-muted-foreground italic bg-secondary/60 rounded px-2 py-1">
+              📝 {item.note}
+            </p>
           )}
         </div>
 
-        {/* มี radio */}
+        {/* มี */}
         <div className="flex items-center justify-center py-3">
-          <button
-            disabled={isAdmin}
-            onClick={() => onSetValue(item.id, isMi ? null : 'มี')}
-            className={`size-5 rounded-full border-2 transition-all flex items-center justify-center
-              ${isMi
-                ? 'border-blue-500 bg-blue-500'
-                : 'border-border hover:border-blue-300'
-              } ${isAdmin ? 'cursor-default' : 'cursor-pointer'}`}
-          >
+          <div className={`size-5 rounded-full border-2 flex items-center justify-center cursor-default
+            ${isMi ? 'border-blue-500 bg-blue-500' : 'border-border/40'}`}>
             {isMi && <div className="size-2 rounded-full bg-white" />}
-          </button>
+          </div>
         </div>
 
-        {/* ไม่มี radio */}
+        {/* ไม่มี */}
         <div className="flex items-center justify-center py-3">
-          <button
-            disabled={isAdmin}
-            onClick={() => onSetValue(item.id, isMaiMi ? null : 'ไม่มี')}
-            className={`size-5 rounded-full border-2 transition-all flex items-center justify-center
-              ${isMaiMi
-                ? 'border-red-500 bg-red-500'
-                : 'border-border hover:border-red-300'
-              } ${isAdmin ? 'cursor-default' : 'cursor-pointer'}`}
-          >
+          <div className={`size-5 rounded-full border-2 flex items-center justify-center cursor-default
+            ${isMaiMi ? 'border-red-500 bg-red-500' : 'border-border/40'}`}>
             {isMaiMi && <div className="size-2 rounded-full bg-white" />}
-          </button>
+          </div>
         </div>
 
-        {/* ได้มาตรฐาน checkbox — only active when มี is selected */}
+        {/* ได้มาตรฐาน (read-only checkbox) */}
         <div className="flex items-center justify-center py-3">
           {isMi ? (
-            <button
-              disabled={isAdmin}
-              onClick={() => onToggleStandard(item.id)}
-              className={`size-5 rounded border-2 transition-all flex items-center justify-center
-                ${item.meetsStandard
-                  ? 'border-green-500 bg-green-500'
-                  : 'border-border hover:border-green-300'
-                } ${isAdmin ? 'cursor-default' : 'cursor-pointer'}`}
-            >
+            <div className={`size-5 rounded border-2 flex items-center justify-center cursor-default
+              ${item.meetsStandard ? 'border-green-500 bg-green-500' : 'border-border/40'}`}>
               {item.meetsStandard && (
                 <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
                   <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               )}
-            </button>
+            </div>
           ) : (
-            <div className="size-5 rounded border-2 border-border/30 bg-secondary/50" title="เลือก 'มี' ก่อนจึงจะตรวจสอบมาตรฐานได้" />
+            <div className="size-5 rounded border-2 border-border/20 bg-secondary/30" />
           )}
         </div>
 
-        {/* พลิกฉาก / flag */}
+        {/* หลักฐาน — read-only photo thumbnails */}
         <div className="flex items-center justify-center py-3">
-          {isAdmin ? (
-            item.flagged ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-600">
-                <Flag size={9} fill="currentColor" /> รอตรวจ
-              </span>
-            ) : (
-              <span className="text-muted-foreground/40 text-[10px]">—</span>
-            )
+          {item.photos.length > 0 ? (
+            <div className="flex flex-wrap gap-1 justify-center">
+              {item.photos.map(p => (
+                <button key={p.id} onClick={() => setLightbox(p)}
+                  className="group relative block size-9 overflow-hidden rounded border border-border shadow-sm">
+                  <img src={p.url} alt={p.filename} className="size-full object-cover" />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
+                    <ZoomIn size={10} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </button>
+              ))}
+            </div>
           ) : (
-            <button
-              onClick={() => onToggleFlag(item.id)}
-              title="ทำเครื่องหมายรอตรวจสอบ"
-              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-all
-                ${item.flagged
-                  ? 'bg-orange-100 text-orange-600'
-                  : 'text-muted-foreground hover:bg-secondary'
-                }`}
-            >
-              <Flag size={9} fill={item.flagged ? 'currentColor' : 'none'} />
-              {item.flagged ? 'รอตรวจ' : 'ปกติ'}
-            </button>
+            <span className="text-muted-foreground/40 text-[10px]">—</span>
           )}
         </div>
 
-        {/* หมายเหตุ toggle */}
+        {/* พลิกฉาก — read-only flag indicator */}
         <div className="flex items-center justify-center py-3 pr-3">
-          <button
-            onClick={() => setNoteOpen(v => !v)}
-            title="หมายเหตุ / รูปภาพ"
-            className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] transition-colors
-              ${(item.note || item.photos.length > 0)
-                ? 'border-primary/30 bg-primary/5 text-primary'
-                : 'border-border text-muted-foreground hover:bg-secondary'
-              }`}
-          >
-            <FileText size={10} />
-            {item.photos.length > 0 && (
-              <span className="flex size-3.5 items-center justify-center rounded-full bg-primary text-[8px] text-white">
-                {item.photos.length}
-              </span>
-            )}
-          </button>
+          {item.flagged ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-600">
+              <Flag size={9} fill="currentColor" /> รอตรวจ
+            </span>
+          ) : (
+            <span className="text-muted-foreground/40 text-[10px]">—</span>
+          )}
         </div>
+
       </div>
     </div>
   )
@@ -316,11 +167,7 @@ export default function StationChecklistPage({
   const { id } = React.use(params)
   const station = mockStations.find(s => s.id === id) ?? mockStations[0]!
 
-  // In a real app this comes from the auth context / session
-  const [viewMode, setViewMode] = React.useState<'AUDITOR' | 'ADMIN'>('AUDITOR')
-  const isAdmin = viewMode === 'ADMIN'
-
-  const [groups, setGroups] = React.useState<ChecklistGroup[]>(() =>
+  const [groups] = React.useState<ChecklistGroup[]>(() =>
     getChecklistTemplate(station.mode)
   )
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
@@ -337,43 +184,6 @@ export default function StationChecklistPage({
   const score = allItems.length > 0
     ? Math.round(((miCount + standardCount) / allItems.length) * 100)
     : 0
-
-  // ── Mutators ───────────────────────────────────────────────
-  function updateItem(itemId: string, updater: (item: ChecklistSubItem) => ChecklistSubItem) {
-    setGroups(prev => prev.map(g => ({
-      ...g,
-      items: g.items.map(i => i.id === itemId ? updater(i) : i),
-    })))
-  }
-
-  function handleSetValue(itemId: string, v: 'มี' | 'ไม่มี' | null) {
-    updateItem(itemId, i => ({
-      ...i,
-      value: v,
-      // reset meetsStandard when deselecting มี
-      meetsStandard: v === 'มี' ? i.meetsStandard : false,
-    }))
-  }
-
-  function handleToggleStandard(itemId: string) {
-    updateItem(itemId, i => ({ ...i, meetsStandard: !i.meetsStandard }))
-  }
-
-  function handleToggleFlag(itemId: string) {
-    updateItem(itemId, i => ({ ...i, flagged: !i.flagged }))
-  }
-
-  function handleNoteChange(itemId: string, note: string) {
-    updateItem(itemId, i => ({ ...i, note }))
-  }
-
-  function handleAddPhoto(itemId: string, photo: import('@/lib/mock-data').ChecklistPhoto) {
-    updateItem(itemId, i => ({ ...i, photos: [...i.photos, photo] }))
-  }
-
-  function handleRemovePhoto(itemId: string, photoId: string) {
-    updateItem(itemId, i => ({ ...i, photos: i.photos.filter(p => p.id !== photoId) }))
-  }
 
   function toggleGroup(groupId: string) {
     setOpenGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }))
@@ -406,42 +216,12 @@ export default function StationChecklistPage({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* View mode toggle (dev/demo only) */}
-          <div className="border-border flex overflow-hidden rounded-lg border text-xs">
-            {(['AUDITOR', 'ADMIN'] as const).map(mode => (
-              <button key={mode}
-                onClick={() => setViewMode(mode)}
-                className={`px-3 py-1.5 font-medium transition-colors ${
-                  viewMode === mode
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-secondary'
-                }`}
-              >
-                {mode === 'AUDITOR' ? '📋 ผู้ตรวจสอบ' : '🛡️ ผู้ดูแล'}
-              </button>
-            ))}
-          </div>
-
-          {!isAdmin && (
-            <>
-              <button className="border-border text-muted-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors">
-                <Save size={13} /> บันทึกร่าง
-              </button>
-              <button className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium">
-                <Send size={13} /> ส่งรายงาน
-              </button>
-            </>
-          )}
-          {isAdmin && (
-            <>
-              <button className="border-border text-muted-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors">
-                <Download size={13} /> Export PDF
-              </button>
-              <button className="border-border text-muted-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors">
-                <Download size={13} /> Export Excel
-              </button>
-            </>
-          )}
+          <button className="border-border text-muted-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors">
+            <Download size={13} /> Export PDF
+          </button>
+          <button className="border-border text-muted-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors">
+            <Download size={13} /> Export Excel
+          </button>
         </div>
       </div>
 
@@ -494,8 +274,8 @@ export default function StationChecklistPage({
                         { label: 'มี', cls: 'text-center py-2' },
                         { label: 'ไม่มี', cls: 'text-center py-2' },
                         { label: 'ได้มาตรฐาน', cls: 'text-center py-2' },
-                        { label: 'พลิกฉาก', cls: 'text-center py-2' },
-                        { label: 'หมายเหตุ', cls: 'text-center py-2 pr-3' },
+                        { label: 'หลักฐาน', cls: 'text-center py-2' },
+                        { label: 'พลิกฉาก', cls: 'text-center py-2 pr-3' },
                       ].map(({ label, cls }) => (
                         <div key={label} className={`text-muted-foreground text-[10px] font-medium uppercase tracking-wide ${cls}`}>
                           {label}
@@ -505,17 +285,7 @@ export default function StationChecklistPage({
 
                     {/* Rows */}
                     {group.items.map(item => (
-                      <ChecklistRow
-                        key={item.id}
-                        item={item}
-                        isAdmin={isAdmin}
-                        onSetValue={handleSetValue}
-                        onToggleStandard={handleToggleStandard}
-                        onToggleFlag={handleToggleFlag}
-                        onNoteChange={handleNoteChange}
-                        onAddPhoto={handleAddPhoto}
-                        onRemovePhoto={handleRemovePhoto}
-                      />
+                      <ChecklistRow key={item.id} item={item} />
                     ))}
                   </>
                 )}
@@ -561,20 +331,18 @@ export default function StationChecklistPage({
               </div>
             </div>
 
-            {/* Export buttons (admin only) */}
-            {isAdmin && (
-              <div className="mt-4 space-y-2 border-t border-border pt-4">
-                <button className="border-border hover:bg-secondary flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs text-muted-foreground transition-colors">
-                  <Download size={12} /> Export เป็น PDF
-                </button>
-                <button className="border-border hover:bg-secondary flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs text-muted-foreground transition-colors">
-                  <Download size={12} /> Export เป็น Excel
-                </button>
-              </div>
-            )}
+            {/* Export buttons */}
+            <div className="mt-4 space-y-2 border-t border-border pt-4">
+              <button className="border-border hover:bg-secondary flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs text-muted-foreground transition-colors">
+                <Download size={12} /> Export เป็น PDF
+              </button>
+              <button className="border-border hover:bg-secondary flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs text-muted-foreground transition-colors">
+                <Download size={12} /> Export เป็น Excel
+              </button>
+            </div>
 
-            {/* Flagged items summary (admin) */}
-            {isAdmin && flaggedCount > 0 && (
+            {/* Flagged items summary */}
+            {flaggedCount > 0 && (
               <div className="mt-4 rounded-lg bg-orange-50 border border-orange-200 p-3">
                 <p className="text-orange-700 text-xs font-semibold mb-1.5 flex items-center gap-1.5">
                   <Flag size={11} fill="currentColor" /> รายการรอตรวจสอบ ({flaggedCount})
