@@ -1,7 +1,30 @@
+'use client'
+
 import * as React from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+
+const ROLE_DESTINATIONS: Record<string, string> = {
+  EXECUTIVE: '/dashboard',
+  ADMIN: '/dashboard',
+  AUDITOR: '/audit',
+}
 
 export default function LoginPage() {
+  const router = useRouter()
+  const [role, setRole] = React.useState('')
+  const [error, setError] = React.useState('')
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!role) {
+      setError('กรุณาเลือกระดับผู้ใช้งาน')
+      return
+    }
+    // Phase 2: validate username + password against API here
+    router.push(ROLE_DESTINATIONS[role] ?? '/dashboard')
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="bg-card flex w-full max-w-md flex-col items-center gap-6 rounded-xl p-8 shadow-lg">
@@ -33,7 +56,7 @@ export default function LoginPage() {
           </div>
           <div className="text-center">
             <h1 className="text-foreground text-xl font-bold tracking-tight">
-              สำนักงานนโยบายและแผนการขนส่งและจราจร{' '}
+              สำนักงานนโยบายและแผนการขนส่งและจราจร
             </h1>
             <p className="text-muted-foreground mt-1 text-xs leading-snug">
               ระบบฐานข้อมูลติดตามสิ่งอำนวยความสะดวก
@@ -43,11 +66,10 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Divider */}
         <div className="border-border w-full border-t" />
 
         {/* Form */}
-        <form className="w-full space-y-4">
+        <form onSubmit={handleSubmit} className="w-full space-y-4">
           <div className="space-y-1.5">
             <label className="text-foreground text-sm font-medium">ชื่อผู้ใช้งาน</label>
             <input
@@ -68,20 +90,28 @@ export default function LoginPage() {
 
           <div className="space-y-1.5">
             <label className="text-foreground text-sm font-medium">ระดับผู้ใช้งาน</label>
-            <select className="border-input bg-background text-foreground focus:ring-ring w-full rounded-lg border px-3 py-2.5 text-sm focus:ring-2 focus:outline-none">
+            <select
+              value={role}
+              onChange={(e) => {
+                setRole(e.target.value)
+                setError('')
+              }}
+              className="border-input bg-background text-foreground focus:ring-ring w-full rounded-lg border px-3 py-2.5 text-sm focus:ring-2 focus:outline-none"
+            >
               <option value="">เลือกระดับผู้ใช้งาน</option>
               <option value="EXECUTIVE">ผู้บริหาร (Executive)</option>
               <option value="ADMIN">ผู้ดูแลระบบ (Admin)</option>
               <option value="AUDITOR">ผู้ตรวจสอบ (Auditor)</option>
             </select>
+            {error && <p className="text-xs text-red-500">{error}</p>}
           </div>
 
-          <Link
-            href="/dashboard"
-            className="bg-primary text-primary-foreground hover:bg-primary/90 mt-2 flex w-full items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
+          <button
+            type="submit"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 mt-2 w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
           >
             ลงชื่อเข้าใช้
-          </Link>
+          </button>
         </form>
 
         <p className="text-muted-foreground text-center text-xs">
