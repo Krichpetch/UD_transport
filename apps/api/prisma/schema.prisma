@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  AUDITOR
+  EXECUTIVE
+}
+
+enum ChecklistStatus {
+  DRAFT
+  SUBMITTED
+}
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  email        String    @unique
+  passwordHash String
+  role         UserRole  @default(AUDITOR)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  checklists Checklist[]
+}
+
+model Station {
+  id                String    @id @default(cuid())
+  name              String
+  nameTh            String
+  mode              String    // 'ทางบก' | 'ทางราง' | 'ทางเรือ' | 'ทางอากาศ'
+  railSubtype       String?   // 'รถไฟฟ้า' | 'รถไฟ' (rail only)
+  province          String
+  region            String
+  responsibleAgency String
+  lat               Float
+  lng               Float
+  score             Float     @default(0)
+  status            String    @default("ต้องปรับปรุง")
+  lastInspected     DateTime?
+  urgentIssues      String[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  checklists Checklist[]
+}
+
+// Stores one checklist submission (draft or submitted) per station per auditor session.
+// items: JSON snapshot of ChecklistGroup[] at submission time.
+model Checklist {
+  id          String          @id @default(cuid())
+  stationId   String
+  station     Station         @relation(fields: [stationId], references: [id])
+  auditorId   String
+  auditor     User            @relation(fields: [auditorId], references: [id])
+  items       Json
+  score       Float?
+  status      ChecklistStatus @default(DRAFT)
+  submittedAt DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}

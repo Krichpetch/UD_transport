@@ -4,10 +4,8 @@ import * as React from 'react'
 import {
   mockStations,
   getChecklistTemplate,
-  type ChecklistGroup,
-  type ChecklistSubItem,
-  type ChecklistPhoto,
 } from '@/lib/mock-data'
+import type { ChecklistGroup, ChecklistSubItem, ChecklistPhoto } from '@repo/types'
 import {
   ChevronLeft,
   Download,
@@ -33,7 +31,7 @@ function ScoreCircle({ score }: { score: number }) {
           strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
           transform="rotate(-90 64 64)" style={{ transition: 'stroke-dashoffset 0.6s ease' }} />
         <text x="64" y="60" textAnchor="middle" fontSize="26" fontWeight="bold" fill={color}>{score}%</text>
-        <text x="64" y="78" textAnchor="middle" fontSize="11" fill="var(--muted-foreground)">คะแนนรวม</text>
+        <text x="64" y="78" textAnchor="middle" fontSize="11" fill="var(--muted-foreground)">ร้อยละความสำเร็จ</text>
       </svg>
     </div>
   )
@@ -55,7 +53,7 @@ function Lightbox({ photo, onClose }: { photo: ChecklistPhoto; onClose: () => vo
           className="absolute -top-3 -right-3 flex size-8 items-center justify-center rounded-full bg-white shadow-lg">
           <X size={14} className="text-gray-700" />
         </button>
-        <p className="text-center mt-2 text-white/70 text-xs">{photo.filename}</p>
+        <p className="mt-2 text-center text-xs text-white/70">{photo.filename}</p>
       </div>
     </div>
   )
@@ -67,6 +65,7 @@ function ChecklistRow({ item }: { item: ChecklistSubItem }) {
 
   const isMi = item.value === 'มี'
   const isMaiMi = item.value === 'ไม่มี'
+  const isNA = item.value === 'N/A'
 
   return (
     <div className={`border-b border-border last:border-0 transition-colors ${item.flagged ? 'bg-orange-50/40' : ''}`}>
@@ -83,7 +82,14 @@ function ChecklistRow({ item }: { item: ChecklistSubItem }) {
 
         {/* Label + note (read-only) */}
         <div className="px-3 py-3">
-          <p className="text-sm text-foreground leading-snug">{item.labelTh}</p>
+          <div className="flex items-start gap-1.5">
+            <p className="text-sm text-foreground leading-snug">{item.labelTh}</p>
+            {item.cabinetPriority && (
+              <span className="mt-0.5 shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">
+                มติ ครม.
+              </span>
+            )}
+          </div>
           {item.note && (
             <p className="mt-1 text-xs text-muted-foreground italic bg-secondary/60 rounded px-2 py-1">
               📝 {item.note}
@@ -91,25 +97,35 @@ function ChecklistRow({ item }: { item: ChecklistSubItem }) {
           )}
         </div>
 
-        {/* มี */}
+        {/* มี — or N/A badge spanning this cell */}
         <div className="flex items-center justify-center py-3">
-          <div className={`size-5 rounded-full border-2 flex items-center justify-center cursor-default
-            ${isMi ? 'border-blue-500 bg-blue-500' : 'border-border/40'}`}>
-            {isMi && <div className="size-2 rounded-full bg-white" />}
-          </div>
+          {isNA ? (
+            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-400">
+              N/A
+            </span>
+          ) : (
+            <div className={`size-5 rounded-full border-2 flex items-center justify-center cursor-default
+              ${isMi ? 'border-blue-500 bg-blue-500' : 'border-border/40'}`}>
+              {isMi && <div className="size-2 rounded-full bg-white" />}
+            </div>
+          )}
         </div>
 
         {/* ไม่มี */}
         <div className="flex items-center justify-center py-3">
-          <div className={`size-5 rounded-full border-2 flex items-center justify-center cursor-default
-            ${isMaiMi ? 'border-red-500 bg-red-500' : 'border-border/40'}`}>
-            {isMaiMi && <div className="size-2 rounded-full bg-white" />}
-          </div>
+          {isNA ? null : (
+            <div className={`size-5 rounded-full border-2 flex items-center justify-center cursor-default
+              ${isMaiMi ? 'border-red-500 bg-red-500' : 'border-border/40'}`}>
+              {isMaiMi && <div className="size-2 rounded-full bg-white" />}
+            </div>
+          )}
         </div>
 
         {/* ได้มาตรฐาน (read-only checkbox) */}
         <div className="flex items-center justify-center py-3">
-          {isMi ? (
+          {isNA ? (
+            <div className="size-5 rounded border-2 border-border/10 bg-secondary/20" />
+          ) : isMi ? (
             <div className={`size-5 rounded border-2 flex items-center justify-center cursor-default
               ${item.meetsStandard ? 'border-green-500 bg-green-500' : 'border-border/40'}`}>
               {item.meetsStandard && (
@@ -174,16 +190,20 @@ export default function StationChecklistPage({
     () => Object.fromEntries(getChecklistTemplate(station.mode).map(g => [g.groupId, true]))
   )
 
-  // ── Derived stats ──────────────────────────────────────────
+  // ── Derived stats — N/A items excluded from scoring denominator ──
   const allItems = groups.flatMap(g => g.items)
-  const miCount = allItems.filter(i => i.value === 'มี').length
-  const maiMiCount = allItems.filter(i => i.value === 'ไม่มี').length
+  const eligibleItems = allItems.filter(i => i.value !== 'N/A')
+  const T = eligibleItems.length
+  const miCount       = allItems.filter(i => i.value === 'มี').length
   const standardCount = allItems.filter(i => i.value === 'มี' && i.meetsStandard).length
-  const answered = allItems.filter(i => i.value !== null).length
-  const flaggedCount = allItems.filter(i => i.flagged).length
-  const score = allItems.length > 0
-    ? Math.round(((miCount + standardCount) / allItems.length) * 100)
-    : 0
+  const maiMiCount    = allItems.filter(i => i.value === 'ไม่มี').length
+  const naCount       = allItems.filter(i => i.value === 'N/A').length
+  const flaggedCount  = allItems.filter(i => i.flagged).length
+
+  // 6 metrics per CLAUDE.md
+  const pctSuccess       = T > 0       ? Math.round((standardCount / T) * 100) : 0
+  const pctHasFacility   = T > 0       ? Math.round((miCount / T) * 100) : 0
+  const pctMeetsStandard = miCount > 0 ? Math.round((standardCount / miCount) * 100) : 0
 
   function toggleGroup(groupId: string) {
     setOpenGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }))
@@ -208,6 +228,8 @@ export default function StationChecklistPage({
             </span>
             <span>·</span>
             <span>จังหวัด: <strong className="text-foreground">{station.province}</strong></span>
+            <span>·</span>
+            <span>หน่วยงาน: <strong className="text-foreground">{station.responsibleAgency}</strong></span>
             {station.lastInspected && <>
               <span>·</span>
               <span>ตรวจล่าสุด: <strong className="text-foreground">{station.lastInspected}</strong></span>
@@ -300,34 +322,37 @@ export default function StationChecklistPage({
             <h2 className="text-foreground mb-4 text-sm font-semibold">สรุปผลการตรวจสอบ</h2>
 
             <div className="flex justify-center mb-4">
-              <ScoreCircle score={score} />
+              <ScoreCircle score={pctSuccess} />
             </div>
 
+            {/* 6 metrics per CLAUDE.md */}
             <div className="space-y-2.5 text-xs border-t border-border pt-4">
               {[
-                { label: 'รายการทั้งหมด', value: allItems.length, color: 'text-foreground' },
-                { label: 'ได้มาตรฐาน', value: standardCount, color: 'text-[#52aa4e]' },
-                { label: 'ยังไม่ได้มาตรฐาน', value: miCount - standardCount, color: 'text-[#ffc107]' },
-                { label: 'ไม่มี', value: maiMiCount, color: 'text-[#f44336]' },
-                { label: 'ยังไม่ตอบ', value: allItems.length - answered, color: 'text-muted-foreground' },
-                ...(flaggedCount > 0 ? [{ label: 'รอตรวจสอบ', value: flaggedCount, color: 'text-orange-500' }] : []),
+                { label: 'จำนวนรายการ (ไม่รวม N/A)', value: T,                   color: 'text-foreground' },
+                { label: 'จำนวนรายการที่มีสิ่งอำนวยฯ', value: miCount,           color: 'text-blue-600' },
+                { label: 'จำนวนรายการที่ได้มาตรฐาน',   value: standardCount,     color: 'text-[#52aa4e]' },
+                { label: 'ร้อยละความสำเร็จ',             value: `${pctSuccess}%`,       color: 'text-[#52aa4e]' },
+                { label: 'ร้อยละการจัดให้มีสิ่งอำนวยฯ', value: `${pctHasFacility}%`,   color: 'text-blue-600' },
+                { label: 'ร้อยละการได้มาตรฐาน',          value: `${pctMeetsStandard}%`, color: 'text-[#52aa4e]' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="flex items-center justify-between">
                   <span className="text-muted-foreground">{label}</span>
                   <span className={`font-semibold ${color}`}>{value}</span>
                 </div>
               ))}
-            </div>
 
-            {/* Progress */}
-            <div className="mt-4">
-              <div className="mb-1 flex justify-between text-[10px] text-muted-foreground">
-                <span>ความคืบหน้า</span>
-                <span>{allItems.length > 0 ? Math.round((answered / allItems.length) * 100) : 0}%</span>
-              </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-                <div className="bg-accent h-full rounded-full transition-all"
-                  style={{ width: `${allItems.length > 0 ? (answered / allItems.length) * 100 : 0}%` }} />
+              {/* Secondary counts */}
+              <div className="border-t border-border pt-2.5 space-y-2">
+                {[
+                  { label: 'ไม่มี',            value: maiMiCount, color: 'text-[#f44336]' },
+                  { label: 'ไม่เกี่ยวข้อง (N/A)', value: naCount,    color: 'text-gray-400' },
+                  ...(flaggedCount > 0 ? [{ label: 'รอตรวจสอบ', value: flaggedCount, color: 'text-orange-500' }] : []),
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="flex items-center justify-between">
+                    <span className="text-muted-foreground">{label}</span>
+                    <span className={`font-semibold ${color}`}>{value}</span>
+                  </div>
+                ))}
               </div>
             </div>
 

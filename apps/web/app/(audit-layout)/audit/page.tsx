@@ -4,10 +4,9 @@ import * as React from 'react'
 import {
   mockStations,
   getChecklistTemplate,
-  type ChecklistGroup,
-  type ChecklistValue,
 } from '@/lib/mock-data'
-import { Camera, MapPin, Save, Send, ChevronDown, ChevronUp } from 'lucide-react'
+import type { ChecklistGroup, ChecklistValue, ChecklistPhoto } from '@repo/types'
+import { Camera, MapPin, Save, Send, ChevronDown, ChevronUp, CheckSquare, Square } from 'lucide-react'
 
 export default function AuditPage() {
   const station = mockStations[1]! // Mo Chit as example
@@ -34,11 +33,83 @@ export default function AuditPage() {
           ? g
           : {
               ...g,
-              items: g.items.map((item) => (item.id === itemId ? { ...item, value } : item)),
+              items: g.items.map((item) =>
+                item.id !== itemId
+                  ? item
+                  : {
+                      ...item,
+                      value: item.value === value ? null : value,
+                      meetsStandard: value === 'มี' ? item.meetsStandard : false,
+                    }
+              ),
             }
       )
     )
   }
+
+  function setMeetsStandard(groupId: string, itemId: string, ms: boolean) {
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.groupId !== groupId
+          ? g
+          : {
+              ...g,
+              items: g.items.map((item) =>
+                item.id === itemId ? { ...item, meetsStandard: ms } : item
+              ),
+            }
+      )
+    )
+  }
+
+  function handlePhotoUpload(
+    groupId: string,
+    itemId: string,
+    files: FileList | null
+  ) {
+    if (!files || files.length === 0) return
+    const newPhotos: ChecklistPhoto[] = Array.from(files).map((file) => ({
+      id: `${itemId}-${file.name}-${file.size}`,
+      url: URL.createObjectURL(file),
+      filename: file.name,
+      uploadedAt: new Date().toISOString(),
+    }))
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.groupId !== groupId
+          ? g
+          : {
+              ...g,
+              items: g.items.map((item) =>
+                item.id !== itemId
+                  ? item
+                  : { ...item, photos: [...item.photos, ...newPhotos] }
+              ),
+            }
+      )
+    )
+  }
+
+  const VALUE_OPTIONS: { value: ChecklistValue; label: string; active: string; inactive: string }[] = [
+    {
+      value: 'มี',
+      label: 'มี',
+      active: 'border-blue-300 bg-blue-50 text-blue-700',
+      inactive: 'border-border text-muted-foreground',
+    },
+    {
+      value: 'ไม่มี',
+      label: 'ไม่มี',
+      active: 'border-red-200 bg-red-50 text-red-600',
+      inactive: 'border-border text-muted-foreground',
+    },
+    {
+      value: 'N/A',
+      label: 'N/A',
+      active: 'border-gray-300 bg-gray-100 text-gray-500',
+      inactive: 'border-border text-muted-foreground',
+    },
+  ]
 
   return (
     <div className="space-y-4">
@@ -99,32 +170,84 @@ export default function AuditPage() {
               <div className="divide-border divide-y border-t">
                 {group.items.map((item) => (
                   <div key={item.id} className="px-4 py-3.5">
-                    <div className="mb-2 flex items-start gap-2">
+                    {/* Label row */}
+                    <div className="mb-2.5 flex items-start gap-2">
                       <span className="text-muted-foreground bg-secondary mt-0.5 shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px]">
                         {item.id}
                       </span>
-                      <p className="text-foreground text-sm leading-snug">{item.labelTh}</p>
+                      <div className="flex-1">
+                        <p className="text-foreground text-sm leading-snug">{item.labelTh}</p>
+                        {item.cabinetPriority && (
+                          <span className="mt-0.5 inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">
+                            มติ ครม.
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Value buttons */}
+                    {/* Value buttons: มี / ไม่มี / N/A */}
                     <div className="flex gap-2">
-                      {(['มี', 'ไม่มี', 'ได้มาตรฐาน'] as ChecklistValue[]).map((opt) => (
+                      {VALUE_OPTIONS.map((opt) => (
                         <button
-                          key={opt!}
-                          onClick={() => setItemValue(group.groupId, item.id, opt)}
+                          key={opt.value!}
+                          onClick={() => setItemValue(group.groupId, item.id, opt.value)}
                           className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-all ${
-                            item.value === opt
-                              ? opt === 'มี'
-                                ? 'border-blue-200 bg-blue-50 text-blue-700'
-                                : opt === 'ไม่มี'
-                                  ? 'border-red-200 bg-red-50 text-red-600'
-                                  : 'border-green-200 bg-green-50 text-green-700'
-                              : 'border-border text-muted-foreground'
+                            item.value === opt.value ? opt.active : opt.inactive
                           }`}
                         >
-                          {opt}
+                          {opt.label}
                         </button>
                       ))}
+                    </div>
+
+                    {/* ได้มาตรฐาน toggle — only when value === 'มี' */}
+                    {item.value === 'มี' && (
+                      <button
+                        onClick={() =>
+                          setMeetsStandard(group.groupId, item.id, !item.meetsStandard)
+                        }
+                        className={`mt-2 flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
+                          item.meetsStandard
+                            ? 'border-green-300 bg-green-50 text-green-700'
+                            : 'border-border text-muted-foreground'
+                        }`}
+                      >
+                        {item.meetsStandard ? (
+                          <CheckSquare size={13} className="shrink-0" />
+                        ) : (
+                          <Square size={13} className="shrink-0" />
+                        )}
+                        ได้มาตรฐาน
+                      </button>
+                    )}
+
+                    {/* Per-item photo upload */}
+                    <div className="mt-2.5">
+                      {item.photos.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-1.5">
+                          {item.photos.map((p) => (
+                            <img
+                              key={p.id}
+                              src={p.url}
+                              alt={p.filename}
+                              className="size-14 rounded-lg border border-border object-cover"
+                            />
+                          ))}
+                        </div>
+                      )}
+                      <label className="border-border text-muted-foreground hover:bg-secondary flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors">
+                        <Camera size={12} />
+                        แนบรูปภาพ
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={(e) =>
+                            handlePhotoUpload(group.groupId, item.id, e.target.files)
+                          }
+                        />
+                      </label>
                     </div>
                   </div>
                 ))}
@@ -133,18 +256,6 @@ export default function AuditPage() {
           </div>
         )
       })}
-
-      {/* Photo upload */}
-      <div className="rounded-xl bg-white shadow-sm">
-        <div className="px-4 py-3.5">
-          <p className="text-foreground mb-3 text-sm font-semibold">📸 หลักฐานภาพถ่าย</p>
-          <button className="border-border text-muted-foreground hover:bg-secondary flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed py-6 transition-colors">
-            <Camera size={24} className="text-muted-foreground" />
-            <p className="text-sm font-medium">แตะเพื่อถ่ายภาพ / เลือกไฟล์</p>
-            <p className="text-xs">รองรับ JPG, PNG ขนาดสูงสุด 10MB</p>
-          </button>
-        </div>
-      </div>
 
       {/* Actions */}
       <div className="flex gap-3 pb-6">

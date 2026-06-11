@@ -1,7 +1,12 @@
 'use client'
 
 import * as React from 'react'
-import { mockStations, getTransportLabel, type Station, type TransportMode, type StationStatus } from '@/lib/mock-data'
+import {
+  mockStations,
+  getTransportLabel,
+  RESPONSIBLE_AGENCIES,
+} from '@/lib/mock-data'
+import type { Station, TransportMode, StationStatus } from '@repo/types'
 import { Search, Filter, ClipboardList, Pencil, Building2 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -32,11 +37,14 @@ function ScoreBar({ score }: { score: number }) {
 
 const TRANSPORT_MODES: TransportMode[] = ['ทางบก', 'ทางราง', 'ทางเรือ', 'ทางอากาศ']
 const STATUS_OPTIONS: StationStatus[] = ['ผ่านมาตรฐาน', 'ต้องปรับปรุง', 'ไม่ผ่าน']
+const REGIONS = [...new Set(mockStations.map(s => s.region))].sort()
 
 export default function StationsPage() {
   const [search, setSearch] = React.useState('')
   const [typeFilter, setTypeFilter] = React.useState<TransportMode | ''>('')
   const [statusFilter, setStatusFilter] = React.useState<StationStatus | ''>('')
+  const [agencyFilter, setAgencyFilter] = React.useState('')
+  const [regionFilter, setRegionFilter] = React.useState('')
 
   const filtered = mockStations.filter((s) => {
     const matchSearch =
@@ -44,10 +52,22 @@ export default function StationsPage() {
       s.nameTh.includes(search) ||
       s.name.toLowerCase().includes(search.toLowerCase()) ||
       s.province.includes(search)
-    const matchType = !typeFilter || s.mode === typeFilter
+    const matchType   = !typeFilter   || s.mode === typeFilter
     const matchStatus = !statusFilter || s.status === statusFilter
-    return matchSearch && matchType && matchStatus
+    const matchAgency = !agencyFilter || s.responsibleAgency === agencyFilter
+    const matchRegion = !regionFilter || s.region === regionFilter
+    return matchSearch && matchType && matchStatus && matchAgency && matchRegion
   })
+
+  const hasFilters = !!(search || typeFilter || statusFilter || agencyFilter || regionFilter)
+
+  function clearFilters() {
+    setSearch('')
+    setTypeFilter('')
+    setStatusFilter('')
+    setAgencyFilter('')
+    setRegionFilter('')
+  }
 
   return (
     <div className="space-y-6">
@@ -80,7 +100,7 @@ export default function StationsPage() {
             />
           </div>
 
-          {/* Type filter */}
+          {/* Transport type */}
           <div className="flex items-center gap-1.5">
             <Filter size={13} className="text-muted-foreground" />
             <select
@@ -93,7 +113,7 @@ export default function StationsPage() {
             </select>
           </div>
 
-          {/* Status filter */}
+          {/* Status */}
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as StationStatus | '')}
@@ -103,9 +123,29 @@ export default function StationsPage() {
             {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
 
-          {(search || typeFilter || statusFilter) && (
+          {/* Region */}
+          <select
+            value={regionFilter}
+            onChange={(e) => setRegionFilter(e.target.value)}
+            className="border-input bg-background text-foreground focus:ring-ring rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1"
+          >
+            <option value="">ทุกภาค</option>
+            {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+
+          {/* Agency */}
+          <select
+            value={agencyFilter}
+            onChange={(e) => setAgencyFilter(e.target.value)}
+            className="border-input bg-background text-foreground focus:ring-ring rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1"
+          >
+            <option value="">ทุกหน่วยงาน</option>
+            {RESPONSIBLE_AGENCIES.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+
+          {hasFilters && (
             <button
-              onClick={() => { setSearch(''); setTypeFilter(''); setStatusFilter('') }}
+              onClick={clearFilters}
               className="text-muted-foreground hover:text-foreground text-sm underline"
             >
               ล้างตัวกรอง
@@ -122,7 +162,8 @@ export default function StationsPage() {
               <tr className="border-border bg-secondary/30 border-b">
                 <th className="text-muted-foreground px-5 py-3 text-left text-xs font-medium uppercase tracking-wide">ชื่อสถานี</th>
                 <th className="text-muted-foreground px-3 py-3 text-left text-xs font-medium uppercase tracking-wide">ประเภท</th>
-                <th className="text-muted-foreground px-3 py-3 text-left text-xs font-medium uppercase tracking-wide">จังหวัด</th>
+                <th className="text-muted-foreground px-3 py-3 text-left text-xs font-medium uppercase tracking-wide">จังหวัด / ภาค</th>
+                <th className="text-muted-foreground px-3 py-3 text-left text-xs font-medium uppercase tracking-wide">หน่วยงาน</th>
                 <th className="text-muted-foreground px-3 py-3 text-left text-xs font-medium uppercase tracking-wide">คะแนน UD</th>
                 <th className="text-muted-foreground px-3 py-3 text-left text-xs font-medium uppercase tracking-wide">สถานะ</th>
                 <th className="text-muted-foreground px-3 py-3 text-left text-xs font-medium uppercase tracking-wide">ตรวจล่าสุด</th>
@@ -132,7 +173,7 @@ export default function StationsPage() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-muted-foreground py-12 text-center text-sm">
+                  <td colSpan={8} className="text-muted-foreground py-12 text-center text-sm">
                     ไม่พบสถานีที่ตรงกับเงื่อนไข
                   </td>
                 </tr>
@@ -152,6 +193,9 @@ export default function StationsPage() {
                     <td className="px-3 py-3.5">
                       <p className="text-foreground text-xs">{station.province}</p>
                       <p className="text-muted-foreground text-xs">{station.region}</p>
+                    </td>
+                    <td className="px-3 py-3.5">
+                      <span className="text-foreground text-xs font-medium">{station.responsibleAgency}</span>
                     </td>
                     <td className="px-3 py-3.5">
                       <ScoreBar score={station.score} />
