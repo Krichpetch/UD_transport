@@ -3,6 +3,7 @@ import localFont from 'next/font/local'
 import './globals.css'
 import 'leaflet/dist/leaflet.css'
 import { cn } from '@/lib/utils'
+import { Providers } from './providers'
 
 const lineSeed = localFont({
   src: [
@@ -38,7 +39,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="th" className={cn('font-sans', lineSeed.variable)}>
-      <body>{children}</body>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   )
 }

@@ -3,6 +3,9 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useMutation } from '@tanstack/react-query'
+import { login } from '@/lib/api/auth'
+import { useAuthStore } from '@/stores/auth.store'
 
 const ROLE_DESTINATIONS: Record<string, string> = {
   EXECUTIVE: '/dashboard',
@@ -12,18 +15,27 @@ const ROLE_DESTINATIONS: Record<string, string> = {
 
 export default function LoginPage() {
   const router = useRouter()
-  const [role, setRole] = React.useState('')
-  const [error, setError] = React.useState('')
+  const storeLogin = useAuthStore((s) => s.login)
+
+  const [username, setUsername] = React.useState('')
+  const [password, setPassword] = React.useState('')
+
+  const mutation = useMutation({
+    mutationFn: () => login(username, password),
+    onSuccess: (data) => {
+      storeLogin(data.user, data.access_token)
+      router.push(ROLE_DESTINATIONS[data.user.role] ?? '/dashboard')
+    },
+  })
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!role) {
-      setError('กรุณาเลือกระดับผู้ใช้งาน')
-      return
-    }
-    // Phase 2: validate username + password against API here
-    router.push(ROLE_DESTINATIONS[role] ?? '/dashboard')
+    if (!username || !password) return
+    mutation.mutate()
   }
+
+  const errorMsg =
+    mutation.error instanceof Error ? mutation.error.message : null
 
   return (
     <div className="flex min-h-screen items-center justify-center">
@@ -75,7 +87,10 @@ export default function LoginPage() {
             <input
               type="text"
               placeholder="กรอกชื่อผู้ใช้งาน"
-              className="border-input bg-background placeholder:text-muted-foreground focus:ring-ring w-full rounded-lg border px-3 py-2.5 text-sm focus:ring-2 focus:outline-none"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              disabled={mutation.isPending}
+              className="border-input bg-background placeholder:text-muted-foreground focus:ring-ring w-full rounded-lg border px-3 py-2.5 text-sm focus:ring-2 focus:outline-none disabled:opacity-50"
             />
           </div>
 
@@ -84,33 +99,23 @@ export default function LoginPage() {
             <input
               type="password"
               placeholder="••••••••"
-              className="border-input bg-background placeholder:text-muted-foreground focus:ring-ring w-full rounded-lg border px-3 py-2.5 text-sm focus:ring-2 focus:outline-none"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={mutation.isPending}
+              className="border-input bg-background placeholder:text-muted-foreground focus:ring-ring w-full rounded-lg border px-3 py-2.5 text-sm focus:ring-2 focus:outline-none disabled:opacity-50"
             />
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-foreground text-sm font-medium">ระดับผู้ใช้งาน</label>
-            <select
-              value={role}
-              onChange={(e) => {
-                setRole(e.target.value)
-                setError('')
-              }}
-              className="border-input bg-background text-foreground focus:ring-ring w-full rounded-lg border px-3 py-2.5 text-sm focus:ring-2 focus:outline-none"
-            >
-              <option value="">เลือกระดับผู้ใช้งาน</option>
-              <option value="EXECUTIVE">ผู้บริหาร (Executive)</option>
-              <option value="ADMIN">ผู้ดูแลระบบ (Admin)</option>
-              <option value="AUDITOR">ผู้ตรวจสอบ (Auditor)</option>
-            </select>
-            {error && <p className="text-xs text-red-500">{error}</p>}
-          </div>
+          {errorMsg && (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{errorMsg}</p>
+          )}
 
           <button
             type="submit"
-            className="bg-primary text-primary-foreground hover:bg-primary/90 mt-2 w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
+            disabled={mutation.isPending || !username || !password}
+            className="bg-primary text-primary-foreground hover:bg-primary/90 mt-2 w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
           >
-            ลงชื่อเข้าใช้
+            {mutation.isPending ? 'กำลังเข้าสู่ระบบ…' : 'ลงชื่อเข้าใช้'}
           </button>
         </form>
 
