@@ -1,7 +1,8 @@
 'use client'
 
 import * as React from 'react'
-import { mockKpi, mockStations, getTransportLabel, RESPONSIBLE_AGENCIES } from '@/lib/mock-data'
+import { getTransportLabel, RESPONSIBLE_AGENCIES } from '@/lib/mock-data'
+import { useStations, useStationSummary } from '@/hooks/use-stations'
 import type { TransportMode, StationStatus } from '@repo/types'
 import { StationBarChart } from '@/components/charts/StationBarChart'
 import { ThailandMap } from '@/components/maps/ThailandMap'
@@ -39,7 +40,6 @@ function TransportBadge({ type }: { type: string }) {
 }
 
 const TRANSPORT_MODES: TransportMode[] = ['ทางบก', 'ทางราง', 'ทางเรือ', 'ทางอากาศ']
-const REGIONS = [...new Set(mockStations.map(s => s.region))].sort()
 const CHECKLIST_CATEGORIES = [
   { value: 'A', label: 'A — การเข้าถึง (Accessibility)' },
   { value: 'B', label: 'B — การดำเนินงาน (Operation)' },
@@ -50,6 +50,13 @@ const SELECT_CLS = 'border-input bg-background text-foreground focus:ring-ring r
 
 // ---- Page ----
 export default function DashboardPage() {
+  const { data: summary } = useStationSummary()
+  const { data: stations = [] } = useStations()
+  const REGIONS = React.useMemo(
+    () => [...new Set(stations.map(s => s.region))].sort(),
+    [stations],
+  )
+
   const [modeFilter, setModeFilter] = React.useState<TransportMode | ''>('')
   const [regionFilter, setRegionFilter] = React.useState('')
   const [agencyFilter, setAgencyFilter] = React.useState('')
@@ -64,8 +71,7 @@ export default function DashboardPage() {
     setCategoryFilter('')
   }
 
-  // Filter mockStations for station-level components (urgent panel, table)
-  const filteredStations = mockStations.filter(s =>
+  const filteredStations = stations.filter(s =>
     (!modeFilter   || s.mode === modeFilter) &&
     (!regionFilter || s.region === regionFilter) &&
     (!agencyFilter || s.responsibleAgency === agencyFilter)
@@ -146,7 +152,7 @@ export default function DashboardPage() {
               <Building2 size={14} className="text-primary" />
             </div>
           </div>
-          <p className="text-foreground text-3xl font-bold">{mockKpi.totalStations.toLocaleString()}</p>
+          <p className="text-foreground text-3xl font-bold">{summary ? summary.totalStations.toLocaleString() : '…'}</p>
           <p className="text-muted-foreground mt-1 text-xs">ครอบคลุมทุกประเภท</p>
         </div>
 
@@ -157,10 +163,10 @@ export default function DashboardPage() {
               <CheckCircle2 size={14} className="text-[#52aa4e]" />
             </div>
           </div>
-          <p className="text-3xl font-bold text-[#52aa4e]">{mockKpi.passing.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-[#52aa4e]">{summary ? summary.passing.toLocaleString() : '…'}</p>
           <div className="mt-1 flex items-center gap-1">
             <TrendingUp size={11} className="text-[#52aa4e]" />
-            <p className="text-muted-foreground text-xs">{mockKpi.passRate}% ของทั้งหมด</p>
+            <p className="text-muted-foreground text-xs">{summary ? `${summary.passRate}%` : '…'} ของทั้งหมด</p>
           </div>
         </div>
 
@@ -171,7 +177,7 @@ export default function DashboardPage() {
               <AlertTriangle size={14} className="text-[#ffc107]" />
             </div>
           </div>
-          <p className="text-3xl font-bold text-[#ffc107]">{mockKpi.needsImprovement.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-[#ffc107]">{summary ? summary.needsImprovement.toLocaleString() : '…'}</p>
           <p className="text-muted-foreground mt-1 text-xs">รอการแก้ไข</p>
         </div>
 
@@ -182,7 +188,7 @@ export default function DashboardPage() {
               <XCircle size={14} className="text-[#f44336]" />
             </div>
           </div>
-          <p className="text-3xl font-bold text-[#f44336]">{mockKpi.failing.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-[#f44336]">{summary ? summary.failing.toLocaleString() : '…'}</p>
           <div className="mt-1 flex items-center gap-1">
             <TrendingDown size={11} className="text-[#f44336]" />
             <p className="text-muted-foreground text-xs">ต้องดำเนินการเร่งด่วน</p>

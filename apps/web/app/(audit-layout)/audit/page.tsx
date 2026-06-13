@@ -1,26 +1,40 @@
 'use client'
 
 import * as React from 'react'
-import {
-  mockStations,
-  getChecklistTemplate,
-} from '@/lib/mock-data'
+import { getChecklistTemplate } from '@/lib/mock-data'
+import { useStations, useStation } from '@/hooks/use-stations'
+import { useSaveDraft, useSubmitChecklist } from '@/hooks/use-checklists'
 import type { ChecklistGroup, ChecklistValue, ChecklistPhoto } from '@repo/types'
 import { Camera, MapPin, Save, Send, ChevronDown, ChevronUp, CheckSquare, Square } from 'lucide-react'
 
 export default function AuditPage() {
-  const station = mockStations[1]! // Mo Chit as example
-  const [groups, setGroups] = React.useState<ChecklistGroup[]>(() =>
-    getChecklistTemplate(station.mode)
-  )
-  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({
-    [getChecklistTemplate(station.mode)[0]?.groupId ?? '']: true,
-  })
+  const { data: allStations = [] } = useStations()
+  const [selectedId, setSelectedId] = React.useState('')
+  const { data: station } = useStation(selectedId)
+  const saveDraftMutation = useSaveDraft(selectedId)
+  const submitMutation = useSubmitChecklist(selectedId)
+  const [submitted, setSubmitted] = React.useState(false)
+
+  const [groups, setGroups] = React.useState<ChecklistGroup[]>([])
+  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({})
+
+  React.useEffect(() => {
+    if (!station) return
+    const template = getChecklistTemplate(station.mode)
+    setGroups(template)
+    setOpenGroups({ [template[0]?.groupId ?? '']: true })
+    setSubmitted(false)
+  }, [station?.id])
 
   const allItems = groups.flatMap((g) => g.items)
   const answered = allItems.filter((i) => i.value !== null).length
   const total = allItems.length
-  const progress = Math.round((answered / total) * 100)
+  const progress = total > 0 ? Math.round((answered / total) * 100) : 0
+
+  // Score for submission: (ได้มาตรฐาน ÷ ไม่รวม N/A) × 100
+  const eligibleCount = allItems.filter(i => i.value !== 'N/A').length
+  const standardCount = allItems.filter(i => i.value === 'มี' && i.meetsStandard).length
+  const score = eligibleCount > 0 ? Math.round((standardCount / eligibleCount) * 100) : 0
 
   function toggleGroup(groupId: string) {
     setOpenGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }))
@@ -111,8 +125,59 @@ export default function AuditPage() {
     },
   ]
 
+  const stationPicker = (
+    <div className="rounded-xl bg-white/10 p-4 backdrop-blur">
+      <label className="mb-1.5 block text-xs text-white/70">เลือกสถานีที่จะตรวจสอบ</label>
+      <select
+        value={selectedId}
+        onChange={(e) => setSelectedId(e.target.value)}
+        className="w-full rounded-lg border border-white/20 bg-white/20 px-3 py-2.5 text-sm text-white focus:outline-none"
+      >
+        <option value="" className="text-gray-900">— เลือกสถานี —</option>
+        {allStations.map((s) => (
+          <option key={s.id} value={s.id} className="text-gray-900">
+            {s.nameTh} ({s.province})
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+
+  if (!selectedId || !station) {
+    return (
+      <div className="space-y-4">
+        {stationPicker}
+        <div className="rounded-xl bg-white/10 p-6 text-center text-sm text-white/60 backdrop-blur">
+          {!selectedId ? 'กรุณาเลือกสถานีเพื่อเริ่มการตรวจสอบ' : 'กำลังโหลด…'}
+        </div>
+      </div>
+    )
+  }
+
+  if (submitted) {
+    return (
+      <div className="space-y-4">
+        {stationPicker}
+        <div className="rounded-xl bg-white/10 p-6 text-center backdrop-blur">
+          <p className="text-lg font-bold text-white">ส่งรายงานสำเร็จ ✓</p>
+          <p className="mt-1 text-sm text-white/70">{station.nameTh}</p>
+          <p className="mt-1 text-xs text-white/50">คะแนน UD: {score}%</p>
+          <button
+            onClick={() => { setSelectedId(''); setSubmitted(false) }}
+            className="mt-4 rounded-lg bg-white/20 px-4 py-2 text-sm font-medium text-white"
+          >
+            ตรวจสถานีถัดไป
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
+      {/* Station picker */}
+      {stationPicker}
+
       {/* Header */}
       <div className="rounded-xl bg-white/10 p-4 backdrop-blur">
         <div className="mb-1 flex items-start justify-between">
@@ -259,11 +324,22 @@ export default function AuditPage() {
 
       {/* Actions */}
       <div className="flex gap-3 pb-6">
-        <button className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 py-3 text-sm font-medium text-white backdrop-blur">
-          <Save size={15} /> บันทึกร่าง
+        <button
+          onClick={() => saveDraftMutation.mutate(groups)}
+          disabled={saveDraftMutation.isPending}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 py-3 text-sm font-medium text-white backdrop-blur disabled:opacity-50"
+        >
+          <Save size={15} /> {saveDraftMutation.isPending ? 'กำลังบันทึก…' : 'บันทึกร่าง'}
         </button>
-        <button className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white py-3 text-sm font-bold text-[#1a3557]">
-          <Send size={15} /> ส่งรายงาน
+        <button
+          onClick={() => submitMutation.mutate(
+            { items: groups, score },
+            { onSuccess: () => setSubmitted(true) },
+          )}
+          disabled={submitMutation.isPending || progress < 100}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white py-3 text-sm font-bold text-[#1a3557] disabled:opacity-50"
+        >
+          <Send size={15} /> {submitMutation.isPending ? 'กำลังส่ง…' : 'ส่งรายงาน'}
         </button>
       </div>
     </div>

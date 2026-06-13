@@ -1,11 +1,8 @@
 'use client'
 
 import * as React from 'react'
-import {
-  mockStations,
-  getTransportLabel,
-  RESPONSIBLE_AGENCIES,
-} from '@/lib/mock-data'
+import { getTransportLabel, RESPONSIBLE_AGENCIES } from '@/lib/mock-data'
+import { useStations } from '@/hooks/use-stations'
 import type { Station, TransportMode, StationStatus } from '@repo/types'
 import { Search, Filter, ClipboardList, Pencil, Building2 } from 'lucide-react'
 import Link from 'next/link'
@@ -37,16 +34,28 @@ function ScoreBar({ score }: { score: number }) {
 
 const TRANSPORT_MODES: TransportMode[] = ['ทางบก', 'ทางราง', 'ทางเรือ', 'ทางอากาศ']
 const STATUS_OPTIONS: StationStatus[] = ['ผ่านมาตรฐาน', 'ต้องปรับปรุง', 'ไม่ผ่าน']
-const REGIONS = [...new Set(mockStations.map(s => s.region))].sort()
 
 export default function StationsPage() {
+  const { data: stations = [], isLoading, error } = useStations()
+  const REGIONS = React.useMemo(
+    () => [...new Set(stations.map(s => s.region))].sort(),
+    [stations],
+  )
+
   const [search, setSearch] = React.useState('')
   const [typeFilter, setTypeFilter] = React.useState<TransportMode | ''>('')
   const [statusFilter, setStatusFilter] = React.useState<StationStatus | ''>('')
   const [agencyFilter, setAgencyFilter] = React.useState('')
   const [regionFilter, setRegionFilter] = React.useState('')
 
-  const filtered = mockStations.filter((s) => {
+  if (isLoading) return (
+    <div className="flex items-center justify-center p-16 text-sm text-muted-foreground">กำลังโหลด…</div>
+  )
+  if (error) return (
+    <div className="flex items-center justify-center p-16 text-sm text-red-500">เกิดข้อผิดพลาด: {(error as Error).message}</div>
+  )
+
+  const filtered = stations.filter((s) => {
     const matchSearch =
       !search ||
       s.nameTh.includes(search) ||
@@ -76,7 +85,7 @@ export default function StationsPage() {
         <div>
           <h1 className="text-foreground text-xl font-bold">จัดการสถานี</h1>
           <p className="text-muted-foreground text-sm">
-            สถานีทั้งหมด {mockStations.length} แห่ง · แสดงผล {filtered.length} รายการ
+            สถานีทั้งหมด {stations.length} แห่ง · แสดงผล {filtered.length} รายการ
           </p>
         </div>
         <button className="bg-primary text-primary-foreground flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90">

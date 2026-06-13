@@ -1,10 +1,9 @@
 'use client'
 
 import * as React from 'react'
-import {
-  mockStations,
-  getChecklistTemplate,
-} from '@/lib/mock-data'
+import { getChecklistTemplate } from '@/lib/mock-data'
+import { useStation } from '@/hooks/use-stations'
+import { useChecklist } from '@/hooks/use-checklists'
 import type { ChecklistGroup, ChecklistSubItem, ChecklistPhoto } from '@repo/types'
 import {
   ChevronLeft,
@@ -181,14 +180,13 @@ export default function StationChecklistPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = React.use(params)
-  const station = mockStations.find(s => s.id === id) ?? mockStations[0]!
+  const { data: station, isLoading: stationLoading, error: stationError } = useStation(id)
+  const { data: checklist } = useChecklist(id)
 
-  const [groups] = React.useState<ChecklistGroup[]>(() =>
-    getChecklistTemplate(station.mode)
-  )
-  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
-    () => Object.fromEntries(getChecklistTemplate(station.mode).map(g => [g.groupId, true]))
-  )
+  const groups: ChecklistGroup[] =
+    checklist?.items ?? (station ? getChecklistTemplate(station.mode) : [])
+
+  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({})
 
   // ── Derived stats — N/A items excluded from scoring denominator ──
   const allItems = groups.flatMap(g => g.items)
@@ -208,6 +206,13 @@ export default function StationChecklistPage({
   function toggleGroup(groupId: string) {
     setOpenGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }))
   }
+
+  if (stationLoading) return (
+    <div className="flex items-center justify-center p-16 text-sm text-muted-foreground">กำลังโหลด…</div>
+  )
+  if (stationError || !station) return (
+    <div className="flex items-center justify-center p-16 text-sm text-red-500">ไม่พบสถานี</div>
+  )
 
   // ── Render ─────────────────────────────────────────────────
   return (
