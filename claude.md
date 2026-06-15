@@ -1,5 +1,19 @@
 # UD Transport — Claude Code Instructions
 
+## Government project — read first
+
+**Client:** สนข. (Office of Transport and Traffic Policy and Planning), Ministry of Transport, Thailand
+**Classification:** Official government inspection data — treat as confidential.
+
+Security rules that apply to every change:
+- No real inspection data or PII should appear in test fixtures, seed files, or logs
+- No `.env`, `.env.*`, or credential files should ever be committed to git
+- All API endpoints must be role-guarded (ADMIN / AUDITOR / EXECUTIVE)
+- Every data mutation (checklist submit, station update) must write an AuditLog entry
+- Secrets (JWT_SECRET, DATABASE_URL) must be long random strings in production — never the dev placeholders from `.env.example`
+
+---
+
 ## Project structure
 Turborepo monorepo. Main app is in `apps/web` (Next.js 16, TypeScript, Tailwind v4, shadcn/ui).
 Backend will live in `apps/api` (NestJS, Prisma, PostgreSQL) — not yet built.
