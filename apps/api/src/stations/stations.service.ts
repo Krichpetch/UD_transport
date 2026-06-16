@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
+import { CreateStationDto } from './dto/create-station.dto'
 
 @Injectable()
 export class StationsService {
@@ -24,6 +25,34 @@ export class StationsService {
 
   findOne(id: string) {
     return this.prisma.station.findUniqueOrThrow({ where: { id } })
+  }
+
+  create(dto: CreateStationDto) {
+    return this.prisma.station.create({ data: { ...dto, urgentIssues: [] } })
+  }
+
+  async approveChecklist(stationId: string, checklistId: string) {
+    const cl = await this.prisma.checklist.update({
+      where: { id: checklistId },
+      data: { status: 'APPROVED' },
+    })
+    const score = cl.score ?? 0
+    const status =
+      score >= 75 ? 'ผ่านมาตรฐาน' : score >= 50 ? 'ต้องปรับปรุง' : 'ไม่ผ่าน'
+    await this.prisma.station.update({
+      where: { id: stationId },
+      data: { score, status, lastInspected: cl.submittedAt },
+    })
+    return cl
+  }
+
+  async getPendingReviews(): Promise<string[]> {
+    const rows = await this.prisma.checklist.findMany({
+      where: { status: 'SUBMITTED' },
+      select: { stationId: true },
+      distinct: ['stationId'],
+    })
+    return rows.map(r => r.stationId)
   }
 
   async summary() {

@@ -8,6 +8,30 @@ export interface StationFilters {
   status?: string
 }
 
+export interface CreateStationInput {
+  name: string
+  nameTh: string
+  mode: string
+  railSubtype?: string
+  province: string
+  region: string
+  responsibleAgency: string
+  lat: number
+  lng: number
+}
+
+export interface ParsedRow {
+  nameTh: string
+  name: string
+  mode: string
+  railSubtype?: string
+  province: string
+  region: string
+  responsibleAgency: string
+  lat: number
+  lng: number
+}
+
 export function getStations(filters?: StationFilters) {
   const params = new URLSearchParams()
   if (filters?.mode)   params.set('mode',   filters.mode)
@@ -24,4 +48,16 @@ export function getStation(id: string) {
 
 export function getStationSummary() {
   return api.get<KpiSummary>('/stations/summary')
+}
+
+export function createStation(data: CreateStationInput) {
+  return api.post<Station>('/stations', data)
+}
+
+export function getPendingReviews() {
+  return api.get<string[]>('/stations/pending-reviews')
+}
+
+export function approveChecklist(stationId: string, checklistId: string) {
+  return api.post<void>(`/stations/${stationId}/checklist/${checklistId}/approve`, {})
 }
