@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { ChecklistStatus } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 
 @Injectable()
@@ -7,7 +8,7 @@ export class ChecklistsService {
 
   findLatest(stationId: string) {
     return this.prisma.checklist.findFirst({
-      where: { stationId, status: 'SUBMITTED' },
+      where: { stationId, status: { in: [ChecklistStatus.SUBMITTED, ChecklistStatus.APPROVED] } },
       orderBy: { submittedAt: 'desc' },
     })
   }

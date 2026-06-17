@@ -4,6 +4,8 @@ import * as React from 'react'
 import { getChecklistTemplate } from '@/lib/mock-data'
 import { useStation } from '@/hooks/use-stations'
 import { useChecklist } from '@/hooks/use-checklists'
+import { useApproveChecklist } from '@/hooks/use-stations'
+import { useQueryClient } from '@tanstack/react-query'
 import type { ChecklistGroup, ChecklistSubItem, ChecklistPhoto } from '@repo/types'
 import {
   ChevronLeft,
@@ -13,6 +15,8 @@ import {
   Flag,
   ChevronDown,
   ChevronUp,
+  CheckCircle,
+  Loader2,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -59,7 +63,7 @@ function Lightbox({ photo, onClose }: { photo: ChecklistPhoto; onClose: () => vo
 }
 
 // ─── Checklist Row ────────────────────────────────────────────
-function ChecklistRow({ item }: { item: ChecklistSubItem }) {
+function ChecklistRow({ item, onToggleFlag }: { item: ChecklistSubItem; onToggleFlag: () => void }) {
   const [lightbox, setLightbox] = React.useState<ChecklistPhoto | null>(null)
 
   const isMi = item.value === 'มี'
@@ -157,16 +161,19 @@ function ChecklistRow({ item }: { item: ChecklistSubItem }) {
           )}
         </div>
 
-        {/* พลิกฉาก — read-only flag indicator */}
-        <div className="flex items-center justify-center py-3 pr-3">
+        {/* พบปัญหา — interactive flag toggle */}
+        <button
+          onClick={onToggleFlag}
+          className="flex w-full items-center justify-center py-3 pr-3 transition-colors hover:bg-orange-50/60"
+        >
           {item.flagged ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-600">
-              <Flag size={9} fill="currentColor" /> รอตรวจ
+              <Flag size={9} fill="currentColor" /> พบปัญหา
             </span>
           ) : (
-            <span className="text-muted-foreground/40 text-[10px]">—</span>
+            <span className="text-muted-foreground/30 text-[10px]">—</span>
           )}
-        </div>
+        </button>
 
       </div>
     </div>
@@ -182,11 +189,29 @@ export default function StationChecklistPage({
   const { id } = React.use(params)
   const { data: station, isLoading: stationLoading, error: stationError } = useStation(id)
   const { data: checklist } = useChecklist(id)
+  const qc = useQueryClient()
+  const approveMutation = useApproveChecklist()
 
-  const groups: ChecklistGroup[] =
-    checklist?.items ?? (station ? getChecklistTemplate(station.mode) : [])
-
+  const [groups, setGroups] = React.useState<ChecklistGroup[]>([])
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({})
+
+  React.useEffect(() => {
+    if (!station) return
+    setGroups(checklist?.items ?? getChecklistTemplate(station.mode))
+  }, [station?.id, checklist?.id])
+
+  function toggleFlag(groupId: string, itemId: string) {
+    setGroups(prev =>
+      prev.map(g =>
+        g.groupId !== groupId ? g : {
+          ...g,
+          items: g.items.map(item =>
+            item.id !== itemId ? item : { ...item, flagged: !item.flagged }
+          ),
+        }
+      )
+    )
+  }
 
   // ── Derived stats — N/A items excluded from scoring denominator ──
   const allItems = groups.flatMap(g => g.items)
@@ -302,7 +327,7 @@ export default function StationChecklistPage({
                         { label: 'ไม่มี', cls: 'text-center py-2' },
                         { label: 'ได้มาตรฐาน', cls: 'text-center py-2' },
                         { label: 'หลักฐาน', cls: 'text-center py-2' },
-                        { label: 'พลิกฉาก', cls: 'text-center py-2 pr-3' },
+                        { label: 'พบปัญหา', cls: 'text-center py-2 pr-3' },
                       ].map(({ label, cls }) => (
                         <div key={label} className={`text-muted-foreground text-[10px] font-medium uppercase tracking-wide ${cls}`}>
                           {label}
@@ -312,7 +337,11 @@ export default function StationChecklistPage({
 
                     {/* Rows */}
                     {group.items.map(item => (
-                      <ChecklistRow key={item.id} item={item} />
+                      <ChecklistRow
+                        key={item.id}
+                        item={item}
+                        onToggleFlag={() => toggleFlag(group.groupId, item.id)}
+                      />
                     ))}
                   </>
                 )}
@@ -325,6 +354,25 @@ export default function StationChecklistPage({
         <div className="space-y-4">
           <div className="bg-card border-border sticky top-20 rounded-xl border p-5">
             <h2 className="text-foreground mb-4 text-sm font-semibold">สรุปผลการตรวจสอบ</h2>
+
+            {/* Approve button — only when checklist is awaiting approval */}
+            {checklist?.status === 'SUBMITTED' && (
+              <button
+                onClick={() =>
+                  approveMutation.mutate(
+                    { stationId: id, checklistId: checklist.id },
+                    { onSuccess: () => qc.invalidateQueries({ queryKey: ['checklist', id] }) }
+                  )
+                }
+                disabled={approveMutation.isPending}
+                className="mb-4 flex w-full items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60"
+              >
+                {approveMutation.isPending
+                  ? <Loader2 size={13} className="animate-spin" />
+                  : <CheckCircle size={13} />}
+                อนุมัติรายงานนี้
+              </button>
+            )}
 
             <div className="flex justify-center mb-4">
               <ScoreCircle score={pctSuccess} />
@@ -351,7 +399,7 @@ export default function StationChecklistPage({
                 {[
                   { label: 'ไม่มี',            value: maiMiCount, color: 'text-[#f44336]' },
                   { label: 'ไม่เกี่ยวข้อง (N/A)', value: naCount,    color: 'text-gray-400' },
-                  ...(flaggedCount > 0 ? [{ label: 'รอตรวจสอบ', value: flaggedCount, color: 'text-orange-500' }] : []),
+                  ...(flaggedCount > 0 ? [{ label: 'พบปัญหา', value: flaggedCount, color: 'text-orange-500' }] : []),
                 ].map(({ label, value, color }) => (
                   <div key={label} className="flex items-center justify-between">
                     <span className="text-muted-foreground">{label}</span>
@@ -375,7 +423,7 @@ export default function StationChecklistPage({
             {flaggedCount > 0 && (
               <div className="mt-4 rounded-lg bg-orange-50 border border-orange-200 p-3">
                 <p className="text-orange-700 text-xs font-semibold mb-1.5 flex items-center gap-1.5">
-                  <Flag size={11} fill="currentColor" /> รายการรอตรวจสอบ ({flaggedCount})
+                  <Flag size={11} fill="currentColor" /> รายการพบปัญหา ({flaggedCount})
                 </p>
                 {allItems.filter(i => i.flagged).map(i => (
                   <p key={i.id} className="text-orange-600 text-[10px] flex items-start gap-1 mt-0.5">

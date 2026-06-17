@@ -5,7 +5,7 @@ import { getChecklistTemplate } from '@/lib/mock-data'
 import { useStations, useStation } from '@/hooks/use-stations'
 import { useSaveDraft, useSubmitChecklist } from '@/hooks/use-checklists'
 import type { ChecklistGroup, ChecklistValue, ChecklistPhoto } from '@repo/types'
-import { Camera, MapPin, Save, Send, ChevronDown, ChevronUp, CheckSquare, Square } from 'lucide-react'
+import { Camera, MapPin, Save, Send, CheckSquare, Square } from 'lucide-react'
 
 export default function AuditPage() {
   const { data: allStations = [] } = useStations()
@@ -16,13 +16,13 @@ export default function AuditPage() {
   const [submitted, setSubmitted] = React.useState(false)
 
   const [groups, setGroups] = React.useState<ChecklistGroup[]>([])
-  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({})
+  const [currentPage, setCurrentPage] = React.useState(0)
 
   React.useEffect(() => {
     if (!station) return
     const template = getChecklistTemplate(station.mode)
     setGroups(template)
-    setOpenGroups({ [template[0]?.groupId ?? '']: true })
+    setCurrentPage(0)
     setSubmitted(false)
   }, [station?.id])
 
@@ -31,14 +31,9 @@ export default function AuditPage() {
   const total = allItems.length
   const progress = total > 0 ? Math.round((answered / total) * 100) : 0
 
-  // Score for submission: (ได้มาตรฐาน ÷ ไม่รวม N/A) × 100
-  const eligibleCount = allItems.filter(i => i.value !== 'N/A').length
-  const standardCount = allItems.filter(i => i.value === 'มี' && i.meetsStandard).length
+  const eligibleCount = allItems.filter((i) => i.value !== 'N/A').length
+  const standardCount = allItems.filter((i) => i.value === 'มี' && i.meetsStandard).length
   const score = eligibleCount > 0 ? Math.round((standardCount / eligibleCount) * 100) : 0
-
-  function toggleGroup(groupId: string) {
-    setOpenGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }))
-  }
 
   function setItemValue(groupId: string, itemId: string, value: ChecklistValue) {
     setGroups((prev) =>
@@ -76,11 +71,7 @@ export default function AuditPage() {
     )
   }
 
-  function handlePhotoUpload(
-    groupId: string,
-    itemId: string,
-    files: FileList | null
-  ) {
+  function handlePhotoUpload(groupId: string, itemId: string, files: FileList | null) {
     if (!files || files.length === 0) return
     const newPhotos: ChecklistPhoto[] = Array.from(files).map((file) => ({
       id: `${itemId}-${file.name}-${file.size}`,
@@ -105,24 +96,9 @@ export default function AuditPage() {
   }
 
   const VALUE_OPTIONS: { value: ChecklistValue; label: string; active: string; inactive: string }[] = [
-    {
-      value: 'มี',
-      label: 'มี',
-      active: 'border-blue-300 bg-blue-50 text-blue-700',
-      inactive: 'border-border text-muted-foreground',
-    },
-    {
-      value: 'ไม่มี',
-      label: 'ไม่มี',
-      active: 'border-red-200 bg-red-50 text-red-600',
-      inactive: 'border-border text-muted-foreground',
-    },
-    {
-      value: 'N/A',
-      label: 'N/A',
-      active: 'border-gray-300 bg-gray-100 text-gray-500',
-      inactive: 'border-border text-muted-foreground',
-    },
+    { value: 'มี',    label: 'มี',    active: 'border-blue-300 bg-blue-50 text-blue-700',   inactive: 'border-border text-muted-foreground' },
+    { value: 'ไม่มี', label: 'ไม่มี', active: 'border-red-200 bg-red-50 text-red-600',      inactive: 'border-border text-muted-foreground' },
+    { value: 'N/A',  label: 'N/A',  active: 'border-gray-300 bg-gray-100 text-gray-500', inactive: 'border-border text-muted-foreground' },
   ]
 
   const stationPicker = (
@@ -173,12 +149,13 @@ export default function AuditPage() {
     )
   }
 
+  const isSummaryPage = currentPage === groups.length
+
   return (
     <div className="space-y-4">
-      {/* Station picker */}
       {stationPicker}
 
-      {/* Header */}
+      {/* Header with overall progress — always visible */}
       <div className="rounded-xl bg-white/10 p-4 backdrop-blur">
         <div className="mb-1 flex items-start justify-between">
           <div>
@@ -190,13 +167,9 @@ export default function AuditPage() {
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold text-white">{progress}%</p>
-            <p className="text-[10px] text-white/60">
-              {answered}/{total} ข้อ
-            </p>
+            <p className="text-[10px] text-white/60">{answered}/{total} ข้อ</p>
           </div>
         </div>
-
-        {/* Progress */}
         <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/20">
           <div
             className="h-full rounded-full bg-white transition-all duration-300"
@@ -205,37 +178,67 @@ export default function AuditPage() {
         </div>
       </div>
 
-      {/* Checklist groups */}
-      {groups.map((group) => {
-        const groupAnswered = group.items.filter((i) => i.value !== null).length
-        const isOpen = openGroups[group.groupId] ?? false
-
-        return (
-          <div key={group.groupId} className="overflow-hidden rounded-xl bg-white shadow-sm">
-            {/* Group header */}
+      {/* Summary page */}
+      {isSummaryPage ? (
+        <div className="overflow-hidden rounded-xl bg-white shadow-sm">
+          <div className="border-b px-4 py-3">
+            <p className="text-sm font-bold text-gray-900">สรุปผลการตรวจสอบ</p>
+            <p className="mt-0.5 text-xs text-gray-500">ตรวจสอบความครบถ้วนก่อนส่งรายงาน</p>
+          </div>
+          <div className="divide-y">
+            {groups.map((g) => {
+              const ans = g.items.filter((i) => i.value !== null).length
+              const done = ans === g.items.length
+              return (
+                <div key={g.groupId} className="flex items-center justify-between px-4 py-3">
+                  <span className="text-sm text-gray-800">{g.groupName}</span>
+                  <span className={`text-xs font-semibold ${done ? 'text-green-600' : 'text-amber-600'}`}>
+                    {ans}/{g.items.length} {done ? '✓' : '⚠'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+          <div className="border-t px-4 py-4 space-y-3">
+            <p className="text-sm text-gray-500">
+              คะแนน UD (ประมาณ):{' '}
+              <span className="font-bold text-gray-900">{score}%</span>
+            </p>
             <button
-              onClick={() => toggleGroup(group.groupId)}
-              className="flex w-full items-center justify-between px-4 py-3.5"
+              onClick={() =>
+                submitMutation.mutate(
+                  { items: groups, score },
+                  { onSuccess: () => setSubmitted(true) }
+                )
+              }
+              disabled={submitMutation.isPending || progress < 100}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a3557] py-3 text-sm font-bold text-white disabled:opacity-50"
             >
-              <div className="flex items-center gap-2">
-                <span className="text-foreground text-sm font-semibold">{group.groupName}</span>
-                <span className="bg-secondary text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px]">
-                  {groupAnswered}/{group.items.length}
-                </span>
-              </div>
-              {isOpen ? (
-                <ChevronUp size={14} className="text-muted-foreground" />
-              ) : (
-                <ChevronDown size={14} className="text-muted-foreground" />
-              )}
+              <Send size={15} />
+              {submitMutation.isPending ? 'กำลังส่ง…' : 'ส่งรายงาน'}
             </button>
-
-            {/* Items */}
-            {isOpen && (
-              <div className="divide-border divide-y border-t">
+            {progress < 100 && (
+              <p className="text-center text-xs text-amber-600">
+                ยังมีรายการที่ยังไม่ได้ตอบ ({total - answered} ข้อ)
+              </p>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* Group checklist page */
+        (() => {
+          const group = groups[currentPage]!  // ponytail: safe — currentPage < groups.length guaranteed above
+          return (
+            <div className="overflow-hidden rounded-xl bg-white shadow-sm">
+              {/* Step indicator */}
+              <div className="flex items-center justify-between border-b px-4 py-3">
+                <span className="text-sm font-semibold text-gray-700">{group.groupName}</span>
+                <span className="text-xs text-gray-400">หน้า {currentPage + 1} / {groups.length}</span>
+              </div>
+              {/* Items */}
+              <div className="divide-border divide-y">
                 {group.items.map((item) => (
                   <div key={item.id} className="px-4 py-3.5">
-                    {/* Label row */}
                     <div className="mb-2.5 flex items-start gap-2">
                       <span className="text-muted-foreground bg-secondary mt-0.5 shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px]">
                         {item.id}
@@ -249,8 +252,6 @@ export default function AuditPage() {
                         )}
                       </div>
                     </div>
-
-                    {/* Value buttons: มี / ไม่มี / N/A */}
                     <div className="flex gap-2">
                       {VALUE_OPTIONS.map((opt) => (
                         <button
@@ -264,13 +265,9 @@ export default function AuditPage() {
                         </button>
                       ))}
                     </div>
-
-                    {/* ได้มาตรฐาน toggle — only when value === 'มี' */}
                     {item.value === 'มี' && (
                       <button
-                        onClick={() =>
-                          setMeetsStandard(group.groupId, item.id, !item.meetsStandard)
-                        }
+                        onClick={() => setMeetsStandard(group.groupId, item.id, !item.meetsStandard)}
                         className={`mt-2 flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
                           item.meetsStandard
                             ? 'border-green-300 bg-green-50 text-green-700'
@@ -285,8 +282,6 @@ export default function AuditPage() {
                         ได้มาตรฐาน
                       </button>
                     )}
-
-                    {/* Per-item photo upload */}
                     <div className="mt-2.5">
                       {item.photos.length > 0 && (
                         <div className="mb-2 flex flex-wrap gap-1.5">
@@ -308,39 +303,44 @@ export default function AuditPage() {
                           accept="image/*"
                           multiple
                           className="hidden"
-                          onChange={(e) =>
-                            handlePhotoUpload(group.groupId, item.id, e.target.files)
-                          }
+                          onChange={(e) => handlePhotoUpload(group.groupId, item.id, e.target.files)}
                         />
                       </label>
                     </div>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-        )
-      })}
+            </div>
+          )
+        })()
+      )}
 
-      {/* Actions */}
+      {/* Navigation */}
       <div className="flex gap-3 pb-6">
+        {currentPage > 0 && (
+          <button
+            onClick={() => setCurrentPage((p) => p - 1)}
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-4 py-3 text-sm font-medium text-white backdrop-blur"
+          >
+            ← ก่อนหน้า
+          </button>
+        )}
         <button
           onClick={() => saveDraftMutation.mutate(groups)}
           disabled={saveDraftMutation.isPending}
           className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 py-3 text-sm font-medium text-white backdrop-blur disabled:opacity-50"
         >
-          <Save size={15} /> {saveDraftMutation.isPending ? 'กำลังบันทึก…' : 'บันทึกร่าง'}
+          <Save size={15} />
+          {saveDraftMutation.isPending ? 'กำลังบันทึก…' : 'บันทึกร่าง'}
         </button>
-        <button
-          onClick={() => submitMutation.mutate(
-            { items: groups, score },
-            { onSuccess: () => setSubmitted(true) },
-          )}
-          disabled={submitMutation.isPending || progress < 100}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white py-3 text-sm font-bold text-[#1a3557] disabled:opacity-50"
-        >
-          <Send size={15} /> {submitMutation.isPending ? 'กำลังส่ง…' : 'ส่งรายงาน'}
-        </button>
+        {!isSummaryPage && (
+          <button
+            onClick={() => setCurrentPage((p) => p + 1)}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white py-3 text-sm font-bold text-[#1a3557]"
+          >
+            ถัดไป →
+          </button>
+        )}
       </div>
     </div>
   )

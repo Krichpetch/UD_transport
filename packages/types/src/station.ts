@@ -6,6 +6,13 @@ export const RESPONSIBLE_AGENCIES = [
 
 export type ResponsibleAgency = typeof RESPONSIBLE_AGENCIES[number]
 
+export const TRANSPORT_MODE_AGENCIES: Record<TransportMode, readonly ResponsibleAgency[]> = {
+  'ทางบก':    ['ขบ.', 'ขสมก.', 'บขส.', 'อื่นๆ'],
+  'ทางราง':   ['รฟท.', 'รฟม.', 'รฟฟท.', 'BEM', 'อื่นๆ'],
+  'ทางเรือ':  ['จท.', 'ทย.', 'อื่นๆ'],
+  'ทางอากาศ': ['ทอท.', 'อื่นๆ'],
+}
+
 export interface Station {
   id: string
   name: string

@@ -6,14 +6,9 @@ import { getTransportLabel, getChecklistTemplate } from '@/lib/constants'
 import { useStations, useCreateStation, usePendingReviews, useApproveChecklist } from '@/hooks/use-stations'
 import { getChecklistHistory } from '@/lib/api/checklists'
 import { saveDraft } from '@/lib/api/checklists'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
 import { useQueryClient } from '@tanstack/react-query'
-import type { TransportMode, StationStatus } from '@repo/types'
+import type { TransportMode, StationStatus, ResponsibleAgency } from '@repo/types'
+import { RESPONSIBLE_AGENCIES, TRANSPORT_MODE_AGENCIES } from '@repo/types'
 import type { CreateStationInput, ParsedRow } from '@/lib/api/stations'
 import { StatusBadge, ScoreBar } from '@/components/shared/badges'
 import { Search, Filter, ClipboardList, Building2, CheckCircle, Loader2, Upload, X } from 'lucide-react'
@@ -108,6 +103,13 @@ export default function StationsPage() {
   const [agencyFilter, setAgencyFilter] = React.useState('')
   const [regionFilter, setRegionFilter] = React.useState('')
 
+  const availableAgencies = typeFilter ? TRANSPORT_MODE_AGENCIES[typeFilter] : RESPONSIBLE_AGENCIES
+  const availableModes: TransportMode[] = agencyFilter
+    ? (Object.entries(TRANSPORT_MODE_AGENCIES) as [TransportMode, readonly string[]][])
+        .filter(([, agencies]) => agencies.includes(agencyFilter))
+        .map(([mode]) => mode)
+    : TRANSPORT_MODES
+
   // Sheet
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const [sheetMode, setSheetMode] = React.useState<'single' | 'bulk'>('single')
@@ -123,6 +125,12 @@ export default function StationsPage() {
   const [bulkErrors, setBulkErrors] = React.useState<string[]>([])
   const [bulkProgress, setBulkProgress] = React.useState<string>('')
   const fileRef = React.useRef<HTMLInputElement>(null)
+
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setSheetOpen(false) }
+    if (sheetOpen) window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [sheetOpen])
 
   function patchForm(patch: Partial<CreateStationInput>) {
     setForm(f => ({ ...f, ...patch }))
@@ -269,9 +277,19 @@ export default function StationsPage() {
           </div>
           <div className="flex items-center gap-1.5">
             <Filter size={13} className="text-muted-foreground" />
-            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value as TransportMode | '')} className={SELECT_CLS.replace('w-full ', '')}>
+            <select
+              value={typeFilter}
+              onChange={e => {
+                const v = e.target.value as TransportMode | ''
+                setTypeFilter(v)
+                if (agencyFilter && v && !TRANSPORT_MODE_AGENCIES[v].includes(agencyFilter as ResponsibleAgency)) {
+                  setAgencyFilter('')
+                }
+              }}
+              className={SELECT_CLS.replace('w-full ', '')}
+            >
               <option value="">ประเภทการขนส่ง</option>
-              {TRANSPORT_MODES.map(t => <option key={t} value={t}>{t}</option>)}
+              {availableModes.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as StationStatus | '')} className={SELECT_CLS.replace('w-full ', '')}>
@@ -282,9 +300,22 @@ export default function StationsPage() {
             <option value="">ทุกภาค</option>
             {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
-          <select value={agencyFilter} onChange={e => setAgencyFilter(e.target.value)} className={SELECT_CLS.replace('w-full ', '')}>
+          <select
+            value={agencyFilter}
+            onChange={e => {
+              const v = e.target.value
+              setAgencyFilter(v)
+              if (typeFilter && v) {
+                const modesForAgency = (Object.entries(TRANSPORT_MODE_AGENCIES) as [TransportMode, readonly string[]][])
+                  .filter(([, agencies]) => agencies.includes(v))
+                  .map(([mode]) => mode)
+                if (!modesForAgency.includes(typeFilter)) setTypeFilter('')
+              }
+            }}
+            className={SELECT_CLS.replace('w-full ', '')}
+          >
             <option value="">ทุกหน่วยงาน</option>
-            {AGENCIES.map(a => <option key={a} value={a}>{a}</option>)}
+            {availableAgencies.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
           {hasFilters && (
             <button onClick={clearFilters} className="text-muted-foreground hover:text-foreground text-sm underline">
@@ -379,172 +410,184 @@ export default function StationsPage() {
         </div>
       </div>
 
-      {/* Add Station Sheet */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
-          <SheetHeader className="mb-6">
-            <SheetTitle>เพิ่มสถานี</SheetTitle>
-          </SheetHeader>
+      {/* Add Station Modal */}
+      {sheetOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          onClick={() => setSheetOpen(false)}
+        >
+          <div
+            className="bg-card w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-xl"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-foreground text-lg font-semibold">เพิ่มสถานี</h2>
+              <button onClick={() => setSheetOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X size={18} />
+              </button>
+            </div>
 
-          {/* Mode toggle */}
-          <div className="mb-6 flex gap-2">
-            <button
-              onClick={() => setSheetMode('single')}
-              className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-colors ${sheetMode === 'single' ? 'bg-primary text-primary-foreground border-transparent' : 'border-border text-muted-foreground hover:bg-secondary'}`}
-            >
-              เพิ่มสถานีใหม่
-            </button>
-            <button
-              onClick={() => setSheetMode('bulk')}
-              className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-colors ${sheetMode === 'bulk' ? 'bg-primary text-primary-foreground border-transparent' : 'border-border text-muted-foreground hover:bg-secondary'}`}
-            >
-              นำเข้าหลายสถานี
-            </button>
-          </div>
+            {/* Mode toggle */}
+            <div className="mb-6 flex gap-2">
+              <button
+                onClick={() => setSheetMode('single')}
+                className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-colors ${sheetMode === 'single' ? 'bg-primary text-primary-foreground border-transparent' : 'border-border text-muted-foreground hover:bg-secondary'}`}
+              >
+                เพิ่มสถานีใหม่
+              </button>
+              <button
+                onClick={() => setSheetMode('bulk')}
+                className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-colors ${sheetMode === 'bulk' ? 'bg-primary text-primary-foreground border-transparent' : 'border-border text-muted-foreground hover:bg-secondary'}`}
+              >
+                นำเข้าหลายสถานี
+              </button>
+            </div>
 
-          {/* Single form */}
-          {sheetMode === 'single' && (
-            <form onSubmit={handleSingleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-foreground mb-1 block text-xs font-medium">ชื่อสถานี (ภาษาไทย) *</label>
-                  <input className={INPUT_CLS} value={form.nameTh} onChange={e => patchForm({ nameTh: e.target.value })} placeholder="สถานีรถไฟ..." required />
-                </div>
-                <div>
-                  <label className="text-foreground mb-1 block text-xs font-medium">Station Name (EN)</label>
-                  <input className={INPUT_CLS} value={form.name} onChange={e => patchForm({ name: e.target.value })} placeholder="Railway Station..." />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-foreground mb-1 block text-xs font-medium">ประเภทการขนส่ง *</label>
-                  <select className={SELECT_CLS} value={form.mode} onChange={e => patchForm({ mode: e.target.value, railSubtype: undefined })} required>
-                    {TRANSPORT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-                {form.mode === 'ทางราง' && (
+            {/* Single form */}
+            {sheetMode === 'single' && (
+              <form onSubmit={handleSingleSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-foreground mb-1 block text-xs font-medium">ประเภทย่อย</label>
-                    <select className={SELECT_CLS} value={form.railSubtype ?? ''} onChange={e => patchForm({ railSubtype: e.target.value || undefined })}>
-                      <option value="">ไม่ระบุ</option>
-                      {RAIL_SUBTYPES.map(r => <option key={r} value={r}>{r}</option>)}
+                    <label className="text-foreground mb-1 block text-xs font-medium">ชื่อสถานี (ภาษาไทย) *</label>
+                    <input className={INPUT_CLS} value={form.nameTh} onChange={e => patchForm({ nameTh: e.target.value })} placeholder="สถานีรถไฟ..." required />
+                  </div>
+                  <div>
+                    <label className="text-foreground mb-1 block text-xs font-medium">Station Name (EN)</label>
+                    <input className={INPUT_CLS} value={form.name} onChange={e => patchForm({ name: e.target.value })} placeholder="Railway Station..." />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-foreground mb-1 block text-xs font-medium">ประเภทการขนส่ง *</label>
+                    <select className={SELECT_CLS} value={form.mode} onChange={e => patchForm({ mode: e.target.value, railSubtype: undefined })} required>
+                      {TRANSPORT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
                   </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-foreground mb-1 block text-xs font-medium">จังหวัด *</label>
-                  <input className={INPUT_CLS} value={form.province} onChange={e => patchForm({ province: e.target.value })} placeholder="กรุงเทพมหานคร" required />
+                  {form.mode === 'ทางราง' && (
+                    <div>
+                      <label className="text-foreground mb-1 block text-xs font-medium">ประเภทย่อย</label>
+                      <select className={SELECT_CLS} value={form.railSubtype ?? ''} onChange={e => patchForm({ railSubtype: e.target.value || undefined })}>
+                        <option value="">ไม่ระบุ</option>
+                        {RAIL_SUBTYPES.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className="text-foreground mb-1 block text-xs font-medium">ภาค *</label>
-                  <input className={INPUT_CLS} value={form.region} list="regions-list" onChange={e => patchForm({ region: e.target.value })} placeholder="กลาง" required />
-                  <datalist id="regions-list">
-                    {REGIONS.map(r => <option key={r} value={r} />)}
-                  </datalist>
-                </div>
-              </div>
 
-              <div>
-                <label className="text-foreground mb-1 block text-xs font-medium">หน่วยงานรับผิดชอบ *</label>
-                <input className={INPUT_CLS} value={form.responsibleAgency} list="agencies-list" onChange={e => patchForm({ responsibleAgency: e.target.value })} placeholder="รฟท." required />
-                <datalist id="agencies-list">
-                  {AGENCIES.map(a => <option key={a} value={a} />)}
-                </datalist>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-foreground mb-1 block text-xs font-medium">ละติจูด *</label>
-                  <input type="number" step="any" className={INPUT_CLS} value={form.lat || ''} onChange={e => patchForm({ lat: parseFloat(e.target.value) || 0 })} placeholder="13.7563" required />
-                </div>
-                <div>
-                  <label className="text-foreground mb-1 block text-xs font-medium">ลองจิจูด *</label>
-                  <input type="number" step="any" className={INPUT_CLS} value={form.lng || ''} onChange={e => patchForm({ lng: parseFloat(e.target.value) || 0 })} placeholder="100.5018" required />
-                </div>
-              </div>
-
-              {formError && <p className="text-destructive text-xs">{formError}</p>}
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="submit"
-                  disabled={formSaving}
-                  className="bg-primary text-primary-foreground flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium disabled:opacity-60"
-                >
-                  {formSaving ? <Loader2 size={14} className="animate-spin" /> : null}
-                  {formSaving ? 'กำลังบันทึก...' : 'บันทึกสถานี'}
-                </button>
-                <button type="button" onClick={() => setSheetOpen(false)} className="border-border rounded-lg border px-4 py-2 text-sm">
-                  ยกเลิก
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Bulk import */}
-          {sheetMode === 'bulk' && (
-            <div className="space-y-4">
-              <p className="text-muted-foreground text-xs">
-                รองรับไฟล์ .xlsx, .xls, .csv, .json · คอลัมน์ที่จำเป็น: nameTh, mode, province, region, responsibleAgency, lat, lng
-              </p>
-
-              <label className="border-border hover:bg-secondary flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-6 text-center transition-colors">
-                <Upload size={20} className="text-muted-foreground" />
-                <span className="text-muted-foreground text-sm">คลิกเพื่อเลือกไฟล์</span>
-                <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,.json" className="hidden" onChange={handleFileChange} />
-              </label>
-
-              {bulkErrors.length > 0 && (
-                <div className="bg-destructive/5 rounded-lg p-3">
-                  <p className="text-destructive mb-1 text-xs font-medium">พบข้อผิดพลาด {bulkErrors.length} รายการ</p>
-                  {bulkErrors.slice(0, 5).map((e, i) => <p key={i} className="text-muted-foreground text-[10px]">{e}</p>)}
-                  {bulkErrors.length > 5 && <p className="text-muted-foreground text-[10px]">และอีก {bulkErrors.length - 5} รายการ</p>}
-                </div>
-              )}
-
-              {bulkRows.length > 0 && (
-                <div className="bg-secondary/50 rounded-lg p-3">
-                  <p className="text-foreground text-sm font-medium">พบ {bulkRows.length} สถานี พร้อมนำเข้า</p>
-                  <div className="mt-2 max-h-40 space-y-1 overflow-y-auto">
-                    {bulkRows.slice(0, 10).map((r, i) => (
-                      <p key={i} className="text-muted-foreground text-xs">· {r.nameTh} ({r.mode})</p>
-                    ))}
-                    {bulkRows.length > 10 && <p className="text-muted-foreground text-xs">และอีก {bulkRows.length - 10} สถานี</p>}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-foreground mb-1 block text-xs font-medium">จังหวัด *</label>
+                    <input className={INPUT_CLS} value={form.province} onChange={e => patchForm({ province: e.target.value })} placeholder="กรุงเทพมหานคร" required />
+                  </div>
+                  <div>
+                    <label className="text-foreground mb-1 block text-xs font-medium">ภาค *</label>
+                    <input className={INPUT_CLS} value={form.region} list="regions-list" onChange={e => patchForm({ region: e.target.value })} placeholder="กลาง" required />
+                    <datalist id="regions-list">
+                      {REGIONS.map(r => <option key={r} value={r} />)}
+                    </datalist>
                   </div>
                 </div>
-              )}
 
-              {bulkProgress && (
-                <div className="flex items-center gap-2">
-                  <Loader2 size={14} className="text-muted-foreground animate-spin" />
-                  <span className="text-muted-foreground text-sm">{bulkProgress}</span>
+                <div>
+                  <label className="text-foreground mb-1 block text-xs font-medium">หน่วยงานรับผิดชอบ *</label>
+                  <input className={INPUT_CLS} value={form.responsibleAgency} list="agencies-list" onChange={e => patchForm({ responsibleAgency: e.target.value })} placeholder="รฟท." required />
+                  <datalist id="agencies-list">
+                    {AGENCIES.map(a => <option key={a} value={a} />)}
+                  </datalist>
                 </div>
-              )}
 
-              <div className="flex gap-3">
-                <button
-                  onClick={handleBulkImport}
-                  disabled={bulkRows.length === 0 || !!bulkProgress}
-                  className="bg-primary text-primary-foreground flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium disabled:opacity-50"
-                >
-                  นำเข้า {bulkRows.length > 0 ? `${bulkRows.length} สถานี` : ''}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setBulkRows([]); setBulkErrors([]); if (fileRef.current) fileRef.current.value = '' }}
-                  className="border-border rounded-lg border px-3 py-2"
-                >
-                  <X size={14} />
-                </button>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-foreground mb-1 block text-xs font-medium">ละติจูด *</label>
+                    <input type="number" step="any" className={INPUT_CLS} value={form.lat || ''} onChange={e => patchForm({ lat: parseFloat(e.target.value) || 0 })} placeholder="13.7563" required />
+                  </div>
+                  <div>
+                    <label className="text-foreground mb-1 block text-xs font-medium">ลองจิจูด *</label>
+                    <input type="number" step="any" className={INPUT_CLS} value={form.lng || ''} onChange={e => patchForm({ lng: parseFloat(e.target.value) || 0 })} placeholder="100.5018" required />
+                  </div>
+                </div>
+
+                {formError && <p className="text-destructive text-xs">{formError}</p>}
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="submit"
+                    disabled={formSaving}
+                    className="bg-primary text-primary-foreground flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium disabled:opacity-60"
+                  >
+                    {formSaving ? <Loader2 size={14} className="animate-spin" /> : null}
+                    {formSaving ? 'กำลังบันทึก...' : 'บันทึกสถานี'}
+                  </button>
+                  <button type="button" onClick={() => setSheetOpen(false)} className="border-border rounded-lg border px-4 py-2 text-sm">
+                    ยกเลิก
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Bulk import */}
+            {sheetMode === 'bulk' && (
+              <div className="space-y-4">
+                <p className="text-muted-foreground text-xs">
+                  รองรับไฟล์ .xlsx, .xls, .csv, .json · คอลัมน์ที่จำเป็น: nameTh, mode, province, region, responsibleAgency, lat, lng
+                </p>
+
+                <label className="border-border hover:bg-secondary flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-6 text-center transition-colors">
+                  <Upload size={20} className="text-muted-foreground" />
+                  <span className="text-muted-foreground text-sm">คลิกเพื่อเลือกไฟล์</span>
+                  <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,.json" className="hidden" onChange={handleFileChange} />
+                </label>
+
+                {bulkErrors.length > 0 && (
+                  <div className="bg-destructive/5 rounded-lg p-3">
+                    <p className="text-destructive mb-1 text-xs font-medium">พบข้อผิดพลาด {bulkErrors.length} รายการ</p>
+                    {bulkErrors.slice(0, 5).map((e, i) => <p key={i} className="text-muted-foreground text-[10px]">{e}</p>)}
+                    {bulkErrors.length > 5 && <p className="text-muted-foreground text-[10px]">และอีก {bulkErrors.length - 5} รายการ</p>}
+                  </div>
+                )}
+
+                {bulkRows.length > 0 && (
+                  <div className="bg-secondary/50 rounded-lg p-3">
+                    <p className="text-foreground text-sm font-medium">พบ {bulkRows.length} สถานี พร้อมนำเข้า</p>
+                    <div className="mt-2 max-h-40 space-y-1 overflow-y-auto">
+                      {bulkRows.slice(0, 10).map((r, i) => (
+                        <p key={i} className="text-muted-foreground text-xs">· {r.nameTh} ({r.mode})</p>
+                      ))}
+                      {bulkRows.length > 10 && <p className="text-muted-foreground text-xs">และอีก {bulkRows.length - 10} สถานี</p>}
+                    </div>
+                  </div>
+                )}
+
+                {bulkProgress && (
+                  <div className="flex items-center gap-2">
+                    <Loader2 size={14} className="text-muted-foreground animate-spin" />
+                    <span className="text-muted-foreground text-sm">{bulkProgress}</span>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleBulkImport}
+                    disabled={bulkRows.length === 0 || !!bulkProgress}
+                    className="bg-primary text-primary-foreground flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium disabled:opacity-50"
+                  >
+                    นำเข้า {bulkRows.length > 0 ? `${bulkRows.length} สถานี` : ''}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setBulkRows([]); setBulkErrors([]); if (fileRef.current) fileRef.current.value = '' }}
+                    className="border-border rounded-lg border px-3 py-2"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
