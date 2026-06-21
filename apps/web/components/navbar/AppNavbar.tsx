@@ -4,7 +4,8 @@ import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Bell, Search, Building2, X, ChevronRight } from 'lucide-react'
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { useStations } from '@/hooks/use-stations'
+import { useStations, usePendingReviews } from '@/hooks/use-stations'
+import { useAuthStore } from '@/stores/auth.store'
 
 interface AppNavbarProps {
   title?: string
@@ -15,14 +16,25 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
   const router = useRouter()
   const { data: stations = [] } = useStations()
 
+  const { user } = useAuthStore()
+  const { data: pendingIds = [] } = usePendingReviews()
+
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [notifOpen, setNotifOpen] = React.useState(false)
+  const [notifTab, setNotifTab] = React.useState<'pending' | 'failing'>('pending')
 
-  const urgentStations = React.useMemo(
-    () => stations.filter(s => s.status === 'ไม่ผ่าน' || s.urgentIssues.length > 0),
+  const pendingStations = React.useMemo(
+    () => pendingIds.flatMap(id => { const s = stations.find(st => st.id === id); return s ? [s] : [] }),
+    [pendingIds, stations],
+  )
+
+  const failingStations = React.useMemo(
+    () => stations.filter(s => s.status === 'ไม่ผ่าน'),
     [stations],
   )
+
+  const totalNotifs = pendingStations.length + failingStations.length
 
   const searchResults = React.useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -80,53 +92,88 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
             <kbd className="bg-muted rounded px-1 text-[10px]">⌘K</kbd>
           </button>
 
-          {/* Notifications */}
-          <div className="relative">
-            <button
-              onClick={() => setNotifOpen(o => !o)}
-              className="border-border text-muted-foreground hover:bg-secondary relative rounded-lg border p-1.5 transition-colors"
-            >
-              <Bell size={15} />
-              {urgentStations.length > 0 && (
-                <span className="bg-destructive absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full text-[8px] text-white">
-                  {Math.min(urgentStations.length, 99)}
-                </span>
-              )}
-            </button>
+          {/* Notifications — ADMIN only */}
+          {user?.role === 'ADMIN' && (
+            <div className="relative">
+              <button
+                onClick={() => { setNotifOpen(o => !o); setNotifTab('pending') }}
+                className="border-border text-muted-foreground hover:bg-secondary relative rounded-lg border p-1.5 transition-colors"
+              >
+                <Bell size={15} />
+                {totalNotifs > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-amber-500 text-[8px] text-white">
+                    {Math.min(totalNotifs, 99)}
+                  </span>
+                )}
+              </button>
 
-            {notifOpen && (
-              <div className="bg-card border-border absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border shadow-lg">
-                <div className="border-border flex items-center justify-between border-b px-4 py-3">
-                  <p className="text-foreground text-sm font-semibold">การแจ้งเตือน</p>
-                  <button onClick={() => setNotifOpen(false)}>
-                    <X size={14} className="text-muted-foreground" />
-                  </button>
-                </div>
-                {urgentStations.length === 0 ? (
-                  <p className="text-muted-foreground px-4 py-6 text-center text-xs">ไม่มีการแจ้งเตือน</p>
-                ) : (
-                  <div className="max-h-72 overflow-y-auto">
-                    {urgentStations.map(s => (
+              {notifOpen && (
+                <div className="bg-card border-border absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border shadow-lg">
+                  {/* Header */}
+                  <div className="border-border flex items-center justify-between border-b px-4 py-3">
+                    <p className="text-foreground text-sm font-semibold">การแจ้งเตือน</p>
+                    <button onClick={() => setNotifOpen(false)}>
+                      <X size={14} className="text-muted-foreground" />
+                    </button>
+                  </div>
+
+                  {/* Tabs */}
+                  <div className="border-border flex border-b">
+                    {([ ['pending', 'รอการอนุมัติ', pendingStations.length], ['failing', 'ไม่ผ่านมาตรฐาน', failingStations.length] ] as const).map(([tab, label, count]) => (
                       <button
-                        key={s.id}
-                        onClick={() => goTo(`/stations/${encodeURIComponent(s.id)}`)}
-                        className="border-border hover:bg-secondary flex w-full items-center gap-3 border-b px-4 py-3 text-left transition-colors last:border-0"
+                        key={tab}
+                        onClick={() => setNotifTab(tab)}
+                        className={`flex flex-1 items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors ${
+                          notifTab === tab
+                            ? 'border-primary text-foreground border-b-2'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
                       >
-                        <div className="bg-destructive/10 shrink-0 rounded-lg p-1.5">
-                          <Bell size={12} className="text-destructive" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-foreground truncate text-xs font-medium">{s.nameTh}</p>
-                          <p className="text-muted-foreground text-[10px]">{s.province} · {s.status}</p>
-                        </div>
-                        <ChevronRight size={12} className="text-muted-foreground shrink-0" />
+                        {label}
+                        {count > 0 && (
+                          <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                            notifTab === tab ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                          }`}>
+                            {count}
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>
-                )}
-              </div>
-            )}
-          </div>
+
+                  {/* Tab content */}
+                  {(() => {
+                    const items = notifTab === 'pending' ? pendingStations : failingStations
+                    const isAmber = notifTab === 'pending'
+                    return items.length === 0 ? (
+                      <p className="text-muted-foreground px-4 py-6 text-center text-xs">ไม่มีรายการ</p>
+                    ) : (
+                      <div className="max-h-64 overflow-y-auto">
+                        {items.map(s => (
+                          <button
+                            key={s.id}
+                            onClick={() => goTo(`/stations/${encodeURIComponent(s.id)}`)}
+                            className="border-border hover:bg-secondary flex w-full items-center gap-3 border-b px-4 py-3 text-left transition-colors last:border-0"
+                          >
+                            <div className={`shrink-0 rounded-lg p-1.5 ${isAmber ? 'bg-amber-50' : 'bg-destructive/10'}`}>
+                              <Bell size={12} className={isAmber ? 'text-amber-600' : 'text-destructive'} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-foreground truncate text-xs font-medium">{s.nameTh}</p>
+                              <p className="text-muted-foreground text-[10px]">
+                                {s.province} · {isAmber ? 'รอการอนุมัติ' : s.status}
+                              </p>
+                            </div>
+                            <ChevronRight size={12} className="text-muted-foreground shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </header>
 

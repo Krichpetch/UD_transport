@@ -4,8 +4,9 @@ import * as React from 'react'
 import { getChecklistTemplate } from '@/lib/mock-data'
 import { useStations, useStation } from '@/hooks/use-stations'
 import { useSaveDraft, useSubmitChecklist } from '@/hooks/use-checklists'
-import type { ChecklistGroup, ChecklistValue, ChecklistPhoto } from '@repo/types'
-import { Camera, MapPin, Save, Send, CheckSquare, Square } from 'lucide-react'
+import type { ChecklistGroup, ChecklistValue } from '@repo/types'
+import { Camera, Loader2, MapPin, Save, Send, CheckSquare, Square } from 'lucide-react'
+import { useUploadPhoto } from '@/hooks/use-uploads'
 
 export default function AuditPage() {
   const { data: allStations = [] } = useStations()
@@ -13,6 +14,7 @@ export default function AuditPage() {
   const { data: station } = useStation(selectedId)
   const saveDraftMutation = useSaveDraft(selectedId)
   const submitMutation = useSubmitChecklist(selectedId)
+  const { mutateAsync: doUpload, isPending: photoUploading } = useUploadPhoto()
   const [submitted, setSubmitted] = React.useState(false)
 
   const [groups, setGroups] = React.useState<ChecklistGroup[]>([])
@@ -71,14 +73,9 @@ export default function AuditPage() {
     )
   }
 
-  function handlePhotoUpload(groupId: string, itemId: string, files: FileList | null) {
+  async function handlePhotoUpload(groupId: string, itemId: string, files: FileList | null) {
     if (!files || files.length === 0) return
-    const newPhotos: ChecklistPhoto[] = Array.from(files).map((file) => ({
-      id: `${itemId}-${file.name}-${file.size}`,
-      url: URL.createObjectURL(file),
-      filename: file.name,
-      uploadedAt: new Date().toISOString(),
-    }))
+    const uploaded = await Promise.all(Array.from(files).map((f) => doUpload(f)))
     setGroups((prev) =>
       prev.map((g) =>
         g.groupId !== groupId
@@ -88,7 +85,7 @@ export default function AuditPage() {
               items: g.items.map((item) =>
                 item.id !== itemId
                   ? item
-                  : { ...item, photos: [...item.photos, ...newPhotos] }
+                  : { ...item, photos: [...item.photos, ...uploaded] }
               ),
             }
       )
@@ -295,14 +292,15 @@ export default function AuditPage() {
                           ))}
                         </div>
                       )}
-                      <label className="border-border text-muted-foreground hover:bg-secondary flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors">
-                        <Camera size={12} />
-                        แนบรูปภาพ
+                      <label className={`border-border text-muted-foreground flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors ${photoUploading ? 'cursor-not-allowed opacity-50' : 'hover:bg-secondary cursor-pointer'}`}>
+                        {photoUploading ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />}
+                        {photoUploading ? 'กำลังอัปโหลด…' : 'แนบรูปภาพ'}
                         <input
                           type="file"
                           accept="image/*"
                           multiple
                           className="hidden"
+                          disabled={photoUploading}
                           onChange={(e) => handlePhotoUpload(group.groupId, item.id, e.target.files)}
                         />
                       </label>

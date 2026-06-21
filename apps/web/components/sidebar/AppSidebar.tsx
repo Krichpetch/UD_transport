@@ -16,6 +16,13 @@ import {
 import { LayoutDashboard, Building2, Settings, LogOut, User } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useAuthStore } from '@/stores/auth.store'
+
+const ROLE_LABEL: Record<string, string> = {
+  ADMIN:     'ผู้ดูแลระบบ',
+  AUDITOR:   'ผู้ตรวจสอบ',
+  EXECUTIVE: 'ผู้บริหาร',
+}
 
 const navItems = [
   { labelTh: 'ภาพรวม', icon: LayoutDashboard, href: '/dashboard' },
@@ -25,9 +32,10 @@ const navItems = [
 
 export function AppSidebar() {
   const router = useRouter()
+  const { user, logout } = useAuthStore()
 
   function handleLogout() {
-    // Phase 2: clear JWT / session cookie here before redirecting
+    logout()
     router.push('/login')
   }
 
@@ -64,8 +72,8 @@ export function AppSidebar() {
               <User size={14} className="text-sidebar-foreground" />
             </div>
             <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-              <p className="text-sidebar-foreground truncate text-xs font-medium">ผู้บริหาร</p>
-              <p className="text-sidebar-foreground/60 truncate text-[10px]">admin@mot.go.th</p>
+              <p className="text-sidebar-foreground truncate text-xs font-medium">{user?.username ?? '—'}</p>
+              <p className="text-sidebar-foreground/60 truncate text-[10px]">{ROLE_LABEL[user?.role ?? ''] ?? ''}</p>
             </div>
             <button
               onClick={handleLogout}

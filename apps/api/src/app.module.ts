@@ -5,6 +5,8 @@ import { AuthModule } from './auth/auth.module'
 import { StationsModule } from './stations/stations.module'
 import { ChecklistsModule } from './checklists/checklists.module'
 import { AuditModule } from './audit/audit.module'
+import { MinioModule } from './minio/minio.module'
+import { UploadsModule } from './uploads/uploads.module'
 
 @Module({
   imports: [
@@ -14,6 +16,8 @@ import { AuditModule } from './audit/audit.module'
     StationsModule,
     ChecklistsModule,
     AuditModule,
+    MinioModule,
+    UploadsModule,
   ],
 })
 export class AppModule {}
