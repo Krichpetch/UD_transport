@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { AuditLogService } from '../audit/audit.service'
 import { StationsService } from './stations.service'
 import { CreateStationDto } from './dto/create-station.dto'
+import { BatchOtpDto } from './dto/otp-row.dto'
 
 interface AuthRequest extends Request {
   user: { id: string; username: string; role: string }
@@ -65,6 +66,12 @@ export class StationsController {
       after: station,
     })
     return station
+  }
+
+  @Post('batch-otp')
+  async batchOtp(@Body() body: BatchOtpDto, @Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.stations.batchOtpImport(body.rows, req.user.id)
   }
 
   @Post(':id/checklist/:checklistId/approve')

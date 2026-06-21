@@ -10,6 +10,9 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { TransportMode, StationStatus, ResponsibleAgency } from '@repo/types'
 import { RESPONSIBLE_AGENCIES, TRANSPORT_MODE_AGENCIES } from '@repo/types'
 import type { CreateStationInput, ParsedRow } from '@/lib/api/stations'
+import { batchOtpImport } from '@/lib/api/stations'
+import { parseOtpRows, detectOtpFormat } from '@/lib/otp-import'
+import type { OtpParsedRow } from '@/lib/otp-import'
 import { StatusBadge, ScoreBar } from '@/components/shared/badges'
 import { Search, Filter, ClipboardList, Building2, CheckCircle, Loader2, Upload, X } from 'lucide-react'
 import Link from 'next/link'
@@ -122,6 +125,8 @@ export default function StationsPage() {
 
   // Bulk import
   const [bulkRows,   setBulkRows]   = React.useState<ParsedRow[]>([])
+  const [otpRows,    setOtpRows]    = React.useState<OtpParsedRow[]>([])
+  const [bulkFormat, setBulkFormat] = React.useState<'standard' | 'otp'>('standard')
   const [bulkErrors, setBulkErrors] = React.useState<string[]>([])
   const [bulkProgress, setBulkProgress] = React.useState<string>('')
   const fileRef = React.useRef<HTMLInputElement>(null)
@@ -160,17 +165,18 @@ export default function StationsPage() {
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    setBulkRows([]); setOtpRows([]); setBulkErrors([])
     const reader = new FileReader()
 
     if (file.name.endsWith('.json')) {
       reader.onload = ev => {
         try {
           const parsed = JSON.parse(ev.target?.result as string) as unknown
-          if (!Array.isArray(parsed)) { setBulkErrors(['ไฟล์ JSON ต้องเป็น array']); setBulkRows([]); return }
+          if (!Array.isArray(parsed)) { setBulkErrors(['ไฟล์ JSON ต้องเป็น array']); return }
           const { rows, errors } = parseRows(parsed as Record<string, unknown>[])
-          setBulkRows(rows); setBulkErrors(errors)
+          setBulkFormat('standard'); setBulkRows(rows); setBulkErrors(errors)
         } catch {
-          setBulkErrors(['ไฟล์ JSON ไม่ถูกต้อง']); setBulkRows([])
+          setBulkErrors(['ไฟล์ JSON ไม่ถูกต้อง'])
         }
       }
       reader.readAsText(file)
@@ -179,14 +185,19 @@ export default function StationsPage() {
         try {
           const wb = XLSX.read(ev.target?.result, { type: 'array' })
           const sheetName = wb.SheetNames[0]
-          if (!sheetName) { setBulkErrors(['ไฟล์ว่างเปล่า']); setBulkRows([]); return }
+          if (!sheetName) { setBulkErrors(['ไฟล์ว่างเปล่า']); return }
           const ws = wb.Sheets[sheetName]
-          if (!ws) { setBulkErrors(['ไม่พบชีตข้อมูล']); setBulkRows([]); return }
+          if (!ws) { setBulkErrors(['ไม่พบชีตข้อมูล']); return }
           const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws)
-          const { rows, errors } = parseRows(raw)
-          setBulkRows(rows); setBulkErrors(errors)
+          if (detectOtpFormat(raw)) {
+            const { rows, errors } = parseOtpRows(raw)
+            setBulkFormat('otp'); setOtpRows(rows); setBulkErrors(errors)
+          } else {
+            const { rows, errors } = parseRows(raw)
+            setBulkFormat('standard'); setBulkRows(rows); setBulkErrors(errors)
+          }
         } catch {
-          setBulkErrors(['ไม่สามารถอ่านไฟล์ได้']); setBulkRows([])
+          setBulkErrors(['ไม่สามารถอ่านไฟล์ได้'])
         }
       }
       reader.readAsArrayBuffer(file)
@@ -214,6 +225,29 @@ export default function StationsPage() {
     setBulkErrors([])
     if (fileRef.current) fileRef.current.value = ''
     setSheetOpen(false)
+  }
+
+  async function handleOtpImport() {
+    if (otpRows.length === 0) return
+    const total = otpRows.length
+    const CHUNK = 50
+    let done = 0
+    setBulkProgress(`กำลังนำเข้าข้อมูล OTP 0/${total}...`)
+    try {
+      for (let i = 0; i < total; i += CHUNK) {
+        await batchOtpImport(otpRows.slice(i, i + CHUNK))
+        done = Math.min(i + CHUNK, total)
+        setBulkProgress(`กำลังนำเข้าข้อมูล OTP ${done}/${total}...`)
+      }
+      setBulkProgress('')
+      setOtpRows([])
+      setBulkErrors([])
+      if (fileRef.current) fileRef.current.value = ''
+      setSheetOpen(false)
+    } catch (err) {
+      setBulkProgress('')
+      setBulkErrors([(err as Error).message ?? 'เกิดข้อผิดพลาด'])
+    }
   }
 
   if (isLoading) return (
@@ -531,12 +565,15 @@ export default function StationsPage() {
             {sheetMode === 'bulk' && (
               <div className="space-y-4">
                 <p className="text-muted-foreground text-xs">
-                  รองรับไฟล์ .xlsx, .xls, .csv, .json · คอลัมน์ที่จำเป็น: nameTh, mode, province, region, responsibleAgency, lat, lng
+                  รองรับไฟล์ .xlsx, .xls, .csv, .json · ระบบจะตรวจสอบรูปแบบไฟล์อัตโนมัติ (มาตรฐาน หรือ OTP)
                 </p>
 
                 <label className="border-border hover:bg-secondary flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-6 text-center transition-colors">
                   <Upload size={20} className="text-muted-foreground" />
                   <span className="text-muted-foreground text-sm">คลิกเพื่อเลือกไฟล์</span>
+                  {bulkFormat === 'otp' && (otpRows.length > 0 || bulkErrors.length > 0) && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">ตรวจพบรูปแบบ OTP</span>
+                  )}
                   <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,.json" className="hidden" onChange={handleFileChange} />
                 </label>
 
@@ -548,17 +585,22 @@ export default function StationsPage() {
                   </div>
                 )}
 
-                {bulkRows.length > 0 && (
-                  <div className="bg-secondary/50 rounded-lg p-3">
-                    <p className="text-foreground text-sm font-medium">พบ {bulkRows.length} สถานี พร้อมนำเข้า</p>
-                    <div className="mt-2 max-h-40 space-y-1 overflow-y-auto">
-                      {bulkRows.slice(0, 10).map((r, i) => (
-                        <p key={i} className="text-muted-foreground text-xs">· {r.nameTh} ({r.mode})</p>
-                      ))}
-                      {bulkRows.length > 10 && <p className="text-muted-foreground text-xs">และอีก {bulkRows.length - 10} สถานี</p>}
+                {(() => {
+                  const previewRows = bulkFormat === 'otp' ? otpRows.map(r => ({ nameTh: r.station.nameTh, mode: r.station.mode, province: r.station.province })) : bulkRows
+                  const count = previewRows.length
+                  if (count === 0) return null
+                  return (
+                    <div className="bg-secondary/50 rounded-lg p-3">
+                      <p className="text-foreground text-sm font-medium">พบ {count} สถานี พร้อมนำเข้า</p>
+                      <div className="mt-2 max-h-40 space-y-1 overflow-y-auto">
+                        {previewRows.slice(0, 10).map((r, i) => (
+                          <p key={i} className="text-muted-foreground text-xs">· {r.nameTh} ({r.mode})</p>
+                        ))}
+                        {count > 10 && <p className="text-muted-foreground text-xs">และอีก {count - 10} สถานี</p>}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )
+                })()}
 
                 {bulkProgress && (
                   <div className="flex items-center gap-2">
@@ -569,15 +611,18 @@ export default function StationsPage() {
 
                 <div className="flex gap-3">
                   <button
-                    onClick={handleBulkImport}
-                    disabled={bulkRows.length === 0 || !!bulkProgress}
+                    onClick={bulkFormat === 'otp' ? handleOtpImport : handleBulkImport}
+                    disabled={(bulkFormat === 'otp' ? otpRows.length : bulkRows.length) === 0 || !!bulkProgress}
                     className="bg-primary text-primary-foreground flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium disabled:opacity-50"
                   >
-                    นำเข้า {bulkRows.length > 0 ? `${bulkRows.length} สถานี` : ''}
+                    {bulkFormat === 'otp'
+                      ? `นำเข้าข้อมูล OTP${otpRows.length > 0 ? ` ${otpRows.length} สถานี` : ''}`
+                      : `สร้าง${bulkRows.length > 0 ? ` ${bulkRows.length} สถานี` : ''}`
+                    }
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setBulkRows([]); setBulkErrors([]); if (fileRef.current) fileRef.current.value = '' }}
+                    onClick={() => { setBulkRows([]); setOtpRows([]); setBulkErrors([]); if (fileRef.current) fileRef.current.value = '' }}
                     className="border-border rounded-lg border px-3 py-2"
                   >
                     <X size={14} />

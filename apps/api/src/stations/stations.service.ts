@@ -1,10 +1,15 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
+import { AuditLogService } from '../audit/audit.service'
 import { CreateStationDto } from './dto/create-station.dto'
+import { OtpRowDto } from './dto/otp-row.dto'
 
 @Injectable()
 export class StationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditLog: AuditLogService,
+  ) {}
 
   findAll(filters?: {
     mode?: string
@@ -53,6 +58,46 @@ export class StationsService {
       distinct: ['stationId'],
     })
     return rows.map(r => r.stationId)
+  }
+
+  async batchOtpImport(rows: OtpRowDto[], adminId: string) {
+    const results: { id: string; nameTh: string }[] = []
+    for (const row of rows) {
+      const station = await this.prisma.station.upsert({
+        where: {
+          nameTh_mode_responsibleAgency_province: {
+            nameTh:            row.station.nameTh,
+            mode:              row.station.mode,
+            responsibleAgency: row.station.responsibleAgency,
+            province:          row.station.province,
+          },
+        },
+        create: { ...row.station, urgentIssues: [] },
+        update: {},
+      })
+      await this.prisma.checklist.create({
+        data: {
+          stationId:   station.id,
+          auditorId:   adminId,
+          items:       row.items as object,
+          score:       row.score,
+          status:      'APPROVED',
+          submittedAt: new Date(row.lastInspected),
+        },
+      })
+      const newDate = new Date(row.lastInspected)
+      if (!station.lastInspected || newDate > station.lastInspected) {
+        await this.prisma.station.update({
+          where: { id: station.id },
+          data: { score: row.score, status: row.status, lastInspected: newDate },
+        })
+      }
+      await this.auditLog.log({
+        userId: adminId, action: 'OTP_IMPORT', entityType: 'Station', entityId: station.id,
+      })
+      results.push({ id: station.id, nameTh: station.nameTh })
+    }
+    return results
   }
 
   async summary() {

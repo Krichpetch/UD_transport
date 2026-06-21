@@ -50,6 +50,8 @@ model Station {
   updatedAt         DateTime  @updatedAt
 
   checklists Checklist[]
+
+  @@unique([nameTh, mode, responsibleAgency, province])
 }
 
 // Stores one checklist submission (draft or submitted) per station per auditor session.

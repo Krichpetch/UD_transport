@@ -61,3 +61,20 @@ export function getPendingReviews() {
 export function approveChecklist(stationId: string, checklistId: string) {
   return api.post<void>(`/stations/${stationId}/checklist/${checklistId}/approve`, {})
 }
+
+export interface OtpStationPayload {
+  nameTh: string; name: string; mode: string; railSubtype?: string
+  province: string; region: string; responsibleAgency: string; lat: number; lng: number
+}
+
+export interface OtpRowPayload {
+  station: OtpStationPayload
+  items: unknown
+  score: number
+  status: string
+  lastInspected: string
+}
+
+export function batchOtpImport(rows: OtpRowPayload[]) {
+  return api.post<{ id: string; nameTh: string }[]>('/stations/batch-otp', { rows })
+}
