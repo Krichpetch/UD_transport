@@ -14,7 +14,8 @@ interface AppNavbarProps {
 
 export function AppNavbar({ title, subtitle }: AppNavbarProps) {
   const router = useRouter()
-  const { data: stations = [] } = useStations()
+  const { data: stationsPage } = useStations({ limit: 9999 })
+  const stations = stationsPage?.data ?? []
 
   const { user } = useAuthStore()
   const { data: pendingIds = [] } = usePendingReviews()

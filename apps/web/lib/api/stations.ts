@@ -6,6 +6,21 @@ export interface StationFilters {
   region?: string
   agency?: string
   status?: string
+  search?: string
+  page?: number
+  limit?: number
+}
+
+export interface PaginatedStations {
+  data: Station[]
+  total: number
+  page: number
+  totalPages: number
+}
+
+export interface StationFilterOptions {
+  regions: string[]
+  agencies: string[]
 }
 
 export interface CreateStationInput {
@@ -38,8 +53,15 @@ export function getStations(filters?: StationFilters) {
   if (filters?.region) params.set('region', filters.region)
   if (filters?.agency) params.set('agency', filters.agency)
   if (filters?.status) params.set('status', filters.status)
+  if (filters?.search) params.set('search', filters.search)
+  if (filters?.page)   params.set('page',   String(filters.page))
+  if (filters?.limit)  params.set('limit',  String(filters.limit))
   const qs = params.toString()
-  return api.get<Station[]>(`/stations${qs ? `?${qs}` : ''}`)
+  return api.get<PaginatedStations>(`/stations${qs ? `?${qs}` : ''}`)
+}
+
+export function getStationFilterOptions() {
+  return api.get<StationFilterOptions>('/stations/filters')
 }
 
 export function getStation(id: string) {

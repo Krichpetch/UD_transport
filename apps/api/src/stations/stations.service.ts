@@ -11,21 +11,59 @@ export class StationsService {
     private readonly auditLog: AuditLogService,
   ) {}
 
-  findAll(filters?: {
+  async findAll(filters?: {
     mode?: string
     region?: string
     responsibleAgency?: string
     status?: string
+    search?: string
+    page?: number
+    limit?: number
   }) {
-    return this.prisma.station.findMany({
-      where: {
-        ...(filters?.mode && { mode: filters.mode }),
-        ...(filters?.region && { region: filters.region }),
-        ...(filters?.responsibleAgency && { responsibleAgency: filters.responsibleAgency }),
-        ...(filters?.status && { status: filters.status }),
-      },
-      orderBy: { nameTh: 'asc' },
-    })
+    const page  = filters?.page  ?? 1
+    const limit = filters?.limit ?? 50
+    const where = {
+      ...(filters?.mode              && { mode:              filters.mode }),
+      ...(filters?.region            && { region:            filters.region }),
+      ...(filters?.responsibleAgency && { responsibleAgency: filters.responsibleAgency }),
+      ...(filters?.status            && { status:            filters.status }),
+      ...(filters?.search && {
+        OR: [
+          { nameTh:   { contains: filters.search, mode: 'insensitive' as const } },
+          { name:     { contains: filters.search, mode: 'insensitive' as const } },
+          { province: { contains: filters.search, mode: 'insensitive' as const } },
+        ],
+      }),
+    }
+    const [data, total] = await Promise.all([
+      this.prisma.station.findMany({
+        where,
+        orderBy: { nameTh: 'asc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.station.count({ where }),
+    ])
+    return { data, total, page, totalPages: Math.ceil(total / limit) }
+  }
+
+  async getFilterOptions() {
+    const [regions, agencies] = await Promise.all([
+      this.prisma.station.findMany({
+        select: { region: true },
+        distinct: ['region'],
+        orderBy: { region: 'asc' },
+      }),
+      this.prisma.station.findMany({
+        select: { responsibleAgency: true },
+        distinct: ['responsibleAgency'],
+        orderBy: { responsibleAgency: 'asc' },
+      }),
+    ])
+    return {
+      regions:  regions.map(r => r.region),
+      agencies: agencies.map(a => a.responsibleAgency),
+    }
   }
 
   findOne(id: string) {

@@ -5,6 +5,7 @@ import {
   getStations,
   getStation,
   getStationSummary,
+  getStationFilterOptions,
   createStation,
   getPendingReviews,
   approveChecklist,
@@ -17,6 +18,9 @@ export interface StationFilters {
   region?: string
   agency?: string
   status?: StationStatus | ''
+  search?: string
+  page?: number
+  limit?: number
 }
 
 export function useStations(filters?: StationFilters) {
@@ -25,10 +29,21 @@ export function useStations(filters?: StationFilters) {
     region: filters?.region || undefined,
     agency: filters?.agency || undefined,
     status: filters?.status || undefined,
+    search: filters?.search || undefined,
+    page:   filters?.page   ?? 1,
+    limit:  filters?.limit,
   }
   return useQuery({
     queryKey: ['stations', f],
     queryFn:  () => getStations(f),
+  })
+}
+
+export function useStationFilterOptions() {
+  return useQuery({
+    queryKey: ['station-filters'],
+    queryFn:  getStationFilterOptions,
+    staleTime: 5 * 60 * 1000,
   })
 }
 

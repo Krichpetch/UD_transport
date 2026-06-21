@@ -3,12 +3,12 @@
 import * as React from 'react'
 import * as XLSX from 'xlsx'
 import { getTransportLabel, getChecklistTemplate } from '@/lib/constants'
-import { useStations, useCreateStation, usePendingReviews, useApproveChecklist } from '@/hooks/use-stations'
+import { useStations, useCreateStation, usePendingReviews, useApproveChecklist, useStationFilterOptions } from '@/hooks/use-stations'
 import { getChecklistHistory } from '@/lib/api/checklists'
 import { saveDraft } from '@/lib/api/checklists'
 import { useQueryClient } from '@tanstack/react-query'
 import type { TransportMode, StationStatus, ResponsibleAgency } from '@repo/types'
-import { RESPONSIBLE_AGENCIES, TRANSPORT_MODE_AGENCIES } from '@repo/types'
+import { TRANSPORT_MODE_AGENCIES } from '@repo/types'
 import type { CreateStationInput, ParsedRow } from '@/lib/api/stations'
 import { batchOtpImport } from '@/lib/api/stations'
 import { parseOtpRows, detectOtpFormat } from '@/lib/otp-import'
@@ -90,23 +90,35 @@ function parseRows(raw: Record<string, unknown>[]): { rows: ParsedRow[]; errors:
   return { rows, errors }
 }
 
+const PAGE_SIZE = 50
+
 // ---- Page ----
 export default function StationsPage() {
-  const { data: stations = [], isLoading, error } = useStations()
-  const { data: pendingIds = [] } = usePendingReviews()
-  const createStation = useCreateStation()
-
-  const REGIONS = React.useMemo(() => [...new Set(stations.map(s => s.region))].sort(), [stations])
-  const AGENCIES = React.useMemo(() => [...new Set(stations.map(s => s.responsibleAgency))].sort(), [stations])
-
-  // Filters
+  // Filters — declared before useStations so they can be passed as params
   const [search,       setSearch]       = React.useState('')
   const [typeFilter,   setTypeFilter]   = React.useState<TransportMode | ''>('')
   const [statusFilter, setStatusFilter] = React.useState<StationStatus | ''>('')
   const [agencyFilter, setAgencyFilter] = React.useState('')
   const [regionFilter, setRegionFilter] = React.useState('')
+  const [page,         setPage]         = React.useState(1)
 
-  const availableAgencies = typeFilter ? TRANSPORT_MODE_AGENCIES[typeFilter] : RESPONSIBLE_AGENCIES
+  const { data: stationsPage, isLoading, error } = useStations({
+    mode:   typeFilter   || undefined,
+    status: statusFilter || undefined,
+    agency: agencyFilter || undefined,
+    region: regionFilter || undefined,
+    search: search       || undefined,
+    page,
+  })
+  const stations   = stationsPage?.data       ?? []
+  const total      = stationsPage?.total      ?? 0
+  const totalPages = stationsPage?.totalPages ?? 1
+
+  const { data: filterOptions }   = useStationFilterOptions()
+  const { data: pendingIds = [] } = usePendingReviews()
+  const createStation = useCreateStation()
+
+  const availableAgencies = typeFilter ? TRANSPORT_MODE_AGENCIES[typeFilter] : (filterOptions?.agencies ?? [])
   const availableModes: TransportMode[] = agencyFilter
     ? (Object.entries(TRANSPORT_MODE_AGENCIES) as [TransportMode, readonly string[]][])
         .filter(([, agencies]) => agencies.includes(agencyFilter))
@@ -206,8 +218,8 @@ export default function StationsPage() {
 
   async function handleBulkImport() {
     if (bulkRows.length === 0) return
-    const total = bulkRows.length
-    setBulkProgress(`กำลังสร้าง 0/${total}...`)
+    const bulkTotal = bulkRows.length
+    setBulkProgress(`กำลังสร้าง 0/${bulkTotal}...`)
     let done = 0
     for (const row of bulkRows) {
       try {
@@ -218,7 +230,7 @@ export default function StationsPage() {
         // individual failures: skip and continue
       }
       done++
-      setBulkProgress(`กำลังสร้าง ${done}/${total}...`)
+      setBulkProgress(`กำลังสร้าง ${done}/${bulkTotal}...`)
     }
     setBulkProgress('')
     setBulkRows([])
@@ -229,15 +241,15 @@ export default function StationsPage() {
 
   async function handleOtpImport() {
     if (otpRows.length === 0) return
-    const total = otpRows.length
+    const otpTotal = otpRows.length
     const CHUNK = 50
     let done = 0
-    setBulkProgress(`กำลังนำเข้าข้อมูล OTP 0/${total}...`)
+    setBulkProgress(`กำลังนำเข้าข้อมูล OTP 0/${otpTotal}...`)
     try {
-      for (let i = 0; i < total; i += CHUNK) {
+      for (let i = 0; i < otpTotal; i += CHUNK) {
         await batchOtpImport(otpRows.slice(i, i + CHUNK))
-        done = Math.min(i + CHUNK, total)
-        setBulkProgress(`กำลังนำเข้าข้อมูล OTP ${done}/${total}...`)
+        done = Math.min(i + CHUNK, otpTotal)
+        setBulkProgress(`กำลังนำเข้าข้อมูล OTP ${done}/${otpTotal}...`)
       }
       setBulkProgress('')
       setOtpRows([])
@@ -257,19 +269,11 @@ export default function StationsPage() {
     <div className="flex items-center justify-center p-16 text-sm text-red-500">เกิดข้อผิดพลาด: {(error as Error).message}</div>
   )
 
-  const filtered = stations.filter(s => {
-    const matchSearch  = !search       || s.nameTh.includes(search) || s.name.toLowerCase().includes(search.toLowerCase()) || s.province.includes(search)
-    const matchType    = !typeFilter   || s.mode === typeFilter
-    const matchStatus  = !statusFilter || s.status === statusFilter
-    const matchAgency  = !agencyFilter || s.responsibleAgency === agencyFilter
-    const matchRegion  = !regionFilter || s.region === regionFilter
-    return matchSearch && matchType && matchStatus && matchAgency && matchRegion
-  })
-
   const hasFilters = !!(search || typeFilter || statusFilter || agencyFilter || regionFilter)
 
   function clearFilters() {
     setSearch(''); setTypeFilter(''); setStatusFilter(''); setAgencyFilter(''); setRegionFilter('')
+    setPage(1)
   }
 
   return (
@@ -279,7 +283,7 @@ export default function StationsPage() {
         <div>
           <h1 className="text-foreground text-xl font-bold">จัดการสถานี</h1>
           <p className="text-muted-foreground text-sm">
-            สถานีทั้งหมด {stations.length} แห่ง · แสดงผล {filtered.length} รายการ
+            พบ {total} สถานี · แสดงผล {stations.length} รายการ
             {pendingIds.length > 0 && (
               <span className="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
                 {pendingIds.length} รายการรอรีวิว
@@ -305,7 +309,7 @@ export default function StationsPage() {
               type="text"
               placeholder="ค้นหาสถานี จังหวัด..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(1) }}
               className="border-input bg-background placeholder:text-muted-foreground focus:ring-ring w-full rounded-lg border py-2 pr-3 pl-8 text-sm focus:outline-none focus:ring-1"
             />
           </div>
@@ -316,6 +320,7 @@ export default function StationsPage() {
               onChange={e => {
                 const v = e.target.value as TransportMode | ''
                 setTypeFilter(v)
+                setPage(1)
                 if (agencyFilter && v && !TRANSPORT_MODE_AGENCIES[v].includes(agencyFilter as ResponsibleAgency)) {
                   setAgencyFilter('')
                 }
@@ -326,19 +331,20 @@ export default function StationsPage() {
               {availableModes.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as StationStatus | '')} className={SELECT_CLS.replace('w-full ', '')}>
+          <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value as StationStatus | ''); setPage(1) }} className={SELECT_CLS.replace('w-full ', '')}>
             <option value="">สถานะทั้งหมด</option>
             {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          <select value={regionFilter} onChange={e => setRegionFilter(e.target.value)} className={SELECT_CLS.replace('w-full ', '')}>
+          <select value={regionFilter} onChange={e => { setRegionFilter(e.target.value); setPage(1) }} className={SELECT_CLS.replace('w-full ', '')}>
             <option value="">ทุกภาค</option>
-            {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+            {(filterOptions?.regions ?? []).map(r => <option key={r} value={r}>{r}</option>)}
           </select>
           <select
             value={agencyFilter}
             onChange={e => {
               const v = e.target.value
               setAgencyFilter(v)
+              setPage(1)
               if (typeFilter && v) {
                 const modesForAgency = (Object.entries(TRANSPORT_MODE_AGENCIES) as [TransportMode, readonly string[]][])
                   .filter(([, agencies]) => agencies.includes(v))
@@ -376,14 +382,14 @@ export default function StationsPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {stations.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-muted-foreground py-12 text-center text-sm">
                     ไม่พบสถานีที่ตรงกับเงื่อนไข
                   </td>
                 </tr>
               ) : (
-                filtered.map(station => {
+                stations.map(station => {
                   const hasPending = pendingIds.includes(station.id)
                   return (
                     <tr key={station.id} className="border-border hover:bg-secondary/30 border-b transition-colors last:border-0">
@@ -442,6 +448,32 @@ export default function StationsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="border-border flex items-center justify-between border-t px-4 py-3 text-sm">
+            <span className="text-muted-foreground">
+              แสดง {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} จาก {total} สถานี
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => p - 1)}
+                disabled={page === 1}
+                className="border-border hover:bg-secondary rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:opacity-40"
+              >
+                ก่อนหน้า
+              </button>
+              <span className="text-muted-foreground text-xs">หน้า {page} / {totalPages}</span>
+              <button
+                onClick={() => setPage(p => p + 1)}
+                disabled={page >= totalPages}
+                className="border-border hover:bg-secondary rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:opacity-40"
+              >
+                ถัดไป
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add Station Modal */}
@@ -519,7 +551,7 @@ export default function StationsPage() {
                     <label className="text-foreground mb-1 block text-xs font-medium">ภาค *</label>
                     <input className={INPUT_CLS} value={form.region} list="regions-list" onChange={e => patchForm({ region: e.target.value })} placeholder="กลาง" required />
                     <datalist id="regions-list">
-                      {REGIONS.map(r => <option key={r} value={r} />)}
+                      {(filterOptions?.regions ?? []).map(r => <option key={r} value={r} />)}
                     </datalist>
                   </div>
                 </div>
@@ -528,7 +560,7 @@ export default function StationsPage() {
                   <label className="text-foreground mb-1 block text-xs font-medium">หน่วยงานรับผิดชอบ *</label>
                   <input className={INPUT_CLS} value={form.responsibleAgency} list="agencies-list" onChange={e => patchForm({ responsibleAgency: e.target.value })} placeholder="รฟท." required />
                   <datalist id="agencies-list">
-                    {AGENCIES.map(a => <option key={a} value={a} />)}
+                    {(filterOptions?.agencies ?? []).map(a => <option key={a} value={a} />)}
                   </datalist>
                 </div>
 
