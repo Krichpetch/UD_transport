@@ -13,7 +13,9 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "ts-node --compiler-options '{\"module\":\"commonjs\"}' prisma/seed.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
@@ -36,13 +38,17 @@
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.1.27",
     "@repo/typescript-config": "workspace:*",
     "@types/bcryptjs": "^2.4.6",
     "@types/express": "^4.17.21",
+    "@types/jest": "^30.0.0",
     "@types/multer": "^2.1.0",
     "@types/node": "^22.0.0",
     "@types/passport-jwt": "^4.0.1",
+    "jest": "^30.4.2",
     "prisma": "^6.0.0",
+    "ts-jest": "^29.4.11",
     "ts-loader": "^9.5.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "5.9.2"
