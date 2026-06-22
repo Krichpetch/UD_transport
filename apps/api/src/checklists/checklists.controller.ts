@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common'
+import { Body, Controller, ForbiddenException, Get, Param, Post, Req, UseGuards } from '@nestjs/common'
 import { Request } from 'express'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { ChecklistsService } from './checklists.service'
@@ -28,6 +28,7 @@ export class ChecklistsController {
     @Body() body: { items: unknown },
     @Req() req: AuthRequest,
   ) {
+    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
     return this.checklists.saveDraft(stationId, req.user.id, body.items)
   }
 
@@ -37,6 +38,7 @@ export class ChecklistsController {
     @Body() body: { items: unknown; score?: number },
     @Req() req: AuthRequest,
   ) {
+    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
     return this.checklists.submit(stationId, req.user.id, body.items, body.score)
   }
 }

@@ -76,7 +76,7 @@ export class StationsService {
 
   async approveChecklist(stationId: string, checklistId: string) {
     const cl = await this.prisma.checklist.update({
-      where: { id: checklistId },
+      where: { id: checklistId, stationId },
       data: { status: 'APPROVED' },
     })
     const score = cl.score ?? 0
