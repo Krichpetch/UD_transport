@@ -1,5 +1,6 @@
 import type { ChecklistGroup, ChecklistValue, TransportMode } from '@repo/types'
 import { checklistTemplates, PROVINCE_REGION, PROVINCE_COORDS, OTP_AGENCY_MAP, OTP_MODE_MAP } from './constants'
+import { canonicalProvince } from './thai-geography'
 
 export interface OtpParsedRow {
   station: {
@@ -62,11 +63,16 @@ export function parseOtpRows(raw: Record<string, unknown>[]): { rows: OtpParsedR
       ?? Object.entries(OTP_MODE_MAP).find(([key]) => danCol.startsWith(key))?.[1]
     if (!modeInfo) { errors.push(`แถว ${i + 2}: ด้าน "${danCol}" ไม่รู้จัก`); continue }
 
-    // Province — strip parenthetical suffix; if still unrecognised, scan ด้าน for embedded province name
-    let province = stationCol.replace(/\s*\(.*\)$/, '').trim()
-    if (!PROVINCE_COORDS[province]) {
-      province = Object.keys(PROVINCE_COORDS).find(p => danCol.includes(p)) ?? province
-    }
+    // Province — canonical lookup: stripped name, then parens content, then full-string scan.
+    // Falls back to 'ไม่ระบุจังหวัด' so the upsert key is always stable (never stores station
+    // name as province, which broke deduplication across annual imports).
+    const stripped      = stationCol.replace(/\s*\([^)]*\)$/, '').trim()
+    const parensContent = stationCol.match(/\(([^)]+)\)/)?.[1]?.trim() ?? ''
+    const province =
+      canonicalProvince(stripped) ??
+      canonicalProvince(parensContent) ??
+      canonicalProvince(stationCol) ??
+      'ไม่ระบุจังหวัด'
     const region = PROVINCE_REGION[province] ?? 'กลาง'
     const coords = PROVINCE_COORDS[province] ?? [13.7563, 100.5018]
 

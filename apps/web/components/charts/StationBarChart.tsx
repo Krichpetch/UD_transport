@@ -10,12 +10,13 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import { mockChartData } from '@/lib/mock-data'
 
-export function StationBarChart() {
+type ChartRow = { type: string; ผ่าน: number; ต้องปรับปรุง: number; ไม่ผ่าน: number }
+
+export function StationBarChart({ data }: { data: ChartRow[] }) {
   return (
     <ResponsiveContainer width="100%" height={260}>
-      <BarChart data={mockChartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+      <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis
           dataKey="type"

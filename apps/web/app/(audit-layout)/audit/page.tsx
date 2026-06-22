@@ -9,7 +9,8 @@ import { Camera, Loader2, MapPin, Save, Send, CheckSquare, Square } from 'lucide
 import { useUploadPhoto } from '@/hooks/use-uploads'
 
 export default function AuditPage() {
-  const { data: allStations = [] } = useStations()
+  const { data: allStationsPage } = useStations({ limit: 9999 })
+  const allStations = allStationsPage?.data ?? []
   const [selectedId, setSelectedId] = React.useState('')
   const { data: station } = useStation(selectedId)
   const saveDraftMutation = useSaveDraft(selectedId)

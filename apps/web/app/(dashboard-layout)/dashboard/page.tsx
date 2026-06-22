@@ -6,7 +6,7 @@ import { getTransportLabel, CHECKLIST_CATEGORIES, checklistTemplates } from '@/l
 import { getLatestChecklist } from '@/lib/api/checklists'
 import { useStations, useStationSummary } from '@/hooks/use-stations'
 import { StatusBadge, TransportBadge } from '@/components/shared/badges'
-import type { TransportMode, ChecklistSubItem } from '@repo/types'
+import type { TransportMode, ChecklistSubItem, ChecklistGroup, Station } from '@repo/types'
 import { StationBarChart } from '@/components/charts/StationBarChart'
 import { ThailandMap } from '@/components/maps/ThailandMap'
 import {
@@ -33,7 +33,8 @@ const SELECT_CLS = 'border-input bg-background text-foreground focus:ring-ring r
 
 export default function DashboardPage() {
   const { data: summary } = useStationSummary()
-  const { data: stations = [] } = useStations()
+  const { data: stationsPage } = useStations({ limit: 9999 })
+  const stations: Station[] = stationsPage?.data ?? []
 
   const [modeFilter,     setModeFilter]     = React.useState<TransportMode | ''>('')
   const [regionFilter,   setRegionFilter]   = React.useState('')
@@ -41,9 +42,12 @@ export default function DashboardPage() {
   const [agencyFilter,   setAgencyFilter]   = React.useState('')
   const [categoryFilter, setCategoryFilter] = React.useState<'A' | 'B' | 'C' | ''>('')
   const [subItemFilter,  setSubItemFilter]  = React.useState('')
+  const PAGE_SIZE = 5
+  const [tablePage, setTablePage] = React.useState(1)
 
   React.useEffect(() => { setProvinceFilter('') }, [regionFilter])
   React.useEffect(() => { setSubItemFilter('') }, [categoryFilter, modeFilter])
+  React.useEffect(() => { setTablePage(1) }, [modeFilter, regionFilter, provinceFilter, agencyFilter])
 
   const REGIONS = React.useMemo(
     () => [...new Set(stations.map(s => s.region))].sort(),
@@ -92,6 +96,22 @@ export default function DashboardPage() {
     s => s.status === 'ไม่ผ่าน' || s.urgentIssues.length > 0
   )
 
+  const chartData = React.useMemo(() =>
+    TRANSPORT_MODES.map(mode => {
+      const inMode = filteredStations.filter(s => s.mode === mode)
+      return {
+        type: mode,
+        ผ่าน:         inMode.filter(s => s.status === 'ผ่านมาตรฐาน').length,
+        ต้องปรับปรุง: inMode.filter(s => s.status === 'ต้องปรับปรุง').length,
+        ไม่ผ่าน:      inMode.filter(s => s.status === 'ไม่ผ่าน').length,
+      }
+    }),
+    [filteredStations],
+  )
+
+  const tablePageCount = Math.max(1, Math.ceil(filteredStations.length / PAGE_SIZE))
+  const pagedStations  = filteredStations.slice((tablePage - 1) * PAGE_SIZE, tablePage * PAGE_SIZE)
+
   const checklistQueries = useQueries({
     queries: subItemFilter
       ? filteredStations.map(s => ({
@@ -113,8 +133,8 @@ export default function DashboardPage() {
       const record = q.data
       if (!record?.items) continue
       let found: ChecklistSubItem | undefined
-      for (const group of record.items) {
-        const sub = group.items.find((si: ChecklistSubItem) => si.id === subItemFilter)
+      for (const group of record.items as ChecklistGroup[]) {
+        const sub = group.items.find(si => si.id === subItemFilter)
         if (sub) { found = sub; break }
       }
       if (!found) continue
@@ -266,8 +286,8 @@ export default function DashboardPage() {
                     .map((q, i) => ({ q, s: filteredStations[i]! }))
                     .filter(({ q }) => {
                       if (!q.data?.items) return false
-                      for (const group of q.data.items) {
-                        const sub = group.items.find((si: ChecklistSubItem) => si.id === subItemFilter)
+                      for (const group of q.data.items as ChecklistGroup[]) {
+                        const sub = group.items.find(si => si.id === subItemFilter)
                         if (sub && sub.value === 'มี' && !sub.meetsStandard) return true
                       }
                       return false
@@ -346,7 +366,7 @@ export default function DashboardPage() {
             <h2 className="text-foreground text-sm font-semibold">สถานะสิ่งอำนวยความสะดวก แยกตามประเภทการขนส่ง</h2>
             <p className="text-muted-foreground text-xs">จำแนกตามสถานะการตรวจสอบล่าสุด</p>
           </div>
-          <StationBarChart />
+          <StationBarChart data={chartData} />
         </div>
 
         <div className="bg-card border-border rounded-xl border p-5 lg:col-span-2">
@@ -428,7 +448,7 @@ export default function DashboardPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredStations.map(station => (
+                  pagedStations.map(station => (
                     <tr
                       key={station.id}
                       className="border-border hover:bg-secondary/50 border-b transition-colors last:border-0"
@@ -466,6 +486,29 @@ export default function DashboardPage() {
               </tbody>
             </table>
           </div>
+          {tablePageCount > 1 && (
+            <div className="border-border flex items-center justify-between border-t px-5 py-3">
+              <span className="text-muted-foreground text-xs">
+                {(tablePage - 1) * PAGE_SIZE + 1}–{Math.min(tablePage * PAGE_SIZE, filteredStations.length)} จาก {filteredStations.length}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setTablePage(p => p - 1)}
+                  disabled={tablePage === 1}
+                  className="border-border text-foreground rounded-lg border px-3 py-1 text-xs disabled:opacity-40"
+                >
+                  ← ก่อนหน้า
+                </button>
+                <button
+                  onClick={() => setTablePage(p => p + 1)}
+                  disabled={tablePage === tablePageCount}
+                  className="border-border text-foreground rounded-lg border px-3 py-1 text-xs disabled:opacity-40"
+                >
+                  ถัดไป →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
