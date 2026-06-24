@@ -13,12 +13,14 @@ export class ChecklistsController {
   constructor(private readonly checklists: ChecklistsService) {}
 
   @Get()
-  findLatest(@Param('stationId') stationId: string) {
+  findLatest(@Param('stationId') stationId: string, @Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'AUDITOR' && req.user.role !== 'EXECUTIVE') throw new ForbiddenException()
     return this.checklists.findLatest(stationId)
   }
 
   @Get('history')
-  findAll(@Param('stationId') stationId: string) {
+  findAll(@Param('stationId') stationId: string, @Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'AUDITOR' && req.user.role !== 'EXECUTIVE') throw new ForbiddenException()
     return this.checklists.findAll(stationId)
   }
 

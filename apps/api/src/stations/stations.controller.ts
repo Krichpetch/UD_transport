@@ -29,18 +29,21 @@ export class StationsController {
   ) {}
 
   @Get('summary')
-  summary() {
+  summary(@Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE') throw new ForbiddenException()
     return this.stations.summary()
   }
 
   // Must come before @Get(':id') to avoid route conflict
   @Get('pending-reviews')
-  pendingReviews() {
+  pendingReviews(@Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
     return this.stations.getPendingReviews()
   }
 
   @Get()
   findAll(
+    @Req() req: AuthRequest,
     @Query('mode')   mode?: string,
     @Query('region') region?: string,
     @Query('agency') responsibleAgency?: string,
@@ -49,6 +52,7 @@ export class StationsController {
     @Query('page')   page?: string,
     @Query('limit')  limit?: string,
   ) {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
     return this.stations.findAll({
       mode, region, responsibleAgency, status, search,
       page:  page  ? parseInt(page,  10) : 1,
@@ -57,12 +61,14 @@ export class StationsController {
   }
 
   @Get('filters')
-  getFilterOptions() {
+  getFilterOptions(@Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
     return this.stations.getFilterOptions()
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id') id: string, @Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
     return this.stations.findOne(id)
   }
 
