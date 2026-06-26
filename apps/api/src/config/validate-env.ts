@@ -1,5 +1,16 @@
+const REQUIRED = [
+  'JWT_SECRET',
+  'DATABASE_URL',
+  'MINIO_ACCESS_KEY',
+  'MINIO_SECRET_KEY',
+  'MINIO_PUBLIC_ENDPOINT',
+  'FRONTEND_URL',
+] as const
+
 export function validateEnv(): void {
-  if (!process.env.JWT_SECRET) {
-    throw new Error('FATAL: JWT_SECRET environment variable is not set')
+  for (const key of REQUIRED) {
+    if (!process.env[key]) {
+      throw new Error(`FATAL: ${key} environment variable is not set`)
+    }
   }
 }

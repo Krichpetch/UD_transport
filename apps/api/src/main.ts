@@ -18,7 +18,7 @@ async function bootstrap() {
     }),
   )
 
-  app.enableCors({ origin: process.env.FRONTEND_URL ?? 'http://localhost:3000' })
+  app.enableCors({ origin: process.env.FRONTEND_URL! })
 
   const port = Number(process.env.PORT ?? 3001)
   await app.listen(port)

@@ -30,7 +30,8 @@ export class UploadsController {
     if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
     const ext = file.originalname.split('.').pop() ?? 'jpg'
     const key = `checklist-photos/${Date.now()}-${req.user.id}.${ext}`
-    const url = await this.minio.upload(file.buffer, key, file.mimetype)
+    await this.minio.upload(file.buffer, key, file.mimetype)
+    const url = await this.minio.getPresignedUrl(key)
     return { id: key, url, filename: file.originalname, uploadedAt: new Date().toISOString() }
   }
 }

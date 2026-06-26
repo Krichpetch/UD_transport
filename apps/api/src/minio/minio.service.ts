@@ -10,16 +10,18 @@ export class MinioService implements OnModuleInit {
     this.client = new Minio.Client({
       endPoint:  process.env.MINIO_ENDPOINT  ?? 'localhost',
       port:      Number(process.env.MINIO_PORT ?? 9000),
-      useSSL:    false,
-      accessKey: process.env.MINIO_ACCESS_KEY ?? 'admin',
-      secretKey: process.env.MINIO_SECRET_KEY ?? 'password',
+      useSSL:    process.env.MINIO_USE_SSL === 'true',
+      accessKey: process.env.MINIO_ACCESS_KEY!,
+      secretKey: process.env.MINIO_SECRET_KEY!,
     })
   }
 
   async upload(buffer: Buffer, key: string, mimetype: string): Promise<string> {
     await this.client.putObject(this.bucket, key, buffer, buffer.length, { 'Content-Type': mimetype })
-    const endpoint = process.env.MINIO_ENDPOINT ?? 'localhost'
-    const port     = process.env.MINIO_PORT     ?? '9000'
-    return `http://${endpoint}:${port}/${this.bucket}/${key}`
+    return key
+  }
+
+  async getPresignedUrl(key: string, expirySeconds = 3600): Promise<string> {
+    return this.client.presignedGetObject(this.bucket, key, expirySeconds)
   }
 }

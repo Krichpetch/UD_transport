@@ -37,22 +37,34 @@ describe('validateEnv › missing JWT_SECRET', () => {
 })
 
 describe('validateEnv › JWT_SECRET set', () => {
-  let savedSecret: string | undefined
+  const REQUIRED: Record<string, string> = {
+    JWT_SECRET:       'test-secret-long-enough-for-validation',
+    DATABASE_URL:     'postgresql://user:pass@localhost:5432/testdb',
+    MINIO_ACCESS_KEY: 'test-access-key',
+    MINIO_SECRET_KEY: 'test-secret-key',
+    FRONTEND_URL:     'http://localhost:3000',
+  }
+  let saved: Record<string, string | undefined> = {}
 
   beforeEach(() => {
-    savedSecret = process.env.JWT_SECRET
-    process.env.JWT_SECRET = 'test-secret-long-enough-for-validation'
-  })
-
-  afterEach(() => {
-    if (savedSecret !== undefined) {
-      process.env.JWT_SECRET = savedSecret
-    } else {
-      delete process.env.JWT_SECRET
+    for (const key of Object.keys(REQUIRED)) {
+      saved[key] = process.env[key]
+      process.env[key] = REQUIRED[key]
     }
   })
 
-  it('does not throw when JWT_SECRET is set', () => {
+  afterEach(() => {
+    for (const key of Object.keys(REQUIRED)) {
+      if (saved[key] !== undefined) {
+        process.env[key] = saved[key] as string
+      } else {
+        delete process.env[key]
+      }
+    }
+    saved = {}
+  })
+
+  it('does not throw when all required vars are set', () => {
     expect(() => validateEnv()).not.toThrow()
   })
 })
