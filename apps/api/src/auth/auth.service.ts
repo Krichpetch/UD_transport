@@ -12,7 +12,10 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { username: dto.username } })
+    const user = await this.prisma.user.findUnique({
+      where: { username: dto.username },
+      omit:  { passwordHash: false },
+    })
     if (!user) throw new UnauthorizedException('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash)
