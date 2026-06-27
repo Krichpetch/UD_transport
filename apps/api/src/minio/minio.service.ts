@@ -4,6 +4,7 @@ import * as Minio from 'minio'
 @Injectable()
 export class MinioService implements OnModuleInit {
   private client: Minio.Client
+  private publicClient: Minio.Client
   private bucket = process.env.MINIO_BUCKET ?? 'ud-transport'
 
   onModuleInit() {
@@ -11,6 +12,14 @@ export class MinioService implements OnModuleInit {
       endPoint:  process.env.MINIO_ENDPOINT  ?? 'localhost',
       port:      Number(process.env.MINIO_PORT ?? 9000),
       useSSL:    process.env.MINIO_USE_SSL === 'true',
+      accessKey: process.env.MINIO_ACCESS_KEY!,
+      secretKey: process.env.MINIO_SECRET_KEY!,
+    })
+    const pub = new URL(process.env.MINIO_PUBLIC_ENDPOINT!)
+    this.publicClient = new Minio.Client({
+      endPoint:  pub.hostname,
+      port:      pub.port ? Number(pub.port) : pub.protocol === 'https:' ? 443 : 80,
+      useSSL:    pub.protocol === 'https:',
       accessKey: process.env.MINIO_ACCESS_KEY!,
       secretKey: process.env.MINIO_SECRET_KEY!,
     })
@@ -22,6 +31,6 @@ export class MinioService implements OnModuleInit {
   }
 
   async getPresignedUrl(key: string, expirySeconds = 3600): Promise<string> {
-    return this.client.presignedGetObject(this.bucket, key, expirySeconds)
+    return this.publicClient.presignedGetObject(this.bucket, key, expirySeconds)
   }
 }

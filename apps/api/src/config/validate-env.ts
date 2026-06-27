@@ -13,4 +13,7 @@ export function validateEnv(): void {
       throw new Error(`FATAL: ${key} environment variable is not set`)
     }
   }
+  if (process.env.JWT_SECRET!.length < 32) {
+    throw new Error('FATAL: JWT_SECRET must be at least 32 characters')
+  }
 }

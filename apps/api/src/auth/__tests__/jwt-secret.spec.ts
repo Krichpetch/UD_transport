@@ -38,11 +38,12 @@ describe('validateEnv › missing JWT_SECRET', () => {
 
 describe('validateEnv › JWT_SECRET set', () => {
   const REQUIRED: Record<string, string> = {
-    JWT_SECRET:       'test-secret-long-enough-for-validation',
-    DATABASE_URL:     'postgresql://user:pass@localhost:5432/testdb',
-    MINIO_ACCESS_KEY: 'test-access-key',
-    MINIO_SECRET_KEY: 'test-secret-key',
-    FRONTEND_URL:     'http://localhost:3000',
+    JWT_SECRET:            'test-secret-long-enough-for-validation',
+    DATABASE_URL:          'postgresql://user:pass@localhost:5432/testdb',
+    MINIO_ACCESS_KEY:      'test-access-key',
+    MINIO_SECRET_KEY:      'test-secret-key',
+    MINIO_PUBLIC_ENDPOINT: 'http://localhost:9000',
+    FRONTEND_URL:          'http://localhost:3000',
   }
   let saved: Record<string, string | undefined> = {}
 

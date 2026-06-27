@@ -12,17 +12,19 @@ const REQUIRED_VARS = [
   'DATABASE_URL',
   'MINIO_ACCESS_KEY',
   'MINIO_SECRET_KEY',
+  'MINIO_PUBLIC_ENDPOINT',
   'FRONTEND_URL',
 ] as const
 
 type RequiredVar = (typeof REQUIRED_VARS)[number]
 
 const VALID_VALUES: Record<RequiredVar, string> = {
-  JWT_SECRET:       'test-secret-long-enough-for-validation',
-  DATABASE_URL:     'postgresql://user:pass@localhost:5432/testdb',
-  MINIO_ACCESS_KEY: 'test-access-key',
-  MINIO_SECRET_KEY: 'test-secret-key',
-  FRONTEND_URL:     'http://localhost:3000',
+  JWT_SECRET:            'test-secret-long-enough-for-validation',
+  DATABASE_URL:          'postgresql://user:pass@localhost:5432/testdb',
+  MINIO_ACCESS_KEY:      'test-access-key',
+  MINIO_SECRET_KEY:      'test-secret-key',
+  MINIO_PUBLIC_ENDPOINT: 'http://localhost:9000',
+  FRONTEND_URL:          'http://localhost:3000',
 }
 
 describe('validateEnv › required environment variables', () => {
@@ -48,6 +50,11 @@ describe('validateEnv › required environment variables', () => {
 
   it('does not throw when all required vars are set', () => {
     expect(() => validateEnv()).not.toThrow()
+  })
+
+  it('throws when JWT_SECRET is set but shorter than 32 characters', () => {
+    process.env.JWT_SECRET = 'x'
+    expect(() => validateEnv()).toThrow(/JWT_SECRET/)
   })
 
   for (const varName of REQUIRED_VARS) {

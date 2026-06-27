@@ -11,6 +11,7 @@ Security rules that apply to every change:
 - All API endpoints must be role-guarded (ADMIN / AUDITOR / EXECUTIVE)
 - Every data mutation (checklist submit, station update) must write an AuditLog entry
 - Secrets (JWT_SECRET, DATABASE_URL) must be long random strings in production — never the dev placeholders from `.env.example`
+- Any bcrypt password hashing must use BCRYPT_ROUNDS (=12) from src/config/constants.ts. Never use the library default. Current code: seed.ts uses 12; bcrypt.compare in auth.service needs no rounds.
 
 ---
 
