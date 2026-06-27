@@ -9,7 +9,7 @@ import { StatusBadge, TransportBadge } from '@/components/shared/badges'
 import type { TransportMode, ChecklistSubItem, ChecklistGroup, Station } from '@repo/types'
 import { StationBarChart } from '@/components/charts/StationBarChart'
 import { ThailandMap } from '@/components/maps/ThailandMap'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import {
   TrendingUp, TrendingDown, Building2, CheckCircle2, AlertTriangle,
   XCircle, AlertCircle, Filter, X, Loader2, Maximize2,
@@ -532,7 +532,7 @@ export default function DashboardPage() {
           <div className="flex h-full flex-col">
             <div className="border-border flex items-center justify-between border-b px-5 py-3 pr-12">
               <div>
-                <h2 className="text-foreground text-sm font-semibold">แผนที่สถานีทั่วประเทศ</h2>
+                <DialogTitle>แผนที่สถานีทั่วประเทศ</DialogTitle>
                 <p className="text-muted-foreground text-xs">
                   แสดง {filteredStations.length} สถานี
                   {filteredStations.length !== stations.length && ` (กรองจาก ${stations.length})`}

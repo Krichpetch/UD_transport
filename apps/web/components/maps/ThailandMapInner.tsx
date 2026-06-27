@@ -228,7 +228,7 @@ function MapLegend() {
 
 export default function ThailandMapInner({ stations }: { stations: Station[] }) {
   return (
-    <div style={{ position: 'relative', height: '100%', width: '100%' }}>
+    <div style={{ position: 'relative', height: '100%', width: '100%', isolation: 'isolate' }}>
       <MapContainer
         center={THAILAND_CENTER}
         zoom={5}
