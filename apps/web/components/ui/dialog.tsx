@@ -21,11 +21,26 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        'fixed inset-0 z-50 bg-black/50 backdrop-blur-sm',
+        'fixed inset-0 bg-black/50 backdrop-blur-sm',
+        // z-[1000] ensures the overlay renders above Leaflet map panes (z-index 200–700)
+        'z-[1000]',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
         'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
         className,
       )}
+      {...props}
+    />
+  )
+}
+
+function DialogTitle({
+  className,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Title>) {
+  return (
+    <DialogPrimitive.Title
+      data-slot="dialog-title"
+      className={cn('text-foreground text-sm font-semibold', className)}
       {...props}
     />
   )
@@ -42,7 +57,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          'bg-background fixed top-[50%] left-[50%] z-50 translate-x-[-50%] translate-y-[-50%]',
+          'bg-background fixed top-[50%] left-[50%] z-[1001] translate-x-[-50%] translate-y-[-50%]',
           'w-full max-w-lg rounded-xl shadow-xl',
           'data-[state=open]:animate-in data-[state=closed]:animate-out',
           'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
@@ -64,4 +79,4 @@ function DialogContent({
   )
 }
 
-export { Dialog, DialogContent }
+export { Dialog, DialogContent, DialogTitle }
