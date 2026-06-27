@@ -9,9 +9,10 @@ import { StatusBadge, TransportBadge } from '@/components/shared/badges'
 import type { TransportMode, ChecklistSubItem, ChecklistGroup, Station } from '@repo/types'
 import { StationBarChart } from '@/components/charts/StationBarChart'
 import { ThailandMap } from '@/components/maps/ThailandMap'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import {
   TrendingUp, TrendingDown, Building2, CheckCircle2, AlertTriangle,
-  XCircle, AlertCircle, Filter, X, Loader2,
+  XCircle, AlertCircle, Filter, X, Loader2, Maximize2,
 } from 'lucide-react'
 
 function MetricRow({ label, value, pct }: { label: string; value: number; pct?: number }) {
@@ -42,6 +43,7 @@ export default function DashboardPage() {
   const [agencyFilter,   setAgencyFilter]   = React.useState('')
   const [categoryFilter, setCategoryFilter] = React.useState<'A' | 'B' | 'C' | ''>('')
   const [subItemFilter,  setSubItemFilter]  = React.useState('')
+  const [mapExpanded,    setMapExpanded]    = React.useState(false)
   const PAGE_SIZE = 5
   const [tablePage, setTablePage] = React.useState(1)
 
@@ -370,12 +372,22 @@ export default function DashboardPage() {
         </div>
 
         <div className="bg-card border-border rounded-xl border p-5 lg:col-span-2">
-          <div className="mb-4">
-            <h2 className="text-foreground text-sm font-semibold">แผนที่สถานีทั่วประเทศ</h2>
-            <p className="text-muted-foreground text-xs">แสดงสถานะตามพื้นที่</p>
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-foreground text-sm font-semibold">แผนที่สถานีทั่วประเทศ</h2>
+              <p className="text-muted-foreground text-xs">แสดงสถานะตามพื้นที่</p>
+            </div>
+            <button
+              onClick={() => setMapExpanded(true)}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="ขยายแผนที่เต็มหน้าจอ"
+              title="ขยายแผนที่"
+            >
+              <Maximize2 size={14} />
+            </button>
           </div>
           <div className="h-[260px]">
-            <ThailandMap />
+            <ThailandMap stations={filteredStations} />
           </div>
         </div>
       </div>
@@ -511,6 +523,28 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      <Dialog open={mapExpanded} onOpenChange={setMapExpanded}>
+        <DialogContent
+          className="max-w-5xl overflow-hidden p-0"
+          style={{ height: '80vh' }}
+        >
+          <div className="flex h-full flex-col">
+            <div className="border-border flex items-center justify-between border-b px-5 py-3 pr-12">
+              <div>
+                <h2 className="text-foreground text-sm font-semibold">แผนที่สถานีทั่วประเทศ</h2>
+                <p className="text-muted-foreground text-xs">
+                  แสดง {filteredStations.length} สถานี
+                  {filteredStations.length !== stations.length && ` (กรองจาก ${stations.length})`}
+                </p>
+              </div>
+            </div>
+            <div className="min-h-0 flex-1">
+              <ThailandMap stations={filteredStations} />
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
