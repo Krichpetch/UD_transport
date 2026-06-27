@@ -1,6 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import type { Station } from '@repo/types'
 
 // Leaflet requires window — must be loaded client-side only
 const ThailandMapInner = dynamic(() => import('./ThailandMapInner'), {
@@ -12,6 +13,10 @@ const ThailandMapInner = dynamic(() => import('./ThailandMapInner'), {
   ),
 })
 
-export function ThailandMap() {
-  return <ThailandMapInner />
+interface ThailandMapProps {
+  stations: Station[]
+}
+
+export function ThailandMap({ stations }: ThailandMapProps) {
+  return <ThailandMapInner stations={stations} />
 }
