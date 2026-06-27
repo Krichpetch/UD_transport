@@ -17,6 +17,7 @@ import {
   ChevronUp,
   CheckCircle,
   Loader2,
+  FileSpreadsheet,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -194,6 +195,7 @@ export default function StationChecklistPage({
 
   const [groups, setGroups] = React.useState<ChecklistGroup[]>([])
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({})
+  const [excelExporting, setExcelExporting] = React.useState(false)
 
   React.useEffect(() => {
     if (!station) return
@@ -211,6 +213,28 @@ export default function StationChecklistPage({
         }
       )
     )
+  }
+
+  async function handleExcelExport() {
+    if (!station || excelExporting) return
+    setExcelExporting(true)
+    try {
+      const res = await fetch(`/api/export/station/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groups }),
+      })
+      if (!res.ok) return
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${station.nameTh}_${new Date().toISOString().slice(0, 10)}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExcelExporting(false)
+    }
   }
 
   // ── Derived stats — N/A items excluded from scoring denominator ──
@@ -271,8 +295,16 @@ export default function StationChecklistPage({
           <button className="border-border text-muted-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors">
             <Download size={13} /> Export PDF
           </button>
-          <button className="border-border text-muted-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors">
-            <Download size={13} /> Export Excel
+          <button
+            onClick={handleExcelExport}
+            disabled={excelExporting}
+            className="border-border text-muted-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors disabled:opacity-60"
+          >
+            {excelExporting
+              ? <Loader2 size={13} className="animate-spin" />
+              : <FileSpreadsheet size={13} />
+            }
+            Export Excel
           </button>
         </div>
       </div>
@@ -414,8 +446,16 @@ export default function StationChecklistPage({
               <button className="border-border hover:bg-secondary flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs text-muted-foreground transition-colors">
                 <Download size={12} /> Export เป็น PDF
               </button>
-              <button className="border-border hover:bg-secondary flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs text-muted-foreground transition-colors">
-                <Download size={12} /> Export เป็น Excel
+              <button
+                onClick={handleExcelExport}
+                disabled={excelExporting}
+                className="border-border hover:bg-secondary flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs text-muted-foreground transition-colors disabled:opacity-60"
+              >
+                {excelExporting
+                  ? <Loader2 size={12} className="animate-spin" />
+                  : <FileSpreadsheet size={12} />
+                }
+                Export เป็น Excel
               </button>
             </div>
 

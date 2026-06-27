@@ -14,7 +14,7 @@ import { batchOtpImport } from '@/lib/api/stations'
 import { parseOtpRows, detectOtpFormat } from '@/lib/otp-import'
 import type { OtpParsedRow } from '@/lib/otp-import'
 import { StatusBadge, ScoreBar } from '@/components/shared/badges'
-import { Search, Filter, ClipboardList, Building2, CheckCircle, Loader2, Upload, X } from 'lucide-react'
+import { Search, Filter, ClipboardList, Building2, CheckCircle, Loader2, Upload, X, FileSpreadsheet } from 'lucide-react'
 import Link from 'next/link'
 
 function ApproveButton({ stationId }: { stationId: string }) {
@@ -101,6 +101,7 @@ export default function StationsPage() {
   const [agencyFilter, setAgencyFilter] = React.useState('')
   const [regionFilter, setRegionFilter] = React.useState('')
   const [page,         setPage]         = React.useState(1)
+  const [excelExporting, setExcelExporting] = React.useState(false)
 
   const { data: stationsPage, isLoading, error } = useStations({
     mode:   typeFilter   || undefined,
@@ -262,6 +263,24 @@ export default function StationsPage() {
     }
   }
 
+  async function handleExportAll() {
+    if (excelExporting) return
+    setExcelExporting(true)
+    try {
+      const res = await fetch('/api/export/stations')
+      if (!res.ok) return
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `stations_export_${new Date().toISOString().slice(0, 10)}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExcelExporting(false)
+    }
+  }
+
   if (isLoading) return (
     <div className="flex items-center justify-center p-16 text-sm text-muted-foreground">กำลังโหลด…</div>
   )
@@ -291,13 +310,26 @@ export default function StationsPage() {
             )}
           </p>
         </div>
-        <button
-          onClick={() => { setSheetOpen(true); setSheetMode('single') }}
-          className="bg-primary text-primary-foreground flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
-        >
-          <Building2 size={14} />
-          เพิ่มสถานี
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportAll}
+            disabled={excelExporting}
+            className="border-border text-muted-foreground hover:bg-secondary flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60"
+          >
+            {excelExporting
+              ? <Loader2 size={14} className="animate-spin" />
+              : <FileSpreadsheet size={14} />
+            }
+            Export ทั้งหมด
+          </button>
+          <button
+            onClick={() => { setSheetOpen(true); setSheetMode('single') }}
+            className="bg-primary text-primary-foreground flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+          >
+            <Building2 size={14} />
+            เพิ่มสถานี
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
