@@ -44,7 +44,7 @@ export default function DashboardPage() {
   const [categoryFilter, setCategoryFilter] = React.useState<'A' | 'B' | 'C' | ''>('')
   const [subItemFilter,  setSubItemFilter]  = React.useState('')
   const [mapExpanded,    setMapExpanded]    = React.useState(false)
-  const PAGE_SIZE = 5
+  const PAGE_SIZE = 10
   const [tablePage, setTablePage] = React.useState(1)
 
   React.useEffect(() => { setProvinceFilter('') }, [regionFilter])

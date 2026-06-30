@@ -24,6 +24,12 @@ export class ChecklistsController {
     return this.checklists.findAll(stationId)
   }
 
+  @Get('draft')
+  findDraft(@Param('stationId') stationId: string, @Req() req: AuthRequest) {
+    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    return this.checklists.findDraft(stationId, req.user.id)
+  }
+
   @Post('draft')
   saveDraft(
     @Param('stationId') stationId: string,

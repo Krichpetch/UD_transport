@@ -20,21 +20,63 @@ export interface OtpParsedRow {
   lastInspected: string
 }
 
+export interface OtpParseResult {
+  rows:             OtpParsedRow[]
+  errors:           string[]
+  outOfTimeframe:   { rowIndex: number; nameTh: string; year: number }[]
+  unknownCodes:     string[]
+  stats: {
+    มีได้มาตรฐาน:    number
+    มีไม่ได้มาตรฐาน: number
+    มีไม่ระบุ:       number
+    ไม่มี:           number
+    na:              number
+    other:           number
+  }
+}
+
 const RESERVED_KEYS = new Set(['ลำดับ', 'ปี', 'หน่วยงาน', 'ด้าน'])
 
-function parseChecklistValue(raw: unknown): { value: ChecklistValue; meetsStandard: boolean; note: string } {
-  const s = String(raw ?? '').trim()
-  if (!s) return { value: null, meetsStandard: false, note: '' }
-  if (s === 'N/A' || s === 'n/a') return { value: 'N/A', meetsStandard: false, note: '' }
-  if (s.startsWith('ไม่มี')) {
+const LAT_KEYS = ['lat', 'latitude', 'ละติจูด']
+const LNG_KEYS = ['lng', 'longitude', 'ลองจิจูด']
+
+// Regex for Thai standard/non-standard tokens (tolerates typos: มาตราฐาน, มาตฐาน, ด้า instead of ได้)
+const RE_NOT_STANDARD = /ไม่.*(ได้|ด้า)?มาตร?(าฐาน|ฐาน|ราฐาน)/
+const RE_STANDARD     = /(ได้|ด้า)?มาตร?(าฐาน|ฐาน|ราฐาน)/
+
+function parseChecklistValue(raw: unknown): {
+  value: ChecklistValue
+  meetsStandard: boolean
+  note: string
+  flagged: boolean
+  isOther: boolean
+} {
+  const s = String(raw ?? '').trim().replace(/\s+/g, ' ')
+
+  if (!s || s === '-' || s === '0') return { value: 'N/A', meetsStandard: false, note: '', flagged: false, isOther: false }
+  if (s.toLowerCase() === 'n/a')    return { value: 'N/A', meetsStandard: false, note: '', flagged: false, isOther: false }
+
+  // ไม่มี (includes ไม่ม่ typo)
+  if (/^ไม่ม[ี่]/.test(s)) {
     const note = s.includes('-') ? s.split('-').slice(1).join('-').trim() : ''
-    return { value: 'ไม่มี', meetsStandard: false, note }
+    return { value: 'ไม่มี', meetsStandard: false, note, flagged: false, isOther: false }
   }
+
   if (s.startsWith('มี')) {
-    const meetsStandard = s.includes('ได้มาตรฐาน') && !s.includes('ไม่ได้มาตรฐาน')
-    return { value: 'มี', meetsStandard, note: '' }
+    if (RE_NOT_STANDARD.test(s)) {
+      // มี ไม่ได้มาตรฐาน (+ typos)
+      return { value: 'มี', meetsStandard: false, note: '', flagged: false, isOther: false }
+    }
+    if (RE_STANDARD.test(s)) {
+      // มี ได้มาตรฐาน (+ typos)
+      return { value: 'มี', meetsStandard: true, note: '', flagged: false, isOther: false }
+    }
+    // bare มี or มี + unrecognised text — flag as standard-unspecified
+    return { value: 'มี', meetsStandard: false, note: '', flagged: true, isOther: false }
   }
-  return { value: null, meetsStandard: false, note: '' }
+
+  // Nothing matched
+  return { value: null, meetsStandard: false, note: s, flagged: false, isOther: true }
 }
 
 export function detectOtpFormat(raw: Record<string, unknown>[]): boolean {
@@ -42,9 +84,24 @@ export function detectOtpFormat(raw: Record<string, unknown>[]): boolean {
   return Object.keys(raw[0]!).some(k => /^\(A\d/.test(k))
 }
 
-export function parseOtpRows(raw: Record<string, unknown>[]): { rows: OtpParsedRow[]; errors: string[] } {
+export function parseOtpRows(raw: Record<string, unknown>[]): OtpParseResult {
   const errors: string[] = []
   const rows: OtpParsedRow[] = []
+  const outOfTimeframe: OtpParseResult['outOfTimeframe'] = []
+  const unknownCodesSet = new Set<string>()
+  const stats: OtpParseResult['stats'] = {
+    มีได้มาตรฐาน: 0, มีไม่ได้มาตรฐาน: 0, มีไม่ระบุ: 0, ไม่มี: 0, na: 0, other: 0,
+  }
+
+  // Detect coordinate columns once from the first row
+  const firstKeys = Object.keys(raw[0] ?? {})
+  const latKey = firstKeys.find(k => LAT_KEYS.includes(k.toLowerCase().trim()))
+  const lngKey = firstKeys.find(k => LNG_KEYS.includes(k.toLowerCase().trim()))
+
+  // Dynamic year range based on current date
+  const currentBE   = new Date().getFullYear() + 543
+  const VALID_BE_MIN = currentBE - 10
+  const VALID_BE_MAX = currentBE + 1
 
   for (let i = 0; i < raw.length; i++) {
     const obj = raw[i]!
@@ -58,14 +115,21 @@ export function parseOtpRows(raw: Record<string, unknown>[]): { rows: OtpParsedR
     const danCol    = String(obj['ด้าน'] ?? '').trim()
     const yearCol   = obj['ปี']
 
+    // Buddhist year → CE; validate range
+    const be = parseInt(String(yearCol ?? ''), 10)
+    if (isNaN(be) || be < VALID_BE_MIN || be > VALID_BE_MAX) {
+      outOfTimeframe.push({ rowIndex: i + 2, nameTh: stationCol, year: be })
+      continue
+    }
+    const ce = be - 543
+    const lastInspected = `${ce}-12-31`
+
     // Mode mapping — exact first, then prefix fallback for long OTP ด้าน values
     const modeInfo = OTP_MODE_MAP[danCol]
       ?? Object.entries(OTP_MODE_MAP).find(([key]) => danCol.startsWith(key))?.[1]
     if (!modeInfo) { errors.push(`แถว ${i + 2}: ด้าน "${danCol}" ไม่รู้จัก`); continue }
 
-    // Province — canonical lookup: stripped name, then parens content, then full-string scan.
-    // Falls back to 'ไม่ระบุจังหวัด' so the upsert key is always stable (never stores station
-    // name as province, which broke deduplication across annual imports).
+    // Province — canonical lookup: stripped name, then parens content, then full-string scan
     const stripped      = stationCol.replace(/\s*\([^)]*\)$/, '').trim()
     const parensContent = stationCol.match(/\(([^)]+)\)/)?.[1]?.trim() ?? ''
     const province =
@@ -74,32 +138,53 @@ export function parseOtpRows(raw: Record<string, unknown>[]): { rows: OtpParsedR
       canonicalProvince(stationCol) ??
       'ไม่ระบุจังหวัด'
     const region = PROVINCE_REGION[province] ?? 'กลาง'
-    const coords = PROVINCE_COORDS[province] ?? [13.7563, 100.5018]
+
+    // Coordinates — from file columns first, then province centroid fallback
+    const fileLat = latKey ? parseFloat(String(obj[latKey] ?? '')) : NaN
+    const fileLng = lngKey ? parseFloat(String(obj[lngKey] ?? '')) : NaN
+    const centroid = PROVINCE_COORDS[province] ?? [13.7563, 100.5018]
+    const lat = isNaN(fileLat) ? centroid[0] : fileLat
+    const lng = isNaN(fileLng) ? centroid[1] : fileLng
 
     const responsibleAgency = OTP_AGENCY_MAP[agencyCol] ?? 'อื่นๆ'
 
-    // Buddhist year → CE
-    const be = parseInt(String(yearCol ?? ''), 10)
-    const ce = isNaN(be) ? new Date().getFullYear() : be - 543
-    const lastInspected = `${ce}-12-31`
-
     // Build checklist groups from template, filling values from OTP columns
     const template = checklistTemplates[modeInfo.mode as TransportMode]
+
+    // Collect known item ids for unknown-code detection
+    const knownIds = new Set(template.flatMap(g => g.items.map(it => `(${it.id})`)))
+
+    // Scan for unknown (XX.X) codes in this row
+    for (const key of Object.keys(obj)) {
+      if (/^\([A-Z]\d+\.\d+\)$/.test(key) && !knownIds.has(key)) {
+        unknownCodesSet.add(key)
+      }
+    }
+
     const groups: ChecklistGroup[] = template.map(group => ({
       ...group,
       items: group.items.map(item => {
-        const raw = obj[`(${item.id})`]
-        const { value, meetsStandard, note } = parseChecklistValue(raw)
-        return { ...item, value, meetsStandard, note, photos: [], flagged: false }
+        const rawVal = obj[`(${item.id})`]
+        const { value, meetsStandard, note, flagged } = parseChecklistValue(rawVal)
+
+        // Accumulate stats
+        if (value === 'มี' && meetsStandard)       stats['มีได้มาตรฐาน']++
+        else if (value === 'มี' && flagged)         stats['มีไม่ระบุ']++
+        else if (value === 'มี')                    stats['มีไม่ได้มาตรฐาน']++
+        else if (value === 'ไม่มี')                 stats['ไม่มี']++
+        else if (value === 'N/A')                   stats['na']++
+        else                                        stats['other']++
+
+        return { ...item, value, meetsStandard, note, photos: [], flagged }
       }),
     }))
 
     // Score per CLAUDE.md formula
-    const allItems  = groups.flatMap(g => g.items)
-    const eligible  = allItems.filter(it => it.value !== null && it.value !== 'N/A')
-    const standard  = eligible.filter(it => it.value === 'มี' && it.meetsStandard)
-    const score     = eligible.length > 0 ? Math.round((standard.length / eligible.length) * 100) : 0
-    const status    = score >= 75 ? 'ผ่านมาตรฐาน' : score >= 50 ? 'ต้องปรับปรุง' : 'ไม่ผ่าน'
+    const allItems = groups.flatMap(g => g.items)
+    const eligible = allItems.filter(it => it.value !== null && it.value !== 'N/A')
+    const standard = eligible.filter(it => it.value === 'มี' && it.meetsStandard)
+    const score    = eligible.length > 0 ? Math.round((standard.length / eligible.length) * 100) : 0
+    const status   = score >= 75 ? 'ผ่านมาตรฐาน' : score >= 50 ? 'ต้องปรับปรุง' : 'ไม่ผ่าน'
 
     rows.push({
       station: {
@@ -110,8 +195,8 @@ export function parseOtpRows(raw: Record<string, unknown>[]): { rows: OtpParsedR
         province,
         region,
         responsibleAgency,
-        lat: coords[0],
-        lng: coords[1],
+        lat,
+        lng,
       },
       items: groups,
       score,
@@ -120,5 +205,5 @@ export function parseOtpRows(raw: Record<string, unknown>[]): { rows: OtpParsedR
     })
   }
 
-  return { rows, errors }
+  return { rows, errors, outOfTimeframe, unknownCodes: [...unknownCodesSet], stats }
 }

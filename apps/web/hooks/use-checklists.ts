@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getLatestChecklist,
   getChecklistHistory,
+  getMyDraft,
   saveDraft,
   submitChecklist,
 } from '@/lib/api/checklists'
@@ -13,6 +14,14 @@ export function useChecklist(stationId: string) {
   return useQuery({
     queryKey: ['checklist', stationId],
     queryFn:  () => getLatestChecklist(stationId),
+    enabled:  !!stationId,
+  })
+}
+
+export function useMyDraft(stationId: string) {
+  return useQuery({
+    queryKey: ['checklist', stationId, 'draft'],
+    queryFn:  () => getMyDraft(stationId),
     enabled:  !!stationId,
   })
 }

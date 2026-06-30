@@ -3,31 +3,44 @@
 import * as React from 'react'
 import { getChecklistTemplate } from '@/lib/mock-data'
 import { useStations, useStation } from '@/hooks/use-stations'
-import { useSaveDraft, useSubmitChecklist } from '@/hooks/use-checklists'
-import type { ChecklistGroup, ChecklistValue } from '@repo/types'
-import { Camera, Loader2, MapPin, Save, Send, CheckSquare, Square } from 'lucide-react'
-import { useUploadPhoto } from '@/hooks/use-uploads'
+import { useSaveDraft, useSubmitChecklist, useMyDraft } from '@/hooks/use-checklists'
+import type { ChecklistGroup, ChecklistValue, ChecklistPhoto } from '@repo/types'
+import { MapPin, Save, Send, CheckSquare, Square } from 'lucide-react'
+import { PhotoPicker } from '@/components/audit/PhotoPicker'
 
 export default function AuditPage() {
   const { data: allStationsPage } = useStations({ limit: 9999 })
   const allStations = allStationsPage?.data ?? []
   const [selectedId, setSelectedId] = React.useState('')
   const { data: station } = useStation(selectedId)
+  const { data: draft, isLoading: draftLoading } = useMyDraft(selectedId)
   const saveDraftMutation = useSaveDraft(selectedId)
   const submitMutation = useSubmitChecklist(selectedId)
-  const { mutateAsync: doUpload, isPending: photoUploading } = useUploadPhoto()
   const [submitted, setSubmitted] = React.useState(false)
 
   const [groups, setGroups] = React.useState<ChecklistGroup[]>([])
   const [currentPage, setCurrentPage] = React.useState(0)
+  const [resumedFromDraft, setResumedFromDraft] = React.useState(false)
 
+  // Reset navigation state when the selected station changes
   React.useEffect(() => {
-    if (!station) return
-    const template = getChecklistTemplate(station.mode)
-    setGroups(template)
     setCurrentPage(0)
     setSubmitted(false)
+    setResumedFromDraft(false)
+    setGroups([])
   }, [station?.id])
+
+  // Hydrate form once the draft query settles — use saved draft if one exists, otherwise blank template
+  React.useEffect(() => {
+    if (!station || draftLoading) return
+    if (draft?.items && draft.items.length > 0) {
+      setGroups(draft.items)
+      setResumedFromDraft(true)
+    } else {
+      setGroups(getChecklistTemplate(station.mode))
+      setResumedFromDraft(false)
+    }
+  }, [station?.id, draftLoading])
 
   const allItems = groups.flatMap((g) => g.items)
   const answered = allItems.filter((i) => i.value !== null).length
@@ -74,9 +87,7 @@ export default function AuditPage() {
     )
   }
 
-  async function handlePhotoUpload(groupId: string, itemId: string, files: FileList | null) {
-    if (!files || files.length === 0) return
-    const uploaded = await Promise.all(Array.from(files).map((f) => doUpload(f)))
+  function attachPhotos(groupId: string, itemId: string, photos: ChecklistPhoto[]) {
     setGroups((prev) =>
       prev.map((g) =>
         g.groupId !== groupId
@@ -84,9 +95,7 @@ export default function AuditPage() {
           : {
               ...g,
               items: g.items.map((item) =>
-                item.id !== itemId
-                  ? item
-                  : { ...item, photos: [...item.photos, ...uploaded] }
+                item.id !== itemId ? item : { ...item, photos: [...item.photos, ...photos] }
               ),
             }
       )
@@ -117,7 +126,7 @@ export default function AuditPage() {
     </div>
   )
 
-  if (!selectedId || !station) {
+  if (!selectedId || !station || draftLoading) {
     return (
       <div className="space-y-4">
         {stationPicker}
@@ -174,6 +183,9 @@ export default function AuditPage() {
             style={{ width: `${progress}%` }}
           />
         </div>
+        {resumedFromDraft && (
+          <p className="mt-2 text-[10px] text-white/60">↩ ดำเนินการต่อจากร่างที่บันทึกไว้</p>
+        )}
       </div>
 
       {/* Summary page */}
@@ -280,32 +292,21 @@ export default function AuditPage() {
                         ได้มาตรฐาน
                       </button>
                     )}
-                    <div className="mt-2.5">
-                      {item.photos.length > 0 && (
-                        <div className="mb-2 flex flex-wrap gap-1.5">
-                          {item.photos.map((p) => (
-                            <img
-                              key={p.id}
-                              src={p.url}
-                              alt={p.filename}
-                              className="size-14 rounded-lg border border-border object-cover"
-                            />
-                          ))}
-                        </div>
-                      )}
-                      <label className={`border-border text-muted-foreground flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors ${photoUploading ? 'cursor-not-allowed opacity-50' : 'hover:bg-secondary cursor-pointer'}`}>
-                        {photoUploading ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />}
-                        {photoUploading ? 'กำลังอัปโหลด…' : 'แนบรูปภาพ'}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          className="hidden"
-                          disabled={photoUploading}
-                          onChange={(e) => handlePhotoUpload(group.groupId, item.id, e.target.files)}
-                        />
-                      </label>
-                    </div>
+                    {item.photos.length > 0 && (
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                        {item.photos.map((p) => (
+                          <img
+                            key={p.id}
+                            src={p.url}
+                            alt={p.filename}
+                            className="size-14 rounded-lg border border-border object-cover"
+                          />
+                        ))}
+                      </div>
+                    )}
+                    <PhotoPicker
+                      onPhotosUploaded={(photos) => attachPhotos(group.groupId, item.id, photos)}
+                    />
                   </div>
                 ))}
               </div>

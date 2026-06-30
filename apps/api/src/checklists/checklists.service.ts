@@ -6,6 +6,12 @@ import { PrismaService } from '../prisma/prisma.service'
 export class ChecklistsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  findDraft(stationId: string, auditorId: string) {
+    return this.prisma.checklist.findFirst({
+      where: { stationId, auditorId, status: ChecklistStatus.DRAFT },
+    })
+  }
+
   findLatest(stationId: string) {
     return this.prisma.checklist.findFirst({
       where: { stationId, status: { in: [ChecklistStatus.SUBMITTED, ChecklistStatus.APPROVED] } },

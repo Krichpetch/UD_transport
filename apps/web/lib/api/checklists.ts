@@ -16,6 +16,10 @@ export function getLatestChecklist(stationId: string) {
   return api.get<ChecklistRecord | null>(`/stations/${stationId}/checklist`)
 }
 
+export function getMyDraft(stationId: string) {
+  return api.get<ChecklistRecord | null>(`/stations/${stationId}/checklist/draft`)
+}
+
 export function getChecklistHistory(stationId: string) {
   return api.get<ChecklistRecord[]>(`/stations/${stationId}/checklist/history`)
 }

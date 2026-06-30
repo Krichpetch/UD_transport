@@ -113,21 +113,33 @@ export class StationsService {
         create: { ...row.station, urgentIssues: [] },
         update: {},
       })
-      await this.prisma.checklist.create({
-        data: {
-          stationId:   station.id,
-          auditorId:   adminId,
-          items:       row.items as object,
-          score:       row.score,
-          status:      'APPROVED',
-          submittedAt: new Date(row.lastInspected),
-        },
+      const auditDate = new Date(row.lastInspected)
+      const yearStart = new Date(auditDate.getFullYear(), 0, 1)
+      const yearEnd   = new Date(auditDate.getFullYear() + 1, 0, 1)
+      const existing  = await this.prisma.checklist.findFirst({
+        where: { stationId: station.id, submittedAt: { gte: yearStart, lt: yearEnd }, status: 'APPROVED' },
       })
-      const newDate = new Date(row.lastInspected)
-      if (!station.lastInspected || newDate > station.lastInspected) {
+      if (existing) {
+        await this.prisma.checklist.update({
+          where: { id: existing.id },
+          data:  { items: row.items as object, score: row.score },
+        })
+      } else {
+        await this.prisma.checklist.create({
+          data: {
+            stationId:   station.id,
+            auditorId:   adminId,
+            items:       row.items as object,
+            score:       row.score,
+            status:      'APPROVED',
+            submittedAt: auditDate,
+          },
+        })
+      }
+      if (!station.lastInspected || auditDate > station.lastInspected) {
         await this.prisma.station.update({
           where: { id: station.id },
-          data: { score: row.score, status: row.status, lastInspected: newDate },
+          data: { score: row.score, status: row.status, lastInspected: auditDate },
         })
       }
       await this.auditLog.log({
