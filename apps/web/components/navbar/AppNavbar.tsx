@@ -1,7 +1,7 @@
 'use client'
 
 import { SidebarTrigger } from '@/components/ui/sidebar'
-import { Bell, Search, Building2, X, ChevronRight } from 'lucide-react'
+import { Bell, Search, X, ChevronRight } from 'lucide-react'
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { useStations, usePendingReviews } from '@/hooks/use-stations'
@@ -71,9 +71,7 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
         {/* Left: Trigger + Logo */}
         <div className="flex items-center gap-3">
           <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
-          <div className="bg-primary flex size-8 shrink-0 items-center justify-center rounded-md">
-            <Building2 size={15} className="text-primary-foreground" />
-          </div>
+          <img src="/otplogo_short.svg" alt="สนข. logo" className="h-7 w-auto shrink-0" />
           <div className="hidden sm:block">
             <p className="text-foreground text-sm font-semibold">
               {title ?? 'สำนักงานนโยบายและแผนการขนส่งและจราจร '}
@@ -93,22 +91,21 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
             <kbd className="bg-muted rounded px-1 text-[10px]">⌘K</kbd>
           </button>
 
-          {/* Notifications — ADMIN only */}
-          {user?.role === 'ADMIN' && (
-            <div className="relative">
-              <button
-                onClick={() => { setNotifOpen(o => !o); setNotifTab('pending') }}
-                className="border-border text-muted-foreground hover:bg-secondary relative rounded-lg border p-1.5 transition-colors"
-              >
-                <Bell size={15} />
-                {totalNotifs > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-amber-500 text-[8px] text-white">
-                    {Math.min(totalNotifs, 99)}
-                  </span>
-                )}
-              </button>
+          {/* Notifications */}
+          <div className="relative">
+            <button
+              onClick={() => { setNotifOpen(o => !o); setNotifTab('pending') }}
+              className="border-border text-muted-foreground hover:bg-secondary relative rounded-lg border p-1.5 transition-colors"
+            >
+              <Bell size={15} />
+              {totalNotifs > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-amber-500 text-[8px] text-white">
+                  {Math.min(totalNotifs, 99)}
+                </span>
+              )}
+            </button>
 
-              {notifOpen && (
+            {notifOpen && (
                 <div className="bg-card border-border absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border shadow-lg">
                   {/* Header */}
                   <div className="border-border flex items-center justify-between border-b px-4 py-3">
@@ -172,9 +169,8 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
                     )
                   })()}
                 </div>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </header>
 

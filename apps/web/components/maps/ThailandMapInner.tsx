@@ -111,7 +111,10 @@ function StationMarker({ station }: { station: Station }) {
     >
       <Popup autoClose={false} closeOnClick={false}>
         <div onMouseEnter={open} onMouseLeave={close} style={{ minWidth: 160 }}>
-          <p style={{ fontWeight: 700, marginBottom: 4 }}>{station.nameTh}</p>
+          <p style={{ fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0, display: 'inline-block' }} />
+            {station.nameTh}
+          </p>
           <p style={{ fontSize: 12, color: '#64748b', marginBottom: 2 }}>
             {station.province} · {getTransportLabel(station)}
           </p>
@@ -119,20 +122,6 @@ function StationMarker({ station }: { station: Station }) {
             คะแนน:{' '}
             <strong style={{ color }}>{station.score}</strong>
           </p>
-          <span
-            style={{
-              display: 'inline-block',
-              marginTop: 4,
-              padding: '2px 8px',
-              borderRadius: 999,
-              fontSize: 11,
-              background: color + '20',
-              color,
-              fontWeight: 600,
-            }}
-          >
-            {station.status}
-          </span>
           <Link
             href={`/stations/${station.id}`}
             style={{

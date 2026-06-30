@@ -38,34 +38,11 @@ export default function LoginPage() {
     mutation.error instanceof Error ? mutation.error.message : null
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="bg-card flex w-full max-w-md flex-col items-center gap-6 rounded-xl p-8 shadow-lg">
+    <div className="flex min-h-screen items-center justify-center px-4 py-8">
+      <div className="bg-card flex w-full max-w-md flex-col items-center gap-6 rounded-xl p-6 shadow-lg sm:p-8">
         {/* Logo / Branding */}
         <div className="flex flex-col items-center gap-2">
-          <div className="bg-primary flex size-16 items-center justify-center rounded-2xl shadow-md">
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 32 32"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M6 24 C6 24, 4 20, 4 14 C4 8, 9 4, 16 4 C23 4, 28 8, 28 14 C28 20, 26 24, 26 24"
-                stroke="white"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              />
-              <circle cx="16" cy="18" r="5" fill="white" fillOpacity="0.9" />
-              <path d="M12 26 L20 26" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-              <path
-                d="M14 22 L14 26 M18 22 L18 26"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
+          <img src="/otplogo.svg" alt="สนข. logo" className="h-16 w-auto" />
           <div className="text-center">
             <h1 className="text-foreground text-xl font-bold tracking-tight">
               สำนักงานนโยบายและแผนการขนส่งและจราจร

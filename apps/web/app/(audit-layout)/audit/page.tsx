@@ -4,9 +4,20 @@ import * as React from 'react'
 import { getChecklistTemplate } from '@/lib/mock-data'
 import { useStations, useStation } from '@/hooks/use-stations'
 import { useSaveDraft, useSubmitChecklist, useMyDraft } from '@/hooks/use-checklists'
-import type { ChecklistGroup, ChecklistValue, ChecklistPhoto } from '@repo/types'
-import { MapPin, Save, Send, CheckSquare, Square } from 'lucide-react'
+import type { ChecklistGroup, ChecklistValue, ChecklistPhoto, TransportMode, RailSubtype } from '@repo/types'
+import { MapPin, Save, Send, CheckSquare, Square, Bus, Train, TrainFront, Ship, Plane } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PhotoPicker } from '@/components/audit/PhotoPicker'
+
+function ModeIcon({ mode, railSubtype }: { mode: TransportMode; railSubtype?: RailSubtype }) {
+  const cls = 'shrink-0 text-muted-foreground'
+  if (mode === 'ทางอากาศ') return <Plane      size={13} className={cls} />
+  if (mode === 'ทางเรือ')  return <Ship       size={13} className={cls} />
+  if (mode === 'ทางราง')   return railSubtype === 'รถไฟฟ้า'
+    ? <TrainFront size={13} className={cls} />
+    : <Train      size={13} className={cls} />
+  return <Bus size={13} className={cls} />
+}
 
 export default function AuditPage() {
   const { data: allStationsPage } = useStations({ limit: 9999 })
@@ -110,19 +121,24 @@ export default function AuditPage() {
 
   const stationPicker = (
     <div className="rounded-xl bg-white/10 p-4 backdrop-blur">
-      <label className="mb-1.5 block text-xs text-white/70">เลือกสถานีที่จะตรวจสอบ</label>
-      <select
-        value={selectedId}
-        onChange={(e) => setSelectedId(e.target.value)}
-        className="w-full rounded-lg border border-white/20 bg-white/20 px-3 py-2.5 text-sm text-white focus:outline-none"
-      >
-        <option value="" className="text-gray-900">— เลือกสถานี —</option>
-        {allStations.map((s) => (
-          <option key={s.id} value={s.id} className="text-gray-900">
-            {s.nameTh} ({s.province})
-          </option>
-        ))}
-      </select>
+      <label className="mb-2 block text-xs font-medium text-white/80">เลือกสถานีที่จะตรวจสอบ</label>
+      <Select value={selectedId} onValueChange={setSelectedId}>
+        <SelectTrigger className="w-full bg-white text-gray-900 shadow-sm focus:ring-2 focus:ring-white/60">
+          <SelectValue placeholder="— เลือกสถานี —" />
+        </SelectTrigger>
+        <SelectContent position="popper" sideOffset={4} className="max-h-72 w-[var(--radix-select-trigger-width)]">
+          <SelectItem value="__placeholder__" disabled className="py-3.5 pl-4 pr-12 text-muted-foreground">
+            — เลือกสถานี —
+          </SelectItem>
+          <SelectSeparator />
+          {allStations.map((s) => (
+            <SelectItem key={s.id} value={s.id} className="py-3.5 pl-4 pr-12">
+              <ModeIcon mode={s.mode} railSubtype={s.railSubtype} />
+              {s.nameTh} ({s.province})
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 
