@@ -30,6 +30,9 @@ import {
   Upload,
   X,
   FileSpreadsheet,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -126,7 +129,9 @@ function parseRows(raw: Record<string, unknown>[]): { rows: ParsedRow[]; errors:
   return { rows, errors }
 }
 
-const PAGE_SIZE = 50
+const PAGE_SIZE = 20
+
+type SortableCol = 'nameTh' | 'province' | 'responsibleAgency' | 'score' | 'status' | 'lastInspected'
 
 // ---- Page ----
 export default function StationsPage() {
@@ -137,6 +142,8 @@ export default function StationsPage() {
   const [agencyFilter, setAgencyFilter] = React.useState('')
   const [regionFilter, setRegionFilter] = React.useState('')
   const [page, setPage] = React.useState(1)
+  const [sortBy, setSortBy] = React.useState<SortableCol>('nameTh')
+  const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('asc')
   const [excelExporting, setExcelExporting] = React.useState(false)
 
   const {
@@ -144,12 +151,15 @@ export default function StationsPage() {
     isLoading,
     error,
   } = useStations({
-    mode: typeFilter || undefined,
-    status: statusFilter || undefined,
-    agency: agencyFilter || undefined,
-    region: regionFilter || undefined,
-    search: search || undefined,
+    mode:      typeFilter || undefined,
+    status:    statusFilter || undefined,
+    agency:    agencyFilter || undefined,
+    region:    regionFilter || undefined,
+    search:    search || undefined,
     page,
+    limit:     PAGE_SIZE,
+    sortBy,
+    sortOrder,
   })
   const stations = stationsPage?.data ?? []
   const total = stationsPage?.total ?? 0
@@ -377,6 +387,21 @@ export default function StationsPage() {
 
   const hasFilters = !!(search || typeFilter || statusFilter || agencyFilter || regionFilter)
 
+  function handleSort(col: SortableCol) {
+    if (sortBy === col) {
+      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortBy(col)
+      setSortOrder('asc')
+    }
+    setPage(1)
+  }
+
+  function sortIcon(col: SortableCol) {
+    if (sortBy !== col) return <ChevronsUpDown size={11} className="opacity-30" />
+    return sortOrder === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />
+  }
+
   function clearFilters() {
     setSearch('')
     setTypeFilter('')
@@ -544,25 +569,37 @@ export default function StationsPage() {
             <thead>
               <tr className="border-border bg-secondary/30 border-b">
                 <th className="text-muted-foreground px-5 py-3 text-left text-xs font-medium tracking-wide uppercase">
-                  ชื่อสถานี
+                  <button onClick={() => handleSort('nameTh')} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                    ชื่อสถานี {sortIcon('nameTh')}
+                  </button>
                 </th>
                 <th className="text-muted-foreground px-3 py-3 text-left text-xs font-medium tracking-wide uppercase">
                   ประเภท
                 </th>
                 <th className="text-muted-foreground px-3 py-3 text-left text-xs font-medium tracking-wide uppercase">
-                  จังหวัด / ภาค
+                  <button onClick={() => handleSort('province')} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                    จังหวัด / ภาค {sortIcon('province')}
+                  </button>
                 </th>
                 <th className="text-muted-foreground px-3 py-3 text-left text-xs font-medium tracking-wide uppercase">
-                  หน่วยงาน
+                  <button onClick={() => handleSort('responsibleAgency')} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                    หน่วยงาน {sortIcon('responsibleAgency')}
+                  </button>
                 </th>
                 <th className="text-muted-foreground px-3 py-3 text-left text-xs font-medium tracking-wide uppercase">
-                  คะแนน UD
+                  <button onClick={() => handleSort('score')} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                    คะแนน UD {sortIcon('score')}
+                  </button>
                 </th>
                 <th className="text-muted-foreground px-3 py-3 text-left text-xs font-medium tracking-wide uppercase">
-                  สถานะ
+                  <button onClick={() => handleSort('status')} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                    สถานะ {sortIcon('status')}
+                  </button>
                 </th>
                 <th className="text-muted-foreground px-3 py-3 text-left text-xs font-medium tracking-wide uppercase">
-                  ตรวจล่าสุด
+                  <button onClick={() => handleSort('lastInspected')} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                    ตรวจล่าสุด {sortIcon('lastInspected')}
+                  </button>
                 </th>
                 <th className="text-muted-foreground px-5 py-3 text-right text-xs font-medium tracking-wide uppercase">
                   ดำเนินการ

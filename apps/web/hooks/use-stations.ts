@@ -21,17 +21,21 @@ export interface StationFilters {
   search?: string
   page?: number
   limit?: number
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
 }
 
 export function useStations(filters?: StationFilters) {
   const f = {
-    mode:   filters?.mode   || undefined,
-    region: filters?.region || undefined,
-    agency: filters?.agency || undefined,
-    status: filters?.status || undefined,
-    search: filters?.search || undefined,
-    page:   filters?.page   ?? 1,
-    limit:  filters?.limit,
+    mode:      filters?.mode      || undefined,
+    region:    filters?.region    || undefined,
+    agency:    filters?.agency    || undefined,
+    status:    filters?.status    || undefined,
+    search:    filters?.search    || undefined,
+    page:      filters?.page      ?? 1,
+    limit:     filters?.limit,
+    sortBy:    filters?.sortBy,
+    sortOrder: filters?.sortOrder,
   }
   return useQuery({
     queryKey: ['stations', f],

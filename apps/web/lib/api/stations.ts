@@ -9,6 +9,8 @@ export interface StationFilters {
   search?: string
   page?: number
   limit?: number
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
 }
 
 export interface PaginatedStations {
@@ -54,8 +56,10 @@ export function getStations(filters?: StationFilters) {
   if (filters?.agency) params.set('agency', filters.agency)
   if (filters?.status) params.set('status', filters.status)
   if (filters?.search) params.set('search', filters.search)
-  if (filters?.page)   params.set('page',   String(filters.page))
-  if (filters?.limit)  params.set('limit',  String(filters.limit))
+  if (filters?.page)      params.set('page',      String(filters.page))
+  if (filters?.limit)     params.set('limit',     String(filters.limit))
+  if (filters?.sortBy)    params.set('sortBy',    filters.sortBy)
+  if (filters?.sortOrder) params.set('sortOrder', filters.sortOrder)
   const qs = params.toString()
   return api.get<PaginatedStations>(`/stations${qs ? `?${qs}` : ''}`)
 }
@@ -99,4 +103,32 @@ export interface OtpRowPayload {
 
 export function batchOtpImport(rows: OtpRowPayload[]) {
   return api.post<{ id: string; nameTh: string }[]>('/stations/batch-otp', { rows })
+}
+
+// Slim projection for the auditor station picker — keeps payload tiny
+export interface StationSearchResult {
+  id: string
+  nameTh: string
+  province: string
+  mode: string
+  railSubtype?: string
+}
+
+export interface StationSearchPage {
+  data: StationSearchResult[]
+  total: number
+  page: number
+  totalPages: number
+}
+
+export function searchStations(
+  params: { q?: string; mode?: string; limit?: number; page?: number },
+  signal?: AbortSignal,
+): Promise<StationSearchPage> {
+  const p = new URLSearchParams()
+  if (params.q)     p.set('q',     params.q)
+  if (params.mode)  p.set('mode',  params.mode)
+  if (params.limit) p.set('limit', String(params.limit))
+  if (params.page && params.page > 1) p.set('page', String(params.page))
+  return api.get<StationSearchPage>(`/stations/search?${p}`, signal)
 }

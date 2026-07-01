@@ -19,9 +19,19 @@ export class StationsService {
     search?: string
     page?: number
     limit?: number
+    sortBy?: string
+    sortOrder?: 'asc' | 'desc'
   }) {
     const page  = filters?.page  ?? 1
-    const limit = filters?.limit ?? 50
+    const limit = filters?.limit ?? 20
+
+    const SORTABLE = new Set(['nameTh', 'province', 'responsibleAgency', 'score', 'status', 'lastInspected', 'mode'])
+    const col      = filters?.sortBy && SORTABLE.has(filters.sortBy) ? filters.sortBy : 'nameTh'
+    const dir: 'asc' | 'desc' = filters?.sortOrder === 'desc' ? 'desc' : 'asc'
+    const orderBy  = col === 'lastInspected'
+      ? { lastInspected: { sort: dir, nulls: 'last' as const } }
+      : { [col]: dir }
+
     const where = {
       ...(filters?.mode              && { mode:              filters.mode }),
       ...(filters?.region            && { region:            filters.region }),
@@ -38,7 +48,7 @@ export class StationsService {
     const [data, total] = await Promise.all([
       this.prisma.station.findMany({
         where,
-        orderBy: { nameTh: 'asc' },
+        orderBy,
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -64,6 +74,32 @@ export class StationsService {
       regions:  regions.map(r => r.region),
       agencies: agencies.map(a => a.responsibleAgency),
     }
+  }
+
+  async searchSlim(params: { q?: string; mode?: string; limit: number; page: number }) {
+    const limit = Math.min(params.limit, 50)
+    const page  = Math.max(params.page, 1)
+    const q     = params.q?.trim()
+    const where = {
+      ...(params.mode && { mode: params.mode }),
+      ...(q && {
+        OR: [
+          { nameTh:   { contains: q, mode: 'insensitive' as const } },
+          { province: { contains: q, mode: 'insensitive' as const } },
+        ],
+      }),
+    }
+    const [data, total] = await Promise.all([
+      this.prisma.station.findMany({
+        where,
+        select: { id: true, nameTh: true, province: true, mode: true, railSubtype: true },
+        orderBy: { nameTh: 'asc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.station.count({ where }),
+    ])
+    return { data, total, page, totalPages: Math.ceil(total / limit) }
   }
 
   findOne(id: string) {

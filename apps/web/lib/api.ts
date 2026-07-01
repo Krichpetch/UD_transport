@@ -18,6 +18,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
 
   if (!res.ok) {
+    if (res.status === 429) {
+      const retryAfter = res.headers.get('Retry-After')
+      const wait = retryAfter ? ` (ลองใหม่ใน ${retryAfter} วินาที)` : ''
+      throw new Error(`คำขอถี่เกินไป กรุณารอสักครู่${wait}`)
+    }
     const body = await res.json().catch(() => ({})) as { message?: string }
     throw new Error(body.message ?? `HTTP ${res.status}`)
   }
@@ -28,8 +33,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  get:    <T>(path: string)                  => request<T>(path),
-  post:   <T>(path: string, body: unknown)   => request<T>(path, { method: 'POST',   body: JSON.stringify(body) }),
-  put:    <T>(path: string, body: unknown)   => request<T>(path, { method: 'PUT',    body: JSON.stringify(body) }),
-  delete: <T>(path: string)                  => request<T>(path, { method: 'DELETE' }),
+  get:    <T>(path: string, signal?: AbortSignal) => request<T>(path, signal ? { signal } : undefined),
+  post:   <T>(path: string, body: unknown)        => request<T>(path, { method: 'POST',   body: JSON.stringify(body) }),
+  put:    <T>(path: string, body: unknown)        => request<T>(path, { method: 'PUT',    body: JSON.stringify(body) }),
+  delete: <T>(path: string)                       => request<T>(path, { method: 'DELETE' }),
 }

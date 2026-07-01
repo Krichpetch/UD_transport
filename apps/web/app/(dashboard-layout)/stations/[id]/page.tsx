@@ -6,12 +6,10 @@ import { useStation } from '@/hooks/use-stations'
 import { useChecklist } from '@/hooks/use-checklists'
 import { useApproveChecklist } from '@/hooks/use-stations'
 import { useQueryClient } from '@tanstack/react-query'
-import type { ChecklistGroup, ChecklistSubItem, ChecklistPhoto } from '@repo/types'
+import type { ChecklistGroup, ChecklistSubItem } from '@repo/types'
 import {
   ChevronLeft,
   Download,
-  X,
-  ZoomIn,
   Flag,
   ChevronDown,
   ChevronUp,
@@ -19,6 +17,7 @@ import {
   Loader2,
   FileSpreadsheet,
 } from 'lucide-react'
+import { ChecklistPhotoGallery } from '@/components/checklist/ChecklistPhotoGallery'
 import Link from 'next/link'
 
 // ─── Score Circle ─────────────────────────────────────────────
@@ -41,31 +40,8 @@ function ScoreCircle({ score }: { score: number }) {
   )
 }
 
-// ─── Photo Lightbox ───────────────────────────────────────────
-function Lightbox({ photo, onClose }: { photo: ChecklistPhoto; onClose: () => void }) {
-  React.useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onClose])
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={onClose}>
-      <div className="relative max-h-[90vh] max-w-[90vw]" onClick={e => e.stopPropagation()}>
-        <img src={photo.url} alt={photo.filename} className="max-h-[85vh] max-w-[85vw] rounded-xl object-contain shadow-2xl" />
-        <button onClick={onClose}
-          className="absolute -top-3 -right-3 flex size-8 items-center justify-center rounded-full bg-white shadow-lg">
-          <X size={14} className="text-gray-700" />
-        </button>
-        <p className="mt-2 text-center text-xs text-white/70">{photo.filename}</p>
-      </div>
-    </div>
-  )
-}
-
 // ─── Checklist Row ────────────────────────────────────────────
 function ChecklistRow({ item, onToggleFlag }: { item: ChecklistSubItem; onToggleFlag: () => void }) {
-  const [lightbox, setLightbox] = React.useState<ChecklistPhoto | null>(null)
 
   const isMi = item.value === 'มี'
   const isMaiMi = item.value === 'ไม่มี'
@@ -73,9 +49,7 @@ function ChecklistRow({ item, onToggleFlag }: { item: ChecklistSubItem; onToggle
 
   return (
     <div className={`border-b border-border last:border-0 transition-colors ${item.flagged ? 'bg-orange-50/40' : ''}`}>
-      {lightbox && <Lightbox photo={lightbox} onClose={() => setLightbox(null)} />}
-
-      <div className="grid grid-cols-[3rem_1fr_3.5rem_3.5rem_5rem_4rem_4rem] items-center gap-0 px-0">
+      <div className="grid grid-cols-[3rem_1fr_3.5rem_3.5rem_5rem_7rem_4rem] items-center gap-0 px-0">
 
         {/* Code */}
         <div className="px-3 py-3">
@@ -143,23 +117,9 @@ function ChecklistRow({ item, onToggleFlag }: { item: ChecklistSubItem; onToggle
           )}
         </div>
 
-        {/* หลักฐาน — read-only photo thumbnails */}
+        {/* หลักฐาน — photo thumbnails + lightbox */}
         <div className="flex items-center justify-center py-3">
-          {item.photos.length > 0 ? (
-            <div className="flex flex-wrap gap-1 justify-center">
-              {item.photos.map(p => (
-                <button key={p.id} onClick={() => setLightbox(p)}
-                  className="group relative block size-9 overflow-hidden rounded border border-border shadow-sm">
-                  <img src={p.url} alt={p.filename} className="size-full object-cover" />
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
-                    <ZoomIn size={10} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <span className="text-muted-foreground/40 text-[10px]">—</span>
-          )}
+          <ChecklistPhotoGallery photos={item.photos} />
         </div>
 
         {/* พบปัญหา — interactive flag toggle */}
@@ -351,7 +311,7 @@ export default function StationChecklistPage({
                 {isOpen && (
                   <>
                     {/* Column headers */}
-                    <div className="grid grid-cols-[3rem_1fr_3.5rem_3.5rem_5rem_4rem_4rem] border-b border-border bg-secondary/20 px-0">
+                    <div className="grid grid-cols-[3rem_1fr_3.5rem_3.5rem_5rem_7rem_4rem] border-b border-border bg-secondary/20 px-0">
                       {[
                         { label: 'รหัส', cls: 'px-3 py-2' },
                         { label: 'รายการ', cls: 'px-3 py-2' },

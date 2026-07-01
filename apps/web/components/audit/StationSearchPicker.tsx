@@ -1,0 +1,298 @@
+'use client'
+
+import * as React from 'react'
+import { Search, X, Loader2, ChevronRight, ChevronLeft, Bus, Train, TrainFront, Ship, Plane } from 'lucide-react'
+import type { TransportMode, RailSubtype } from '@repo/types'
+import { searchStations } from '@/lib/api/stations'
+import type { StationSearchResult } from '@/lib/api/stations'
+
+// ── Mode tabs ──────────────────────────────────────────────────────────────────
+
+type ModeTab = { label: string; value: TransportMode | '' }
+
+const MODE_TABS: ModeTab[] = [
+  { label: 'ทั้งหมด',   value: '' },
+  { label: 'ทางบก',    value: 'ทางบก' },
+  { label: 'ทางราง',   value: 'ทางราง' },
+  { label: 'ทางเรือ',  value: 'ทางเรือ' },
+  { label: 'ทางอากาศ', value: 'ทางอากาศ' },
+]
+
+function ModeIcon({ mode, railSubtype, size = 14 }: {
+  mode: string; railSubtype?: string; size?: number
+}) {
+  const cls = 'shrink-0'
+  if (mode === 'ทางอากาศ') return <Plane      size={size} className={cls} />
+  if (mode === 'ทางเรือ')  return <Ship       size={size} className={cls} />
+  if (mode === 'ทางราง')   return railSubtype === 'รถไฟฟ้า'
+    ? <TrainFront size={size} className={cls} />
+    : <Train      size={size} className={cls} />
+  return <Bus size={size} className={cls} />
+}
+
+// ── Public interface ───────────────────────────────────────────────────────────
+
+interface SelectedStation {
+  nameTh: string
+  province: string
+  mode: TransportMode
+  railSubtype?: RailSubtype
+}
+
+interface Props {
+  value: string
+  selectedStation?: SelectedStation
+  onSelect: (id: string) => void
+  // Seam for future proximity mode: pass nearbyTab={true} + a nearby endpoint once GPS
+  // permission + /stations/nearby?lat&lng&limit is ready. Picker will add a "ใกล้ฉัน" tab.
+}
+
+const PAGE_SIZE = 20
+
+// ── Component ──────────────────────────────────────────────────────────────────
+
+export function StationSearchPicker({ value, selectedStation, onSelect }: Props) {
+  const [open, setOpen]             = React.useState(false)
+  const [query, setQuery]           = React.useState('')
+  const [mode, setMode]             = React.useState<TransportMode | ''>('')
+  const [results, setResults]       = React.useState<StationSearchResult[]>([])
+  const [loading, setLoading]       = React.useState(false)
+  const [page, setPage]             = React.useState(1)
+  const [totalPages, setTotalPages] = React.useState(1)
+  const [total, setTotal]           = React.useState(0)
+  const inputRef                    = React.useRef<HTMLInputElement>(null)
+  const abortRef                    = React.useRef<AbortController | null>(null)
+  const listRef                     = React.useRef<HTMLDivElement>(null)
+
+  // Focus input and reset all transient state on open/close
+  React.useEffect(() => {
+    if (open) {
+      const t = setTimeout(() => inputRef.current?.focus(), 80)
+      return () => clearTimeout(t)
+    }
+    setQuery('')
+    setResults([])
+    setTotal(0)
+    setTotalPages(1)
+    setPage(1)
+    setLoading(false)
+  }, [open])
+
+  // Reset to page 1 when search terms change
+  React.useEffect(() => {
+    setPage(1)
+  }, [query, mode])
+
+  // Scroll list to top on page change
+  React.useEffect(() => {
+    listRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [page])
+
+  // Unified fetch: immediate for browse (empty query), debounced 300ms for search
+  React.useEffect(() => {
+    if (!open) return
+
+    const q     = query.trim()
+    const delay = q ? 300 : 0
+
+    setLoading(true)
+    const timer = setTimeout(() => {
+      abortRef.current?.abort()
+      const ctrl = new AbortController()
+      abortRef.current = ctrl
+
+      searchStations({ q: q || undefined, mode: mode || undefined, limit: PAGE_SIZE, page }, ctrl.signal)
+        .then((res) => {
+          if (ctrl.signal.aborted) return
+          setResults(res.data)
+          setTotal(res.total)
+          setTotalPages(res.totalPages)
+        })
+        .catch(() => {
+          if (ctrl.signal.aborted) return
+          setResults([])
+          setTotal(0)
+          setTotalPages(1)
+        })
+        .finally(() => {
+          if (!ctrl.signal.aborted) setLoading(false)
+        })
+    }, delay)
+
+    return () => clearTimeout(timer)
+  }, [query, mode, page, open])
+
+  function handleSelect(id: string) {
+    onSelect(id)
+    setOpen(false)
+  }
+
+  function close() {
+    abortRef.current?.abort()
+    setOpen(false)
+  }
+
+  // ── Closed trigger ───────────────────────────────────────────────────────────
+
+  return (
+    <>
+      <div className="rounded-xl bg-white/10 p-4 backdrop-blur">
+        <label className="mb-2 block text-xs font-medium text-white/80">
+          เลือกสถานีที่จะตรวจสอบ
+        </label>
+        <button
+          onClick={() => setOpen(true)}
+          className="flex w-full items-center gap-2.5 rounded-xl bg-white px-4 py-3 text-left shadow-sm focus:outline-none focus:ring-2 focus:ring-white/60"
+        >
+          {selectedStation ? (
+            <>
+              <span className="text-gray-500">
+                <ModeIcon mode={selectedStation.mode} railSubtype={selectedStation.railSubtype} size={15} />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
+                {selectedStation.nameTh}
+              </span>
+              <span className="shrink-0 text-xs text-gray-400">{selectedStation.province}</span>
+            </>
+          ) : (
+            <>
+              <Search size={15} className="shrink-0 text-gray-400" />
+              <span className="flex-1 text-sm text-gray-400">เลือกสถานีที่จะตรวจสอบ…</span>
+            </>
+          )}
+          <ChevronRight size={14} className="shrink-0 text-gray-300" />
+        </button>
+      </div>
+
+      {/* ── Full-screen picker ─────────────────────────────────────────────── */}
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col"
+          style={{ background: 'linear-gradient(135deg, #193557 0%, #0193a4 100%)' }}
+        >
+          {/* Header */}
+          <div className="flex items-center gap-3 px-4 pb-3 pt-5">
+            <button
+              onClick={close}
+              aria-label="ปิด"
+              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white"
+            >
+              <X size={18} />
+            </button>
+            <h2 className="flex-1 text-sm font-semibold text-white">เลือกสถานีที่จะตรวจสอบ</h2>
+            {!loading && total > 0 && (
+              <span className="text-xs text-white/50">{total.toLocaleString()} สถานี</span>
+            )}
+          </div>
+
+          {/* Search input */}
+          <div className="px-4 pb-3">
+            <div className="flex items-center gap-2 rounded-xl bg-white px-3.5 py-3 shadow-sm">
+              <Search size={15} className="shrink-0 text-gray-400" />
+              <input
+                ref={inputRef}
+                type="search"
+                inputMode="search"
+                autoComplete="off"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="พิมพ์ชื่อสถานี หรือจังหวัด…"
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400"
+              />
+              {loading && <Loader2 size={14} className="shrink-0 animate-spin text-gray-400" />}
+              {!loading && query && (
+                <button onClick={() => setQuery('')} aria-label="ล้าง">
+                  <X size={14} className="text-gray-400" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Mode chips */}
+          <div className="flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            {MODE_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => setMode(tab.value)}
+                className={`flex shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                  mode === tab.value
+                    ? 'bg-white text-[#1a3557]'
+                    : 'bg-white/20 text-white'
+                }`}
+              >
+                {tab.value === 'ทางบก'    && <Bus       size={11} />}
+                {tab.value === 'ทางราง'   && <Train     size={11} />}
+                {tab.value === 'ทางเรือ'  && <Ship      size={11} />}
+                {tab.value === 'ทางอากาศ' && <Plane     size={11} />}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Results list */}
+          <div ref={listRef} className="flex-1 overflow-y-auto">
+            {loading && results.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-16">
+                <Loader2 size={24} className="animate-spin text-white/40" />
+                <p className="text-xs text-white/50">กำลังโหลด…</p>
+              </div>
+            ) : results.length === 0 ? (
+              <p className="px-4 py-10 text-center text-sm text-white/60">
+                ไม่พบสถานีที่ตรงกัน
+              </p>
+            ) : (
+              <div className="divide-y divide-white/10">
+                {results.map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => handleSelect(r.id)}
+                    className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-white/20 ${
+                      r.id === value ? 'bg-white/15' : 'hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="shrink-0 text-white/70">
+                      <ModeIcon mode={r.mode} railSubtype={r.railSubtype} size={16} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-white">
+                        {r.nameTh}
+                      </span>
+                      <span className="text-xs text-white/55">{r.province}</span>
+                    </span>
+                    {r.id === value && (
+                      <span className="shrink-0 text-xs font-semibold text-white/80">✓</span>
+                    )}
+                    <ChevronRight size={14} className="shrink-0 text-white/30" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-white/10 px-4 py-3">
+              <button
+                onClick={() => setPage((p) => p - 1)}
+                disabled={page === 1 || loading}
+                className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium text-white disabled:opacity-30"
+              >
+                <ChevronLeft size={13} />
+                ก่อนหน้า
+              </button>
+              <span className="text-xs text-white/60">หน้า {page} / {totalPages}</span>
+              <button
+                onClick={() => setPage((p) => p + 1)}
+                disabled={page >= totalPages || loading}
+                className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium text-white disabled:opacity-30"
+              >
+                ถัดไป
+                <ChevronRight size={13} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  )
+}

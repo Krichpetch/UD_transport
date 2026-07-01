@@ -40,7 +40,7 @@ async function compressImage(file: File): Promise<File> {
         (blob) => {
           if (!blob) { resolve(file); return }
           // Sanitise filename: replace non-ASCII / special chars so HTTP headers stay clean
-          const safeName = file.name.replace(/[^\w.-]/g, '_')
+          const safeName = file.name.replace(/[^\w.฀-๿-]/g, '_')
           resolve(new File([blob], safeName, { type: 'image/jpeg' }))
         },
         'image/jpeg',

@@ -9,6 +9,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common'
+import { SkipThrottle } from '@nestjs/throttler'
 import { Request } from 'express'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { AuditLogService } from '../audit/audit.service'
@@ -44,19 +45,23 @@ export class StationsController {
   @Get()
   findAll(
     @Req() req: AuthRequest,
-    @Query('mode')   mode?: string,
-    @Query('region') region?: string,
-    @Query('agency') responsibleAgency?: string,
-    @Query('status') status?: string,
-    @Query('search') search?: string,
-    @Query('page')   page?: string,
-    @Query('limit')  limit?: string,
+    @Query('mode')      mode?: string,
+    @Query('region')    region?: string,
+    @Query('agency')    responsibleAgency?: string,
+    @Query('status')    status?: string,
+    @Query('search')    search?: string,
+    @Query('page')      page?: string,
+    @Query('limit')     limit?: string,
+    @Query('sortBy')    sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
   ) {
     if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
     return this.stations.findAll({
       mode, region, responsibleAgency, status, search,
-      page:  page  ? parseInt(page,  10) : 1,
-      limit: limit ? parseInt(limit, 10) : 50,
+      page:      page      ? parseInt(page,  10) : 1,
+      limit:     limit     ? parseInt(limit, 10) : 20,
+      sortBy,
+      sortOrder: sortOrder === 'desc' ? 'desc' : 'asc',
     })
   }
 
@@ -64,6 +69,24 @@ export class StationsController {
   getFilterOptions(@Req() req: AuthRequest) {
     if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
     return this.stations.getFilterOptions()
+  }
+
+  // Slim search for the auditor station picker — returns id/nameTh/province/mode only
+  @Get('search')
+  search(
+    @Req() req: AuthRequest,
+    @Query('q')     q?: string,
+    @Query('mode')  mode?: string,
+    @Query('limit') limit?: string,
+    @Query('page')  page?: string,
+  ) {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    return this.stations.searchSlim({
+      q,
+      mode,
+      limit: limit ? Math.min(parseInt(limit, 10), 50) : 20,
+      page:  page  ? parseInt(page, 10) : 1,
+    })
   }
 
   @Get(':id')
@@ -86,6 +109,7 @@ export class StationsController {
     return station
   }
 
+  @SkipThrottle()
   @Post('batch-otp')
   async batchOtp(@Body() body: BatchOtpDto, @Req() req: AuthRequest) {
     if (req.user.role !== 'ADMIN') throw new ForbiddenException()
