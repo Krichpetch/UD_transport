@@ -23,6 +23,8 @@ export function useMyDraft(stationId: string) {
     queryKey: ['checklist', stationId, 'draft'],
     queryFn:  () => getMyDraft(stationId),
     enabled:  !!stationId,
+    staleTime: Infinity,         // draft only changes when this user saves it
+    refetchOnWindowFocus: false, // never trigger a re-seed by refetching on tab focus
   })
 }
 

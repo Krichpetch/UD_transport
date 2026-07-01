@@ -565,7 +565,17 @@ export default function StationsPage() {
       {/* Table */}
       <div className="bg-card border-border overflow-hidden rounded-xl border">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full table-fixed text-sm">
+            <colgroup>
+              <col className="w-[26%]" />
+              <col className="w-[8%]" />
+              <col className="w-[12%]" />
+              <col className="w-[8%]" />
+              <col className="w-[13%]" />
+              <col className="w-[11%]" />
+              <col className="w-[9%]" />
+              <col className="w-[13%]" />
+            </colgroup>
             <thead>
               <tr className="border-border bg-secondary/30 border-b">
                 <th className="text-muted-foreground px-5 py-3 text-left text-xs font-medium tracking-wide uppercase">
@@ -623,9 +633,9 @@ export default function StationsPage() {
                     >
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2">
-                          <div>
-                            <p className="text-foreground font-medium">{station.nameTh}</p>
-                            <p className="text-muted-foreground text-xs">{station.name}</p>
+                          <div className="min-w-0">
+                            <p className="text-foreground truncate font-medium">{station.nameTh}</p>
+                            <p className="text-muted-foreground truncate text-xs">{station.name}</p>
                           </div>
                           {hasPending && (
                             <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">

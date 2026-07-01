@@ -1,15 +1,18 @@
 'use client'
 
 import * as React from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { getChecklistTemplate } from '@/lib/mock-data'
 import { useStation } from '@/hooks/use-stations'
 import { useSaveDraft, useSubmitChecklist, useMyDraft } from '@/hooks/use-checklists'
+import { saveDraft } from '@/lib/api/checklists'
 import type { ChecklistGroup, ChecklistValue, ChecklistPhoto } from '@repo/types'
 import { MapPin, Save, Send, CheckSquare, Square } from 'lucide-react'
 import { PhotoPicker } from '@/components/audit/PhotoPicker'
 import { StationSearchPicker } from '@/components/audit/StationSearchPicker'
 
 export default function AuditPage() {
+  const qc = useQueryClient()
   const [selectedId, setSelectedId] = React.useState('')
   const { data: station } = useStation(selectedId)
   const { data: draft, isLoading: draftLoading } = useMyDraft(selectedId)
@@ -20,26 +23,63 @@ export default function AuditPage() {
   const [groups, setGroups] = React.useState<ChecklistGroup[]>([])
   const [currentPage, setCurrentPage] = React.useState(0)
   const [resumedFromDraft, setResumedFromDraft] = React.useState(false)
+  const [autoSaveStatus, setAutoSaveStatus] = React.useState<'idle' | 'saving' | 'saved'>('idle')
 
-  // Reset navigation state when the selected station changes
+  // Tracks which stationId the form has been seeded for — prevents re-seeding on background refetches
+  const seededForRef = React.useRef<string | null>(null)
+  const autoSaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savedBadgeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Reset all form state when the selected station changes
   React.useEffect(() => {
+    seededForRef.current = null
     setCurrentPage(0)
     setSubmitted(false)
     setResumedFromDraft(false)
     setGroups([])
+    setAutoSaveStatus('idle')
   }, [station?.id])
 
-  // Hydrate form once the draft query settles — use saved draft if one exists, otherwise blank template
+  // Seed form exactly once per station — never overwrite the user's in-progress work
   React.useEffect(() => {
     if (!station || draftLoading) return
+    if (seededForRef.current === station.id) return  // already seeded for this station
+    seededForRef.current = station.id
     if (draft?.items && draft.items.length > 0) {
-      setGroups(draft.items)
+      setGroups(draft.items as ChecklistGroup[])
       setResumedFromDraft(true)
     } else {
       setGroups(getChecklistTemplate(station.mode))
       setResumedFromDraft(false)
     }
-  }, [station?.id, draftLoading])
+  }, [station?.id, draftLoading, draft, station])
+
+  // Debounced autosave — fires 2s after the last edit, only when the user has answered ≥1 item
+  React.useEffect(() => {
+    const answered = groups.flatMap((g) => g.items).some((i) => i.value !== null)
+    if (!selectedId || !seededForRef.current || !answered) return
+
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
+
+    autoSaveTimerRef.current = setTimeout(async () => {
+      setAutoSaveStatus('saving')
+      try {
+        const saved = await saveDraft(selectedId, groups)
+        // Update cache directly — no invalidation, no refetch, no risk of re-seeding
+        qc.setQueryData(['checklist', selectedId, 'draft'], saved)
+        setAutoSaveStatus('saved')
+        if (savedBadgeTimerRef.current) clearTimeout(savedBadgeTimerRef.current)
+        savedBadgeTimerRef.current = setTimeout(() => setAutoSaveStatus('idle'), 2500)
+      } catch {
+        setAutoSaveStatus('idle')
+      }
+    }, 2000)
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups, selectedId])
 
   const allItems = groups.flatMap((g) => g.items)
   const answered = allItems.filter((i) => i.value !== null).length
@@ -172,9 +212,17 @@ export default function AuditPage() {
             style={{ width: `${progress}%` }}
           />
         </div>
-        {resumedFromDraft && (
-          <p className="mt-2 text-[10px] text-white/60">↩ ดำเนินการต่อจากร่างที่บันทึกไว้</p>
-        )}
+        <div className="mt-2 flex items-center gap-3">
+          {resumedFromDraft && (
+            <p className="text-[10px] text-white/60">↩ ดำเนินการต่อจากร่างที่บันทึกไว้</p>
+          )}
+          {autoSaveStatus === 'saving' && (
+            <p className="text-[10px] text-white/50">กำลังบันทึก…</p>
+          )}
+          {autoSaveStatus === 'saved' && (
+            <p className="text-[10px] text-white/60">✓ บันทึกอัตโนมัติแล้ว</p>
+          )}
+        </div>
       </div>
 
       {/* Summary page */}
