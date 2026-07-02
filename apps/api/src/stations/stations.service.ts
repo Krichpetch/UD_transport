@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../audit/audit.service'
 import { CreateStationDto } from './dto/create-station.dto'
 import { OtpRowDto } from './dto/otp-row.dto'
+import { computeScoreFromItems, scoreToStatus } from '../checklists/scoring'
 
 @Injectable()
 export class StationsService {
@@ -115,13 +116,13 @@ export class StationsService {
       where: { id: checklistId, stationId },
       data: { status: 'APPROVED' },
     })
-    const score = cl.score ?? 0
-    const status =
-      score >= 75 ? 'ผ่านมาตรฐาน' : score >= 50 ? 'ต้องปรับปรุง' : 'ไม่ผ่าน'
-    await this.prisma.station.update({
-      where: { id: stationId },
-      data: { score, status, lastInspected: cl.submittedAt },
-    })
+    // Re-derive score from stored items; do not trust the client-supplied value.
+    const score  = computeScoreFromItems(cl.items)
+    const status = scoreToStatus(score)
+    await Promise.all([
+      this.prisma.checklist.update({ where: { id: checklistId }, data: { score } }),
+      this.prisma.station.update({ where: { id: stationId }, data: { score, status, lastInspected: cl.submittedAt } }),
+    ])
     return cl
   }
 

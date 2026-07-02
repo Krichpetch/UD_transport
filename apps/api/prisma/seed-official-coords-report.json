@@ -1,0 +1,220 @@
+{
+  "updated": 540,
+  "alreadyOfficial": 0,
+  "unmatchedTotal": 185,
+  "unmatchedByMode": {
+    "bus": 62,
+    "subway": 76,
+    "airport": 4,
+    "train": 43
+  },
+  "coordStatusDist": [
+    {
+      "coordStatus": "OK",
+      "coordSource": "OFFICIAL",
+      "n": 535
+    },
+    {
+      "coordStatus": "APPROXIMATE",
+      "coordSource": "GEOCODED",
+      "n": 234
+    }
+  ],
+  "bangkokCentroidRemaining": 139,
+  "topSharedPoints": [
+    {
+      "lat": "13.7563",
+      "lng": "100.5018",
+      "n": 139
+    },
+    {
+      "lat": "19.9105",
+      "lng": "99.8406",
+      "n": 6
+    },
+    {
+      "lat": "7.1756",
+      "lng": "100.6142",
+      "n": 5
+    },
+    {
+      "lat": "18.7883",
+      "lng": "98.9853",
+      "n": 4
+    },
+    {
+      "lat": "15.8068",
+      "lng": "102.0317",
+      "n": 4
+    }
+  ],
+  "approximateByMode": [
+    {
+      "mode": "ทางบก",
+      "railSubtype": null,
+      "n": 73
+    },
+    {
+      "mode": "ทางเรือ",
+      "railSubtype": null,
+      "n": 69
+    },
+    {
+      "mode": "ทางราง",
+      "railSubtype": "รถไฟ",
+      "n": 62
+    },
+    {
+      "mode": "ทางราง",
+      "railSubtype": "รถไฟฟ้า",
+      "n": 18
+    },
+    {
+      "mode": "ทางอากาศ",
+      "railSubtype": null,
+      "n": 12
+    }
+  ],
+  "unmatchedSamples": [
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสารรถปรับอากาศจ.ขอนแก่น",
+      "name_en": "KHON KAEN AIR-CONDITIONED BUS TERMINAL",
+      "province_th": "ขอนแก่น",
+      "source_id": 2
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสาร จ.ภูเก็ต",
+      "name_en": "PHUKET BUS TERMINAL",
+      "province_th": "ภูเก็ต",
+      "source_id": 4
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสารพันดอน อ.กุมภวาปี จ.อุดรธานี",
+      "name_en": "PHAN DON BUS TERMINAL",
+      "province_th": "อุดรธานี",
+      "source_id": 5
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสาร จ.เชียงราย",
+      "name_en": "CHIANG RAI BUS TERMINAL",
+      "province_th": "เชียงราย",
+      "source_id": 6
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสาร จ.นครศรีธรรมราช",
+      "name_en": "NAKHON SI THAMMARAT BUS TERMINAL",
+      "province_th": "นครศรีธรรมราช",
+      "source_id": 8
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสาร จ.พิษณุโลก",
+      "name_en": "PHITSANULOK BUS TERMINAL",
+      "province_th": "พิษณุโลก",
+      "source_id": 9
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสาร จ.บุรีรัมย์",
+      "name_en": "BURI RAM BUS TERMINAL",
+      "province_th": "บุรีรัมย์",
+      "source_id": 10
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสาร จ.อ่างทอง",
+      "name_en": "ANG THONG BUS TERMINAL",
+      "province_th": "อ่างทอง",
+      "source_id": 11
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสาร จ.อุดรธานี แห่งที่ 2",
+      "name_en": "UDON THANI BUS TERMINAL 2",
+      "province_th": "อุดรธานี",
+      "source_id": 14
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสาร จ.ร้อยเอ็ด",
+      "name_en": "ROI ET BUS TERMINAL",
+      "province_th": "ร้อยเอ็ด",
+      "source_id": 15
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสาร อ.หาดใหญ่ จ.สงขลา",
+      "name_en": "AMPHOE HAT YAI BUS TERMINAL",
+      "province_th": "สงขลา",
+      "source_id": 16
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสาร อ.หัวหิน จ.ประจวบคีรีขันธฺ์",
+      "name_en": "HUA HIN BUS TERMINAL",
+      "province_th": "ประจวบคีรีขันธฺ์",
+      "source_id": 20
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสาร จ.เพชรบุรี",
+      "name_en": "BANGKOK-PHETCHABURI BUS TERMINAL",
+      "province_th": "เพชรบุรี",
+      "source_id": 21
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสาร จ.นครราชสีมา แห่งที่ 2",
+      "name_en": "NAKHON RATCHASIMA BUS TERMINAL 2",
+      "province_th": "นครราชสีมา",
+      "source_id": 23
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสาร อ.พยัคฆภูมิพิสัย จ.มหาสารคาม",
+      "name_en": "AMPHOE PHAYAKKHAPHUM PHISAI BUS TERMINAL",
+      "province_th": "มหาสารคาม",
+      "source_id": 27
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสารกรุงเทพ ถนนบรมราชชนนี",
+      "name_en": "SOUTHERN BUS TERMINAL, BOROMMARATCHACHONNANI RD.",
+      "province_th": "",
+      "source_id": 28
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสารกรุงเทพ (จตุจักร)",
+      "name_en": "NORTHERN AND NORTHEASTERN BUS TERMINAL (MO CHIT 2 BUS TERMINAL)",
+      "province_th": "",
+      "source_id": 29
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสาร จ.ลพบุรี",
+      "name_en": "LOP BURI BUS TERMINAL",
+      "province_th": "ลพบุรี",
+      "source_id": 31
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสาร จ.มหาสารคาม",
+      "name_en": "MAHA SARAKHAM BUS TERMINAL",
+      "province_th": "มหาสารคาม",
+      "source_id": 32
+    },
+    {
+      "mode": "bus",
+      "name_th": "สถานีขนส่งผู้โดยสาร จ.ขอนแก่น แห่งที่ 3",
+      "name_en": "KHON KAEN BUS TERMINAL 3",
+      "province_th": "ขอนแก่น",
+      "source_id": 34
+    }
+  ]
+}

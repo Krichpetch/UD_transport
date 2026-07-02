@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { ChecklistStatus } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { computeScoreFromItems } from './scoring'
 
 @Injectable()
 export class ChecklistsService {
@@ -44,7 +45,9 @@ export class ChecklistsService {
     })
   }
 
-  async submit(stationId: string, auditorId: string, items: unknown, score?: number) {
+  async submit(stationId: string, auditorId: string, items: unknown, _clientScore?: number) {
+    // Re-derive score server-side; never trust the client-supplied value.
+    const score = computeScoreFromItems(items)
     return this.prisma.checklist.create({
       data: {
         stationId,

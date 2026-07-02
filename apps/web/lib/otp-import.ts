@@ -56,22 +56,24 @@ function parseChecklistValue(raw: unknown): {
   if (!s || s === '-' || s === '0') return { value: 'N/A', meetsStandard: false, note: '', flagged: false, isOther: false }
   if (s.toLowerCase() === 'n/a')    return { value: 'N/A', meetsStandard: false, note: '', flagged: false, isOther: false }
 
-  // ไม่มี (includes ไม่ม่ typo)
+  // ไม่มี (includes ไม่ม่ typo) — must come before the standard-token checks
   if (/^ไม่ม[ี่]/.test(s)) {
     const note = s.includes('-') ? s.split('-').slice(1).join('-').trim() : ''
     return { value: 'ไม่มี', meetsStandard: false, note, flagged: false, isOther: false }
   }
 
-  if (s.startsWith('มี')) {
-    if (RE_NOT_STANDARD.test(s)) {
-      // มี ไม่ได้มาตรฐาน (+ typos)
-      return { value: 'มี', meetsStandard: false, note: '', flagged: false, isOther: false }
-    }
-    if (RE_STANDARD.test(s)) {
-      // มี ได้มาตรฐาน (+ typos)
-      return { value: 'มี', meetsStandard: true, note: '', flagged: false, isOther: false }
-    }
-    // bare มี or มี + unrecognised text — flag as standard-unspecified
+  // ไม่ได้มาตรฐาน (typo-tolerant) — applies even without มี prefix (e.g. bare "ไม่ได้มาตรฐาน")
+  if (RE_NOT_STANDARD.test(s)) {
+    return { value: 'มี', meetsStandard: false, note: '', flagged: false, isOther: false }
+  }
+
+  // ได้มาตรฐาน (typo-tolerant, no ไม่ preceding) — applies even without มี prefix
+  if (RE_STANDARD.test(s)) {
+    return { value: 'มี', meetsStandard: true, note: '', flagged: false, isOther: false }
+  }
+
+  // bare มี or มี + unrecognised text — flag as standard-unspecified
+  if (s === 'มี' || s.startsWith('มี')) {
     return { value: 'มี', meetsStandard: false, note: '', flagged: true, isOther: false }
   }
 
