@@ -181,9 +181,9 @@ export function parseOtpRows(raw: Record<string, unknown>[]): OtpParseResult {
       }),
     }))
 
-    // Score per CLAUDE.md formula
+    // Score per CLAUDE.md formula — bare มี (flagged) excluded from denominator like N/A
     const allItems = groups.flatMap(g => g.items)
-    const eligible = allItems.filter(it => it.value !== null && it.value !== 'N/A')
+    const eligible = allItems.filter(it => it.value !== null && it.value !== 'N/A' && !(it.value === 'มี' && it.flagged))
     const standard = eligible.filter(it => it.value === 'มี' && it.meetsStandard)
     const score    = eligible.length > 0 ? Math.round((standard.length / eligible.length) * 100) : 0
     const status   = score >= 75 ? 'ผ่านมาตรฐาน' : score >= 50 ? 'ต้องปรับปรุง' : 'ไม่ผ่าน'

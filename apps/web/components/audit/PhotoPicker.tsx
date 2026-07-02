@@ -232,7 +232,7 @@ export function PhotoPicker({ onPhotosUploaded, disabled = false }: Props) {
         <button
           onClick={confirm}
           disabled={uploading || pendingCount === 0}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#1a3557] py-2 text-xs font-semibold text-white disabled:opacity-50"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50"
         >
           {uploading
             ? <><Loader2 size={12} className="animate-spin" /> กำลังอัปโหลด…</>

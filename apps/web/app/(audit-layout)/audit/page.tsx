@@ -142,9 +142,9 @@ export default function AuditPage() {
   }
 
   const VALUE_OPTIONS: { value: ChecklistValue; label: string; active: string; inactive: string }[] = [
-    { value: 'มี',    label: 'มี',    active: 'border-blue-300 bg-blue-50 text-blue-700',   inactive: 'border-border text-muted-foreground' },
-    { value: 'ไม่มี', label: 'ไม่มี', active: 'border-red-200 bg-red-50 text-red-600',      inactive: 'border-border text-muted-foreground' },
-    { value: 'N/A',  label: 'N/A',  active: 'border-gray-300 bg-gray-100 text-gray-500', inactive: 'border-border text-muted-foreground' },
+    { value: 'มี',    label: 'มี',            active: 'border-blue-300 bg-blue-50 text-blue-700',   inactive: 'border-border bg-white text-muted-foreground' },
+    { value: 'ไม่มี', label: 'ไม่มี',         active: 'border-red-200 bg-red-50 text-red-700',      inactive: 'border-border bg-white text-muted-foreground' },
+    { value: 'N/A',  label: 'ไม่เกี่ยวข้อง', active: 'border-gray-200 bg-gray-50 text-gray-600',   inactive: 'border-border bg-white text-muted-foreground' },
   ]
 
   const stationPicker = (
@@ -159,7 +159,7 @@ export default function AuditPage() {
     return (
       <div className="space-y-4">
         {stationPicker}
-        <div className="rounded-xl bg-white/10 p-6 text-center text-sm text-white/60 backdrop-blur">
+        <div className="rounded-xl bg-white p-6 text-center text-sm text-muted-foreground shadow-sm">
           {!selectedId ? 'กรุณาเลือกสถานีเพื่อเริ่มการตรวจสอบ' : 'กำลังโหลด…'}
         </div>
       </div>
@@ -170,13 +170,13 @@ export default function AuditPage() {
     return (
       <div className="space-y-4">
         {stationPicker}
-        <div className="rounded-xl bg-white/10 p-6 text-center backdrop-blur">
-          <p className="text-lg font-bold text-white">ส่งรายงานสำเร็จ ✓</p>
-          <p className="mt-1 text-sm text-white/70">{station.nameTh}</p>
-          <p className="mt-1 text-xs text-white/50">คะแนน UD: {score}%</p>
+        <div className="rounded-xl bg-white p-6 text-center shadow-sm">
+          <p className="text-lg font-bold text-foreground">ส่งรายงานสำเร็จ ✓</p>
+          <p className="mt-1 text-sm text-muted-foreground">{station.nameTh}</p>
+          <p className="mt-1 text-xs text-muted-foreground">คะแนน UD: {score}%</p>
           <button
             onClick={() => { setSelectedId(''); setSubmitted(false) }}
-            className="mt-4 rounded-lg bg-white/20 px-4 py-2 text-sm font-medium text-white"
+            className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
           >
             ตรวจสถานีถัดไป
           </button>
@@ -192,35 +192,35 @@ export default function AuditPage() {
       {stationPicker}
 
       {/* Header with overall progress — always visible */}
-      <div className="rounded-xl bg-white/10 p-4 backdrop-blur">
+      <div className="rounded-xl bg-white p-4 shadow-sm">
         <div className="mb-1 flex items-start justify-between">
           <div>
-            <h1 className="text-sm font-bold text-white">{station.nameTh}</h1>
+            <h1 className="text-sm font-bold text-foreground">{station.nameTh}</h1>
             <div className="mt-0.5 flex items-center gap-1">
-              <MapPin size={10} className="text-white/60" />
-              <p className="text-xs text-white/60">{station.province}</p>
+              <MapPin size={10} className="text-accent" />
+              <p className="text-xs text-muted-foreground">{station.province}</p>
             </div>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-bold text-white">{progress}%</p>
-            <p className="text-[10px] text-white/60">{answered}/{total} ข้อ</p>
+            <p className="text-2xl font-bold text-primary">{progress}%</p>
+            <p className="text-[10px] text-muted-foreground">{answered}/{total} ข้อ</p>
           </div>
         </div>
-        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/20">
+        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
           <div
-            className="h-full rounded-full bg-white transition-all duration-300"
+            className="h-full rounded-full bg-accent transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
         <div className="mt-2 flex items-center gap-3">
           {resumedFromDraft && (
-            <p className="text-[10px] text-white/60">↩ ดำเนินการต่อจากร่างที่บันทึกไว้</p>
+            <p className="text-[10px] text-muted-foreground">↩ ดำเนินการต่อจากร่างที่บันทึกไว้</p>
           )}
           {autoSaveStatus === 'saving' && (
-            <p className="text-[10px] text-white/50">กำลังบันทึก…</p>
+            <p className="text-[10px] text-muted-foreground">กำลังบันทึก…</p>
           )}
           {autoSaveStatus === 'saved' && (
-            <p className="text-[10px] text-white/60">✓ บันทึกอัตโนมัติแล้ว</p>
+            <p className="text-[10px] text-accent">✓ บันทึกอัตโนมัติแล้ว</p>
           )}
         </div>
       </div>
@@ -259,7 +259,7 @@ export default function AuditPage() {
                 )
               }
               disabled={submitMutation.isPending || progress < 100}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a3557] py-3 text-sm font-bold text-white disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground disabled:opacity-50"
             >
               <Send size={15} />
               {submitMutation.isPending ? 'กำลังส่ง…' : 'ส่งรายงาน'}
@@ -357,7 +357,7 @@ export default function AuditPage() {
         {currentPage > 0 && (
           <button
             onClick={() => setCurrentPage((p) => p - 1)}
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-4 py-3 text-sm font-medium text-white backdrop-blur"
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-white px-4 py-3 text-sm font-medium text-foreground shadow-sm"
           >
             ← ก่อนหน้า
           </button>
@@ -365,7 +365,7 @@ export default function AuditPage() {
         <button
           onClick={() => saveDraftMutation.mutate(groups)}
           disabled={saveDraftMutation.isPending}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 py-3 text-sm font-medium text-white backdrop-blur disabled:opacity-50"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-white py-3 text-sm font-medium text-foreground shadow-sm disabled:opacity-50"
         >
           <Save size={15} />
           {saveDraftMutation.isPending ? 'กำลังบันทึก…' : 'บันทึกร่าง'}
@@ -373,7 +373,7 @@ export default function AuditPage() {
         {!isSummaryPage && (
           <button
             onClick={() => setCurrentPage((p) => p + 1)}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white py-3 text-sm font-bold text-[#1a3557]"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground"
           >
             ถัดไป →
           </button>

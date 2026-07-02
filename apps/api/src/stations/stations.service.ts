@@ -156,10 +156,14 @@ export class StationsService {
       const existing  = await this.prisma.checklist.findFirst({
         where: { stationId: station.id, submittedAt: { gte: yearStart, lt: yearEnd }, status: 'APPROVED' },
       })
+      // Re-derive score from items; never trust the client-computed row.score.
+      const importedScore  = computeScoreFromItems(row.items as unknown)
+      const importedStatus = scoreToStatus(importedScore)
+
       if (existing) {
         await this.prisma.checklist.update({
           where: { id: existing.id },
-          data:  { items: row.items as object, score: row.score },
+          data:  { items: row.items as object, score: importedScore },
         })
       } else {
         await this.prisma.checklist.create({
@@ -167,7 +171,7 @@ export class StationsService {
             stationId:   station.id,
             auditorId:   adminId,
             items:       row.items as object,
-            score:       row.score,
+            score:       importedScore,
             status:      'APPROVED',
             submittedAt: auditDate,
           },
@@ -176,7 +180,7 @@ export class StationsService {
       if (!station.lastInspected || auditDate > station.lastInspected) {
         await this.prisma.station.update({
           where: { id: station.id },
-          data: { score: row.score, status: row.status, lastInspected: auditDate },
+          data: { score: importedScore, status: importedStatus, lastInspected: auditDate },
         })
       }
       await this.auditLog.log({

@@ -136,8 +136,8 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
 
   return (
     <>
-      <div className="rounded-xl bg-white/10 p-4 backdrop-blur">
-        <label className="mb-2 block text-xs font-medium text-white/80">
+      <div className="rounded-xl bg-white p-4 shadow-sm">
+        <label className="mb-2 block text-xs font-medium text-muted-foreground">
           เลือกสถานีที่จะตรวจสอบ
         </label>
         <button
@@ -166,29 +166,26 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
 
       {/* ── Full-screen picker ─────────────────────────────────────────────── */}
       {open && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col"
-          style={{ background: 'linear-gradient(135deg, #193557 0%, #0193a4 100%)' }}
-        >
+        <div className="fixed inset-0 z-50 flex flex-col bg-background">
           {/* Header */}
-          <div className="flex items-center gap-3 px-4 pb-3 pt-5">
+          <div className="flex items-center gap-3 border-b border-border bg-white px-4 pb-3 pt-5">
             <button
               onClick={close}
               aria-label="ปิด"
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white"
+              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground"
             >
               <X size={18} />
             </button>
-            <h2 className="flex-1 text-sm font-semibold text-white">เลือกสถานีที่จะตรวจสอบ</h2>
+            <h2 className="flex-1 text-sm font-semibold text-foreground">เลือกสถานีที่จะตรวจสอบ</h2>
             {!loading && total > 0 && (
-              <span className="text-xs text-white/50">{total.toLocaleString()} สถานี</span>
+              <span className="text-xs text-muted-foreground">{total.toLocaleString()} สถานี</span>
             )}
           </div>
 
           {/* Search input */}
-          <div className="px-4 pb-3">
-            <div className="flex items-center gap-2 rounded-xl bg-white px-3.5 py-3 shadow-sm">
-              <Search size={15} className="shrink-0 text-gray-400" />
+          <div className="bg-white px-4 pb-3 pt-3">
+            <div className="flex items-center gap-2 rounded-xl border border-border bg-white px-3.5 py-3 shadow-sm">
+              <Search size={15} className="shrink-0 text-muted-foreground" />
               <input
                 ref={inputRef}
                 type="search"
@@ -197,27 +194,27 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="พิมพ์ชื่อสถานี หรือจังหวัด…"
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400"
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
               />
-              {loading && <Loader2 size={14} className="shrink-0 animate-spin text-gray-400" />}
+              {loading && <Loader2 size={14} className="shrink-0 animate-spin text-muted-foreground" />}
               {!loading && query && (
                 <button onClick={() => setQuery('')} aria-label="ล้าง">
-                  <X size={14} className="text-gray-400" />
+                  <X size={14} className="text-muted-foreground" />
                 </button>
               )}
             </div>
           </div>
 
           {/* Mode chips */}
-          <div className="flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex gap-2 overflow-x-auto bg-white px-4 pb-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {MODE_TABS.map((tab) => (
               <button
                 key={tab.value}
                 onClick={() => setMode(tab.value)}
                 className={`flex shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
                   mode === tab.value
-                    ? 'bg-white text-[#1a3557]'
-                    : 'bg-white/20 text-white'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground'
                 }`}
               >
                 {tab.value === 'ทางบก'    && <Bus       size={11} />}
@@ -233,36 +230,36 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
           <div ref={listRef} className="flex-1 overflow-y-auto">
             {loading && results.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-16">
-                <Loader2 size={24} className="animate-spin text-white/40" />
-                <p className="text-xs text-white/50">กำลังโหลด…</p>
+                <Loader2 size={24} className="animate-spin text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">กำลังโหลด…</p>
               </div>
             ) : results.length === 0 ? (
-              <p className="px-4 py-10 text-center text-sm text-white/60">
+              <p className="px-4 py-10 text-center text-sm text-muted-foreground">
                 ไม่พบสถานีที่ตรงกัน
               </p>
             ) : (
-              <div className="divide-y divide-white/10">
+              <div className="divide-y divide-border">
                 {results.map((r) => (
                   <button
                     key={r.id}
                     onClick={() => handleSelect(r.id)}
-                    className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-white/20 ${
-                      r.id === value ? 'bg-white/15' : 'hover:bg-white/10'
+                    className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-secondary ${
+                      r.id === value ? 'bg-secondary' : 'bg-white hover:bg-secondary'
                     }`}
                   >
-                    <span className="shrink-0 text-white/70">
+                    <span className="shrink-0 text-muted-foreground">
                       <ModeIcon mode={r.mode} railSubtype={r.railSubtype} size={16} />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-white">
+                      <span className="block truncate text-sm font-medium text-foreground">
                         {r.nameTh}
                       </span>
-                      <span className="text-xs text-white/55">{r.province}</span>
+                      <span className="text-xs text-muted-foreground">{r.province}</span>
                     </span>
                     {r.id === value && (
-                      <span className="shrink-0 text-xs font-semibold text-white/80">✓</span>
+                      <span className="shrink-0 text-xs font-semibold text-accent">✓</span>
                     )}
-                    <ChevronRight size={14} className="shrink-0 text-white/30" />
+                    <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
                   </button>
                 ))}
               </div>
@@ -271,20 +268,20 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-white/10 px-4 py-3">
+            <div className="flex items-center justify-between border-t border-border bg-white px-4 py-3">
               <button
                 onClick={() => setPage((p) => p - 1)}
                 disabled={page === 1 || loading}
-                className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium text-white disabled:opacity-30"
+                className="flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-2 text-xs font-medium text-secondary-foreground disabled:opacity-30"
               >
                 <ChevronLeft size={13} />
                 ก่อนหน้า
               </button>
-              <span className="text-xs text-white/60">หน้า {page} / {totalPages}</span>
+              <span className="text-xs text-muted-foreground">หน้า {page} / {totalPages}</span>
               <button
                 onClick={() => setPage((p) => p + 1)}
                 disabled={page >= totalPages || loading}
-                className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium text-white disabled:opacity-30"
+                className="flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-2 text-xs font-medium text-secondary-foreground disabled:opacity-30"
               >
                 ถัดไป
                 <ChevronRight size={13} />

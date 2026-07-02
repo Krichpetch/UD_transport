@@ -1,10 +1,12 @@
 // Server-side score re-derivation from stored ChecklistGroup[] JSON.
-// Mirrors the formula in CLAUDE.md: (ได้มาตรฐาน / total_non_NA) × 100.
-// Called at submit and at admin approval so the score is never trusted from the client.
+// Formula (CLAUDE.md): (ได้มาตรฐาน / eligible) × 100
+// Eligible excludes: null (unanswered), N/A, and flagged bare-มี (standard not yet recorded).
+// Bare มี is a data-entry gap — not a confirmed failure — so it is parked like N/A until resolved.
 
 interface StoredItem {
   value: string | null
   meetsStandard: boolean
+  flagged?: boolean  // true = bare มี; standard-unspecified; excluded from denominator
 }
 
 interface StoredGroup {
@@ -15,7 +17,11 @@ export function computeScoreFromItems(items: unknown): number {
   if (!Array.isArray(items)) return 0
   const groups = items as StoredGroup[]
   const allItems = groups.flatMap(g => Array.isArray(g?.items) ? g.items : [])
-  const eligible = allItems.filter(it => it.value !== null && it.value !== 'N/A')
+  const eligible = allItems.filter(it =>
+    it.value !== null &&
+    it.value !== 'N/A' &&
+    !(it.value === 'มี' && it.flagged === true),
+  )
   const standard = eligible.filter(it => it.value === 'มี' && it.meetsStandard === true)
   return eligible.length > 0 ? Math.round((standard.length / eligible.length) * 100) : 0
 }
