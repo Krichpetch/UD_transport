@@ -48,9 +48,9 @@ export function useSaveDraft(stationId: string) {
 export function useSubmitChecklist(stationId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ items, score, gps, bypassRequested }: {
-      items: ChecklistGroup[]; score: number; gps?: SubmitGps; bypassRequested?: boolean
-    }) => submitChecklist(stationId, items, score, gps, bypassRequested),
+    mutationFn: ({ items, score, gps }: {
+      items: ChecklistGroup[]; score: number; gps?: SubmitGps
+    }) => submitChecklist(stationId, items, score, gps),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['checklist', stationId] })
       qc.invalidateQueries({ queryKey: ['station', stationId] })

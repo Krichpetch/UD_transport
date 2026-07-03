@@ -22,6 +22,37 @@ import type { ChecklistRecord } from '@/lib/api/checklists'
 
 const PROXIMITY_RADIUS_M = 1000
 
+// Grows row-by-row with content (no manual drag handle) up to a sane max height, past which a
+// scrollbar takes over — height is synced to scrollHeight on every value change.
+function AutoGrowTextarea({
+  value, onChange, placeholder, className,
+}: {
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
+  placeholder?: string
+  className?: string
+}) {
+  const ref = React.useRef<HTMLTextAreaElement>(null)
+
+  React.useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [value])
+
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      rows={1}
+      className={`max-h-40 resize-none overflow-y-auto ${className ?? ''}`}
+    />
+  )
+}
+
 export default function AuditPage() {
   const qc = useQueryClient()
   const user = useAuthStore((s) => s.user)
@@ -248,9 +279,7 @@ export default function AuditPage() {
     }
 
     try {
-      const result = await submitMutation.mutateAsync({
-        items: groups, score, gps, bypassRequested: PROXIMITY_BYPASS,
-      })
+      const result = await submitMutation.mutateAsync({ items: groups, score, gps })
       setSubmitResult(result)
     } catch (err) {
       const code = err instanceof ApiError ? err.code : undefined
@@ -577,11 +606,10 @@ export default function AuditPage() {
                       onPhotosUploaded={(photos) => attachPhotos(group.groupId, item.id, photos)}
                     />
                     {item.note || expandedNotes.has(item.id) ? (
-                      <textarea
+                      <AutoGrowTextarea
                         value={item.note}
                         onChange={(e) => setItemNote(group.groupId, item.id, e.target.value)}
                         placeholder="บันทึกเพิ่มเติม (ถ้ามี)"
-                        rows={2}
                         className="border-border placeholder:text-muted-foreground focus:ring-ring mt-2.5 w-full rounded-lg border bg-white px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1"
                       />
                     ) : (

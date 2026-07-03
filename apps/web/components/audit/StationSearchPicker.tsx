@@ -1,10 +1,11 @@
 'use client'
 
 import * as React from 'react'
-import { Search, X, Loader2, ChevronRight, ChevronLeft, Bus, Train, TrainFront, Ship, Plane } from 'lucide-react'
+import { Search, X, Loader2, ChevronRight, ChevronLeft, Bus, Train, TrainFront, Ship, Plane, LocateFixed, MapPin } from 'lucide-react'
 import type { TransportMode, RailSubtype } from '@repo/types'
-import { searchStations } from '@/lib/api/stations'
-import type { StationSearchResult } from '@/lib/api/stations'
+import { searchStations, getNearbyStations } from '@/lib/api/stations'
+import type { StationSearchResult, NearbyStation } from '@/lib/api/stations'
+import { getCurrentPosition } from '@/lib/geolocation'
 
 // ── Mode tabs ──────────────────────────────────────────────────────────────────
 
@@ -43,16 +44,18 @@ interface Props {
   value: string
   selectedStation?: SelectedStation
   onSelect: (id: string) => void
-  // Seam for future proximity mode: pass nearbyTab={true} + a nearby endpoint once GPS
-  // permission + /stations/nearby?lat&lng&limit is ready. Picker will add a "ใกล้ฉัน" tab.
 }
 
 const PAGE_SIZE = 20
+
+type PickerTab = 'search' | 'nearby'
+type NearbyStatus = 'idle' | 'locating' | 'ok' | 'denied' | 'error'
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export function StationSearchPicker({ value, selectedStation, onSelect }: Props) {
   const [open, setOpen]             = React.useState(false)
+  const [tab, setTab]               = React.useState<PickerTab>('search')
   const [query, setQuery]           = React.useState('')
   const [mode, setMode]             = React.useState<TransportMode | ''>('')
   const [results, setResults]       = React.useState<StationSearchResult[]>([])
@@ -64,19 +67,49 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
   const abortRef                    = React.useRef<AbortController | null>(null)
   const listRef                     = React.useRef<HTMLDivElement>(null)
 
+  const [nearbyResults, setNearbyResults] = React.useState<NearbyStation[]>([])
+  const [nearbyStatus, setNearbyStatus]   = React.useState<NearbyStatus>('idle')
+
   // Focus input and reset all transient state on open/close
   React.useEffect(() => {
     if (open) {
       const t = setTimeout(() => inputRef.current?.focus(), 80)
       return () => clearTimeout(t)
     }
+    setTab('search')
     setQuery('')
     setResults([])
     setTotal(0)
     setTotalPages(1)
     setPage(1)
     setLoading(false)
+    setNearbyResults([])
+    setNearbyStatus('idle')
   }, [open])
+
+  // Fetch nearby stations once the "ใกล้ฉัน" tab is opened
+  React.useEffect(() => {
+    if (!open || tab !== 'nearby') return
+    let cancelled = false
+    setNearbyStatus('locating')
+    getCurrentPosition().then((pos) => {
+      if (cancelled) return
+      if (pos.status !== 'ok') {
+        setNearbyStatus(pos.status === 'denied' ? 'denied' : 'error')
+        return
+      }
+      getNearbyStations(pos.lat, pos.lng)
+        .then((stations) => {
+          if (cancelled) return
+          setNearbyResults(stations)
+          setNearbyStatus('ok')
+        })
+        .catch(() => {
+          if (!cancelled) setNearbyStatus('error')
+        })
+    })
+    return () => { cancelled = true }
+  }, [open, tab])
 
   // Reset to page 1 when search terms change
   React.useEffect(() => {
@@ -177,58 +210,130 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
               <X size={18} />
             </button>
             <h2 className="flex-1 text-sm font-semibold text-foreground">เลือกสถานีที่จะตรวจสอบ</h2>
-            {!loading && total > 0 && (
+            {tab === 'search' && !loading && total > 0 && (
               <span className="text-xs text-muted-foreground">{total.toLocaleString()} สถานี</span>
             )}
           </div>
 
-          {/* Search input */}
-          <div className="bg-white px-4 pb-3 pt-3">
-            <div className="flex items-center gap-2 rounded-xl border border-border bg-white px-3.5 py-3 shadow-sm">
-              <Search size={15} className="shrink-0 text-muted-foreground" />
-              <input
-                ref={inputRef}
-                type="search"
-                inputMode="search"
-                autoComplete="off"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="พิมพ์ชื่อสถานี หรือจังหวัด…"
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              />
-              {loading && <Loader2 size={14} className="shrink-0 animate-spin text-muted-foreground" />}
-              {!loading && query && (
-                <button onClick={() => setQuery('')} aria-label="ล้าง">
-                  <X size={14} className="text-muted-foreground" />
-                </button>
-              )}
-            </div>
+          {/* Search / Nearby tabs */}
+          <div className="flex gap-2 bg-white px-4 pb-3 pt-3">
+            <button
+              onClick={() => setTab('search')}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors ${
+                tab === 'search' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
+              }`}
+            >
+              <Search size={13} /> ค้นหา
+            </button>
+            <button
+              onClick={() => setTab('nearby')}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors ${
+                tab === 'nearby' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
+              }`}
+            >
+              <LocateFixed size={13} /> ใกล้ฉัน
+            </button>
           </div>
 
-          {/* Mode chips */}
-          <div className="flex gap-2 overflow-x-auto bg-white px-4 pb-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            {MODE_TABS.map((tab) => (
-              <button
-                key={tab.value}
-                onClick={() => setMode(tab.value)}
-                className={`flex shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
-                  mode === tab.value
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-secondary-foreground'
-                }`}
-              >
-                {tab.value === 'ทางบก'    && <Bus       size={11} />}
-                {tab.value === 'ทางราง'   && <Train     size={11} />}
-                {tab.value === 'ทางเรือ'  && <Ship      size={11} />}
-                {tab.value === 'ทางอากาศ' && <Plane     size={11} />}
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          {tab === 'search' && (
+            <>
+              {/* Search input */}
+              <div className="bg-white px-4 pb-3">
+                <div className="flex items-center gap-2 rounded-xl border border-border bg-white px-3.5 py-3 shadow-sm">
+                  <Search size={15} className="shrink-0 text-muted-foreground" />
+                  <input
+                    ref={inputRef}
+                    type="search"
+                    inputMode="search"
+                    autoComplete="off"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="พิมพ์ชื่อสถานี หรือจังหวัด…"
+                    className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                  />
+                  {loading && <Loader2 size={14} className="shrink-0 animate-spin text-muted-foreground" />}
+                  {!loading && query && (
+                    <button onClick={() => setQuery('')} aria-label="ล้าง">
+                      <X size={14} className="text-muted-foreground" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Mode chips */}
+              <div className="flex gap-2 overflow-x-auto bg-white px-4 pb-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                {MODE_TABS.map((modeTab) => (
+                  <button
+                    key={modeTab.value}
+                    onClick={() => setMode(modeTab.value)}
+                    className={`flex shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                      mode === modeTab.value
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-secondary-foreground'
+                    }`}
+                  >
+                    {modeTab.value === 'ทางบก'    && <Bus       size={11} />}
+                    {modeTab.value === 'ทางราง'   && <Train     size={11} />}
+                    {modeTab.value === 'ทางเรือ'  && <Ship      size={11} />}
+                    {modeTab.value === 'ทางอากาศ' && <Plane     size={11} />}
+                    {modeTab.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
 
           {/* Results list */}
           <div ref={listRef} className="flex-1 overflow-y-auto">
-            {loading && results.length === 0 ? (
+            {tab === 'nearby' ? (
+              nearbyStatus === 'locating' ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-16">
+                  <Loader2 size={24} className="animate-spin text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground">กำลังระบุตำแหน่ง…</p>
+                </div>
+              ) : nearbyStatus === 'denied' ? (
+                <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง (GPS) กรุณาเปิดใช้งานแล้วลองใหม่
+                </p>
+              ) : nearbyStatus === 'error' ? (
+                <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  ไม่สามารถระบุตำแหน่งได้ กรุณาลองใหม่อีกครั้ง
+                </p>
+              ) : nearbyResults.length === 0 ? (
+                <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  ไม่พบสถานีในระยะ 1 กม.
+                </p>
+              ) : (
+                <div className="divide-y divide-border">
+                  {nearbyResults.map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => handleSelect(r.id)}
+                      className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-secondary ${
+                        r.id === value ? 'bg-secondary' : 'bg-white hover:bg-secondary'
+                      }`}
+                    >
+                      <span className="shrink-0 text-muted-foreground">
+                        <ModeIcon mode={r.mode} railSubtype={r.railSubtype} size={16} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-foreground">
+                          {r.nameTh}
+                        </span>
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <MapPin size={10} className="shrink-0" />
+                          {r.province} · {r.distanceM.toLocaleString()} ม.
+                        </span>
+                      </span>
+                      {r.id === value && (
+                        <span className="shrink-0 text-xs font-semibold text-accent">✓</span>
+                      )}
+                      <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
+                    </button>
+                  ))}
+                </div>
+              )
+            ) : loading && results.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-16">
                 <Loader2 size={24} className="animate-spin text-muted-foreground" />
                 <p className="text-xs text-muted-foreground">กำลังโหลด…</p>
@@ -267,7 +372,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
+          {tab === 'search' && totalPages > 1 && (
             <div className="flex items-center justify-between border-t border-border bg-white px-4 py-3">
               <button
                 onClick={() => setPage((p) => p - 1)}
