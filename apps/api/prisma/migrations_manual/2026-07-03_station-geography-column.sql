@@ -1,21 +1,22 @@
--- Phase 1: PostGIS geography column for proximity queries (GET /stations/nearby, submit-time
--- distance gate). Additive only — does not touch lat/lng or any existing data.
+-- Phase 1: PostGIS proximity queries (GET /stations/nearby, submit-time distance gate).
+-- Additive only — does not touch lat/lng or any existing data.
 -- Applied by hand (this project uses `prisma db push`, not `prisma migrate`, for schema sync).
--- Requires: CREATE EXTENSION postgis; (already run once when the DB container was switched
--- from postgres:16 to postgis/postgis:16-3.4).
+-- Run via: pnpm --filter api db:manual-migrations (see prisma/apply-manual-migrations.cjs).
 --
--- Deliberately NOT declared in schema.prisma: Prisma's `Unsupported()` type still tries to
--- diff/alter generated columns during `db push` and fails ("column is a generated column").
--- Queried only via $queryRaw in stations.service.ts (ST_DWithin/ST_Distance). `db push` never
--- touches columns it doesn't know about, so leaving it undeclared is the safe, standard
--- workaround — re-run this file by hand if the DB is ever rebuilt from scratch.
+-- Requires a Postgres build with PostGIS available (e.g. the postgis/postgis Docker image).
+-- CREATE EXTENSION will fail loudly on a stock postgres image — that's intentional; it means
+-- the environment needs to be switched to a PostGIS-capable Postgres before this can run.
+CREATE EXTENSION IF NOT EXISTS postgis;
 
-ALTER TABLE "Station" ADD COLUMN IF NOT EXISTS geog geography(Point,4326)
-  GENERATED ALWAYS AS (
-    CASE WHEN lat IS NOT NULL AND lng IS NOT NULL
-      THEN ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography
-      ELSE NULL
-    END
-  ) STORED;
-
-CREATE INDEX IF NOT EXISTS station_geog_idx ON "Station" USING GIST (geog);
+-- Deliberately an EXPRESSION index, not a stored generated column: Prisma's `Unsupported()`
+-- type still tries to diff/alter generated columns during `db push` and fails ("column is a
+-- generated column"), and a plain undeclared column gets flagged for DROP by `db push` on the
+-- next run (it reconciles the DB to exactly match schema.prisma). An index on an expression is
+-- invisible to Prisma either way — nothing for `db push` to fight over — while the query
+-- planner still uses it for ST_DWithin/ST_Distance in stations.service.ts (verified via EXPLAIN).
+--
+-- (An earlier draft of this file used a `geog geography(Point,4326) GENERATED ALWAYS AS (...)
+-- STORED` column + an index on that column — superseded by this expression-index approach for
+-- the reason above. If you find that shape anywhere, it's stale.)
+CREATE INDEX IF NOT EXISTS station_geog_idx ON "Station"
+  USING GIST ((ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography));
