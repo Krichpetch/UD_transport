@@ -1,4 +1,4 @@
-import type { TransportMode } from './transport'
+import type { TransportMode } from './transport.js'
 
 export type ChecklistValue = 'มี' | 'ไม่มี' | 'N/A' | null
 

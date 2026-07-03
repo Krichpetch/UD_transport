@@ -371,6 +371,18 @@ export function getTransportLabel(station: Station): string {
   return station.mode
 }
 
+// The 5 official station types (CLAUDE.md filter taxonomy) — distinct from getTransportLabel,
+// which just prints the mode/subtype. Client-safe (no server-only imports), unlike the
+// equivalent in lib/excel-export.ts which pulls in exceljs.
+export function getStationTypeLabel(station: Station): string {
+  if (station.mode === 'ทางราง') {
+    return station.railSubtype === 'รถไฟฟ้า' ? 'สถานีรถไฟฟ้า' : 'สถานีรถไฟ'
+  }
+  if (station.mode === 'ทางบก') return 'สถานีขนส่งผู้โดยสาร'
+  if (station.mode === 'ทางเรือ') return 'ท่าเรือโดยสาร'
+  return 'ท่าอากาศยาน'
+}
+
 // ---- OTP lookup tables ----
 export { PROVINCE_REGION, PROVINCE_COORDS } from './thai-geography'
 

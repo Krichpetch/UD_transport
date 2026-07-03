@@ -107,6 +107,52 @@ export class StationsService {
     return this.prisma.station.findUniqueOrThrow({ where: { id } })
   }
 
+  // Proximity search for the location-first auditor picker. PostGIS ST_DWithin/ST_Distance
+  // over an expression-based GiST index (see prisma/migrations_manual/) — deliberately not a
+  // Prisma-tracked column, since `db push` can't safely manage generated geography columns.
+  // Only coordStatus=OK stations are candidates: APPROXIMATE/PENDING coords can be tens of km
+  // off and would produce meaningless "nearby" results.
+  async findNearby(lat: number, lng: number, limit = 20) {
+    const rows = await this.prisma.$queryRaw<Array<{
+      id: string; name: string; nameTh: string; mode: string; railSubtype: string | null
+      province: string; region: string; responsibleAgency: string; lat: number; lng: number
+      coordStatus: string; score: number; status: string; lastInspected: Date | null
+      urgentIssues: string[]; distanceM: number
+    }>>`
+      SELECT id, name, "nameTh", mode, "railSubtype", province, region, "responsibleAgency",
+             lat, lng, "coordStatus", score, status, "lastInspected", "urgentIssues",
+             ST_Distance(
+               ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography,
+               ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography
+             ) AS "distanceM"
+      FROM "Station"
+      WHERE "coordStatus" = 'OK' AND lat IS NOT NULL AND lng IS NOT NULL
+        AND ST_DWithin(
+          ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography,
+          ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography,
+          1000
+        )
+      ORDER BY "distanceM" ASC
+      LIMIT ${limit}
+    `
+    return rows.map(r => ({ ...r, distanceM: Math.round(Number(r.distanceM)) }))
+  }
+
+  // Server-side truth for the submit-time proximity gate — never trust a client "isNear" flag.
+  // Returns null when the station has no coordinates at all (defensive; shouldn't happen for
+  // coordStatus=OK rows).
+  async distanceToStationMeters(stationId: string, lat: number, lng: number): Promise<number | null> {
+    const rows = await this.prisma.$queryRaw<Array<{ distanceM: number }>>`
+      SELECT ST_Distance(
+        ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography,
+        ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography
+      ) AS "distanceM"
+      FROM "Station"
+      WHERE id = ${stationId} AND lat IS NOT NULL AND lng IS NOT NULL
+    `
+    return rows[0] ? Math.round(Number(rows[0].distanceM)) : null
+  }
+
   // Dedupe guard: match on normalized (nameTh, mode, province) — case/whitespace
   // insensitive — regardless of responsibleAgency, since agency parsing drift
   // (e.g. an 'อื่นๆ' fallback) is what let same-station duplicates slip past the

@@ -1,4 +1,4 @@
-import type { TransportMode, RailSubtype, StationStatus } from './transport'
+import type { TransportMode, RailSubtype, StationStatus } from './transport.js'
 
 export const RESPONSIBLE_AGENCIES = [
   'ขบ.', 'ขสมก.', 'บขส.', 'รฟท.', 'รฟม.', 'รฟฟท.', 'BEM', 'จท.', 'ทย.', 'ทอท.', 'อื่นๆ',

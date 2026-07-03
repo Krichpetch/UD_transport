@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   ForbiddenException,
@@ -101,6 +102,22 @@ export class StationsController {
       limit: limit ? Math.min(parseInt(limit, 10), 50) : 20,
       page:  page  ? parseInt(page, 10) : 1,
     })
+  }
+
+  // Must come before @Get(':id') to avoid route conflict.
+  // Location-first auditor picker + the check-in/submit proximity gate's "what's near me" view.
+  @Get('nearby')
+  nearby(
+    @Req() req: AuthRequest,
+    @Query('lat')   lat?: string,
+    @Query('lng')   lng?: string,
+    @Query('limit') limit?: string,
+  ) {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    const latNum = lat ? parseFloat(lat) : NaN
+    const lngNum = lng ? parseFloat(lng) : NaN
+    if (isNaN(latNum) || isNaN(lngNum)) throw new BadRequestException('lat/lng required')
+    return this.stations.findNearby(latNum, lngNum, limit ? Math.min(parseInt(limit, 10), 50) : 20)
   }
 
   @Get(':id')

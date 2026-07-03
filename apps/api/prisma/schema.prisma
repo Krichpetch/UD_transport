@@ -93,6 +93,15 @@ model Checklist {
   submittedAt DateTime?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+
+  // Submit-time GPS audit trail (Phase 1 proximity gate) — null for DRAFTs and for any
+  // checklist submitted before this field existed. Never trust these for re-verification;
+  // they're a record of what the server checked at submit time, not a live source of truth.
+  gpsLat           Float?
+  gpsLng           Float?
+  gpsAccuracy      Float?
+  gpsDistanceM     Float?
+  locationVerified Boolean?
 }
 
 model AuditLog {

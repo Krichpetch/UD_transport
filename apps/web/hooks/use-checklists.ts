@@ -9,6 +9,7 @@ import {
   submitChecklist,
 } from '@/lib/api/checklists'
 import type { ChecklistGroup } from '@repo/types'
+import type { SubmitGps } from '@/lib/geolocation'
 
 export function useChecklist(stationId: string) {
   return useQuery({
@@ -47,8 +48,9 @@ export function useSaveDraft(stationId: string) {
 export function useSubmitChecklist(stationId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ items, score }: { items: ChecklistGroup[]; score: number }) =>
-      submitChecklist(stationId, items, score),
+    mutationFn: ({ items, score, gps, bypassRequested }: {
+      items: ChecklistGroup[]; score: number; gps?: SubmitGps; bypassRequested?: boolean
+    }) => submitChecklist(stationId, items, score, gps, bypassRequested),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['checklist', stationId] })
       qc.invalidateQueries({ queryKey: ['station', stationId] })

@@ -1,11 +1,23 @@
-import { Injectable } from '@nestjs/common'
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common'
 import { ChecklistStatus } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { StationsService } from '../stations/stations.service'
 import { computeScoreFromItems } from './scoring'
+
+const PROXIMITY_RADIUS_M = 1000
+
+export interface SubmitGps {
+  lat: number
+  lng: number
+  accuracy?: number
+}
 
 @Injectable()
 export class ChecklistsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly stations: StationsService,
+  ) {}
 
   findDraft(stationId: string, auditorId: string) {
     return this.prisma.checklist.findFirst({
@@ -45,7 +57,50 @@ export class ChecklistsService {
     })
   }
 
-  async submit(stationId: string, auditorId: string, items: unknown, _clientScore?: number) {
+  // Proximity gate — recomputes distance server-side; a client "isNear" flag is never trusted.
+  //   - coordStatus=OK station: GPS required, must be within PROXIMITY_RADIUS_M or the submit
+  //     is rejected (frontend is expected to save the work as a draft on this error).
+  //   - coordStatus!=OK station (APPROXIMATE/PENDING): can't be distance-gated (coords may be
+  //     tens of km off) — allowed through, but locationVerified=false so the app can still show
+  //     an "unverified location" warning.
+  //   - bypassRequested: dev/staging-only escape hatch for desk-testing. Ignored outright in
+  //     production regardless of what the client sends.
+  async submit(
+    stationId: string,
+    auditorId: string,
+    items: unknown,
+    _clientScore?: number,
+    gps?: SubmitGps,
+    bypassRequested?: boolean,
+  ) {
+    const station = await this.stations.findOne(stationId)
+    const bypassAllowed = !!bypassRequested && process.env.NODE_ENV !== 'production'
+
+    let distanceM: number | null = null
+    let locationVerified = false
+
+    if (bypassAllowed) {
+      locationVerified = true
+    } else if (station.coordStatus !== 'OK') {
+      locationVerified = false
+    } else {
+      if (gps?.lat == null || gps?.lng == null) {
+        throw new ForbiddenException({
+          code: 'LOCATION_REQUIRED',
+          message: 'ต้องเปิดใช้งาน GPS เพื่อส่งรายงาน',
+        })
+      }
+      distanceM = await this.stations.distanceToStationMeters(stationId, gps.lat, gps.lng)
+      if (distanceM === null || distanceM > PROXIMITY_RADIUS_M) {
+        throw new BadRequestException({
+          code: 'OUT_OF_RANGE',
+          message: 'คุณอยู่นอกพื้นที่สถานี ไม่สามารถส่งรายงานได้',
+          distanceM,
+        })
+      }
+      locationVerified = true
+    }
+
     // Re-derive score server-side; never trust the client-supplied value.
     const score = computeScoreFromItems(items)
     return this.prisma.checklist.create({
@@ -56,6 +111,11 @@ export class ChecklistsService {
         score,
         status: 'SUBMITTED',
         submittedAt: new Date(),
+        gpsLat:      gps?.lat ?? null,
+        gpsLng:      gps?.lng ?? null,
+        gpsAccuracy: gps?.accuracy ?? null,
+        gpsDistanceM: distanceM,
+        locationVerified,
       },
     })
   }

@@ -121,6 +121,16 @@ export interface StationSearchPage {
   totalPages: number
 }
 
+export interface NearbyStation extends Station {
+  distanceM: number
+}
+
+// Location-first picker + check-in proximity view — only coordStatus=OK stations within 1km.
+export function getNearbyStations(lat: number, lng: number, limit = 20) {
+  const p = new URLSearchParams({ lat: String(lat), lng: String(lng), limit: String(limit) })
+  return api.get<NearbyStation[]>(`/stations/nearby?${p}`)
+}
+
 export function searchStations(
   params: { q?: string; mode?: string; limit?: number; page?: number },
   signal?: AbortSignal,

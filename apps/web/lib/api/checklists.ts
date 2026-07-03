@@ -1,5 +1,6 @@
 import { api } from '@/lib/api'
 import type { ChecklistGroup } from '@repo/types'
+import type { SubmitGps } from '@/lib/geolocation'
 
 export interface ChecklistRecord {
   id: string
@@ -10,6 +11,11 @@ export interface ChecklistRecord {
   status: 'DRAFT' | 'SUBMITTED' | 'APPROVED'
   submittedAt: string | null
   createdAt: string
+  gpsLat: number | null
+  gpsLng: number | null
+  gpsAccuracy: number | null
+  gpsDistanceM: number | null
+  locationVerified: boolean | null
 }
 
 export function getLatestChecklist(stationId: string) {
@@ -28,6 +34,14 @@ export function saveDraft(stationId: string, items: ChecklistGroup[]) {
   return api.post<ChecklistRecord>(`/stations/${stationId}/checklist/draft`, { items })
 }
 
-export function submitChecklist(stationId: string, items: ChecklistGroup[], score: number) {
-  return api.post<ChecklistRecord>(`/stations/${stationId}/checklist/submit`, { items, score })
+export function submitChecklist(
+  stationId: string,
+  items: ChecklistGroup[],
+  score: number,
+  gps?: SubmitGps,
+  bypassRequested?: boolean,
+) {
+  return api.post<ChecklistRecord>(`/stations/${stationId}/checklist/submit`, {
+    items, score, gps, bypassRequested,
+  })
 }
