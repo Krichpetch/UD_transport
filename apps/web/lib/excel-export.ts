@@ -45,7 +45,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const IDENTITY_COLS = 5
 
-function toBuddhistYear(dateStr: string | null | undefined): number {
+export function toBuddhistYear(dateStr: string | null | undefined): number {
   const year = dateStr ? new Date(dateStr).getFullYear() : new Date().getFullYear()
   return year + 543
 }
@@ -58,19 +58,23 @@ function formatValue(item: ChecklistSubItem): string {
   return 'มี, ไม่ได้มาตรฐาน'
 }
 
+// One export row = one real (station, auditYear) assessment — never a placeholder.
+export interface ExportRow {
+  station: Station
+  groups: ChecklistGroup[]
+  auditYear: number // Buddhist year
+}
+
 /**
  * Populates a single worksheet with the matrix layout for one station type.
  * Row 1: category band (A / B / C) merged across their item columns.
  * Row 2: bold header row — ลำดับ | ปี | <typeName> | หน่วยงาน | ด้าน | (A1.1) …
- * Rows 3+: one data row per station, sorted by province then nameTh.
- *
- * checklistsMap: stationId → actual ChecklistGroup[]; if absent, falls back to templateGroups.
+ * Rows 3+: one data row per (station, auditYear), sorted by province, nameTh, year.
  */
 export function buildTypeMatrixSheet(
   ws: ExcelJS.Worksheet,
   typeName: string,
-  stations: Station[],
-  checklistsMap: Map<string, ChecklistGroup[]>,
+  rows: ExportRow[],
   templateGroups: ChecklistGroup[],
 ): void {
   const allTemplateItems = templateGroups.flatMap(g => g.items)
@@ -136,26 +140,26 @@ export function buildTypeMatrixSheet(
   // ── Freeze top 2 rows + first 5 identity columns ───────────────────────────
   ws.views = [{ state: 'frozen', xSplit: IDENTITY_COLS, ySplit: 2 }]
 
-  // ── Data rows — sorted by province then nameTh ─────────────────────────────
-  const sorted = [...stations].sort(
+  // ── Data rows — sorted by province, nameTh, then auditYear ─────────────────
+  const sorted = [...rows].sort(
     (a, b) =>
-      a.province.localeCompare(b.province, 'th') ||
-      a.nameTh.localeCompare(b.nameTh, 'th'),
+      a.station.province.localeCompare(b.station.province, 'th') ||
+      a.station.nameTh.localeCompare(b.station.nameTh, 'th') ||
+      a.auditYear - b.auditYear,
   )
 
   const evenFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } }
   const oddFill: ExcelJS.Fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }
 
-  sorted.forEach((station, rowIdx) => {
-    const stationGroups = checklistsMap.get(station.id) ?? templateGroups
+  sorted.forEach((entry, rowIdx) => {
     const itemMap = new Map<string, ChecklistSubItem>()
-    stationGroups.flatMap(g => g.items).forEach(item => itemMap.set(item.id, item))
+    entry.groups.flatMap(g => g.items).forEach(item => itemMap.set(item.id, item))
 
     const row = ws.getRow(3 + rowIdx)
     row.getCell(1).value = rowIdx + 1
-    row.getCell(2).value = toBuddhistYear(station.lastInspected)
-    row.getCell(3).value = station.nameTh
-    row.getCell(4).value = station.responsibleAgency
+    row.getCell(2).value = entry.auditYear
+    row.getCell(3).value = entry.station.nameTh
+    row.getCell(4).value = entry.station.responsibleAgency
     row.getCell(5).value = typeName
 
     allTemplateItems.forEach((templateItem, idx) => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getStations,
   getStation,
@@ -40,6 +40,9 @@ export function useStations(filters?: StationFilters) {
   return useQuery({
     queryKey: ['stations', f],
     queryFn:  () => getStations(f),
+    // Keep showing the previous page's rows while a new query/filter/sort fetches —
+    // otherwise isLoading flips true on every keystroke and unmounts the whole page.
+    placeholderData: keepPreviousData,
   })
 }
 

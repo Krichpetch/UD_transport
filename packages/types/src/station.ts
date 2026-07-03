@@ -13,6 +13,10 @@ export const TRANSPORT_MODE_AGENCIES: Record<TransportMode, readonly Responsible
   'ทางอากาศ': ['ทอท.', 'อื่นๆ'],
 }
 
+export type CoordSource = 'OFFICIAL' | 'GEOCODED' | 'MANUAL' | 'NONE'
+export type CoordStatus = 'OK' | 'APPROXIMATE' | 'PENDING' | 'INVALID'
+export type StationScope = 'IN_SCOPE' | 'OUT_OF_SCOPE'
+
 export interface Station {
   id: string
   name: string
@@ -25,8 +29,12 @@ export interface Station {
   score: number
   status: StationStatus
   lastInspected: string | null
-  lat: number
-  lng: number
+  lat: number | null
+  lng: number | null
+  coordSource?: CoordSource
+  coordStatus?: CoordStatus
+  scope?: StationScope
+  isOperational?: boolean
   urgentIssues: string[]
 }
 

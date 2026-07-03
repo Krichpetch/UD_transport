@@ -42,6 +42,20 @@ export class StationsController {
     return this.stations.getPendingReviews()
   }
 
+  // Must come before @Get(':id') to avoid route conflict.
+  // Real assessment data for the Excel export — one row per (station, auditYear).
+  @Get('export/checklists')
+  exportChecklists(@Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.stations.findAllForExport()
+  }
+
+  @Get('export/checklists/:stationId')
+  exportStationChecklists(@Param('stationId') stationId: string, @Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.stations.findAllForExport(stationId)
+  }
+
   @Get()
   findAll(
     @Req() req: AuthRequest,
@@ -98,14 +112,16 @@ export class StationsController {
   @Post()
   async create(@Body() dto: CreateStationDto, @Req() req: AuthRequest) {
     if (req.user.role !== 'ADMIN') throw new ForbiddenException()
-    const station = await this.stations.create(dto)
-    await this.auditLog.log({
-      userId: req.user.id,
-      action: 'CREATE',
-      entityType: 'Station',
-      entityId: station.id,
-      after: station,
-    })
+    const { station, deduped } = await this.stations.create(dto)
+    if (!deduped) {
+      await this.auditLog.log({
+        userId: req.user.id,
+        action: 'CREATE',
+        entityType: 'Station',
+        entityId: station.id,
+        after: station,
+      })
+    }
     return station
   }
 

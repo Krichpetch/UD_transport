@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { getChecklistTemplate } from '@/lib/mock-data'
+import { getChecklistTemplate } from '@/lib/constants'
 import { useStation } from '@/hooks/use-stations'
 import { useSaveDraft, useSubmitChecklist, useMyDraft } from '@/hooks/use-checklists'
 import { saveDraft } from '@/lib/api/checklists'

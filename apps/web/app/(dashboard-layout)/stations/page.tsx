@@ -13,6 +13,7 @@ import {
 import { getChecklistHistory } from '@/lib/api/checklists'
 import { saveDraft } from '@/lib/api/checklists'
 import { useQueryClient } from '@tanstack/react-query'
+import { useAuthStore } from '@/stores/auth.store'
 import type { TransportMode, StationStatus, ResponsibleAgency } from '@repo/types'
 import { TRANSPORT_MODE_AGENCIES } from '@repo/types'
 import type { CreateStationInput, ParsedRow } from '@/lib/api/stations'
@@ -136,7 +137,10 @@ type SortableCol = 'nameTh' | 'province' | 'responsibleAgency' | 'score' | 'stat
 // ---- Page ----
 export default function StationsPage() {
   // Filters — declared before useStations so they can be passed as params
+  // `search` is the live input value (updates every keystroke, keeps focus/UI responsive);
+  // `debouncedSearch` is what actually drives the query, ~300ms after typing stops.
   const [search, setSearch] = React.useState('')
+  const [debouncedSearch, setDebouncedSearch] = React.useState('')
   const [typeFilter, setTypeFilter] = React.useState<TransportMode | ''>('')
   const [statusFilter, setStatusFilter] = React.useState<StationStatus | ''>('')
   const [agencyFilter, setAgencyFilter] = React.useState('')
@@ -146,16 +150,25 @@ export default function StationsPage() {
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('asc')
   const [excelExporting, setExcelExporting] = React.useState(false)
 
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [search])
+
   const {
     data: stationsPage,
     isLoading,
+    isFetching,
     error,
   } = useStations({
     mode:      typeFilter || undefined,
     status:    statusFilter || undefined,
     agency:    agencyFilter || undefined,
     region:    regionFilter || undefined,
-    search:    search || undefined,
+    search:    debouncedSearch || undefined,
     page,
     limit:     PAGE_SIZE,
     sortBy,
@@ -358,7 +371,10 @@ export default function StationsPage() {
     if (excelExporting) return
     setExcelExporting(true)
     try {
-      const res = await fetch('/api/export/stations')
+      const token = useAuthStore.getState().token
+      const res = await fetch('/api/export/stations', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
       if (!res.ok) return
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
@@ -404,6 +420,7 @@ export default function StationsPage() {
 
   function clearFilters() {
     setSearch('')
+    setDebouncedSearch('')
     setTypeFilter('')
     setStatusFilter('')
     setAgencyFilter('')
@@ -417,10 +434,13 @@ export default function StationsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-foreground text-xl font-bold">จัดการสถานี</h1>
-          <p className="text-muted-foreground text-sm">
-            พบ {total} สถานี · แสดงผล {stations.length} รายการ
+          <p className="text-muted-foreground flex items-center gap-2 text-sm">
+            <span>
+              พบ {total} สถานี · แสดงผล {stations.length} รายการ
+            </span>
+            {isFetching && <Loader2 size={12} className="animate-spin" />}
             {pendingIds.length > 0 && (
-              <span className="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
                 {pendingIds.length} รายการรอรีวิว
               </span>
             )}
@@ -464,10 +484,7 @@ export default function StationsPage() {
               type="text"
               placeholder="ค้นหาสถานี จังหวัด..."
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value)
-                setPage(1)
-              }}
+              onChange={(e) => setSearch(e.target.value)}
               className="border-input bg-background placeholder:text-muted-foreground focus:ring-ring w-full rounded-lg border py-2 pr-3 pl-8 text-sm focus:ring-1 focus:outline-none"
             />
           </div>
@@ -563,7 +580,7 @@ export default function StationsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-card border-border overflow-hidden rounded-xl border">
+      <div className={`bg-card border-border overflow-hidden rounded-xl border transition-opacity ${isFetching ? 'opacity-60' : ''}`}>
         <div className="overflow-x-auto">
           <table className="w-full table-fixed text-sm">
             <colgroup>

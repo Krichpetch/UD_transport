@@ -107,8 +107,26 @@ export class StationsService {
     return this.prisma.station.findUniqueOrThrow({ where: { id } })
   }
 
-  create(dto: CreateStationDto) {
-    return this.prisma.station.create({ data: { ...dto, urgentIssues: [] } })
+  // Dedupe guard: match on normalized (nameTh, mode, province) — case/whitespace
+  // insensitive — regardless of responsibleAgency, since agency parsing drift
+  // (e.g. an 'อื่นๆ' fallback) is what let same-station duplicates slip past the
+  // DB's exact-string unique constraint. Returns the existing row instead of
+  // creating a new one when found; caller decides whether to log a CREATE audit.
+  async create(dto: CreateStationDto) {
+    const nameTh = dto.nameTh.trim()
+    const province = dto.province.trim()
+    const existing = await this.prisma.station.findFirst({
+      where: {
+        mode:     dto.mode,
+        nameTh:   { equals: nameTh,   mode: 'insensitive' },
+        province: { equals: province, mode: 'insensitive' },
+      },
+    })
+    if (existing) return { station: existing, deduped: true }
+    const station = await this.prisma.station.create({
+      data: { ...dto, nameTh, province, urgentIssues: [] },
+    })
+    return { station, deduped: false }
   }
 
   async approveChecklist(stationId: string, checklistId: string) {
@@ -138,18 +156,30 @@ export class StationsService {
   async batchOtpImport(rows: OtpRowDto[], adminId: string) {
     const results: { id: string; nameTh: string }[] = []
     for (const row of rows) {
-      const station = await this.prisma.station.upsert({
+      // Same normalized-key dedupe guard as create(): agency alone must never
+      // fork a station into a duplicate row (see _find-duplicate-stations.cjs).
+      const nameTh   = row.station.nameTh.trim()
+      const province = row.station.province.trim()
+      let station = await this.prisma.station.findFirst({
         where: {
-          nameTh_mode_responsibleAgency_province: {
-            nameTh:            row.station.nameTh,
-            mode:              row.station.mode,
-            responsibleAgency: row.station.responsibleAgency,
-            province:          row.station.province,
-          },
+          mode:     row.station.mode,
+          nameTh:   { equals: nameTh,   mode: 'insensitive' },
+          province: { equals: province, mode: 'insensitive' },
         },
-        create: { ...row.station, urgentIssues: [] },
-        update: {},
       })
+      if (station) {
+        // Prefer a real agency over a stale 'อื่นๆ' fallback if this row has one.
+        if (station.responsibleAgency === 'อื่นๆ' && row.station.responsibleAgency !== 'อื่นๆ') {
+          station = await this.prisma.station.update({
+            where: { id: station.id },
+            data: { responsibleAgency: row.station.responsibleAgency },
+          })
+        }
+      } else {
+        station = await this.prisma.station.create({
+          data: { ...row.station, nameTh, province, urgentIssues: [] },
+        })
+      }
       const auditDate = new Date(row.lastInspected)
       const yearStart = new Date(auditDate.getFullYear(), 0, 1)
       const yearEnd   = new Date(auditDate.getFullYear() + 1, 0, 1)
@@ -189,6 +219,28 @@ export class StationsService {
       results.push({ id: station.id, nameTh: station.nameTh })
     }
     return results
+  }
+
+  // Export data source: one row per (station, calendar year) — the most recently
+  // submitted APPROVED checklist wins if more than one exists for the same year.
+  // Reused by both the "all stations" and per-station export routes so there is
+  // exactly one code path pulling real assessment results for exports.
+  async findAllForExport(stationId?: string) {
+    const checklists = await this.prisma.checklist.findMany({
+      where: { status: 'APPROVED', ...(stationId && { stationId }) },
+      include: { station: true },
+      orderBy: [{ stationId: 'asc' }, { submittedAt: 'asc' }],
+    })
+
+    const byYear = new Map<string, (typeof checklists)[number]>()
+    for (const cl of checklists) {
+      if (!cl.submittedAt) continue
+      const year = cl.submittedAt.getFullYear()
+      const key = `${cl.stationId}|${year}`
+      const prev = byYear.get(key)
+      if (!prev || cl.submittedAt > prev.submittedAt!) byYear.set(key, cl)
+    }
+    return [...byYear.values()]
   }
 
   async summary() {

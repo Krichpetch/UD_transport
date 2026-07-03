@@ -1,12 +1,13 @@
 'use client'
 
 import * as React from 'react'
-import { getChecklistTemplate } from '@/lib/mock-data'
+import { getChecklistTemplate } from '@/lib/constants'
 import { useStation } from '@/hooks/use-stations'
 import { useChecklist } from '@/hooks/use-checklists'
 import { useApproveChecklist } from '@/hooks/use-stations'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ChecklistGroup, ChecklistSubItem } from '@repo/types'
+import { computeScoreFromItems, buildHistogram } from '@repo/types'
 import {
   ChevronLeft,
   Download,
@@ -18,6 +19,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react'
 import { ChecklistPhotoGallery } from '@/components/checklist/ChecklistPhotoGallery'
+import { useAuthStore } from '@/stores/auth.store'
 import Link from 'next/link'
 
 // ─── Score Circle ─────────────────────────────────────────────
@@ -179,10 +181,9 @@ export default function StationChecklistPage({
     if (!station || excelExporting) return
     setExcelExporting(true)
     try {
+      const token = useAuthStore.getState().token
       const res = await fetch(`/api/export/station/${id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ groups }),
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       if (!res.ok) return
       const blob = await res.blob()
@@ -197,18 +198,19 @@ export default function StationChecklistPage({
     }
   }
 
-  // ── Derived stats — N/A items excluded from scoring denominator ──
-  const allItems = groups.flatMap(g => g.items)
-  const eligibleItems = allItems.filter(i => i.value !== 'N/A')
-  const T = eligibleItems.length
-  const miCount       = allItems.filter(i => i.value === 'มี').length
-  const standardCount = allItems.filter(i => i.value === 'มี' && i.meetsStandard).length
-  const maiMiCount    = allItems.filter(i => i.value === 'ไม่มี').length
-  const naCount       = allItems.filter(i => i.value === 'N/A').length
+  // ── Derived stats — same computeScoreFromItems/buildHistogram used server-side,
+  // so this page always matches the stored station.score exactly (Phase 0 fix). ──
+  const allItems  = groups.flatMap(g => g.items)
+  const histogram = buildHistogram(groups)
+  const T             = histogram.hasStandard + histogram.hasSubstandard + histogram.none
+  const miCount       = histogram.hasStandard + histogram.hasSubstandard
+  const standardCount = histogram.hasStandard
+  const maiMiCount    = histogram.none
+  const naCount       = histogram.na
   const flaggedCount  = allItems.filter(i => i.flagged).length
 
   // 6 metrics per CLAUDE.md
-  const pctSuccess       = T > 0       ? Math.round((standardCount / T) * 100) : 0
+  const pctSuccess       = computeScoreFromItems(groups)
   const pctHasFacility   = T > 0       ? Math.round((miCount / T) * 100) : 0
   const pctMeetsStandard = miCount > 0 ? Math.round((standardCount / miCount) * 100) : 0
 

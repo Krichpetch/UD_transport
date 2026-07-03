@@ -1,40 +1,57 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
-import { mockStations } from '@/lib/mock-data'
 import {
   buildTypeMatrixSheet,
   getStationTypeLabel,
   getTemplateForMode,
   sanitizeSheetName,
+  toBuddhistYear,
   STATION_TYPES,
+  type ExportRow,
 } from '@/lib/excel-export'
 import type { Station, ChecklistGroup } from '@repo/types'
 
-export async function GET() {
-  // Group stations by the 5 official station types
-  const stationsByType = new Map<string, Station[]>()
-  for (const t of STATION_TYPES) stationsByType.set(t.label, [])
-  for (const station of mockStations) {
-    const label = getStationTypeLabel(station)
-    stationsByType.get(label)?.push(station)
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+
+interface ExportChecklistRow {
+  items: ChecklistGroup[]
+  submittedAt: string | null
+  station: Station
+}
+
+export async function GET(request: NextRequest) {
+  const auth = request.headers.get('authorization')
+  const headers: Record<string, string> = auth ? { Authorization: auth } : {}
+  const res = await fetch(`${API_URL}/stations/export/checklists`, { headers })
+  if (!res.ok) {
+    return NextResponse.json({ error: 'ไม่สามารถดึงข้อมูลสถานีได้' }, { status: res.status })
+  }
+  const checklistRows = (await res.json()) as ExportChecklistRow[]
+
+  // Group real (station, auditYear) rows by the 5 official station types.
+  const byType = new Map<string, ExportRow[]>()
+  for (const t of STATION_TYPES) byType.set(t.label, [])
+  for (const cl of checklistRows) {
+    const typeLabel = getStationTypeLabel(cl.station)
+    byType.get(typeLabel)?.push({
+      station:   cl.station,
+      groups:    cl.items,
+      auditYear: toBuddhistYear(cl.submittedAt),
+    })
   }
 
   const wb = new ExcelJS.Workbook()
   wb.creator = 'UD Transport — สนข.'
   wb.created = new Date()
 
-  // One sheet per transport type; skip types with no stations
+  // One sheet per transport type; skip types with no submitted assessments.
   for (const typeConfig of STATION_TYPES) {
-    const stations = stationsByType.get(typeConfig.label) ?? []
-    if (stations.length === 0) continue
+    const rows = byType.get(typeConfig.label) ?? []
+    if (rows.length === 0) continue
 
     const ws = wb.addWorksheet(sanitizeSheetName(typeConfig.label))
     const templateGroups = getTemplateForMode(typeConfig.mode)
-
-    // Phase 2: replace with a single DB query that fetches all checklists at once
-    const checklistsMap = new Map<string, ChecklistGroup[]>()
-
-    buildTypeMatrixSheet(ws, typeConfig.label, stations, checklistsMap, templateGroups)
+    buildTypeMatrixSheet(ws, typeConfig.label, rows, templateGroups)
   }
 
   const buffer = await wb.xlsx.writeBuffer()
