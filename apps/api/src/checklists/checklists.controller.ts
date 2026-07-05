@@ -43,12 +43,10 @@ export class ChecklistsController {
   @Post('submit')
   submit(
     @Param('stationId') stationId: string,
-    @Body() body: { items: unknown; score?: number; gps?: SubmitGps; bypassRequested?: boolean },
+    @Body() body: { items: unknown; score?: number; gps?: SubmitGps },
     @Req() req: AuthRequest,
   ) {
     if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
-    return this.checklists.submit(
-      stationId, req.user.id, body.items, body.score, body.gps, body.bypassRequested,
-    )
+    return this.checklists.submit(stationId, req.user.id, body.items, body.score, body.gps)
   }
 }

@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/com
 import { ChecklistStatus } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { StationsService } from '../stations/stations.service'
+import { isProximityBypassActive } from '../config/validate-env'
 import { computeScoreFromItems } from './scoring'
 
 const PROXIMITY_RADIUS_M = 1000
@@ -63,24 +64,26 @@ export class ChecklistsService {
   //   - coordStatus!=OK station (APPROXIMATE/PENDING): can't be distance-gated (coords may be
   //     tens of km off) — allowed through, but locationVerified=false so the app can still show
   //     an "unverified location" warning.
-  //   - bypassRequested: dev/staging-only escape hatch for desk-testing. Ignored outright in
-  //     production regardless of what the client sends.
+  //   - Dev/staging bypass: a server-side env switch (APP_ENV + PROXIMITY_BYPASS), never a
+  //     client-supplied flag — isProximityBypassActive() is the sole authority and is itself
+  //     fail-closed in production (see validateEnv). Any bypassRequested the client sends is
+  //     ignored outright.
   async submit(
     stationId: string,
     auditorId: string,
     items: unknown,
     _clientScore?: number,
     gps?: SubmitGps,
-    bypassRequested?: boolean,
   ) {
     const station = await this.stations.findOne(stationId)
-    const bypassAllowed = !!bypassRequested && process.env.NODE_ENV !== 'production'
+    const bypassAllowed = isProximityBypassActive()
 
     let distanceM: number | null = null
     let locationVerified = false
 
     if (bypassAllowed) {
-      locationVerified = true
+      // Genuinely unverified — bypass skips the check, it doesn't fake a passing one.
+      locationVerified = false
     } else if (station.coordStatus !== 'OK') {
       locationVerified = false
     } else {
@@ -116,6 +119,7 @@ export class ChecklistsService {
         gpsAccuracy: gps?.accuracy ?? null,
         gpsDistanceM: distanceM,
         locationVerified,
+        proximityBypassed: bypassAllowed,
       },
     })
   }

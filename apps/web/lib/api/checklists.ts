@@ -16,6 +16,7 @@ export interface ChecklistRecord {
   gpsAccuracy: number | null
   gpsDistanceM: number | null
   locationVerified: boolean | null
+  proximityBypassed: boolean | null
 }
 
 export function getLatestChecklist(stationId: string) {
@@ -39,9 +40,8 @@ export function submitChecklist(
   items: ChecklistGroup[],
   score: number,
   gps?: SubmitGps,
-  bypassRequested?: boolean,
 ) {
   return api.post<ChecklistRecord>(`/stations/${stationId}/checklist/submit`, {
-    items, score, gps, bypassRequested,
+    items, score, gps,
   })
 }
