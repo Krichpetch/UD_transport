@@ -4,7 +4,7 @@ import * as React from 'react'
 import { getChecklistTemplate } from '@/lib/constants'
 import { useStation } from '@/hooks/use-stations'
 import { useChecklist } from '@/hooks/use-checklists'
-import { useApproveChecklist } from '@/hooks/use-stations'
+import { useApproveChecklist, useRejectChecklist, useSetItemFlag } from '@/hooks/use-stations'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ChecklistGroup, ChecklistSubItem } from '@repo/types'
 import { computeScoreFromItems, buildHistogram } from '@repo/types'
@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   CheckCircle,
+  XCircle,
   Loader2,
   FileSpreadsheet,
 } from 'lucide-react'
@@ -43,14 +44,16 @@ function ScoreCircle({ score }: { score: number }) {
 }
 
 // ─── Checklist Row ────────────────────────────────────────────
-function ChecklistRow({ item, onToggleFlag }: { item: ChecklistSubItem; onToggleFlag: () => void }) {
+function ChecklistRow({ item, onToggleFlag, flagPending }: {
+  item: ChecklistSubItem; onToggleFlag: () => void; flagPending: boolean
+}) {
 
   const isMi = item.value === 'มี'
   const isMaiMi = item.value === 'ไม่มี'
   const isNA = item.value === 'N/A'
 
   return (
-    <div className={`border-b border-border last:border-0 transition-colors ${item.flagged ? 'bg-orange-50/40' : ''}`}>
+    <div className={`border-b border-border last:border-0 transition-colors ${item.reviewFlag ? 'bg-orange-50/40' : ''}`}>
       <div className="grid grid-cols-[3rem_1fr_3.5rem_3.5rem_5rem_7rem_4rem] items-center gap-0 px-0">
 
         {/* Code */}
@@ -124,12 +127,13 @@ function ChecklistRow({ item, onToggleFlag }: { item: ChecklistSubItem; onToggle
           <ChecklistPhotoGallery photos={item.photos} />
         </div>
 
-        {/* พบปัญหา — interactive flag toggle */}
+        {/* พบปัญหา — interactive flag toggle (admin review flag, distinct from scoring's flagged) */}
         <button
           onClick={onToggleFlag}
-          className="flex w-full items-center justify-center py-3 pr-3 transition-colors hover:bg-orange-50/60"
+          disabled={flagPending}
+          className="flex w-full items-center justify-center py-3 pr-3 transition-colors hover:bg-orange-50/60 disabled:opacity-50"
         >
-          {item.flagged ? (
+          {item.reviewFlag ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-600">
               <Flag size={9} fill="currentColor" /> พบปัญหา
             </span>
@@ -154,27 +158,45 @@ export default function StationChecklistPage({
   const { data: checklist } = useChecklist(id)
   const qc = useQueryClient()
   const approveMutation = useApproveChecklist()
+  const rejectMutation = useRejectChecklist()
+  const flagMutation = useSetItemFlag()
 
   const [groups, setGroups] = React.useState<ChecklistGroup[]>([])
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({})
   const [excelExporting, setExcelExporting] = React.useState(false)
+  const [flaggingId, setFlaggingId] = React.useState<string | null>(null)
+  const [rejectOpen, setRejectOpen] = React.useState(false)
+  const [rejectNotes, setRejectNotes] = React.useState('')
 
   React.useEffect(() => {
     if (!station) return
     setGroups(checklist?.items ?? getChecklistTemplate(station.mode))
   }, [station?.id, checklist?.id])
 
-  function toggleFlag(groupId: string, itemId: string) {
-    setGroups(prev =>
-      prev.map(g =>
-        g.groupId !== groupId ? g : {
-          ...g,
-          items: g.items.map(item =>
-            item.id !== itemId ? item : { ...item, flagged: !item.flagged }
-          ),
-        }
-      )
-    )
+  // Persists to the server (there is no local-only flag state — a refresh must not lose it),
+  // then syncs the returned items back into local state so the UI updates immediately.
+  async function toggleFlag(groupId: string, itemId: string) {
+    if (!checklist?.id || flaggingId) return
+    const group = groups.find(g => g.groupId === groupId)
+    const item = group?.items.find(i => i.id === itemId)
+    if (!item) return
+    setFlaggingId(itemId)
+    try {
+      const updated = await flagMutation.mutateAsync({
+        stationId: id, checklistId: checklist.id, itemId, reviewFlag: !item.reviewFlag,
+      })
+      setGroups(updated.items)
+    } finally {
+      setFlaggingId(null)
+    }
+  }
+
+  async function handleReject() {
+    if (!checklist?.id || !rejectNotes.trim() || rejectMutation.isPending) return
+    await rejectMutation.mutateAsync({ stationId: id, checklistId: checklist.id, notes: rejectNotes.trim() })
+    setRejectOpen(false)
+    setRejectNotes('')
+    void qc.invalidateQueries({ queryKey: ['checklist', id] })
   }
 
   async function handleExcelExport() {
@@ -207,7 +229,7 @@ export default function StationChecklistPage({
   const standardCount = histogram.hasStandard
   const maiMiCount    = histogram.none
   const naCount       = histogram.na
-  const flaggedCount  = allItems.filter(i => i.flagged).length
+  const flaggedCount  = allItems.filter(i => i.reviewFlag).length
 
   // 6 metrics per CLAUDE.md
   const pctSuccess       = computeScoreFromItems(groups)
@@ -335,6 +357,7 @@ export default function StationChecklistPage({
                         key={item.id}
                         item={item}
                         onToggleFlag={() => toggleFlag(group.groupId, item.id)}
+                        flagPending={flaggingId === item.id}
                       />
                     ))}
                   </>
@@ -349,23 +372,70 @@ export default function StationChecklistPage({
           <div className="bg-card border-border sticky top-20 rounded-xl border p-5">
             <h2 className="text-foreground mb-4 text-sm font-semibold">สรุปผลการตรวจสอบ</h2>
 
-            {/* Approve button — only when checklist is awaiting approval */}
+            {/* Rejected banner — shows admin feedback so it's visible while the auditor's
+                resubmission is still in progress */}
+            {checklist?.status === 'REJECTED' && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-red-700">
+                  <XCircle size={12} /> ถูกปฏิเสธ — รอการแก้ไขจากผู้ตรวจ
+                </p>
+                {checklist.reviewNotes && (
+                  <p className="text-xs text-red-600">{checklist.reviewNotes}</p>
+                )}
+              </div>
+            )}
+
+            {/* Approve / reject — only when checklist is awaiting approval */}
             {checklist?.status === 'SUBMITTED' && (
-              <button
-                onClick={() =>
-                  approveMutation.mutate(
-                    { stationId: id, checklistId: checklist.id },
-                    { onSuccess: () => qc.invalidateQueries({ queryKey: ['checklist', id] }) }
-                  )
-                }
-                disabled={approveMutation.isPending}
-                className="mb-4 flex w-full items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60"
-              >
-                {approveMutation.isPending
-                  ? <Loader2 size={13} className="animate-spin" />
-                  : <CheckCircle size={13} />}
-                อนุมัติรายงานนี้
-              </button>
+              <div className="mb-4 space-y-2">
+                {flaggedCount > 0 && (
+                  <p className="text-xs text-orange-600">
+                    ไม่สามารถอนุมัติได้ขณะมีรายการที่พบปัญหา ({flaggedCount}) — กรุณาแก้ไขหรือปฏิเสธพร้อมหมายเหตุ
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() =>
+                      approveMutation.mutate(
+                        { stationId: id, checklistId: checklist.id },
+                        { onSuccess: () => qc.invalidateQueries({ queryKey: ['checklist', id] }) }
+                      )
+                    }
+                    disabled={approveMutation.isPending || flaggedCount > 0}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60"
+                  >
+                    {approveMutation.isPending
+                      ? <Loader2 size={13} className="animate-spin" />
+                      : <CheckCircle size={13} />}
+                    อนุมัติ
+                  </button>
+                  <button
+                    onClick={() => setRejectOpen(v => !v)}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-700 transition-colors hover:bg-red-100"
+                  >
+                    <XCircle size={13} /> ปฏิเสธ
+                  </button>
+                </div>
+                {rejectOpen && (
+                  <div className="space-y-2 rounded-lg border border-border p-3">
+                    <textarea
+                      value={rejectNotes}
+                      onChange={e => setRejectNotes(e.target.value)}
+                      placeholder="ระบุเหตุผลที่ปฏิเสธ เพื่อให้ผู้ตรวจแก้ไข"
+                      className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                      rows={3}
+                    />
+                    <button
+                      onClick={handleReject}
+                      disabled={!rejectNotes.trim() || rejectMutation.isPending}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {rejectMutation.isPending && <Loader2 size={12} className="animate-spin" />}
+                      ยืนยันการปฏิเสธ
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="flex justify-center mb-4">
@@ -427,7 +497,7 @@ export default function StationChecklistPage({
                 <p className="text-orange-700 text-xs font-semibold mb-1.5 flex items-center gap-1.5">
                   <Flag size={11} fill="currentColor" /> รายการพบปัญหา ({flaggedCount})
                 </p>
-                {allItems.filter(i => i.flagged).map(i => (
+                {allItems.filter(i => i.reviewFlag).map(i => (
                   <p key={i.id} className="text-orange-600 text-[10px] flex items-start gap-1 mt-0.5">
                     <span className="font-mono shrink-0">{i.id}</span>
                     <span className="truncate">{i.labelTh}</span>

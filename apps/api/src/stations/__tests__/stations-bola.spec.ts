@@ -84,15 +84,29 @@ function simulateChecklistUpdate({
   return Promise.resolve({ ...record, ...data })
 }
 
+// approveChecklist reads the checklist (BOLA-scoped) before it ever flips status, so it can
+// block approval on a flagged item without leaving a partial write. findFirst returns null
+// (not a throw) on a station/checklist mismatch — same scoping rule as the update above.
+function simulateChecklistFindFirst({ where }: { where: { id: string; stationId?: string } }) {
+  const record = CHECKLIST_DB[where.id]
+  if (!record) return Promise.resolve(null)
+  if (where.stationId !== undefined && record.stationId !== where.stationId) {
+    return Promise.resolve(null)
+  }
+  return Promise.resolve(record)
+}
+
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
 describe('StationsService › BOLA: approveChecklist cross-station authorization', () => {
   let service: StationsService
   let checklistUpdate: jest.Mock
+  let checklistFindFirst: jest.Mock
   let stationUpdate: jest.Mock
 
   beforeEach(async () => {
     checklistUpdate = jest.fn().mockImplementation(simulateChecklistUpdate)
+    checklistFindFirst = jest.fn().mockImplementation(simulateChecklistFindFirst)
     stationUpdate = jest.fn().mockResolvedValue({ id: STATION_A })
 
     const module: TestingModule = await Test.createTestingModule({
@@ -101,7 +115,7 @@ describe('StationsService › BOLA: approveChecklist cross-station authorization
         {
           provide: PrismaService,
           useValue: {
-            checklist: { update: checklistUpdate },
+            checklist: { update: checklistUpdate, findFirst: checklistFindFirst },
             station: { update: stationUpdate },
           },
         },

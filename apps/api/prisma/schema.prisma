@@ -17,6 +17,7 @@ enum ChecklistStatus {
   DRAFT
   SUBMITTED
   APPROVED
+  REJECTED
 }
 
 enum CoordSource {
@@ -93,6 +94,11 @@ model Checklist {
   submittedAt DateTime?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+
+  // Admin review outcome — set when an ADMIN rejects a SUBMITTED checklist and
+  // sends it back to the auditor with feedback. Null until a reject happens.
+  reviewNotes String?
+  reviewedAt  DateTime?
 
   // Submit-time GPS audit trail (Phase 1 proximity gate) — null for DRAFTs and for any
   // checklist submitted before this field existed. Never trust these for re-verification;

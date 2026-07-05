@@ -17,7 +17,8 @@ export interface ChecklistSubItem {
   cabinetPriority: boolean
   note: string
   photos: ChecklistPhoto[]
-  flagged: boolean
+  flagged: boolean       // scoring concept: bare-มี / standard-unspecified (excluded from score) — do not repurpose
+  reviewFlag: boolean    // admin review concept: "พบปัญหา" — blocks approval, has no effect on scoring
 }
 
 export interface ChecklistGroup {

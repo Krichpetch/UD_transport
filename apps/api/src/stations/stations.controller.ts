@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -60,19 +61,22 @@ export class StationsController {
   @Get()
   findAll(
     @Req() req: AuthRequest,
-    @Query('mode')      mode?: string,
-    @Query('region')    region?: string,
-    @Query('agency')    responsibleAgency?: string,
-    @Query('status')    status?: string,
-    @Query('search')    search?: string,
-    @Query('page')      page?: string,
-    @Query('limit')     limit?: string,
-    @Query('sortBy')    sortBy?: string,
-    @Query('sortOrder') sortOrder?: string,
+    @Query('mode')            mode?: string,
+    @Query('region')          region?: string,
+    @Query('agency')          responsibleAgency?: string,
+    @Query('status')          status?: string,
+    @Query('checklistStatus') checklistStatus?: string,
+    @Query('search')          search?: string,
+    @Query('page')            page?: string,
+    @Query('limit')           limit?: string,
+    @Query('sortBy')          sortBy?: string,
+    @Query('sortOrder')       sortOrder?: string,
   ) {
     if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    // The approval-state queue (SUBMITTED/REJECTED/APPROVED checklists) is an admin review tool.
+    if (checklistStatus && req.user.role !== 'ADMIN') throw new ForbiddenException()
     return this.stations.findAll({
-      mode, region, responsibleAgency, status, search,
+      mode, region, responsibleAgency, status, checklistStatus, search,
       page:      page      ? parseInt(page,  10) : 1,
       limit:     limit     ? parseInt(limit, 10) : 20,
       sortBy,
@@ -164,5 +168,48 @@ export class StationsController {
       entityId: checklistId,
     })
     return result
+  }
+
+  @Post(':id/checklist/:checklistId/reject')
+  async reject(
+    @Param('id') stationId: string,
+    @Param('checklistId') checklistId: string,
+    @Body() body: { notes?: string },
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    const notes = (body.notes ?? '').trim()
+    if (!notes) throw new BadRequestException('กรุณาระบุเหตุผลในการปฏิเสธ')
+    const result = await this.stations.rejectChecklist(stationId, checklistId, notes)
+    await this.auditLog.log({
+      userId: req.user.id,
+      action: 'REJECT_CHECKLIST',
+      entityType: 'Checklist',
+      entityId: checklistId,
+      after: { status: 'REJECTED', reviewNotes: notes },
+    })
+    return result
+  }
+
+  @Patch(':id/checklist/:checklistId/items/:itemId/flag')
+  async setItemFlag(
+    @Param('id') stationId: string,
+    @Param('checklistId') checklistId: string,
+    @Param('itemId') itemId: string,
+    @Body() body: { reviewFlag?: boolean },
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    const reviewFlag = body.reviewFlag === true
+    const { checklist, before, after } = await this.stations.setItemFlag(stationId, checklistId, itemId, reviewFlag)
+    await this.auditLog.log({
+      userId: req.user.id,
+      action: after ? 'FLAG_ITEM' : 'UNFLAG_ITEM',
+      entityType: 'Checklist',
+      entityId: checklistId,
+      before: { itemId, reviewFlag: before },
+      after: { itemId, reviewFlag: after },
+    })
+    return checklist
   }
 }

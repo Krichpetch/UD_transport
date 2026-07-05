@@ -1,11 +1,13 @@
 import { api } from '@/lib/api'
 import type { Station, KpiSummary } from '@repo/types'
+import type { ChecklistRecord } from './checklists'
 
 export interface StationFilters {
   mode?: string
   region?: string
   agency?: string
   status?: string
+  checklistStatus?: string
   search?: string
   page?: number
   limit?: number
@@ -13,8 +15,20 @@ export interface StationFilters {
   sortOrder?: 'asc' | 'desc'
 }
 
+export interface ReviewChecklistSummary {
+  id: string
+  status: 'SUBMITTED' | 'REJECTED' | 'APPROVED'
+  submittedAt: string | null
+  reviewNotes: string | null
+  auditorUsername: string
+}
+
+export interface StationRow extends Station {
+  reviewChecklist?: ReviewChecklistSummary | null
+}
+
 export interface PaginatedStations {
-  data: Station[]
+  data: StationRow[]
   total: number
   page: number
   totalPages: number
@@ -55,6 +69,7 @@ export function getStations(filters?: StationFilters) {
   if (filters?.region) params.set('region', filters.region)
   if (filters?.agency) params.set('agency', filters.agency)
   if (filters?.status) params.set('status', filters.status)
+  if (filters?.checklistStatus) params.set('checklistStatus', filters.checklistStatus)
   if (filters?.search) params.set('search', filters.search)
   if (filters?.page)      params.set('page',      String(filters.page))
   if (filters?.limit)     params.set('limit',     String(filters.limit))
@@ -86,6 +101,22 @@ export function getPendingReviews() {
 
 export function approveChecklist(stationId: string, checklistId: string) {
   return api.post<void>(`/stations/${stationId}/checklist/${checklistId}/approve`, {})
+}
+
+export function rejectChecklist(stationId: string, checklistId: string, notes: string) {
+  return api.post<ChecklistRecord>(`/stations/${stationId}/checklist/${checklistId}/reject`, { notes })
+}
+
+export function setItemFlag(
+  stationId: string,
+  checklistId: string,
+  itemId: string,
+  reviewFlag: boolean,
+) {
+  return api.patch<ChecklistRecord>(
+    `/stations/${stationId}/checklist/${checklistId}/items/${itemId}/flag`,
+    { reviewFlag },
+  )
 }
 
 export interface OtpStationPayload {
