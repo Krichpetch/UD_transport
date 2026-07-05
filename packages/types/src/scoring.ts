@@ -8,7 +8,8 @@
 interface StoredItem {
   value: string | null
   meetsStandard: boolean
-  flagged?: boolean  // true = bare มี; standard-unspecified; excluded from denominator
+  flagged?: boolean     // true = bare มี; standard-unspecified; excluded from denominator
+  reviewFlag?: boolean  // admin "พบปัญหา" review flag — never affects scoring
 }
 
 interface StoredGroup {
@@ -26,6 +27,13 @@ export function computeScoreFromItems(items: unknown): number {
   )
   const standard = eligible.filter(it => it.value === 'มี' && it.meetsStandard === true)
   return eligible.length > 0 ? Math.round((standard.length / eligible.length) * 100) : 0
+}
+
+// Admin review gate — checked before approval, never mixed into the score formula above.
+export function hasReviewFlag(items: unknown): boolean {
+  if (!Array.isArray(items)) return false
+  const groups = items as StoredGroup[]
+  return groups.some(g => Array.isArray(g?.items) && g.items.some(it => it.reviewFlag === true))
 }
 
 export function scoreToStatus(score: number): string {

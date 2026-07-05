@@ -37,6 +37,7 @@ function makeItems(pairs: [string, string][]): ChecklistSubItem[] {
     note: '',
     photos: [],
     flagged: false,
+    reviewFlag: false,
   }))
 }
 

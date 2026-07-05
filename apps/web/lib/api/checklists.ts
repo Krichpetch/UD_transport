@@ -8,9 +8,11 @@ export interface ChecklistRecord {
   auditorId: string
   items: ChecklistGroup[]
   score: number | null
-  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED'
+  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED'
   submittedAt: string | null
   createdAt: string
+  reviewNotes: string | null
+  reviewedAt: string | null
   gpsLat: number | null
   gpsLng: number | null
   gpsAccuracy: number | null

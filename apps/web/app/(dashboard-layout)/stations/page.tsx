@@ -145,6 +145,7 @@ export default function StationsPage() {
   const [statusFilter, setStatusFilter] = React.useState<StationStatus | ''>('')
   const [agencyFilter, setAgencyFilter] = React.useState('')
   const [regionFilter, setRegionFilter] = React.useState('')
+  const [approvalTab, setApprovalTab] = React.useState<'' | 'SUBMITTED' | 'REJECTED'>('')
   const [page, setPage] = React.useState(1)
   const [sortBy, setSortBy] = React.useState<SortableCol>('nameTh')
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('asc')
@@ -164,11 +165,12 @@ export default function StationsPage() {
     isFetching,
     error,
   } = useStations({
-    mode:      typeFilter || undefined,
-    status:    statusFilter || undefined,
-    agency:    agencyFilter || undefined,
-    region:    regionFilter || undefined,
-    search:    debouncedSearch || undefined,
+    mode:            typeFilter || undefined,
+    status:          statusFilter || undefined,
+    checklistStatus: approvalTab || undefined,
+    agency:          agencyFilter || undefined,
+    region:          regionFilter || undefined,
+    search:          debouncedSearch || undefined,
     page,
     limit:     PAGE_SIZE,
     sortBy,
@@ -428,6 +430,11 @@ export default function StationsPage() {
     setPage(1)
   }
 
+  function setTab(tab: '' | 'SUBMITTED' | 'REJECTED') {
+    setApprovalTab(tab)
+    setPage(1)
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -470,6 +477,34 @@ export default function StationsPage() {
             เพิ่มสถานี
           </button>
         </div>
+      </div>
+
+      {/* Approval-state tabs */}
+      <div className="flex items-center gap-1.5 border-b border-border">
+        {(
+          [
+            { value: '', label: 'ทั้งหมด' },
+            { value: 'SUBMITTED', label: 'รอการอนุมัติ', count: pendingIds.length },
+            { value: 'REJECTED', label: 'ถูกปฏิเสธ' },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.value}
+            onClick={() => setTab(tab.value)}
+            className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+              approvalTab === tab.value
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {tab.label}
+            {'count' in tab && tab.count > 0 && (
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                {tab.count}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Filters */}
@@ -660,6 +695,19 @@ export default function StationsPage() {
                             </span>
                           )}
                         </div>
+                        {approvalTab && station.reviewChecklist && (
+                          <div className="mt-1 text-[10px] text-muted-foreground">
+                            <span>ผู้ตรวจ: {station.reviewChecklist.auditorUsername}</span>
+                            {station.reviewChecklist.submittedAt && (
+                              <span> · {new Date(station.reviewChecklist.submittedAt).toLocaleDateString('th-TH')}</span>
+                            )}
+                            {approvalTab === 'REJECTED' && station.reviewChecklist.reviewNotes && (
+                              <p className="mt-0.5 truncate text-red-600" title={station.reviewChecklist.reviewNotes}>
+                                หมายเหตุ: {station.reviewChecklist.reviewNotes}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-3.5">
                         <span className="text-foreground text-xs">

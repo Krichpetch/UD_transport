@@ -28,7 +28,7 @@ export class ChecklistsService {
 
   findLatest(stationId: string) {
     return this.prisma.checklist.findFirst({
-      where: { stationId, status: { in: [ChecklistStatus.SUBMITTED, ChecklistStatus.APPROVED] } },
+      where: { stationId, status: { in: [ChecklistStatus.SUBMITTED, ChecklistStatus.APPROVED, ChecklistStatus.REJECTED] } },
       orderBy: { submittedAt: 'desc' },
     })
   }

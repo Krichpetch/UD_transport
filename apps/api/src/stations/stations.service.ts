@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { ChecklistStatus } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../audit/audit.service'
 import { CreateStationDto } from './dto/create-station.dto'
 import { OtpRowDto } from './dto/otp-row.dto'
-import { computeScoreFromItems, scoreToStatus } from '../checklists/scoring'
+import { computeScoreFromItems, scoreToStatus, hasReviewFlag } from '../checklists/scoring'
+import type { ChecklistGroup } from '@repo/types'
 
 @Injectable()
 export class StationsService {
@@ -17,6 +19,7 @@ export class StationsService {
     region?: string
     responsibleAgency?: string
     status?: string
+    checklistStatus?: string
     search?: string
     page?: number
     limit?: number
@@ -38,6 +41,9 @@ export class StationsService {
       ...(filters?.region            && { region:            filters.region }),
       ...(filters?.responsibleAgency && { responsibleAgency: filters.responsibleAgency }),
       ...(filters?.status            && { status:            filters.status }),
+      ...(filters?.checklistStatus && {
+        checklists: { some: { status: filters.checklistStatus as ChecklistStatus } },
+      }),
       ...(filters?.search && {
         OR: [
           { nameTh:   { contains: filters.search, mode: 'insensitive' as const } },
@@ -46,15 +52,41 @@ export class StationsService {
         ],
       }),
     }
-    const [data, total] = await Promise.all([
+    // reviewChecklist join: filtered to an impossible id when no checklistStatus is
+    // requested, so ordinary listing always gets an empty array (no behavior change),
+    // and the pending/rejected tabs get the one matching checklist per station for free.
+    const [rows, total] = await Promise.all([
       this.prisma.station.findMany({
         where,
         orderBy,
         skip: (page - 1) * limit,
         take: limit,
+        include: {
+          checklists: {
+            where: filters?.checklistStatus
+              ? { status: filters.checklistStatus as ChecklistStatus }
+              : { id: '__none__' },
+            orderBy: { submittedAt: 'desc' },
+            take: 1,
+            include: { auditor: { select: { username: true } } },
+          },
+        },
       }),
       this.prisma.station.count({ where }),
     ])
+    const data = rows.map(({ checklists, ...station }) => {
+      const cl = checklists[0]
+      return {
+        ...station,
+        reviewChecklist: cl ? {
+          id:              cl.id,
+          status:          cl.status,
+          submittedAt:     cl.submittedAt,
+          reviewNotes:     cl.reviewNotes,
+          auditorUsername: cl.auditor.username,
+        } : null,
+      }
+    })
     return { data, total, page, totalPages: Math.ceil(total / limit) }
   }
 
@@ -176,6 +208,16 @@ export class StationsService {
   }
 
   async approveChecklist(stationId: string, checklistId: string) {
+    // Read first (BOLA-scoped) so a flagged checklist never actually flips to APPROVED.
+    const existing = await this.prisma.checklist.findFirst({ where: { id: checklistId, stationId } })
+    if (!existing) throw new NotFoundException()
+    if (hasReviewFlag(existing.items)) {
+      throw new BadRequestException({
+        code: 'FLAGGED_ITEMS_PENDING',
+        message: 'มีรายการที่พบปัญหาค้างอยู่ กรุณาแก้ไขก่อนอนุมัติ',
+      })
+    }
+
     const cl = await this.prisma.checklist.update({
       where: { id: checklistId, stationId },
       data: { status: 'APPROVED' },
@@ -187,6 +229,65 @@ export class StationsService {
       this.prisma.checklist.update({ where: { id: checklistId }, data: { score } }),
       this.prisma.station.update({ where: { id: stationId }, data: { score, status, lastInspected: cl.submittedAt } }),
     ])
+    return cl
+  }
+
+  // Toggles reviewFlag on one item inside the items JSON blob (there is no dedicated column —
+  // same storage model the existing `flagged` scoring field uses). Returns before/after for
+  // the caller to write an AuditLog entry.
+  async setItemFlag(stationId: string, checklistId: string, itemId: string, reviewFlag: boolean) {
+    const cl = await this.prisma.checklist.findFirst({ where: { id: checklistId, stationId } })
+    if (!cl) throw new NotFoundException()
+
+    const groups = cl.items as unknown as ChecklistGroup[]
+    let before: boolean | undefined
+    let found = false
+    const updatedGroups = groups.map(g => ({
+      ...g,
+      items: g.items.map(it => {
+        if (it.id !== itemId) return it
+        found = true
+        before = it.reviewFlag
+        return { ...it, reviewFlag }
+      }),
+    }))
+    if (!found) throw new NotFoundException('checklist item not found')
+
+    const updated = await this.prisma.checklist.update({
+      where: { id: checklistId, stationId },
+      data: { items: updatedGroups as object },
+    })
+    return { checklist: updated, before: before ?? false, after: reviewFlag }
+  }
+
+  // Admin sends a SUBMITTED checklist back to the auditor with feedback. The items are copied
+  // into (or overwrite) the auditor's DRAFT row for this station, so the existing draft/resubmit
+  // path in ChecklistsService.submit() picks it up unchanged — no new submit logic needed.
+  async rejectChecklist(stationId: string, checklistId: string, notes: string) {
+    const existing = await this.prisma.checklist.findFirst({ where: { id: checklistId, stationId } })
+    if (!existing) throw new NotFoundException()
+    if (existing.status !== 'SUBMITTED') {
+      throw new BadRequestException('มีเพียงรายงานที่รอการอนุมัติเท่านั้นที่สามารถปฏิเสธได้')
+    }
+
+    const cl = await this.prisma.checklist.update({
+      where: { id: checklistId, stationId },
+      data: { status: 'REJECTED', reviewNotes: notes, reviewedAt: new Date() },
+    })
+
+    const draft = await this.prisma.checklist.findFirst({
+      where: { stationId, auditorId: cl.auditorId, status: 'DRAFT' },
+    })
+    if (draft) {
+      await this.prisma.checklist.update({
+        where: { id: draft.id },
+        data: { items: cl.items as object, updatedAt: new Date() },
+      })
+    } else {
+      await this.prisma.checklist.create({
+        data: { stationId, auditorId: cl.auditorId, items: cl.items as object, status: 'DRAFT' },
+      })
+    }
     return cl
   }
 

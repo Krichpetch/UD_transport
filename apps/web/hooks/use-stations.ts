@@ -9,6 +9,8 @@ import {
   createStation,
   getPendingReviews,
   approveChecklist,
+  rejectChecklist,
+  setItemFlag,
   type CreateStationInput,
 } from '@/lib/api/stations'
 import type { TransportMode, StationStatus } from '@repo/types'
@@ -18,6 +20,7 @@ export interface StationFilters {
   region?: string
   agency?: string
   status?: StationStatus | ''
+  checklistStatus?: 'SUBMITTED' | 'REJECTED' | 'APPROVED' | ''
   search?: string
   page?: number
   limit?: number
@@ -27,15 +30,16 @@ export interface StationFilters {
 
 export function useStations(filters?: StationFilters) {
   const f = {
-    mode:      filters?.mode      || undefined,
-    region:    filters?.region    || undefined,
-    agency:    filters?.agency    || undefined,
-    status:    filters?.status    || undefined,
-    search:    filters?.search    || undefined,
-    page:      filters?.page      ?? 1,
-    limit:     filters?.limit,
-    sortBy:    filters?.sortBy,
-    sortOrder: filters?.sortOrder,
+    mode:            filters?.mode            || undefined,
+    region:          filters?.region          || undefined,
+    agency:          filters?.agency          || undefined,
+    status:          filters?.status          || undefined,
+    checklistStatus: filters?.checklistStatus || undefined,
+    search:          filters?.search          || undefined,
+    page:            filters?.page            ?? 1,
+    limit:           filters?.limit,
+    sortBy:          filters?.sortBy,
+    sortOrder:       filters?.sortOrder,
   }
   return useQuery({
     queryKey: ['stations', f],
@@ -94,6 +98,30 @@ export function useApproveChecklist() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['stations'] })
       void qc.invalidateQueries({ queryKey: ['stations', 'pending-reviews'] })
+    },
+  })
+}
+
+export function useRejectChecklist() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ stationId, checklistId, notes }: { stationId: string; checklistId: string; notes: string }) =>
+      rejectChecklist(stationId, checklistId, notes),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['stations'] })
+      void qc.invalidateQueries({ queryKey: ['stations', 'pending-reviews'] })
+    },
+  })
+}
+
+export function useSetItemFlag() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ stationId, checklistId, itemId, reviewFlag }: {
+      stationId: string; checklistId: string; itemId: string; reviewFlag: boolean
+    }) => setItemFlag(stationId, checklistId, itemId, reviewFlag),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: ['checklist', vars.stationId] })
     },
   })
 }
