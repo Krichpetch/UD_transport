@@ -21,6 +21,8 @@ export class AuthService {
     const valid = await bcrypt.compare(dto.password, user.passwordHash)
     if (!valid) throw new UnauthorizedException('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
 
+    if (!user.isActive) throw new UnauthorizedException('บัญชีนี้ถูกปิดใช้งาน')
+
     const payload = { sub: user.id, username: user.username, role: user.role }
     return {
       access_token: this.jwt.sign(payload),

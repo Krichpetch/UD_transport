@@ -6,6 +6,7 @@ import { getTransportLabel, getChecklistTemplate } from '@/lib/constants'
 import {
   useStations,
   useCreateStation,
+  useUpdateStation,
   usePendingReviews,
   useApproveChecklist,
   useStationFilterOptions,
@@ -16,11 +17,12 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth.store'
 import type { TransportMode, StationStatus, ResponsibleAgency } from '@repo/types'
 import { TRANSPORT_MODE_AGENCIES } from '@repo/types'
-import type { CreateStationInput, ParsedRow } from '@/lib/api/stations'
+import type { CreateStationInput, StationRow, ParsedRow } from '@/lib/api/stations'
 import { batchOtpImport } from '@/lib/api/stations'
 import { parseOtpRows, detectOtpFormat } from '@/lib/otp-import'
 import type { OtpParsedRow, OtpParseResult } from '@/lib/otp-import'
 import { StatusBadge, ScoreBar } from '@/components/shared/badges'
+import { StationLocationPicker } from '@/components/maps/StationLocationPicker'
 import {
   Search,
   Filter,
@@ -34,6 +36,7 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
+  Pencil,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -96,6 +99,231 @@ const SELECT_CLS =
   'border-input bg-background text-foreground focus:ring-ring w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1'
 const INPUT_CLS =
   'border-input bg-background placeholder:text-muted-foreground focus:ring-ring w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1'
+
+interface EditStationForm {
+  nameTh: string
+  mode: TransportMode
+  railSubtype?: string
+  province: string
+  region: string
+  responsibleAgency: string
+  lat: number | null
+  lng: number | null
+}
+
+function EditStationModal({ station, onClose }: { station: StationRow; onClose: () => void }) {
+  const updateStation = useUpdateStation()
+  const { data: filterOptions } = useStationFilterOptions()
+  const [form, setForm] = React.useState<EditStationForm>({
+    nameTh: station.nameTh,
+    mode: station.mode,
+    railSubtype: station.railSubtype,
+    province: station.province,
+    region: station.region,
+    responsibleAgency: station.responsibleAgency,
+    lat: station.lat,
+    lng: station.lng,
+  })
+  const [error, setError] = React.useState('')
+  const [saving, setSaving] = React.useState(false)
+
+  function patch(p: Partial<EditStationForm>) {
+    setForm((f) => ({ ...f, ...p }))
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.nameTh || !form.mode || !form.province || !form.region || !form.responsibleAgency) {
+      setError('กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน')
+      return
+    }
+    setError('')
+    setSaving(true)
+    try {
+      await updateStation.mutateAsync({
+        id: station.id,
+        data: {
+          nameTh: form.nameTh,
+          mode: form.mode,
+          railSubtype: form.mode === 'ทางราง' ? form.railSubtype : undefined,
+          province: form.province,
+          region: form.region,
+          responsibleAgency: form.responsibleAgency,
+          ...(form.lat != null && form.lng != null && { lat: form.lat, lng: form.lng }),
+        },
+      })
+      onClose()
+    } catch (err) {
+      setError((err as Error).message ?? 'เกิดข้อผิดพลาด')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-foreground text-lg font-semibold">แก้ไขสถานี</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-foreground mb-1 block text-xs font-medium">ชื่อสถานี (ภาษาไทย) *</label>
+            <input
+              className={INPUT_CLS}
+              value={form.nameTh}
+              onChange={(e) => patch({ nameTh: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-foreground mb-1 block text-xs font-medium">ประเภทการขนส่ง *</label>
+              <select
+                className={SELECT_CLS}
+                value={form.mode}
+                onChange={(e) => patch({ mode: e.target.value as TransportMode, railSubtype: undefined })}
+                required
+              >
+                {TRANSPORT_MODES.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {form.mode === 'ทางราง' && (
+              <div>
+                <label className="text-foreground mb-1 block text-xs font-medium">ประเภทย่อย</label>
+                <select
+                  className={SELECT_CLS}
+                  value={form.railSubtype ?? ''}
+                  onChange={(e) => patch({ railSubtype: e.target.value || undefined })}
+                >
+                  <option value="">ไม่ระบุ</option>
+                  {RAIL_SUBTYPES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-foreground mb-1 block text-xs font-medium">จังหวัด *</label>
+              <input
+                className={INPUT_CLS}
+                value={form.province}
+                onChange={(e) => patch({ province: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <label className="text-foreground mb-1 block text-xs font-medium">ภาค *</label>
+              <input
+                className={INPUT_CLS}
+                value={form.region}
+                list="edit-regions-list"
+                onChange={(e) => patch({ region: e.target.value })}
+                required
+              />
+              <datalist id="edit-regions-list">
+                {(filterOptions?.regions ?? []).map((r) => (
+                  <option key={r} value={r} />
+                ))}
+              </datalist>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-foreground mb-1 block text-xs font-medium">หน่วยงานรับผิดชอบ *</label>
+            <input
+              className={INPUT_CLS}
+              value={form.responsibleAgency}
+              list="edit-agencies-list"
+              onChange={(e) => patch({ responsibleAgency: e.target.value })}
+              required
+            />
+            <datalist id="edit-agencies-list">
+              {(filterOptions?.agencies ?? []).map((a) => (
+                <option key={a} value={a} />
+              ))}
+            </datalist>
+          </div>
+
+          <div>
+            <label className="text-foreground mb-1 block text-xs font-medium">
+              ตำแหน่งที่ตั้ง — คลิกบนแผนที่เพื่อปักหมุด
+            </label>
+            <div className="h-64 w-full overflow-hidden rounded-lg border border-border">
+              <StationLocationPicker
+                lat={form.lat}
+                lng={form.lng}
+                onChange={(lat, lng) => patch({ lat, lng })}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-foreground mb-1 block text-xs font-medium">ละติจูด</label>
+              <input
+                type="number"
+                step="any"
+                className={INPUT_CLS}
+                value={form.lat ?? ''}
+                onChange={(e) => patch({ lat: e.target.value === '' ? null : parseFloat(e.target.value) })}
+              />
+            </div>
+            <div>
+              <label className="text-foreground mb-1 block text-xs font-medium">ลองจิจูด</label>
+              <input
+                type="number"
+                step="any"
+                className={INPUT_CLS}
+                value={form.lng ?? ''}
+                onChange={(e) => patch({ lng: e.target.value === '' ? null : parseFloat(e.target.value) })}
+              />
+            </div>
+          </div>
+          <p className="text-muted-foreground text-[11px]">
+            การแก้ไขพิกัดด้วยตนเองจะทำเครื่องหมายตำแหน่งนี้เป็น &quot;ยืนยันแล้ว&quot; (coordStatus: OK)
+          </p>
+
+          {error && <p className="text-destructive text-xs">{error}</p>}
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="submit"
+              disabled={saving}
+              className="bg-primary text-primary-foreground flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium disabled:opacity-60"
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : null}
+              {saving ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
+            </button>
+            <button type="button" onClick={onClose} className="border-border rounded-lg border px-4 py-2 text-sm">
+              ยกเลิก
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
 
 const REQUIRED_BULK_COLS = [
   'nameth',
@@ -200,6 +428,7 @@ export default function StationsPage() {
   const { data: filterOptions } = useStationFilterOptions()
   const { data: pendingIds = [] } = usePendingReviews()
   const createStation = useCreateStation()
+  const [editStation, setEditStation] = React.useState<StationRow | null>(null)
 
   const availableAgencies = typeFilter
     ? TRANSPORT_MODE_AGENCIES[typeFilter]
@@ -756,6 +985,13 @@ export default function StationsPage() {
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-end gap-2">
                           {hasPending && <ApproveButton stationId={station.id} />}
+                          <button
+                            onClick={() => setEditStation(station)}
+                            className="border-border text-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors"
+                          >
+                            <Pencil size={12} />
+                            แก้ไข
+                          </button>
                           <Link
                             href={`/stations/${station.id}`}
                             className="border-border text-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors"
@@ -1169,6 +1405,11 @@ export default function StationsPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Edit Station Modal */}
+      {editStation && (
+        <EditStationModal station={editStation} onClose={() => setEditStation(null)} />
       )}
     </div>
   )

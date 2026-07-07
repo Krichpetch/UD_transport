@@ -13,7 +13,7 @@ import {
   SidebarGroupLabel,
   SidebarGroupContent,
 } from '@/components/ui/sidebar'
-import { LayoutDashboard, Building2, Settings, LogOut, User } from 'lucide-react'
+import { LayoutDashboard, Building2, Settings, LogOut, User, Users } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
@@ -30,9 +30,14 @@ const navItems = [
   { labelTh: 'ตั้งค่าระบบ', icon: Settings, href: '/settings' },
 ]
 
+const adminOnlyNavItems = [
+  { labelTh: 'จัดการผู้ใช้งาน', icon: Users, href: '/users' },
+]
+
 export function AppSidebar() {
   const router = useRouter()
   const { user, logout } = useAuthStore()
+  const items = user?.role === 'ADMIN' ? [...navItems, ...adminOnlyNavItems] : navItems
 
   function handleLogout() {
     logout()
@@ -49,7 +54,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">
-              {navItems.map((item) => (
+              {items.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton asChild tooltip={item.labelTh} className="rounded-lg">
                     <Link href={item.href}>

@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { AuditLogService } from '../audit/audit.service'
 import { StationsService } from './stations.service'
 import { CreateStationDto } from './dto/create-station.dto'
+import { UpdateStationDto } from './dto/update-station.dto'
 import { BatchOtpDto } from './dto/otp-row.dto'
 
 interface AuthRequest extends Request {
@@ -144,6 +145,12 @@ export class StationsController {
       })
     }
     return station
+  }
+
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() dto: UpdateStationDto, @Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.stations.update(id, dto, req.user.id)
   }
 
   @SkipThrottle()

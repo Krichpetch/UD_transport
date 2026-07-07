@@ -7,11 +7,13 @@ import {
   getStationSummary,
   getStationFilterOptions,
   createStation,
+  updateStation,
   getPendingReviews,
   approveChecklist,
   rejectChecklist,
   setItemFlag,
   type CreateStationInput,
+  type UpdateStationInput,
 } from '@/lib/api/stations'
 import type { TransportMode, StationStatus } from '@repo/types'
 
@@ -79,6 +81,17 @@ export function useCreateStation() {
     mutationFn: (data: CreateStationInput) => createStation(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['stations'] })
+    },
+  })
+}
+
+export function useUpdateStation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateStationInput }) => updateStation(id, data),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: ['stations'] })
+      void qc.invalidateQueries({ queryKey: ['station', vars.id] })
     },
   })
 }
