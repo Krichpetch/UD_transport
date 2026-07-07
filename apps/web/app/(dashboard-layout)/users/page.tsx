@@ -7,7 +7,6 @@ import { useUsers, useCreateUser, useUpdateUser, useSetUserActive } from '@/hook
 import type { UserRecord, CreatedUserRecord } from '@/lib/api/users'
 import type { UserRole } from '@repo/types'
 import { UserPlus, X, Loader2, Pencil, Ban, CheckCircle2, Copy, Check } from 'lucide-react'
-import { ScrollArea } from '@/components/ui/scroll-area'
 
 const ROLE_LABEL: Record<UserRole, string> = {
   ADMIN: 'ผู้ดูแลระบบ',
@@ -288,7 +287,7 @@ export default function UsersPage() {
 
       {!isLoading && !error && (
         <div className="bg-card border-border overflow-hidden rounded-xl border">
-          <ScrollArea>
+          <div className="themed-scrollbar overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-border bg-secondary/30 border-b">
@@ -362,7 +361,7 @@ export default function UsersPage() {
                 )}
               </tbody>
             </table>
-          </ScrollArea>
+          </div>
         </div>
       )}
 

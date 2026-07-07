@@ -240,10 +240,13 @@ a {
 
 /* ==========================================
    Themed native scrollbar
-   For the handful of scroll containers that can't use the <ScrollArea>
-   component (Radix Select's own viewport, a native <textarea>, a Leaflet
-   popup) without breaking their own scroll mechanics. Same visual language
-   as ScrollArea's thumb, via the native browser scrollbar APIs.
+   Reskins the browser's own scrollbar (thin, rounded, theme-matched thumb)
+   instead of swapping in a JS-driven scroll container — a Radix ScrollArea
+   was tried here and reverted: its viewport wraps children in a hidden
+   `display: table` div, which broke normal-width text/flex content into
+   unwanted horizontal scrolling. Native `::-webkit-scrollbar` +
+   `scrollbar-color` has no such risk. Apply the `themed-scrollbar` class
+   to any scrollable element that should look on-theme.
    ========================================== */
 
 .themed-scrollbar {
