@@ -23,7 +23,6 @@ import { parseOtpRows, detectOtpFormat } from '@/lib/otp-import'
 import type { OtpParsedRow, OtpParseResult } from '@/lib/otp-import'
 import { StatusBadge, ScoreBar } from '@/components/shared/badges'
 import { StationLocationPicker } from '@/components/maps/StationLocationPicker'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Search,
   Filter,
@@ -167,10 +166,9 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
       onClick={onClose}
     >
       <div
-        className="bg-card max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-2xl shadow-xl"
+        className="bg-card themed-scrollbar max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <ScrollArea className="max-h-[90vh]" viewportClassName="p-6">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-foreground text-lg font-semibold">แก้ไขสถานี</h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -322,7 +320,6 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
             </button>
           </div>
         </form>
-        </ScrollArea>
       </div>
     </div>
   )
@@ -865,7 +862,7 @@ export default function StationsPage() {
 
       {/* Table */}
       <div className={`bg-card border-border overflow-hidden rounded-xl border transition-opacity ${isFetching ? 'opacity-60' : ''}`}>
-        <ScrollArea>
+        <div className="themed-scrollbar overflow-x-auto">
           <table className="w-full table-fixed text-sm">
             <colgroup>
               <col className="w-[26%]" />
@@ -1010,7 +1007,7 @@ export default function StationsPage() {
               )}
             </tbody>
           </table>
-        </ScrollArea>
+        </div>
 
         {/* Pagination */}
         {totalPages > 1 && (
@@ -1049,10 +1046,9 @@ export default function StationsPage() {
           onClick={() => setSheetOpen(false)}
         >
           <div
-            className="bg-card max-h-[90vh] w-full max-w-xl overflow-hidden rounded-2xl shadow-xl"
+            className="bg-card themed-scrollbar max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <ScrollArea className="max-h-[90vh]" viewportClassName="p-6">
             {/* Header */}
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-foreground text-lg font-semibold">เพิ่มสถานี</h2>
@@ -1310,7 +1306,7 @@ export default function StationsPage() {
                       <p className="text-foreground text-sm font-medium">
                         พบ {count} สถานี พร้อมนำเข้า
                       </p>
-                      <ScrollArea className="max-h-40" viewportClassName="space-y-1">
+                      <div className="themed-scrollbar max-h-40 space-y-1 overflow-y-auto">
                         {previewRows.slice(0, 10).map((r, i) => (
                           <p key={i} className="text-muted-foreground text-xs">
                             · {r.nameTh} ({r.mode})
@@ -1319,7 +1315,7 @@ export default function StationsPage() {
                         {count > 10 && (
                           <p className="text-muted-foreground text-xs">และอีก {count - 10} สถานี</p>
                         )}
-                      </ScrollArea>
+                      </div>
 
                       {/* Value-class stats — OTP only */}
                       {bulkFormat === 'otp' && otpStats && (
@@ -1407,7 +1403,6 @@ export default function StationsPage() {
                 </div>
               </div>
             )}
-            </ScrollArea>
           </div>
         </div>
       )}
