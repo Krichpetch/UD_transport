@@ -95,6 +95,21 @@ export function createStation(data: CreateStationInput) {
   return api.post<Station>('/stations', data)
 }
 
+export interface UpdateStationInput {
+  nameTh?: string
+  mode?: string
+  railSubtype?: string
+  province?: string
+  region?: string
+  responsibleAgency?: string
+  lat?: number
+  lng?: number
+}
+
+export function updateStation(id: string, data: UpdateStationInput) {
+  return api.patch<Station>(`/stations/${id}`, data)
+}
+
 export function getPendingReviews() {
   return api.get<string[]>('/stations/pending-reviews')
 }

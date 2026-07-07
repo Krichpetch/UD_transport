@@ -3,6 +3,7 @@ import { ChecklistStatus } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../audit/audit.service'
 import { CreateStationDto } from './dto/create-station.dto'
+import { UpdateStationDto } from './dto/update-station.dto'
 import { OtpRowDto } from './dto/otp-row.dto'
 import { computeScoreFromItems, scoreToStatus, hasReviewFlag } from '../checklists/scoring'
 import type { ChecklistGroup } from '@repo/types'
@@ -205,6 +206,39 @@ export class StationsService {
       data: { ...dto, nameTh, province, urgentIssues: [] },
     })
     return { station, deduped: false }
+  }
+
+  // Admin fix-up for name/classification/agency and, most importantly, location:
+  // a manual lat/lng edit is how an APPROXIMATE (centroid) coordinate gets promoted
+  // to a verified OK one so proximity checks work for that station. Both lat and lng
+  // must be supplied together — a lone coordinate can't be trusted as a real fix.
+  async update(id: string, dto: UpdateStationDto, adminId: string) {
+    const before = await this.prisma.station.findUnique({ where: { id } })
+    if (!before) throw new NotFoundException()
+
+    const hasNewCoords = dto.lat !== undefined && dto.lng !== undefined
+    const after = await this.prisma.station.update({
+      where: { id },
+      data: {
+        ...(dto.nameTh             !== undefined && { nameTh: dto.nameTh.trim() }),
+        ...(dto.mode               !== undefined && { mode: dto.mode }),
+        ...(dto.railSubtype        !== undefined && { railSubtype: dto.railSubtype || null }),
+        ...(dto.province           !== undefined && { province: dto.province.trim() }),
+        ...(dto.region             !== undefined && { region: dto.region.trim() }),
+        ...(dto.responsibleAgency  !== undefined && { responsibleAgency: dto.responsibleAgency }),
+        ...(hasNewCoords && {
+          lat: dto.lat,
+          lng: dto.lng,
+          coordSource: 'MANUAL' as const,
+          coordStatus: 'OK' as const,
+        }),
+      },
+    })
+
+    await this.auditLog.log({
+      userId: adminId, action: 'UPDATE', entityType: 'Station', entityId: id, before, after,
+    })
+    return after
   }
 
   async approveChecklist(stationId: string, checklistId: string) {
