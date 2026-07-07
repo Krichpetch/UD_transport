@@ -237,3 +237,36 @@ a {
     @apply bg-background text-foreground;
   }
 }
+
+/* ==========================================
+   Themed native scrollbar
+   For the handful of scroll containers that can't use the <ScrollArea>
+   component (Radix Select's own viewport, a native <textarea>, a Leaflet
+   popup) without breaking their own scroll mechanics. Same visual language
+   as ScrollArea's thumb, via the native browser scrollbar APIs.
+   ========================================== */
+
+.themed-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--muted-foreground) 40%, transparent) transparent;
+}
+
+.themed-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.themed-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.themed-scrollbar::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklch, var(--muted-foreground) 40%, transparent);
+  background-clip: content-box;
+  border: 2px solid transparent;
+  border-radius: 9999px;
+}
+
+.themed-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklch, var(--muted-foreground) 60%, transparent);
+}
