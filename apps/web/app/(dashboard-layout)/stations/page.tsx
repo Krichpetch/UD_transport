@@ -41,9 +41,11 @@ function ApproveButton({ stationId }: { stationId: string }) {
   const qc = useQueryClient()
   const approveMutation = useApproveChecklist()
   const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
 
   async function handleApprove(e: React.MouseEvent) {
     e.preventDefault()
+    setError(null)
     setLoading(true)
     try {
       const history = await qc.fetchQuery({
@@ -52,22 +54,37 @@ function ApproveButton({ stationId }: { stationId: string }) {
       })
       const submitted = history.find((c) => c.status === 'SUBMITTED')
       if (submitted) {
+        const flaggedCount = submitted.items
+          .flatMap((g) => g.items)
+          .filter((i) => i.reviewFlag).length
+        if (flaggedCount > 0) {
+          setError(`มีรายการพบปัญหา (${flaggedCount}) — กรุณาตรวจสอบในหน้ารายละเอียด`)
+          return
+        }
         await approveMutation.mutateAsync({ stationId, checklistId: submitted.id })
+        void qc.invalidateQueries({ queryKey: ['stations'] })
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการอนุมัติ')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <button
-      onClick={handleApprove}
-      disabled={loading}
-      className="flex items-center gap-1 rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60"
-    >
-      {loading ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle size={11} />}
-      อนุมัติ
-    </button>
+    <div>
+      <button
+        onClick={handleApprove}
+        disabled={loading}
+        className="flex items-center gap-1 rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60"
+      >
+        {loading ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle size={11} />}
+        อนุมัติ
+      </button>
+      {error && (
+        <p className="mt-1 max-w-[200px] text-[10px] leading-tight text-red-600">{error}</p>
+      )}
+    </div>
   )
 }
 

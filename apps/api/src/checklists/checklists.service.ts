@@ -26,11 +26,15 @@ export class ChecklistsService {
     })
   }
 
-  findLatest(stationId: string) {
-    return this.prisma.checklist.findFirst({
+  async findLatest(stationId: string) {
+    const cl = await this.prisma.checklist.findFirst({
       where: { stationId, status: { in: [ChecklistStatus.SUBMITTED, ChecklistStatus.APPROVED, ChecklistStatus.REJECTED] } },
       orderBy: { submittedAt: 'desc' },
+      include: { auditor: { select: { username: true } } },
     })
+    if (!cl) return null
+    const { auditor, ...rest } = cl
+    return { ...rest, auditorUsername: auditor?.username ?? null }
   }
 
   findAll(stationId: string) {

@@ -10,7 +10,7 @@ import type { ChecklistGroup, ChecklistValue, ChecklistPhoto } from '@repo/types
 import { computeScoreFromItems, buildHistogram, scoreToStatus } from '@repo/types'
 import {
   MapPin, Save, Send, CheckSquare, Square, Clock, User as UserIcon,
-  StickyNote, AlertTriangle, Loader2,
+  StickyNote, AlertTriangle, Loader2, X,
 } from 'lucide-react'
 import { PhotoPicker } from '@/components/audit/PhotoPicker'
 import { StationSearchPicker } from '@/components/audit/StationSearchPicker'
@@ -76,6 +76,7 @@ export default function AuditPage() {
   const [checkInStatus, setCheckInStatus] = React.useState<'idle' | 'checking' | 'blocked' | 'ok'>('idle')
   const [checkInMessage, setCheckInMessage] = React.useState('')
   const [locationUnverified, setLocationUnverified] = React.useState(false)
+  const [rejectionBannerDismissed, setRejectionBannerDismissed] = React.useState(false)
 
   // Tracks which stationId the form has been seeded for — prevents re-seeding on background refetches
   const seededForRef = React.useRef<string | null>(null)
@@ -96,6 +97,7 @@ export default function AuditPage() {
     setCheckInStatus('idle')
     setCheckInMessage('')
     setLocationUnverified(false)
+    setRejectionBannerDismissed(false)
   }, [station?.id])
 
   // Seed form exactly once per station — never overwrite the user's in-progress work
@@ -385,9 +387,27 @@ export default function AuditPage() {
 
   // ── Screen B: pre-audit confirm-to-start ──
   if (!checkedIn) {
+    const rejectionNote = !rejectionBannerDismissed && draft?.reviewNotes ? draft.reviewNotes : null
     return (
       <div className="space-y-4">
         {stationPicker}
+
+        {rejectionNote && (
+          <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-700 shadow-sm">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold">รายงานถูกปฏิเสธ — กรุณาแก้ไขแล้วส่งใหม่</p>
+              <p className="mt-1">{rejectionNote}</p>
+            </div>
+            <button
+              onClick={() => setRejectionBannerDismissed(true)}
+              className="shrink-0 text-red-400 hover:text-red-600"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         <div className="space-y-4 rounded-xl bg-white p-6 shadow-sm">
           <div>
             <h1 className="text-lg font-bold text-foreground">{station.nameTh}</h1>

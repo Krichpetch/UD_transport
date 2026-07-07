@@ -307,6 +307,17 @@ export default function StationChecklistPage({
             </p>
           </div>
 
+          {checklist && (checklist.auditorUsername || checklist.submittedAt) && (
+            <div className="flex flex-wrap gap-x-5 gap-y-1 rounded-lg bg-secondary/60 px-3 py-2 text-xs text-muted-foreground">
+              {checklist.auditorUsername && (
+                <span>ผู้ตรวจ: <strong className="text-foreground">{checklist.auditorUsername}</strong></span>
+              )}
+              {checklist.submittedAt && (
+                <span>ส่งเมื่อ: <strong className="text-foreground">{new Date(checklist.submittedAt).toLocaleString('th-TH')}</strong></span>
+              )}
+            </div>
+          )}
+
           {groups.map(group => {
             const isOpen = openGroups[group.groupId] ?? true
             const groupAnswered = group.items.filter(i => i.value !== null).length

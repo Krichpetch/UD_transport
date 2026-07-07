@@ -13,6 +13,7 @@ export interface ChecklistRecord {
   createdAt: string
   reviewNotes: string | null
   reviewedAt: string | null
+  auditorUsername?: string | null
   gpsLat: number | null
   gpsLng: number | null
   gpsAccuracy: number | null

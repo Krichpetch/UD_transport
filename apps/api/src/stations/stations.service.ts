@@ -281,11 +281,11 @@ export class StationsService {
     if (draft) {
       await this.prisma.checklist.update({
         where: { id: draft.id },
-        data: { items: cl.items as object, updatedAt: new Date() },
+        data: { items: cl.items as object, reviewNotes: notes, updatedAt: new Date() },
       })
     } else {
       await this.prisma.checklist.create({
-        data: { stationId, auditorId: cl.auditorId, items: cl.items as object, status: 'DRAFT' },
+        data: { stationId, auditorId: cl.auditorId, items: cl.items as object, status: 'DRAFT', reviewNotes: notes },
       })
     }
     return cl
