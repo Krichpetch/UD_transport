@@ -10,6 +10,7 @@ import type { TransportMode, ChecklistSubItem, ChecklistGroup, Station } from '@
 import { StationBarChart } from '@/components/charts/StationBarChart'
 import { ThailandMap } from '@/components/maps/ThailandMap'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   TrendingUp, TrendingDown, Building2, CheckCircle2, AlertTriangle,
   XCircle, AlertCircle, Filter, X, Loader2, Maximize2,
@@ -30,7 +31,10 @@ function MetricRow({ label, value, pct }: { label: string; value: number; pct?: 
 }
 
 const TRANSPORT_MODES: TransportMode[] = ['ทางบก', 'ทางราง', 'ทางเรือ', 'ทางอากาศ']
-const SELECT_CLS = 'border-input bg-background text-foreground focus:ring-ring rounded-lg border px-3 py-1.5 text-xs focus:outline-none focus:ring-1'
+// Radix Select forbids an empty-string item value (reserved to mean "no selection"),
+// so the "ทั้งหมด/ทุก..." (all/any) option uses this sentinel instead of ''.
+const ALL_VALUE = '__all__'
+const SELECT_TRIGGER_CLS = 'h-auto rounded-lg bg-background px-3 py-1.5 text-xs'
 
 export default function DashboardPage() {
   const { data: summary } = useStationSummary()
@@ -175,66 +179,78 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-center gap-2">
           <Filter size={13} className="text-muted-foreground shrink-0" />
 
-          <select
-            value={modeFilter}
-            onChange={e => setModeFilter(e.target.value as TransportMode | '')}
-            className={SELECT_CLS}
+          <Select
+            value={modeFilter || ALL_VALUE}
+            onValueChange={v => setModeFilter(v === ALL_VALUE ? '' : (v as TransportMode))}
           >
-            <option value="">ประเภทการขนส่ง</option>
-            {TRANSPORT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
+            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_VALUE}>ประเภทการขนส่ง</SelectItem>
+              {TRANSPORT_MODES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+            </SelectContent>
+          </Select>
 
-          <select
-            value={regionFilter}
-            onChange={e => setRegionFilter(e.target.value)}
-            className={SELECT_CLS}
+          <Select
+            value={regionFilter || ALL_VALUE}
+            onValueChange={v => setRegionFilter(v === ALL_VALUE ? '' : v)}
           >
-            <option value="">ทุกภาค</option>
-            {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
+            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_VALUE}>ทุกภาค</SelectItem>
+              {REGIONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+            </SelectContent>
+          </Select>
 
           {PROVINCES.length > 0 && (
-            <select
-              value={provinceFilter}
-              onChange={e => setProvinceFilter(e.target.value)}
-              className={SELECT_CLS}
+            <Select
+              value={provinceFilter || ALL_VALUE}
+              onValueChange={v => setProvinceFilter(v === ALL_VALUE ? '' : v)}
             >
-              <option value="">ทุกจังหวัด</option>
-              {PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
+              <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_VALUE}>ทุกจังหวัด</SelectItem>
+                {PROVINCES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+              </SelectContent>
+            </Select>
           )}
 
-          <select
-            value={agencyFilter}
-            onChange={e => setAgencyFilter(e.target.value)}
-            className={SELECT_CLS}
+          <Select
+            value={agencyFilter || ALL_VALUE}
+            onValueChange={v => setAgencyFilter(v === ALL_VALUE ? '' : v)}
           >
-            <option value="">ทุกหน่วยงาน</option>
-            {AGENCIES.map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
+            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_VALUE}>ทุกหน่วยงาน</SelectItem>
+              {AGENCIES.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+            </SelectContent>
+          </Select>
 
-          <select
-            value={categoryFilter}
-            onChange={e => setCategoryFilter(e.target.value as 'A' | 'B' | 'C' | '')}
-            className={SELECT_CLS}
+          <Select
+            value={categoryFilter || ALL_VALUE}
+            onValueChange={v => setCategoryFilter(v === ALL_VALUE ? '' : (v as 'A' | 'B' | 'C'))}
           >
-            <option value="">ทุกหมวดรายการ</option>
-            {CHECKLIST_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-          </select>
+            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_VALUE}>ทุกหมวดรายการ</SelectItem>
+              {CHECKLIST_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
 
           {categoryFilter && subItemOptions.length > 0 && (
-            <select
-              value={subItemFilter}
-              onChange={e => setSubItemFilter(e.target.value)}
-              className={SELECT_CLS}
+            <Select
+              value={subItemFilter || ALL_VALUE}
+              onValueChange={v => setSubItemFilter(v === ALL_VALUE ? '' : v)}
             >
-              <option value="">รายการย่อย</option>
-              {subItemOptions.map(si => (
-                <option key={si.id} value={si.id}>
-                  {si.id} {si.labelTh}{si.cabinetPriority ? ' ★' : ''}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_VALUE}>รายการย่อย</SelectItem>
+                {subItemOptions.map(si => (
+                  <SelectItem key={si.id} value={si.id}>
+                    {si.id} {si.labelTh}{si.cabinetPriority ? ' ★' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
 
           {hasFilters && (
