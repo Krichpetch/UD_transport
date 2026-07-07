@@ -48,7 +48,7 @@ function AutoGrowTextarea({
       onChange={onChange}
       placeholder={placeholder}
       rows={1}
-      className={`max-h-40 resize-none overflow-y-auto ${className ?? ''}`}
+      className={`themed-scrollbar max-h-40 resize-none overflow-y-auto ${className ?? ''}`}
     />
   )
 }

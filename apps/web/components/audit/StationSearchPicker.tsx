@@ -6,6 +6,7 @@ import type { TransportMode, RailSubtype } from '@repo/types'
 import { searchStations, getNearbyStations } from '@/lib/api/stations'
 import type { StationSearchResult, NearbyStation } from '@/lib/api/stations'
 import { getCurrentPosition } from '@/lib/geolocation'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 // ── Mode tabs ──────────────────────────────────────────────────────────────────
 
@@ -284,7 +285,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
           )}
 
           {/* Results list */}
-          <div ref={listRef} className="flex-1 overflow-y-auto">
+          <ScrollArea viewportRef={listRef} className="min-h-0 flex-1">
             {tab === 'nearby' ? (
               nearbyStatus === 'locating' ? (
                 <div className="flex flex-col items-center justify-center gap-2 py-16">
@@ -369,7 +370,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
                 ))}
               </div>
             )}
-          </div>
+          </ScrollArea>
 
           {/* Pagination */}
           {tab === 'search' && totalPages > 1 && (

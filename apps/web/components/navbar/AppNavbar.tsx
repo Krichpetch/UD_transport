@@ -6,6 +6,7 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { useStations, usePendingReviews } from '@/hooks/use-stations'
 import { useAuthStore } from '@/stores/auth.store'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 interface AppNavbarProps {
   title?: string
@@ -146,7 +147,7 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
                     return items.length === 0 ? (
                       <p className="text-muted-foreground px-4 py-6 text-center text-xs">ไม่มีรายการ</p>
                     ) : (
-                      <div className="max-h-64 overflow-y-auto">
+                      <ScrollArea className="max-h-64">
                         {items.map(s => (
                           <button
                             key={s.id}
@@ -165,7 +166,7 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
                             <ChevronRight size={12} className="text-muted-foreground shrink-0" />
                           </button>
                         ))}
-                      </div>
+                      </ScrollArea>
                     )
                   })()}
                 </div>
@@ -201,7 +202,7 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
             </div>
 
             {searchResults.length > 0 ? (
-              <div className="max-h-64 overflow-y-auto py-1">
+              <ScrollArea className="max-h-64" viewportClassName="py-1">
                 {searchResults.map(s => (
                   <button
                     key={s.id}
@@ -214,7 +215,7 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
                     </div>
                   </button>
                 ))}
-              </div>
+              </ScrollArea>
             ) : searchQuery ? (
               <p className="text-muted-foreground px-4 py-8 text-center text-sm">ไม่พบสถานีที่ตรงกัน</p>
             ) : (

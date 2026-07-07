@@ -240,7 +240,7 @@ function ClusterMarker({ stations }: { stations: PlottableStation[] }) {
       eventHandlers={{ mouseover: open, mouseout: close }}
     >
       <Popup autoClose={false} closeOnClick={false}>
-        <div onMouseEnter={open} onMouseLeave={close} style={{ minWidth: 190, maxHeight: 220, overflowY: 'auto' }}>
+        <div onMouseEnter={open} onMouseLeave={close} className="themed-scrollbar" style={{ minWidth: 190, maxHeight: 220, overflowY: 'auto' }}>
           <p style={{ fontWeight: 700, marginBottom: 4 }}>
             {stations.length} สถานีในตำแหน่งโดยประมาณเดียวกัน
           </p>

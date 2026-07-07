@@ -10,6 +10,7 @@ import type { TransportMode, ChecklistSubItem, ChecklistGroup, Station } from '@
 import { StationBarChart } from '@/components/charts/StationBarChart'
 import { ThailandMap } from '@/components/maps/ThailandMap'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   TrendingUp, TrendingDown, Building2, CheckCircle2, AlertTriangle,
   XCircle, AlertCircle, Filter, X, Loader2, Maximize2,
@@ -283,7 +284,7 @@ export default function DashboardPage() {
                 <p className="text-muted-foreground mb-2 text-[10px] font-medium uppercase tracking-wide">
                   สถานีที่ยังไม่ได้มาตรฐาน ({metrics.hasItem - metrics.meetsStd})
                 </p>
-                <div className="max-h-28 space-y-1 overflow-y-auto">
+                <ScrollArea className="max-h-28" viewportClassName="space-y-1">
                   {checklistQueries
                     .map((q, i) => ({ q, s: filteredStations[i]! }))
                     .filter(({ q }) => {
@@ -299,7 +300,7 @@ export default function DashboardPage() {
                         · {s.nameTh} <span className="text-muted-foreground">({s.province})</span>
                       </p>
                     ))}
-                </div>
+                </ScrollArea>
               </div>
             </div>
           ) : (
@@ -441,7 +442,7 @@ export default function DashboardPage() {
               ดูทั้งหมด →
             </a>
           </div>
-          <div className="overflow-x-auto">
+          <ScrollArea>
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-border border-b">
@@ -497,7 +498,7 @@ export default function DashboardPage() {
                 )}
               </tbody>
             </table>
-          </div>
+          </ScrollArea>
           {tablePageCount > 1 && (
             <div className="border-border flex items-center justify-between border-t px-5 py-3">
               <span className="text-muted-foreground text-xs">
