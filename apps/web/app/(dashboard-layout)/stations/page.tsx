@@ -23,6 +23,7 @@ import { parseOtpRows, detectOtpFormat } from '@/lib/otp-import'
 import type { OtpParsedRow, OtpParseResult } from '@/lib/otp-import'
 import { StatusBadge, ScoreBar } from '@/components/shared/badges'
 import { StationLocationPicker } from '@/components/maps/StationLocationPicker'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Search,
   Filter,
@@ -97,6 +98,10 @@ const RAIL_SUBTYPES = ['รถไฟ', 'รถไฟฟ้า']
 const STATUS_OPTIONS: StationStatus[] = ['ผ่านมาตรฐาน', 'ต้องปรับปรุง', 'ไม่ผ่าน']
 const SELECT_CLS =
   'border-input bg-background text-foreground focus:ring-ring w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1'
+// Radix Select forbids an empty-string item value (reserved to mean "no selection"),
+// so the "ทั้งหมด/ทุก..." (all/any) option uses this sentinel instead of ''.
+const ALL_VALUE = '__all__'
+const FILTER_SELECT_TRIGGER_CLS = 'h-auto rounded-lg bg-background px-3 py-2 text-sm'
 const INPUT_CLS =
   'border-input bg-background placeholder:text-muted-foreground focus:ring-ring w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1'
 
@@ -771,84 +776,92 @@ export default function StationsPage() {
           </div>
           <div className="flex items-center gap-1.5">
             <Filter size={13} className="text-muted-foreground" />
-            <select
-              value={typeFilter}
-              onChange={(e) => {
-                const v = e.target.value as TransportMode | ''
-                setTypeFilter(v)
+            <Select
+              value={typeFilter || ALL_VALUE}
+              onValueChange={(v) => {
+                const next = v === ALL_VALUE ? '' : (v as TransportMode)
+                setTypeFilter(next)
                 setPage(1)
                 if (
                   agencyFilter &&
-                  v &&
-                  !TRANSPORT_MODE_AGENCIES[v].includes(agencyFilter as ResponsibleAgency)
+                  next &&
+                  !TRANSPORT_MODE_AGENCIES[next].includes(agencyFilter as ResponsibleAgency)
                 ) {
                   setAgencyFilter('')
                 }
               }}
-              className={SELECT_CLS.replace('w-full', '')}
             >
-              <option value="">ประเภทการขนส่ง</option>
-              {availableModes.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className={FILTER_SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_VALUE}>ประเภทการขนส่ง</SelectItem>
+                {availableModes.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value as StationStatus | '')
+          <Select
+            value={statusFilter || ALL_VALUE}
+            onValueChange={(v) => {
+              setStatusFilter(v === ALL_VALUE ? '' : (v as StationStatus))
               setPage(1)
             }}
-            className={SELECT_CLS.replace('w-full', '')}
           >
-            <option value="">สถานะทั้งหมด</option>
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          <select
-            value={regionFilter}
-            onChange={(e) => {
-              setRegionFilter(e.target.value)
+            <SelectTrigger className={FILTER_SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_VALUE}>สถานะทั้งหมด</SelectItem>
+              {STATUS_OPTIONS.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={regionFilter || ALL_VALUE}
+            onValueChange={(v) => {
+              setRegionFilter(v === ALL_VALUE ? '' : v)
               setPage(1)
             }}
-            className={SELECT_CLS.replace('w-full', '')}
           >
-            <option value="">ทุกภาค</option>
-            {(filterOptions?.regions ?? []).map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-          <select
-            value={agencyFilter}
-            onChange={(e) => {
-              const v = e.target.value
-              setAgencyFilter(v)
+            <SelectTrigger className={FILTER_SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_VALUE}>ทุกภาค</SelectItem>
+              {(filterOptions?.regions ?? []).map((r) => (
+                <SelectItem key={r} value={r}>
+                  {r}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={agencyFilter || ALL_VALUE}
+            onValueChange={(v) => {
+              const next = v === ALL_VALUE ? '' : v
+              setAgencyFilter(next)
               setPage(1)
-              if (typeFilter && v) {
+              if (typeFilter && next) {
                 const modesForAgency = (
                   Object.entries(TRANSPORT_MODE_AGENCIES) as [TransportMode, readonly string[]][]
                 )
-                  .filter(([, agencies]) => agencies.includes(v))
+                  .filter(([, agencies]) => agencies.includes(next))
                   .map(([mode]) => mode)
                 if (!modesForAgency.includes(typeFilter)) setTypeFilter('')
               }
             }}
-            className={SELECT_CLS.replace('w-full', '')}
           >
-            <option value="">ทุกหน่วยงาน</option>
-            {availableAgencies.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className={FILTER_SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_VALUE}>ทุกหน่วยงาน</SelectItem>
+              {availableAgencies.map((a) => (
+                <SelectItem key={a} value={a}>
+                  {a}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {hasFilters && (
             <button
               onClick={clearFilters}
