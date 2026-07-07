@@ -14,6 +14,18 @@ body {
   overflow-x: hidden;
 }
 
+/* Reserve the vertical scrollbar's width permanently. Without this, any
+   Radix popup (Select, Dialog, Sheet, ...) that locks body scroll while
+   open makes the real scrollbar disappear and compensates by adding
+   padding-right to <body> — since the sidebar is `fixed` (unaffected by
+   body padding) but the main content area is a normal in-flow child, only
+   the content area visibly narrows, which read as "the page shrinks" when
+   opening a select. Reserving the gutter up front means there's no
+   scrollbar-width delta left to compensate for. */
+html {
+  scrollbar-gutter: stable;
+}
+
 a {
   text-decoration: none;
 }
