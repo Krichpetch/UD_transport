@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import * as bcrypt from 'bcryptjs'
+import { BCRYPT_ROUNDS } from '../src/config/constants'
 
 const prisma = new PrismaClient()
 
@@ -7,7 +8,7 @@ async function main() {
   console.log('Seeding database...')
 
   // ---- Users ----
-  const passwordHash = await bcrypt.hash('password123', 12)
+  const passwordHash = await bcrypt.hash('password123', BCRYPT_ROUNDS)
 
   await prisma.user.upsert({
     where: { username: 'admin' },
