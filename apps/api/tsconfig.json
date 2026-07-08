@@ -24,6 +24,11 @@
     "resolveJsonModule": true,
     "types": ["jest", "node", "multer"]
   },
+  "ts-node": {
+    "compilerOptions": {
+      "module": "commonjs"
+    }
+  },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]
 }

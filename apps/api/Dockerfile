@@ -27,7 +27,9 @@ COPY packages/typescript-config/package.json packages/typescript-config/package.
 COPY packages/eslint-config/package.json     packages/eslint-config/package.json
 COPY packages/ui/package.json                packages/ui/package.json
 COPY apps/api/package.json                   apps/api/package.json
-# postinstall runs `prisma generate` automatically
+# postinstall runs `prisma generate` automatically, which needs the schema
+# present at install time — not just later in the builder stage.
+COPY apps/api/prisma/schema.prisma           apps/api/prisma/schema.prisma
 RUN pnpm install --frozen-lockfile
 
 # ── builder: compile TypeScript ──────────────────────────────────────────────
@@ -54,7 +56,7 @@ RUN pnpm --filter api deploy --prod /deploy
 # got its own generated client. Re-running generate explicitly, with cwd=/deploy so Prisma
 # resolves the schema and the @prisma/client install location from THERE, fixes it — verified
 # by booting the deployed dist/main.js against a real Postgres and completing a real login.
-RUN cd /deploy && /app/node_modules/.bin/prisma generate
+RUN cd /deploy && /app/apps/api/node_modules/.bin/prisma generate
 
 # ── runner: minimal production image ─────────────────────────────────────────
 FROM node:22-alpine AS runner
