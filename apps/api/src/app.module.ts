@@ -14,7 +14,7 @@ import { UserAwareThrottlerGuard } from './common/throttler.guard'
 @Module({
   imports: [
     // 200 requests per 60s per user-ID (or IP for unauthenticated).
-    // Login endpoint overrides this with a stricter 5/60s limit.
+    // Login endpoint overrides this with a stricter 10/60s limit.
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 200 }]),
     PrismaModule,
     AuthModule,
