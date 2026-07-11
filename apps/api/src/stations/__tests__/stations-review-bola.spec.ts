@@ -52,6 +52,16 @@ describe('StationsService › BOLA: reject/flag cross-station authorization', ()
           useValue: {
             checklist: { findFirst: checklistFindFirst, update: checklistUpdate, create: checklistCreate },
             station: { update: jest.fn() },
+            // approveChecklist/rejectChecklist now route their writes through
+            // $transaction — reuse the same mocks as the tx client so these
+            // cross-station authorization checks (which all fail before any
+            // write) are unaffected.
+            $transaction: jest.fn((cb: (tx: unknown) => Promise<unknown>) =>
+              cb({
+                checklist: { findFirst: checklistFindFirst, update: checklistUpdate, create: checklistCreate },
+                station: { update: jest.fn() },
+              }),
+            ),
           },
         },
         { provide: AuditLogService, useValue: { log: jest.fn().mockResolvedValue(undefined) } },

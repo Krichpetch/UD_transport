@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common'
+import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common'
 import { ChecklistStatus } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { StationsService } from '../stations/stations.service'
@@ -7,6 +7,10 @@ import { isProximityBypassActive } from '../config/validate-env'
 import { computeScoreFromItems } from './scoring'
 
 const PROXIMITY_RADIUS_M = 1000
+// TODO(eform-redesign): remove when partial unique index lands (4.8) — stopgap window
+// for the interim double-submit guard below. Plain read-then-write, not a real
+// uniqueness guarantee; closes the common double-tap window until the real fix ships.
+const SUBMIT_DEDUPE_WINDOW_MS = 10 * 60 * 1000
 
 export interface SubmitGps {
   lat: number
@@ -115,6 +119,25 @@ export class ChecklistsService {
         })
       }
       locationVerified = true
+    }
+
+    // TODO(eform-redesign): remove when partial unique index lands (4.8) — interim
+    // double-submit guard. A double-tap on "ส่งรายงาน" currently creates two SUBMITTED
+    // rows; this closes that window with a plain read-then-write check, not a real
+    // uniqueness guarantee (the index in the redesign is the real fix).
+    const recentDuplicate = await this.prisma.checklist.findFirst({
+      where: {
+        stationId,
+        auditorId,
+        status: 'SUBMITTED',
+        submittedAt: { gte: new Date(Date.now() - SUBMIT_DEDUPE_WINDOW_MS) },
+      },
+    })
+    if (recentDuplicate) {
+      throw new ConflictException({
+        code: 'DUPLICATE_SUBMIT',
+        message: 'คุณเพิ่งส่งรายงานนี้ไปแล้ว กรุณารอสักครู่',
+      })
     }
 
     // Re-derive score server-side; never trust the client-supplied value.

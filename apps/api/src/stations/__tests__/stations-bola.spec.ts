@@ -117,6 +117,14 @@ describe('StationsService › BOLA: approveChecklist cross-station authorization
           useValue: {
             checklist: { update: checklistUpdate, findFirst: checklistFindFirst },
             station: { update: stationUpdate },
+            // approveChecklist now routes its writes through $transaction — reuse the
+            // same mocks as the tx client so this BOLA simulation still applies.
+            $transaction: jest.fn((cb: (tx: unknown) => Promise<unknown>) =>
+              cb({
+                checklist: { update: checklistUpdate, findFirst: checklistFindFirst },
+                station: { update: stationUpdate },
+              }),
+            ),
           },
         },
         {

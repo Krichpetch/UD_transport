@@ -8,6 +8,19 @@ import { OtpRowDto } from './dto/otp-row.dto'
 import { computeScoreFromItems, scoreToStatus, hasReviewFlag } from '../checklists/scoring'
 import type { ChecklistGroup } from '@repo/types'
 
+// batchOtpImport: rows are prefetched/processed in fixed-size chunks (see method doc).
+const OTP_IMPORT_CHUNK_SIZE = 50
+
+export type OtpImportRowResult =
+  | { id: string; nameTh: string }
+  | { nameTh: string; index: number; error: string }
+
+// Same normalization the station dedupe guard (create()/batchOtpImport) matches on:
+// case/whitespace-insensitive (mode, nameTh, province) — agency is deliberately excluded.
+function otpStationKey(mode: string, nameTh: string, province: string): string {
+  return `${mode}|${nameTh.trim().toLowerCase()}|${province.trim().toLowerCase()}`
+}
+
 @Injectable()
 export class StationsService {
   constructor(
@@ -255,18 +268,27 @@ export class StationsService {
       })
     }
 
-    const cl = await this.prisma.checklist.update({
-      where: { id: checklistId, stationId },
-      data: { status: 'APPROVED' },
+    // All three writes go through the tx client — a failure partway through (e.g. the
+    // station update) must not leave the checklist flipped to APPROVED with a stale
+    // station score. The status is re-checked inside the transaction to close the race
+    // between the read above and this write (a concurrent approve landing in between).
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.checklist.findFirst({ where: { id: checklistId, stationId } })
+      if (!current || current.status !== 'SUBMITTED') {
+        throw new BadRequestException('มีเพียงรายงานที่รอการอนุมัติเท่านั้นที่สามารถอนุมัติได้')
+      }
+
+      const cl = await tx.checklist.update({
+        where: { id: checklistId, stationId },
+        data: { status: 'APPROVED' },
+      })
+      // Re-derive score from stored items; do not trust the client-supplied value.
+      const score  = computeScoreFromItems(cl.items)
+      const status = scoreToStatus(score)
+      await tx.checklist.update({ where: { id: checklistId }, data: { score } })
+      await tx.station.update({ where: { id: stationId }, data: { score, status, lastInspected: cl.submittedAt } })
+      return cl
     })
-    // Re-derive score from stored items; do not trust the client-supplied value.
-    const score  = computeScoreFromItems(cl.items)
-    const status = scoreToStatus(score)
-    await Promise.all([
-      this.prisma.checklist.update({ where: { id: checklistId }, data: { score } }),
-      this.prisma.station.update({ where: { id: stationId }, data: { score, status, lastInspected: cl.submittedAt } }),
-    ])
-    return cl
   }
 
   // Toggles reviewFlag on one item inside the items JSON blob (there is no dedicated column —
@@ -307,25 +329,36 @@ export class StationsService {
       throw new BadRequestException('มีเพียงรายงานที่รอการอนุมัติเท่านั้นที่สามารถปฏิเสธได้')
     }
 
-    const cl = await this.prisma.checklist.update({
-      where: { id: checklistId, stationId },
-      data: { status: 'REJECTED', reviewNotes: notes, reviewedAt: new Date() },
-    })
+    // Both writes (REJECTED status + the draft upsert that carries the feedback forward)
+    // go through the tx client — a failure on the draft upsert must not leave the checklist
+    // marked REJECTED with nothing for the auditor to resubmit from. Status is re-checked
+    // inside the transaction to mirror the same precondition the pre-tx read enforces above.
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.checklist.findFirst({ where: { id: checklistId, stationId } })
+      if (!current || current.status !== 'SUBMITTED') {
+        throw new BadRequestException('มีเพียงรายงานที่รอการอนุมัติเท่านั้นที่สามารถปฏิเสธได้')
+      }
 
-    const draft = await this.prisma.checklist.findFirst({
-      where: { stationId, auditorId: cl.auditorId, status: 'DRAFT' },
+      const cl = await tx.checklist.update({
+        where: { id: checklistId, stationId },
+        data: { status: 'REJECTED', reviewNotes: notes, reviewedAt: new Date() },
+      })
+
+      const draft = await tx.checklist.findFirst({
+        where: { stationId, auditorId: cl.auditorId, status: 'DRAFT' },
+      })
+      if (draft) {
+        await tx.checklist.update({
+          where: { id: draft.id },
+          data: { items: cl.items as object, reviewNotes: notes, updatedAt: new Date() },
+        })
+      } else {
+        await tx.checklist.create({
+          data: { stationId, auditorId: cl.auditorId, items: cl.items as object, status: 'DRAFT', reviewNotes: notes },
+        })
+      }
+      return cl
     })
-    if (draft) {
-      await this.prisma.checklist.update({
-        where: { id: draft.id },
-        data: { items: cl.items as object, reviewNotes: notes, updatedAt: new Date() },
-      })
-    } else {
-      await this.prisma.checklist.create({
-        data: { stationId, auditorId: cl.auditorId, items: cl.items as object, status: 'DRAFT', reviewNotes: notes },
-      })
-    }
-    return cl
   }
 
   async getPendingReviews(): Promise<string[]> {
@@ -337,50 +370,111 @@ export class StationsService {
     return rows.map(r => r.stationId)
   }
 
-  async batchOtpImport(rows: OtpRowDto[], adminId: string) {
-    const results: { id: string; nameTh: string }[] = []
-    for (const row of rows) {
-      // Same normalized-key dedupe guard as create(): agency alone must never
-      // fork a station into a duplicate row (see _find-duplicate-stations.cjs).
-      const nameTh   = row.station.nameTh.trim()
-      const province = row.station.province.trim()
-      let station = await this.prisma.station.findFirst({
+  // Rows are processed in fixed-size chunks: each chunk gets ONE station.findMany +
+  // ONE checklist.findMany (instead of two findFirst reads per row), and each ROW's
+  // writes run inside their own $transaction — one bad row rolls back only itself and
+  // is reported individually, never poisoning the rest of the chunk/batch. Chunks (and
+  // rows within a chunk) run strictly in array order, so duplicate rows in one payload
+  // resolve deterministically: last row wins, matching the prior per-row-findFirst
+  // behavior exactly (see stationMap/checklistMap below, updated after every row).
+  async batchOtpImport(rows: OtpRowDto[], adminId: string): Promise<OtpImportRowResult[]> {
+    const results: OtpImportRowResult[] = new Array(rows.length)
+
+    for (let chunkStart = 0; chunkStart < rows.length; chunkStart += OTP_IMPORT_CHUNK_SIZE) {
+      const chunk = rows.slice(chunkStart, chunkStart + OTP_IMPORT_CHUNK_SIZE)
+
+      // Same normalized-key dedupe guard as create(): agency alone must never fork a
+      // station into a duplicate row (see _find-duplicate-stations.cjs) — batched here
+      // as one OR-of-keys findMany instead of one findFirst per row.
+      const existingStations = await this.prisma.station.findMany({
         where: {
-          mode:     row.station.mode,
-          nameTh:   { equals: nameTh,   mode: 'insensitive' },
-          province: { equals: province, mode: 'insensitive' },
+          OR: chunk.map(row => ({
+            mode:     row.station.mode,
+            nameTh:   { equals: row.station.nameTh.trim(),   mode: 'insensitive' as const },
+            province: { equals: row.station.province.trim(), mode: 'insensitive' as const },
+          })),
         },
       })
+      const stationMap = new Map<string, (typeof existingStations)[number]>()
+      for (const s of existingStations) stationMap.set(otpStationKey(s.mode, s.nameTh, s.province), s)
+
+      // One per (station, year) — same "latest APPROVED checklist for this year" concept
+      // the original per-row findFirst enforced, just prefetched for every station this
+      // chunk already knows about (brand-new stations have nothing to prefetch).
+      const existingStationIds = existingStations.map(s => s.id)
+      const existingChecklists = existingStationIds.length
+        ? await this.prisma.checklist.findMany({
+            where: { stationId: { in: existingStationIds }, status: 'APPROVED' },
+          })
+        : []
+      const checklistMap = new Map<string, (typeof existingChecklists)[number]>()
+      for (const cl of existingChecklists) {
+        if (!cl.submittedAt) continue
+        checklistMap.set(`${cl.stationId}|${cl.submittedAt.getFullYear()}`, cl)
+      }
+
+      for (let i = 0; i < chunk.length; i++) {
+        const row = chunk[i]!
+        const rowIndex = chunkStart + i
+        try {
+          results[rowIndex] = await this.importOtpRow(row, adminId, stationMap, checklistMap)
+        } catch (err) {
+          results[rowIndex] = {
+            nameTh: row.station.nameTh,
+            index:  rowIndex,
+            error:  err instanceof Error ? err.message : 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ',
+          }
+        }
+      }
+    }
+
+    return results
+  }
+
+  // One row's writes (station upsert, checklist create/update, station score/status
+  // refresh) as a single transaction — mirrors the atomicity approve/rejectChecklist
+  // use above. stationMap/checklistMap are updated after the transaction commits so a
+  // LATER row in this same batch (this chunk or a later one) that targets the same
+  // station/year sees the fresh state without another DB read.
+  private async importOtpRow(
+    row: OtpRowDto,
+    adminId: string,
+    stationMap: Map<string, { id: string; nameTh: string; responsibleAgency: string; lastInspected: Date | null }>,
+    checklistMap: Map<string, { id: string; stationId: string; submittedAt: Date | null }>,
+  ): Promise<{ id: string; nameTh: string }> {
+    const nameTh   = row.station.nameTh.trim()
+    const province = row.station.province.trim()
+    const key       = otpStationKey(row.station.mode, nameTh, province)
+    const auditDate = new Date(row.lastInspected)
+    // Re-derive score from items; never trust the client-computed row.score.
+    const importedScore  = computeScoreFromItems(row.items as unknown)
+    const importedStatus = scoreToStatus(importedScore)
+
+    const station = await this.prisma.$transaction(async (tx) => {
+      let station = stationMap.get(key)
       if (station) {
         // Prefer a real agency over a stale 'อื่นๆ' fallback if this row has one.
         if (station.responsibleAgency === 'อื่นๆ' && row.station.responsibleAgency !== 'อื่นๆ') {
-          station = await this.prisma.station.update({
+          station = await tx.station.update({
             where: { id: station.id },
             data: { responsibleAgency: row.station.responsibleAgency },
           })
         }
       } else {
-        station = await this.prisma.station.create({
+        station = await tx.station.create({
           data: { ...row.station, nameTh, province, urgentIssues: [] },
         })
       }
-      const auditDate = new Date(row.lastInspected)
-      const yearStart = new Date(auditDate.getFullYear(), 0, 1)
-      const yearEnd   = new Date(auditDate.getFullYear() + 1, 0, 1)
-      const existing  = await this.prisma.checklist.findFirst({
-        where: { stationId: station.id, submittedAt: { gte: yearStart, lt: yearEnd }, status: 'APPROVED' },
-      })
-      // Re-derive score from items; never trust the client-computed row.score.
-      const importedScore  = computeScoreFromItems(row.items as unknown)
-      const importedStatus = scoreToStatus(importedScore)
 
+      const checklistKey = `${station.id}|${auditDate.getFullYear()}`
+      const existing = checklistMap.get(checklistKey)
       if (existing) {
-        await this.prisma.checklist.update({
+        await tx.checklist.update({
           where: { id: existing.id },
           data:  { items: row.items as object, score: importedScore },
         })
       } else {
-        await this.prisma.checklist.create({
+        const created = await tx.checklist.create({
           data: {
             stationId:   station.id,
             auditorId:   adminId,
@@ -390,19 +484,24 @@ export class StationsService {
             submittedAt: auditDate,
           },
         })
+        checklistMap.set(checklistKey, created)
       }
+
       if (!station.lastInspected || auditDate > station.lastInspected) {
-        await this.prisma.station.update({
+        station = await tx.station.update({
           where: { id: station.id },
           data: { score: importedScore, status: importedStatus, lastInspected: auditDate },
         })
       }
-      await this.auditLog.log({
-        userId: adminId, action: 'OTP_IMPORT', entityType: 'Station', entityId: station.id,
-      })
-      results.push({ id: station.id, nameTh: station.nameTh })
-    }
-    return results
+      return station
+    })
+
+    stationMap.set(key, station)
+
+    await this.auditLog.log({
+      userId: adminId, action: 'OTP_IMPORT', entityType: 'Station', entityId: station.id,
+    })
+    return { id: station.id, nameTh: station.nameTh }
   }
 
   // Export data source: one row per (station, calendar year) — the most recently
