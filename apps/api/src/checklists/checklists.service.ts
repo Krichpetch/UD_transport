@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/com
 import { ChecklistStatus } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { StationsService } from '../stations/stations.service'
+import { AuditLogService } from '../audit/audit.service'
 import { isProximityBypassActive } from '../config/validate-env'
 import { computeScoreFromItems } from './scoring'
 
@@ -18,6 +19,7 @@ export class ChecklistsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stations: StationsService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   findDraft(stationId: string, auditorId: string) {
@@ -50,16 +52,23 @@ export class ChecklistsService {
       where: { stationId, auditorId, status: 'DRAFT' },
     })
 
-    if (existing) {
-      return this.prisma.checklist.update({
-        where: { id: existing.id },
-        data: { items: items as object, updatedAt: new Date() },
-      })
-    }
+    const checklist = existing
+      ? await this.prisma.checklist.update({
+          where: { id: existing.id },
+          data: { items: items as object, updatedAt: new Date() },
+        })
+      : await this.prisma.checklist.create({
+          data: { stationId, auditorId, items: items as object, status: 'DRAFT' },
+        })
 
-    return this.prisma.checklist.create({
-      data: { stationId, auditorId, items: items as object, status: 'DRAFT' },
+    await this.auditLog.log({
+      userId: auditorId,
+      action: 'SAVE_DRAFT',
+      entityType: 'Checklist',
+      entityId: checklist.id,
+      after: { stationId, status: 'DRAFT' },
     })
+    return checklist
   }
 
   // Proximity gate — recomputes distance server-side; a client "isNear" flag is never trusted.
@@ -110,7 +119,7 @@ export class ChecklistsService {
 
     // Re-derive score server-side; never trust the client-supplied value.
     const score = computeScoreFromItems(items)
-    return this.prisma.checklist.create({
+    const checklist = await this.prisma.checklist.create({
       data: {
         stationId,
         auditorId,
@@ -126,5 +135,14 @@ export class ChecklistsService {
         proximityBypassed: bypassAllowed,
       },
     })
+
+    await this.auditLog.log({
+      userId: auditorId,
+      action: 'SUBMIT_CHECKLIST',
+      entityType: 'Checklist',
+      entityId: checklist.id,
+      after: { stationId, status: 'SUBMITTED', score },
+    })
+    return checklist
   }
 }

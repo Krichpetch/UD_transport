@@ -14,21 +14,8 @@ import {
   setItemFlag,
   type CreateStationInput,
   type UpdateStationInput,
+  type StationFilters,
 } from '@/lib/api/stations'
-import type { TransportMode, StationStatus } from '@repo/types'
-
-export interface StationFilters {
-  mode?: TransportMode | ''
-  region?: string
-  agency?: string
-  status?: StationStatus | ''
-  checklistStatus?: 'SUBMITTED' | 'REJECTED' | 'APPROVED' | ''
-  search?: string
-  page?: number
-  limit?: number
-  sortBy?: string
-  sortOrder?: 'asc' | 'desc'
-}
 
 export function useStations(filters?: StationFilters) {
   const f = {

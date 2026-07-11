@@ -1,4 +1,5 @@
 import { randomBytes } from 'crypto'
+import { posix } from 'path'
 import {
   BadRequestException,
   Controller,
@@ -21,6 +22,7 @@ interface AuthRequest extends Request {
 }
 
 const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const PRESIGN_KEY_PREFIX = 'checklist-photos/'
 
 @Controller('uploads')
 @UseGuards(JwtAuthGuard)
@@ -42,9 +44,24 @@ export class UploadsController {
     return { id: key, url, filename: file.originalname, uploadedAt: new Date().toISOString() }
   }
 
+  // Restricted to checklist-photos/ so an authenticated user can't mint a presigned
+  // URL for an arbitrary object elsewhere in the bucket. Decode + posix.normalize
+  // before checking the prefix so '../' and its URL-encoded form can't escape it.
   @Get('presign')
   async presign(@Query('key') key: string) {
     if (!key) throw new BadRequestException('key is required')
-    return { url: await this.minio.getPresignedUrl(key) }
+
+    let decoded: string
+    try {
+      decoded = decodeURIComponent(key)
+    } catch {
+      throw new BadRequestException('Invalid key')
+    }
+    const normalized = posix.normalize(decoded)
+    if (!normalized.startsWith(PRESIGN_KEY_PREFIX) || normalized.includes('..')) {
+      throw new BadRequestException('Invalid key')
+    }
+
+    return { url: await this.minio.getPresignedUrl(normalized) }
   }
 }

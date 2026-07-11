@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import { login } from '@/lib/api/auth'
@@ -97,10 +96,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-muted-foreground text-center text-xs">
-          ลืมรหัสผ่าน?{' '}
-          <Link href="/forgot-password" className="text-accent hover:underline">
-            ติดต่อผู้ดูแลระบบ
-          </Link>
+          ลืมรหัสผ่าน? ติดต่อผู้ดูแลระบบ
         </p>
       </div>
     </div>

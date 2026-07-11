@@ -7,10 +7,12 @@ import { getLatestChecklist } from '@/lib/api/checklists'
 import { useStations, useStationSummary } from '@/hooks/use-stations'
 import { StatusBadge, TransportBadge } from '@/components/shared/badges'
 import type { TransportMode, ChecklistSubItem, ChecklistGroup, Station } from '@repo/types'
+import { TRANSPORT_MODES } from '@repo/types'
 import { StationBarChart } from '@/components/charts/StationBarChart'
 import { ThailandMap } from '@/components/maps/ThailandMap'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ALL_VALUE } from '@/lib/ui-classes'
 import {
   TrendingUp, TrendingDown, Building2, CheckCircle2, AlertTriangle,
   XCircle, AlertCircle, Filter, X, Loader2, Maximize2,
@@ -30,10 +32,8 @@ function MetricRow({ label, value, pct }: { label: string; value: number; pct?: 
   )
 }
 
-const TRANSPORT_MODES: TransportMode[] = ['ทางบก', 'ทางราง', 'ทางเรือ', 'ทางอากาศ']
-// Radix Select forbids an empty-string item value (reserved to mean "no selection"),
-// so the "ทั้งหมด/ทุก..." (all/any) option uses this sentinel instead of ''.
-const ALL_VALUE = '__all__'
+// SELECT_TRIGGER_CLS is deliberately NOT in lib/ui-classes.ts — stations/page.tsx's
+// FILTER_SELECT_TRIGGER_CLS has drifted from this one (py-2/text-sm vs py-1.5/text-xs).
 const SELECT_TRIGGER_CLS = 'h-auto rounded-lg bg-background px-3 py-1.5 text-xs'
 
 export default function DashboardPage() {

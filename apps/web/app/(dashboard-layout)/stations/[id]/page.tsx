@@ -10,7 +10,6 @@ import type { ChecklistGroup, ChecklistSubItem } from '@repo/types'
 import { computeScoreFromItems, buildHistogram } from '@repo/types'
 import {
   ChevronLeft,
-  Download,
   Flag,
   ChevronDown,
   ChevronUp,
@@ -276,9 +275,6 @@ export default function StationChecklistPage({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button className="border-border text-muted-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors">
-            <Download size={13} /> Export PDF
-          </button>
           <button
             onClick={handleExcelExport}
             disabled={excelExporting}
@@ -486,9 +482,6 @@ export default function StationChecklistPage({
 
             {/* Export buttons */}
             <div className="mt-4 space-y-2 border-t border-border pt-4">
-              <button className="border-border hover:bg-secondary flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs text-muted-foreground transition-colors">
-                <Download size={12} /> Export เป็น PDF
-              </button>
               <button
                 onClick={handleExcelExport}
                 disabled={excelExporting}

@@ -6,6 +6,8 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useUsers, useCreateUser, useUpdateUser, useSetUserActive } from '@/hooks/use-users'
 import type { UserRecord, CreatedUserRecord } from '@/lib/api/users'
 import type { UserRole } from '@repo/types'
+import { USER_ROLES } from '@repo/types'
+import { INPUT_CLS, SELECT_CLS } from '@/lib/ui-classes'
 import { UserPlus, X, Loader2, Pencil, Ban, CheckCircle2, Copy, Check } from 'lucide-react'
 
 const ROLE_LABEL: Record<UserRole, string> = {
@@ -13,12 +15,6 @@ const ROLE_LABEL: Record<UserRole, string> = {
   AUDITOR: 'ผู้ตรวจสอบ',
   EXECUTIVE: 'ผู้บริหาร',
 }
-const ROLES: UserRole[] = ['AUDITOR', 'ADMIN', 'EXECUTIVE']
-
-const SELECT_CLS =
-  'border-input bg-background text-foreground focus:ring-ring w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1'
-const INPUT_CLS =
-  'border-input bg-background placeholder:text-muted-foreground focus:ring-ring w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1'
 
 function RoleBadge({ role }: { role: UserRole }) {
   const map: Record<UserRole, string> = {
@@ -191,7 +187,7 @@ function UserFormModal({
           <div>
             <label className="text-foreground mb-1 block text-xs font-medium">บทบาท *</label>
             <select className={SELECT_CLS} value={form.role} onChange={(e) => patch({ role: e.target.value as UserRole })}>
-              {ROLES.map((r) => (
+              {USER_ROLES.map((r) => (
                 <option key={r} value={r}>
                   {ROLE_LABEL[r]}
                 </option>

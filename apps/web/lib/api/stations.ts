@@ -1,13 +1,13 @@
 import { api } from '@/lib/api'
-import type { Station, KpiSummary } from '@repo/types'
+import type { Station, KpiSummary, TransportMode, StationStatus } from '@repo/types'
 import type { ChecklistRecord } from './checklists'
 
 export interface StationFilters {
-  mode?: string
+  mode?: TransportMode | ''
   region?: string
   agency?: string
-  status?: string
-  checklistStatus?: string
+  status?: StationStatus | ''
+  checklistStatus?: 'SUBMITTED' | 'REJECTED' | 'APPROVED' | ''
   search?: string
   page?: number
   limit?: number

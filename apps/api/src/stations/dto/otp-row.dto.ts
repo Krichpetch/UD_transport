@@ -1,14 +1,15 @@
-import { IsArray, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator'
+import { ArrayMaxSize, IsArray, IsIn, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator'
 import { Type } from 'class-transformer'
+import { TRANSPORT_MODES, RAIL_SUBTYPES, RESPONSIBLE_AGENCIES } from '@repo/types'
 
 class OtpStationDto {
   @IsString() nameTh: string
   @IsString() name: string
-  @IsString() mode: string
-  @IsString() @IsOptional() railSubtype?: string
+  @IsIn(TRANSPORT_MODES) mode: string
+  @IsIn(RAIL_SUBTYPES) @IsOptional() railSubtype?: string
   @IsString() province: string
   @IsString() region: string
-  @IsString() responsibleAgency: string
+  @IsIn(RESPONSIBLE_AGENCIES) responsibleAgency: string
   @IsNumber() lat: number
   @IsNumber() lng: number
 }
@@ -22,5 +23,5 @@ export class OtpRowDto {
 }
 
 export class BatchOtpDto {
-  @IsArray() @ValidateNested({ each: true }) @Type(() => OtpRowDto) rows: OtpRowDto[]
+  @IsArray() @ArrayMaxSize(500) @ValidateNested({ each: true }) @Type(() => OtpRowDto) rows: OtpRowDto[]
 }

@@ -16,7 +16,7 @@ import { saveDraft } from '@/lib/api/checklists'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth.store'
 import type { TransportMode, StationStatus, ResponsibleAgency } from '@repo/types'
-import { TRANSPORT_MODE_AGENCIES } from '@repo/types'
+import { TRANSPORT_MODE_AGENCIES, TRANSPORT_MODES, RAIL_SUBTYPES, STATION_STATUSES } from '@repo/types'
 import type { CreateStationInput, StationRow, ParsedRow } from '@/lib/api/stations'
 import { batchOtpImport } from '@/lib/api/stations'
 import { parseOtpRows, detectOtpFormat } from '@/lib/otp-import'
@@ -24,6 +24,7 @@ import type { OtpParsedRow, OtpParseResult } from '@/lib/otp-import'
 import { StatusBadge, ScoreBar } from '@/components/shared/badges'
 import { StationLocationPicker } from '@/components/maps/StationLocationPicker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { INPUT_CLS, SELECT_CLS, ALL_VALUE } from '@/lib/ui-classes'
 import {
   Search,
   Filter,
@@ -93,17 +94,9 @@ function ApproveButton({ stationId }: { stationId: string }) {
 }
 
 // ---- Constants ----
-const TRANSPORT_MODES: TransportMode[] = ['ทางบก', 'ทางราง', 'ทางเรือ', 'ทางอากาศ']
-const RAIL_SUBTYPES = ['รถไฟ', 'รถไฟฟ้า']
-const STATUS_OPTIONS: StationStatus[] = ['ผ่านมาตรฐาน', 'ต้องปรับปรุง', 'ไม่ผ่าน']
-const SELECT_CLS =
-  'border-input bg-background text-foreground focus:ring-ring w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1'
-// Radix Select forbids an empty-string item value (reserved to mean "no selection"),
-// so the "ทั้งหมด/ทุก..." (all/any) option uses this sentinel instead of ''.
-const ALL_VALUE = '__all__'
+// FILTER_SELECT_TRIGGER_CLS is deliberately NOT in lib/ui-classes.ts — dashboard/page.tsx's
+// SELECT_TRIGGER_CLS has drifted from this one (py-1.5/text-xs vs py-2/text-sm).
 const FILTER_SELECT_TRIGGER_CLS = 'h-auto rounded-lg bg-background px-3 py-2 text-sm'
-const INPUT_CLS =
-  'border-input bg-background placeholder:text-muted-foreground focus:ring-ring w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1'
 
 interface EditStationForm {
   nameTh: string
@@ -438,7 +431,7 @@ export default function StationsPage() {
   const availableAgencies = typeFilter
     ? TRANSPORT_MODE_AGENCIES[typeFilter]
     : (filterOptions?.agencies ?? [])
-  const availableModes: TransportMode[] = agencyFilter
+  const availableModes: readonly TransportMode[] = agencyFilter
     ? (Object.entries(TRANSPORT_MODE_AGENCIES) as [TransportMode, readonly string[]][])
         .filter(([, agencies]) => agencies.includes(agencyFilter))
         .map(([mode]) => mode)
@@ -812,7 +805,7 @@ export default function StationsPage() {
             <SelectTrigger className={FILTER_SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL_VALUE}>สถานะทั้งหมด</SelectItem>
-              {STATUS_OPTIONS.map((s) => (
+              {STATION_STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>
                   {s}
                 </SelectItem>

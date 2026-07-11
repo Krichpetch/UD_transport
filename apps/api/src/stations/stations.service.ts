@@ -28,7 +28,7 @@ export class StationsService {
     sortOrder?: 'asc' | 'desc'
   }) {
     const page  = filters?.page  ?? 1
-    const limit = filters?.limit ?? 20
+    const limit = Math.min(filters?.limit ?? 20, 100)
 
     const SORTABLE = new Set(['nameTh', 'province', 'responsibleAgency', 'score', 'status', 'lastInspected', 'mode'])
     const col      = filters?.sortBy && SORTABLE.has(filters.sortBy) ? filters.sortBy : 'nameTh'
@@ -245,6 +245,9 @@ export class StationsService {
     // Read first (BOLA-scoped) so a flagged checklist never actually flips to APPROVED.
     const existing = await this.prisma.checklist.findFirst({ where: { id: checklistId, stationId } })
     if (!existing) throw new NotFoundException()
+    if (existing.status !== 'SUBMITTED') {
+      throw new BadRequestException('มีเพียงรายงานที่รอการอนุมัติเท่านั้นที่สามารถอนุมัติได้')
+    }
     if (hasReviewFlag(existing.items)) {
       throw new BadRequestException({
         code: 'FLAGGED_ITEMS_PENDING',
