@@ -1,14 +1,15 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
+import { RequireRole } from '@/components/auth/require-role'
 import { useUsers, useCreateUser, useUpdateUser, useSetUserActive } from '@/hooks/use-users'
 import type { UserRecord, CreatedUserRecord } from '@/lib/api/users'
 import type { UserRole } from '@repo/types'
 import { USER_ROLES } from '@repo/types'
 import { INPUT_CLS, SELECT_CLS } from '@/lib/ui-classes'
-import { UserPlus, X, Loader2, Pencil, Ban, CheckCircle2, Copy, Check } from 'lucide-react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { UserPlus, Loader2, Pencil, Ban, CheckCircle2, Copy, Check } from 'lucide-react'
 
 const ROLE_LABEL: Record<UserRole, string> = {
   ADMIN: 'ผู้ดูแลระบบ',
@@ -53,12 +54,16 @@ function GeneratedPasswordNotice({ user, onClose }: { user: CreatedUserRecord; o
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div className="bg-card w-full max-w-sm rounded-2xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-foreground mb-2 text-lg font-semibold">สร้างบัญชีสำเร็จ</h2>
+    // Displays a one-time generated password — must NOT close on backdrop click or Escape,
+    // so an accidental click can't destroy the only chance to read it. Explicit close button
+    // (or the dialog's own X) only.
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent
+        className="max-w-sm"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
+        <DialogTitle className="mb-2 text-lg">สร้างบัญชีสำเร็จ</DialogTitle>
         <p className="text-muted-foreground mb-4 text-sm">
           บัญชี <span className="font-medium">{user.username}</span> ถูกสร้างแล้ว รหัสผ่านชั่วคราวจะแสดงเพียงครั้งเดียวเท่านั้น
           กรุณาคัดลอกและส่งให้ผู้ใช้งานอย่างปลอดภัย
@@ -77,8 +82,8 @@ function GeneratedPasswordNotice({ user, onClose }: { user: CreatedUserRecord; o
         >
           ปิด
         </button>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -150,19 +155,11 @@ function UserFormModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div className="bg-card w-full max-w-md rounded-2xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-foreground text-lg font-semibold">
-            {mode === 'create' ? 'เพิ่มผู้ใช้งาน' : 'แก้ไขผู้ใช้งาน'}
-          </h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
-            <X size={18} />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-md" onEscapeKeyDown={(e) => e.preventDefault()}>
+        <DialogTitle className="mb-6 text-lg">
+          {mode === 'create' ? 'เพิ่มผู้ใช้งาน' : 'แก้ไขผู้ใช้งาน'}
+        </DialogTitle>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -225,13 +222,20 @@ function UserFormModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
 export default function UsersPage() {
-  const router = useRouter()
+  return (
+    <RequireRole roles={['ADMIN']}>
+      <UsersPageContent />
+    </RequireRole>
+  )
+}
+
+function UsersPageContent() {
   const { user: currentUser } = useAuthStore()
   const { data: users = [], isLoading, error } = useUsers()
   const setUserActive = useSetUserActive()
@@ -239,11 +243,6 @@ export default function UsersPage() {
   const [formModal, setFormModal] = React.useState<{ mode: 'create' | 'edit'; initial: UserRecord | null } | null>(null)
   const [createdUser, setCreatedUser] = React.useState<CreatedUserRecord | null>(null)
   const [pendingToggleId, setPendingToggleId] = React.useState<string | null>(null)
-
-  // Admin-only page — this app has no route-level guard, so gate it here.
-  React.useEffect(() => {
-    if (currentUser && currentUser.role !== 'ADMIN') router.replace('/dashboard')
-  }, [currentUser, router])
 
   async function handleToggleActive(u: UserRecord) {
     setPendingToggleId(u.id)
@@ -253,8 +252,6 @@ export default function UsersPage() {
       setPendingToggleId(null)
     }
   }
-
-  if (currentUser && currentUser.role !== 'ADMIN') return null
 
   return (
     <div className="space-y-6">

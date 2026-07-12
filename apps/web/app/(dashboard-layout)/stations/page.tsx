@@ -16,15 +16,17 @@ import { saveDraft } from '@/lib/api/checklists'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth.store'
 import type { TransportMode, StationStatus, ResponsibleAgency } from '@repo/types'
-import { TRANSPORT_MODE_AGENCIES, TRANSPORT_MODES, RAIL_SUBTYPES, STATION_STATUSES } from '@repo/types'
-import type { CreateStationInput, StationRow, ParsedRow } from '@/lib/api/stations'
+import { TRANSPORT_MODE_AGENCIES, TRANSPORT_MODES, STATION_STATUSES } from '@repo/types'
+import type { StationRow, ParsedRow } from '@/lib/api/stations'
 import { batchOtpImport } from '@/lib/api/stations'
 import { parseOtpRows, detectOtpFormat } from '@/lib/otp-import'
 import type { OtpParsedRow, OtpParseResult } from '@/lib/otp-import'
 import { StatusBadge, ScoreBar } from '@/components/shared/badges'
 import { StationLocationPicker } from '@/components/maps/StationLocationPicker'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { INPUT_CLS, SELECT_CLS, ALL_VALUE } from '@/lib/ui-classes'
+import { FilterSelect } from '@/components/filters/filter-select'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { StationForm, StationCoordinateFields, type StationFormValue } from '@/components/stations/station-form'
+import { INPUT_CLS } from '@/lib/ui-classes'
 import {
   Search,
   Filter,
@@ -98,21 +100,17 @@ function ApproveButton({ stationId }: { stationId: string }) {
 // SELECT_TRIGGER_CLS has drifted from this one (py-1.5/text-xs vs py-2/text-sm).
 const FILTER_SELECT_TRIGGER_CLS = 'h-auto rounded-lg bg-background px-3 py-2 text-sm'
 
-interface EditStationForm {
-  nameTh: string
-  mode: TransportMode
-  railSubtype?: string
-  province: string
-  region: string
-  responsibleAgency: string
-  lat: number | null
-  lng: number | null
+// English name (`name`) is create-only — not part of StationFormValue's shared 8 fields —
+// so the create flow's local state extends it directly rather than routing through the
+// shared type. lat/lng nullable while typing; coerced to `number` only at submit time.
+interface SingleStationFormState extends StationFormValue {
+  name: string
 }
 
 function EditStationModal({ station, onClose }: { station: StationRow; onClose: () => void }) {
   const updateStation = useUpdateStation()
   const { data: filterOptions } = useStationFilterOptions()
-  const [form, setForm] = React.useState<EditStationForm>({
+  const [form, setForm] = React.useState<StationFormValue>({
     nameTh: station.nameTh,
     mode: station.mode,
     railSubtype: station.railSubtype,
@@ -125,7 +123,7 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
   const [error, setError] = React.useState('')
   const [saving, setSaving] = React.useState(false)
 
-  function patch(p: Partial<EditStationForm>) {
+  function patch(p: Partial<StationFormValue>) {
     setForm((f) => ({ ...f, ...p }))
   }
 
@@ -159,109 +157,20 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="bg-card themed-scrollbar max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl p-6 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent
+        className="themed-scrollbar max-h-[90vh] max-w-2xl overflow-y-auto"
+        onEscapeKeyDown={(e) => e.preventDefault()}
       >
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-foreground text-lg font-semibold">แก้ไขสถานี</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
-            <X size={18} />
-          </button>
-        </div>
+        <DialogTitle className="mb-6 text-lg">แก้ไขสถานี</DialogTitle>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="text-foreground mb-1 block text-xs font-medium">ชื่อสถานี (ภาษาไทย) *</label>
-            <input
-              className={INPUT_CLS}
-              value={form.nameTh}
-              onChange={(e) => patch({ nameTh: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-foreground mb-1 block text-xs font-medium">ประเภทการขนส่ง *</label>
-              <select
-                className={SELECT_CLS}
-                value={form.mode}
-                onChange={(e) => patch({ mode: e.target.value as TransportMode, railSubtype: undefined })}
-                required
-              >
-                {TRANSPORT_MODES.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {form.mode === 'ทางราง' && (
-              <div>
-                <label className="text-foreground mb-1 block text-xs font-medium">ประเภทย่อย</label>
-                <select
-                  className={SELECT_CLS}
-                  value={form.railSubtype ?? ''}
-                  onChange={(e) => patch({ railSubtype: e.target.value || undefined })}
-                >
-                  <option value="">ไม่ระบุ</option>
-                  {RAIL_SUBTYPES.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-foreground mb-1 block text-xs font-medium">จังหวัด *</label>
-              <input
-                className={INPUT_CLS}
-                value={form.province}
-                onChange={(e) => patch({ province: e.target.value })}
-                required
-              />
-            </div>
-            <div>
-              <label className="text-foreground mb-1 block text-xs font-medium">ภาค *</label>
-              <input
-                className={INPUT_CLS}
-                value={form.region}
-                list="edit-regions-list"
-                onChange={(e) => patch({ region: e.target.value })}
-                required
-              />
-              <datalist id="edit-regions-list">
-                {(filterOptions?.regions ?? []).map((r) => (
-                  <option key={r} value={r} />
-                ))}
-              </datalist>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-foreground mb-1 block text-xs font-medium">หน่วยงานรับผิดชอบ *</label>
-            <input
-              className={INPUT_CLS}
-              value={form.responsibleAgency}
-              list="edit-agencies-list"
-              onChange={(e) => patch({ responsibleAgency: e.target.value })}
-              required
-            />
-            <datalist id="edit-agencies-list">
-              {(filterOptions?.agencies ?? []).map((a) => (
-                <option key={a} value={a} />
-              ))}
-            </datalist>
-          </div>
+          <StationForm
+            value={form}
+            onChange={patch}
+            regionOptions={filterOptions?.regions ?? []}
+            agencyOptions={filterOptions?.agencies ?? []}
+          />
 
           <div>
             <label className="text-foreground mb-1 block text-xs font-medium">
@@ -276,28 +185,7 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-foreground mb-1 block text-xs font-medium">ละติจูด</label>
-              <input
-                type="number"
-                step="any"
-                className={INPUT_CLS}
-                value={form.lat ?? ''}
-                onChange={(e) => patch({ lat: e.target.value === '' ? null : parseFloat(e.target.value) })}
-              />
-            </div>
-            <div>
-              <label className="text-foreground mb-1 block text-xs font-medium">ลองจิจูด</label>
-              <input
-                type="number"
-                step="any"
-                className={INPUT_CLS}
-                value={form.lng ?? ''}
-                onChange={(e) => patch({ lng: e.target.value === '' ? null : parseFloat(e.target.value) })}
-              />
-            </div>
-          </div>
+          <StationCoordinateFields value={form} onChange={patch} requireCoordinates={false} />
           <p className="text-muted-foreground text-[11px]">
             การแก้ไขพิกัดด้วยตนเองจะทำเครื่องหมายตำแหน่งนี้เป็น &quot;ยืนยันแล้ว&quot; (coordStatus: OK)
           </p>
@@ -318,8 +206,8 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -441,18 +329,19 @@ export default function StationsPage() {
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const [sheetMode, setSheetMode] = React.useState<'single' | 'bulk'>('single')
 
-  // Single form
-  const emptyForm: CreateStationInput = {
+  // Single form — lat/lng are nullable while typing (StationCoordinateFields' contract);
+  // coerced to the API's required `number` only at submit time in handleSingleSubmit.
+  const emptyForm: SingleStationFormState = {
     nameTh: '',
     name: '',
     mode: 'ทางบก',
     province: '',
     region: '',
     responsibleAgency: '',
-    lat: 0,
-    lng: 0,
+    lat: null,
+    lng: null,
   }
-  const [form, setForm] = React.useState<CreateStationInput>(emptyForm)
+  const [form, setForm] = React.useState<SingleStationFormState>(emptyForm)
   const [formError, setFormError] = React.useState('')
   const [formSaving, setFormSaving] = React.useState(false)
 
@@ -469,15 +358,9 @@ export default function StationsPage() {
   const [otpUnknownCodes, setOtpUnknownCodes] = React.useState<string[]>([])
   const fileRef = React.useRef<HTMLInputElement>(null)
 
-  React.useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSheetOpen(false)
-    }
-    if (sheetOpen) window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [sheetOpen])
+  // Escape-to-close is now handled natively by Dialog (Radix) — no manual listener needed.
 
-  function patchForm(patch: Partial<CreateStationInput>) {
+  function patchForm(patch: Partial<SingleStationFormState>) {
     setForm((f) => ({ ...f, ...patch }))
   }
 
@@ -490,7 +373,7 @@ export default function StationsPage() {
     setFormError('')
     setFormSaving(true)
     try {
-      const station = await createStation.mutateAsync(form)
+      const station = await createStation.mutateAsync({ ...form, lat: form.lat ?? 0, lng: form.lng ?? 0 })
       const template = getChecklistTemplate(form.mode as TransportMode)
       await saveDraft(station.id, template)
       setForm(emptyForm)
@@ -769,10 +652,10 @@ export default function StationsPage() {
           </div>
           <div className="flex items-center gap-1.5">
             <Filter size={13} className="text-muted-foreground" />
-            <Select
-              value={typeFilter || ALL_VALUE}
-              onValueChange={(v) => {
-                const next = v === ALL_VALUE ? '' : (v as TransportMode)
+            <FilterSelect
+              value={typeFilter}
+              onChange={(v) => {
+                const next = v as TransportMode | ''
                 setTypeFilter(next)
                 setPage(1)
                 if (
@@ -783,56 +666,34 @@ export default function StationsPage() {
                   setAgencyFilter('')
                 }
               }}
-            >
-              <SelectTrigger className={FILTER_SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_VALUE}>ประเภทการขนส่ง</SelectItem>
-                {availableModes.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              options={availableModes.map((t) => ({ value: t, label: t }))}
+              allLabel="ประเภทการขนส่ง"
+              triggerClassName={FILTER_SELECT_TRIGGER_CLS}
+            />
           </div>
-          <Select
-            value={statusFilter || ALL_VALUE}
-            onValueChange={(v) => {
-              setStatusFilter(v === ALL_VALUE ? '' : (v as StationStatus))
+          <FilterSelect
+            value={statusFilter}
+            onChange={(v) => {
+              setStatusFilter(v as StationStatus | '')
               setPage(1)
             }}
-          >
-            <SelectTrigger className={FILTER_SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_VALUE}>สถานะทั้งหมด</SelectItem>
-              {STATION_STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={regionFilter || ALL_VALUE}
-            onValueChange={(v) => {
-              setRegionFilter(v === ALL_VALUE ? '' : v)
+            options={STATION_STATUSES.map((s) => ({ value: s, label: s }))}
+            allLabel="สถานะทั้งหมด"
+            triggerClassName={FILTER_SELECT_TRIGGER_CLS}
+          />
+          <FilterSelect
+            value={regionFilter}
+            onChange={(v) => {
+              setRegionFilter(v)
               setPage(1)
             }}
-          >
-            <SelectTrigger className={FILTER_SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_VALUE}>ทุกภาค</SelectItem>
-              {(filterOptions?.regions ?? []).map((r) => (
-                <SelectItem key={r} value={r}>
-                  {r}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={agencyFilter || ALL_VALUE}
-            onValueChange={(v) => {
-              const next = v === ALL_VALUE ? '' : v
+            options={(filterOptions?.regions ?? []).map((r) => ({ value: r, label: r }))}
+            allLabel="ทุกภาค"
+            triggerClassName={FILTER_SELECT_TRIGGER_CLS}
+          />
+          <FilterSelect
+            value={agencyFilter}
+            onChange={(next) => {
               setAgencyFilter(next)
               setPage(1)
               if (typeFilter && next) {
@@ -844,17 +705,10 @@ export default function StationsPage() {
                 if (!modesForAgency.includes(typeFilter)) setTypeFilter('')
               }
             }}
-          >
-            <SelectTrigger className={FILTER_SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_VALUE}>ทุกหน่วยงาน</SelectItem>
-              {availableAgencies.map((a) => (
-                <SelectItem key={a} value={a}>
-                  {a}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={availableAgencies.map((a) => ({ value: a, label: a }))}
+            allLabel="ทุกหน่วยงาน"
+            triggerClassName={FILTER_SELECT_TRIGGER_CLS}
+          />
           {hasFilters && (
             <button
               onClick={clearFilters}
@@ -1046,25 +900,9 @@ export default function StationsPage() {
       </div>
 
       {/* Add Station Modal */}
-      {sheetOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-          onClick={() => setSheetOpen(false)}
-        >
-          <div
-            className="bg-card themed-scrollbar max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl p-6 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-foreground text-lg font-semibold">เพิ่มสถานี</h2>
-              <button
-                onClick={() => setSheetOpen(false)}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
+      <Dialog open={sheetOpen} onOpenChange={setSheetOpen}>
+        <DialogContent className="themed-scrollbar max-h-[90vh] max-w-xl overflow-y-auto">
+          <DialogTitle className="mb-6 text-lg">เพิ่มสถานี</DialogTitle>
 
             {/* Mode toggle */}
             <div className="mb-6 flex gap-2">
@@ -1111,125 +949,20 @@ export default function StationsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-foreground mb-1 block text-xs font-medium">
-                      ประเภทการขนส่ง *
-                    </label>
-                    <select
-                      className={SELECT_CLS}
-                      value={form.mode}
-                      onChange={(e) => patchForm({ mode: e.target.value, railSubtype: undefined })}
-                      required
-                    >
-                      {TRANSPORT_MODES.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {form.mode === 'ทางราง' && (
-                    <div>
-                      <label className="text-foreground mb-1 block text-xs font-medium">
-                        ประเภทย่อย
-                      </label>
-                      <select
-                        className={SELECT_CLS}
-                        value={form.railSubtype ?? ''}
-                        onChange={(e) => patchForm({ railSubtype: e.target.value || undefined })}
-                      >
-                        <option value="">ไม่ระบุ</option>
-                        {RAIL_SUBTYPES.map((r) => (
-                          <option key={r} value={r}>
-                            {r}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
+                <StationForm
+                  value={form}
+                  onChange={patchForm}
+                  hideNameTh
+                  placeholders={{ province: 'กรุงเทพมหานคร', region: 'กลาง', responsibleAgency: 'รฟท.' }}
+                  regionOptions={filterOptions?.regions ?? []}
+                  agencyOptions={filterOptions?.agencies ?? []}
+                />
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-foreground mb-1 block text-xs font-medium">
-                      จังหวัด *
-                    </label>
-                    <input
-                      className={INPUT_CLS}
-                      value={form.province}
-                      onChange={(e) => patchForm({ province: e.target.value })}
-                      placeholder="กรุงเทพมหานคร"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-foreground mb-1 block text-xs font-medium">ภาค *</label>
-                    <input
-                      className={INPUT_CLS}
-                      value={form.region}
-                      list="regions-list"
-                      onChange={(e) => patchForm({ region: e.target.value })}
-                      placeholder="กลาง"
-                      required
-                    />
-                    <datalist id="regions-list">
-                      {(filterOptions?.regions ?? []).map((r) => (
-                        <option key={r} value={r} />
-                      ))}
-                    </datalist>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-foreground mb-1 block text-xs font-medium">
-                    หน่วยงานรับผิดชอบ *
-                  </label>
-                  <input
-                    className={INPUT_CLS}
-                    value={form.responsibleAgency}
-                    list="agencies-list"
-                    onChange={(e) => patchForm({ responsibleAgency: e.target.value })}
-                    placeholder="รฟท."
-                    required
-                  />
-                  <datalist id="agencies-list">
-                    {(filterOptions?.agencies ?? []).map((a) => (
-                      <option key={a} value={a} />
-                    ))}
-                  </datalist>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-foreground mb-1 block text-xs font-medium">
-                      ละติจูด *
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      className={INPUT_CLS}
-                      value={form.lat || ''}
-                      onChange={(e) => patchForm({ lat: parseFloat(e.target.value) || 0 })}
-                      placeholder="13.7563"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-foreground mb-1 block text-xs font-medium">
-                      ลองจิจูด *
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      className={INPUT_CLS}
-                      value={form.lng || ''}
-                      onChange={(e) => patchForm({ lng: parseFloat(e.target.value) || 0 })}
-                      placeholder="100.5018"
-                      required
-                    />
-                  </div>
-                </div>
+                <StationCoordinateFields
+                  value={form}
+                  onChange={patchForm}
+                  placeholders={{ lat: '13.7563', lng: '100.5018' }}
+                />
 
                 {formError && <p className="text-destructive text-xs">{formError}</p>}
 
@@ -1409,9 +1142,8 @@ export default function StationsPage() {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Station Modal */}
       {editStation && (

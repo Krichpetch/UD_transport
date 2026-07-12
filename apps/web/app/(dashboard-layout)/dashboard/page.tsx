@@ -1,18 +1,15 @@
 'use client'
 
 import * as React from 'react'
-import { useQueries } from '@tanstack/react-query'
 import { getTransportLabel, CHECKLIST_CATEGORIES, checklistTemplates } from '@/lib/constants'
-import { getLatestChecklist } from '@/lib/api/checklists'
-import { useStations, useStationSummary } from '@/hooks/use-stations'
+import { useStationSummary, useStationMetrics, useStationMapNodes } from '@/hooks/use-stations'
 import { StatusBadge, TransportBadge } from '@/components/shared/badges'
-import type { TransportMode, ChecklistSubItem, ChecklistGroup, Station } from '@repo/types'
+import type { TransportMode, ChecklistSubItem, Station } from '@repo/types'
 import { TRANSPORT_MODES } from '@repo/types'
 import { StationBarChart } from '@/components/charts/StationBarChart'
 import { ThailandMap } from '@/components/maps/ThailandMap'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ALL_VALUE } from '@/lib/ui-classes'
+import { FilterSelect } from '@/components/filters/filter-select'
 import {
   TrendingUp, TrendingDown, Building2, CheckCircle2, AlertTriangle,
   XCircle, AlertCircle, Filter, X, Loader2, Maximize2,
@@ -38,8 +35,8 @@ const SELECT_TRIGGER_CLS = 'h-auto rounded-lg bg-background px-3 py-1.5 text-xs'
 
 export default function DashboardPage() {
   const { data: summary } = useStationSummary()
-  const { data: stationsPage } = useStations({ limit: 9999 })
-  const stations: Station[] = stationsPage?.data ?? []
+  const { data: mapNodes } = useStationMapNodes()
+  const stations: Station[] = mapNodes ?? []
 
   const [modeFilter,     setModeFilter]     = React.useState<TransportMode | ''>('')
   const [regionFilter,   setRegionFilter]   = React.useState('')
@@ -118,50 +115,20 @@ export default function DashboardPage() {
   const tablePageCount = Math.max(1, Math.ceil(filteredStations.length / PAGE_SIZE))
   const pagedStations  = filteredStations.slice((tablePage - 1) * PAGE_SIZE, tablePage * PAGE_SIZE)
 
-  const checklistQueries = useQueries({
-    queries: subItemFilter
-      ? filteredStations.map(s => ({
-          queryKey: ['checklist', s.id] as const,
-          queryFn: () => getLatestChecklist(s.id),
-        }))
-      : [],
-  })
-
-  const metrics = React.useMemo(() => {
-    if (!subItemFilter || checklistQueries.length === 0) return null
-    if (checklistQueries.some(q => q.isLoading)) return null
-
-    let total = filteredStations.length
-    let hasItem = 0
-    let meetsStd = 0
-
-    for (const q of checklistQueries) {
-      const record = q.data
-      if (!record?.items) continue
-      let found: ChecklistSubItem | undefined
-      for (const group of record.items as ChecklistGroup[]) {
-        const sub = group.items.find(si => si.id === subItemFilter)
-        if (sub) { found = sub; break }
-      }
-      if (!found) continue
-      if (found.value === 'N/A') { total--; continue }
-      if (found.value === 'มี') {
-        hasItem++
-        if (found.meetsStandard) meetsStd++
-      }
-    }
-
-    return {
-      total,
-      hasItem,
-      meetsStd,
-      pctSuccess: total > 0 ? (meetsStd / total) * 100 : 0,
-      pctHas:     total > 0 ? (hasItem / total) * 100 : 0,
-      pctStd:     hasItem > 0 ? (meetsStd / hasItem) * 100 : 0,
-    }
-  }, [subItemFilter, checklistQueries, filteredStations.length])
-
-  const metricsLoading = subItemFilter && checklistQueries.some(q => q.isLoading)
+  // Server-side aggregation (StationsService.computeMetrics) — replaces the old per-station
+  // useQueries fan-out. Same filter set as filteredStations, plus subItem.
+  const metricsQuery = useStationMetrics(
+    {
+      mode:              modeFilter,
+      region:            regionFilter,
+      province:          provinceFilter,
+      responsibleAgency: agencyFilter,
+      subItem:           subItemFilter,
+    },
+    !!subItemFilter,
+  )
+  const metrics        = metricsQuery.data
+  const metricsLoading = !!subItemFilter && metricsQuery.isLoading
   const selectedSubItem = subItemOptions.find(si => si.id === subItemFilter)
 
   return (
@@ -179,78 +146,59 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-center gap-2">
           <Filter size={13} className="text-muted-foreground shrink-0" />
 
-          <Select
-            value={modeFilter || ALL_VALUE}
-            onValueChange={v => setModeFilter(v === ALL_VALUE ? '' : (v as TransportMode))}
-          >
-            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_VALUE}>ประเภทการขนส่ง</SelectItem>
-              {TRANSPORT_MODES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <FilterSelect
+            value={modeFilter}
+            onChange={v => setModeFilter(v as TransportMode | '')}
+            options={TRANSPORT_MODES.map(m => ({ value: m, label: m }))}
+            allLabel="ประเภทการขนส่ง"
+            triggerClassName={SELECT_TRIGGER_CLS}
+          />
 
-          <Select
-            value={regionFilter || ALL_VALUE}
-            onValueChange={v => setRegionFilter(v === ALL_VALUE ? '' : v)}
-          >
-            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_VALUE}>ทุกภาค</SelectItem>
-              {REGIONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <FilterSelect
+            value={regionFilter}
+            onChange={setRegionFilter}
+            options={REGIONS.map(r => ({ value: r, label: r }))}
+            allLabel="ทุกภาค"
+            triggerClassName={SELECT_TRIGGER_CLS}
+          />
 
           {PROVINCES.length > 0 && (
-            <Select
-              value={provinceFilter || ALL_VALUE}
-              onValueChange={v => setProvinceFilter(v === ALL_VALUE ? '' : v)}
-            >
-              <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_VALUE}>ทุกจังหวัด</SelectItem>
-                {PROVINCES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <FilterSelect
+              value={provinceFilter}
+              onChange={setProvinceFilter}
+              options={PROVINCES.map(p => ({ value: p, label: p }))}
+              allLabel="ทุกจังหวัด"
+              triggerClassName={SELECT_TRIGGER_CLS}
+            />
           )}
 
-          <Select
-            value={agencyFilter || ALL_VALUE}
-            onValueChange={v => setAgencyFilter(v === ALL_VALUE ? '' : v)}
-          >
-            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_VALUE}>ทุกหน่วยงาน</SelectItem>
-              {AGENCIES.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <FilterSelect
+            value={agencyFilter}
+            onChange={setAgencyFilter}
+            options={AGENCIES.map(a => ({ value: a, label: a }))}
+            allLabel="ทุกหน่วยงาน"
+            triggerClassName={SELECT_TRIGGER_CLS}
+          />
 
-          <Select
-            value={categoryFilter || ALL_VALUE}
-            onValueChange={v => setCategoryFilter(v === ALL_VALUE ? '' : (v as 'A' | 'B' | 'C'))}
-          >
-            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_VALUE}>ทุกหมวดรายการ</SelectItem>
-              {CHECKLIST_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <FilterSelect
+            value={categoryFilter}
+            onChange={v => setCategoryFilter(v as 'A' | 'B' | 'C' | '')}
+            options={CHECKLIST_CATEGORIES.map(c => ({ value: c.value, label: c.label }))}
+            allLabel="ทุกหมวดรายการ"
+            triggerClassName={SELECT_TRIGGER_CLS}
+          />
 
           {categoryFilter && subItemOptions.length > 0 && (
-            <Select
-              value={subItemFilter || ALL_VALUE}
-              onValueChange={v => setSubItemFilter(v === ALL_VALUE ? '' : v)}
-            >
-              <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_VALUE}>รายการย่อย</SelectItem>
-                {subItemOptions.map(si => (
-                  <SelectItem key={si.id} value={si.id}>
-                    {si.id} {si.labelTh}{si.cabinetPriority ? ' ★' : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <FilterSelect
+              value={subItemFilter}
+              onChange={setSubItemFilter}
+              options={subItemOptions.map(si => ({
+                value: si.id,
+                label: `${si.id} ${si.labelTh}${si.cabinetPriority ? ' ★' : ''}`,
+              }))}
+              allLabel="รายการย่อย"
+              triggerClassName={SELECT_TRIGGER_CLS}
+            />
           )}
 
           {hasFilters && (
@@ -286,35 +234,25 @@ export default function DashboardPage() {
           ) : metrics ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="border-border divide-border divide-y rounded-lg border px-4 py-2">
-                <MetricRow label="3.1 จำนวนสถานีทั้งหมด" value={metrics.total} />
-                <MetricRow label="3.2 สถานีที่มีรายการดังกล่าว" value={metrics.hasItem} />
-                <MetricRow label="3.3 สถานีที่ได้มาตรฐาน" value={metrics.meetsStd} />
+                <MetricRow label="3.1 จำนวนสถานีทั้งหมด" value={metrics.metrics.total} />
+                <MetricRow label="3.2 สถานีที่มีรายการดังกล่าว" value={metrics.metrics.hasItem} />
+                <MetricRow label="3.3 สถานีที่ได้มาตรฐาน" value={metrics.metrics.meetsStandard} />
               </div>
               <div className="border-border divide-border divide-y rounded-lg border px-4 py-2">
-                <MetricRow label="3.4 ร้อยละความสำเร็จ" value={metrics.meetsStd} pct={metrics.pctSuccess} />
-                <MetricRow label="3.5 ร้อยละการจัดให้มีฯ" value={metrics.hasItem} pct={metrics.pctHas} />
-                <MetricRow label="3.6 ร้อยละการได้มาตรฐาน" value={metrics.meetsStd} pct={metrics.pctStd} />
+                <MetricRow label="3.4 ร้อยละความสำเร็จ" value={metrics.metrics.meetsStandard} pct={metrics.metrics.pctSuccess} />
+                <MetricRow label="3.5 ร้อยละการจัดให้มีฯ" value={metrics.metrics.hasItem} pct={metrics.metrics.pctHasFacility} />
+                <MetricRow label="3.6 ร้อยละการได้มาตรฐาน" value={metrics.metrics.meetsStandard} pct={metrics.metrics.pctMeetsStandard} />
               </div>
               <div className="border-border rounded-lg border px-4 py-3 sm:col-span-2 lg:col-span-1">
                 <p className="text-muted-foreground mb-2 text-[10px] font-medium uppercase tracking-wide">
-                  สถานีที่ยังไม่ได้มาตรฐาน ({metrics.hasItem - metrics.meetsStd})
+                  สถานีที่ยังไม่ได้มาตรฐาน ({metrics.failingStations.length})
                 </p>
                 <div className="themed-scrollbar max-h-28 space-y-1 overflow-y-auto">
-                  {checklistQueries
-                    .map((q, i) => ({ q, s: filteredStations[i]! }))
-                    .filter(({ q }) => {
-                      if (!q.data?.items) return false
-                      for (const group of q.data.items as ChecklistGroup[]) {
-                        const sub = group.items.find(si => si.id === subItemFilter)
-                        if (sub && sub.value === 'มี' && !sub.meetsStandard) return true
-                      }
-                      return false
-                    })
-                    .map(({ s }) => (
-                      <p key={s.id} className="text-foreground text-[10px]">
-                        · {s.nameTh} <span className="text-muted-foreground">({s.province})</span>
-                      </p>
-                    ))}
+                  {metrics.failingStations.map(s => (
+                    <p key={s.id} className="text-foreground text-[10px]">
+                      · {s.nameTh} <span className="text-muted-foreground">({s.province})</span>
+                    </p>
+                  ))}
                 </div>
               </div>
             </div>

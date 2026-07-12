@@ -91,6 +91,59 @@ export function getStationSummary() {
   return api.get<KpiSummary>('/stations/summary')
 }
 
+export interface FacilityMetrics {
+  total: number
+  hasItem: number
+  meetsStandard: number
+  pctSuccess: number
+  pctHasFacility: number
+  pctMeetsStandard: number
+}
+
+export interface FailingStation {
+  id: string
+  nameTh: string
+  province: string
+}
+
+export interface StationMetricsResponse {
+  totalStations: number
+  evaluatedStations: number
+  metrics: FacilityMetrics
+  appliedFilters: Record<string, string | undefined>
+  failingStations: FailingStation[]
+}
+
+export interface StationMetricsFilters {
+  mode?: TransportMode | ''
+  railSubtype?: string
+  region?: string
+  province?: string
+  responsibleAgency?: string
+  subItem?: string
+  from?: string
+  to?: string
+}
+
+export function getStationMetrics(filters: StationMetricsFilters) {
+  const params = new URLSearchParams()
+  if (filters.mode)              params.set('mode',              filters.mode)
+  if (filters.railSubtype)       params.set('railSubtype',       filters.railSubtype)
+  if (filters.region)            params.set('region',            filters.region)
+  if (filters.province)          params.set('province',          filters.province)
+  if (filters.responsibleAgency) params.set('responsibleAgency', filters.responsibleAgency)
+  if (filters.subItem)           params.set('subItem',           filters.subItem)
+  if (filters.from)              params.set('from',              filters.from)
+  if (filters.to)                params.set('to',                filters.to)
+  return api.get<StationMetricsResponse>(`/stations/metrics?${params}`)
+}
+
+// Slim uncapped projection for the dashboard's map/table/filter-dropdown/urgent-issues
+// panels — see StationsService.findMapNodes for why this is exempt from findAll()'s cap.
+export function getStationMapNodes() {
+  return api.get<Station[]>('/stations/map-nodes')
+}
+
 export function createStation(data: CreateStationInput) {
   return api.post<Station>('/stations', data)
 }

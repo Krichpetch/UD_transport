@@ -6,7 +6,12 @@ import { CreateStationDto } from './dto/create-station.dto'
 import { UpdateStationDto } from './dto/update-station.dto'
 import { OtpRowDto } from './dto/otp-row.dto'
 import { computeScoreFromItems, scoreToStatus, hasReviewFlag } from '../checklists/scoring'
-import type { ChecklistGroup } from '@repo/types'
+import { computeFacilityMetrics } from '@repo/types'
+import type { ChecklistGroup, ChecklistSubItem } from '@repo/types'
+
+// Same "latest checklist" selection ChecklistsService.findLatest() uses for a single station —
+// any of these three statuses, most recent by submittedAt wins. DRAFT is excluded.
+const LATEST_CHECKLIST_STATUSES = ['SUBMITTED', 'APPROVED', 'REJECTED'] as const
 
 // batchOtpImport: rows are prefetched/processed in fixed-size chunks (see method doc).
 const OTP_IMPORT_CHUNK_SIZE = 50
@@ -524,6 +529,120 @@ export class StationsService {
       if (!prev || cl.submittedAt > prev.submittedAt!) byYear.set(key, cl)
     }
     return [...byYear.values()]
+  }
+
+  // Bounded aggregation for the executive/admin dashboard's facility-metrics panel — exactly
+  // 2 Prisma queries regardless of how many stations match, replacing the old client-side
+  // useQueries-per-station fan-out (1 + N requests). See metrics-aggregation.spec.ts for the
+  // missing-data convention (a station with no checklist, or whose latest checklist doesn't
+  // contain the requested sub-item, contributes nothing — it's dropped, not counted as ไม่มี).
+  async computeMetrics(filters: {
+    mode?: string
+    railSubtype?: string
+    region?: string
+    province?: string
+    responsibleAgency?: string
+    subItem?: string
+    from?: string
+    to?: string
+  }) {
+    const stationWhere = {
+      ...(filters.mode              && { mode:              filters.mode }),
+      ...(filters.railSubtype       && { railSubtype:       filters.railSubtype }),
+      ...(filters.region            && { region:            filters.region }),
+      ...(filters.province          && { province:          filters.province }),
+      ...(filters.responsibleAgency && { responsibleAgency: filters.responsibleAgency }),
+    }
+
+    const stations = await this.prisma.station.findMany({
+      where: stationWhere,
+      select: { id: true, nameTh: true, province: true },
+    })
+    const totalStations = stations.length
+
+    if (totalStations === 0) {
+      return {
+        totalStations: 0,
+        evaluatedStations: 0,
+        metrics: computeFacilityMetrics([]),
+        appliedFilters: filters,
+        failingStations: [],
+      }
+    }
+    const stationById = new Map(stations.map(s => [s.id, s]))
+
+    // DISTINCT ON (stationId) ORDER BY stationId, submittedAt DESC — one row per station, the
+    // most recently submitted of SUBMITTED/APPROVED/REJECTED. One query for any station count.
+    const checklists = await this.prisma.checklist.findMany({
+      where: {
+        stationId: { in: stations.map(s => s.id) },
+        status: { in: [...LATEST_CHECKLIST_STATUSES] },
+        ...((filters.from || filters.to) && {
+          submittedAt: {
+            ...(filters.from && { gte: new Date(filters.from) }),
+            ...(filters.to   && { lte: new Date(filters.to) }),
+          },
+        }),
+      },
+      select: { stationId: true, items: true },
+      distinct: ['stationId'],
+      orderBy: [{ stationId: 'asc' }, { submittedAt: 'desc' }],
+    })
+
+    const collected: ChecklistSubItem[] = []
+    // Only meaningful (and only populated) when subItem is set — the per-station names behind
+    // the aggregate "has the item but isn't standard yet" count, for the dashboard's drill-down
+    // list. Mirrors the old client-side fan-out's equivalent list exactly.
+    const failingStations: { id: string; nameTh: string; province: string }[] = []
+    let evaluatedStations = 0
+    for (const cl of checklists) {
+      const groups = cl.items as unknown as ChecklistGroup[]
+      if (!Array.isArray(groups)) continue
+
+      if (filters.subItem) {
+        let found: ChecklistSubItem | undefined
+        for (const g of groups) {
+          found = g.items?.find(it => it.id === filters.subItem)
+          if (found) break
+        }
+        if (found) {
+          collected.push(found)
+          evaluatedStations++
+          if (found.value === 'มี' && !found.meetsStandard && !found.flagged) {
+            const station = stationById.get(cl.stationId)
+            if (station) failingStations.push(station)
+          }
+        }
+      } else {
+        for (const g of groups) collected.push(...(g.items ?? []))
+        evaluatedStations++
+      }
+    }
+
+    return {
+      totalStations,
+      evaluatedStations,
+      metrics: computeFacilityMetrics([{ groupId: 'agg', groupName: 'agg', items: collected }]),
+      appliedFilters: filters,
+      failingStations,
+    }
+  }
+
+  // Slim scalar-only projection (no checklist join, no JSON blobs) for the dashboard's map/
+  // table/filter-dropdown/urgent-issues panels — deliberately exempt from findAll()'s 100-row
+  // cap (Session 1, 4.1). Cheap enough per row that returning every station in one shot is
+  // fine; what must never happen is the dashboard silently rendering a truncated subset.
+  findMapNodes() {
+    return this.prisma.station.findMany({
+      select: {
+        id: true, name: true, nameTh: true, mode: true, railSubtype: true,
+        province: true, region: true, responsibleAgency: true,
+        lat: true, lng: true, coordSource: true, coordStatus: true,
+        scope: true, isOperational: true, score: true, status: true,
+        lastInspected: true, urgentIssues: true,
+      },
+      orderBy: { nameTh: 'asc' },
+    })
   }
 
   async summary() {

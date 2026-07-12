@@ -7,7 +7,7 @@ import { useChecklist } from '@/hooks/use-checklists'
 import { useApproveChecklist, useRejectChecklist, useSetItemFlag } from '@/hooks/use-stations'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ChecklistGroup, ChecklistSubItem } from '@repo/types'
-import { computeScoreFromItems, buildHistogram } from '@repo/types'
+import { buildHistogram, computeFacilityMetrics } from '@repo/types'
 import {
   ChevronLeft,
   Flag,
@@ -219,21 +219,19 @@ export default function StationChecklistPage({
     }
   }
 
-  // ── Derived stats — same computeScoreFromItems/buildHistogram used server-side,
+  // ── Derived stats — same computeFacilityMetrics/buildHistogram used server-side,
   // so this page always matches the stored station.score exactly (Phase 0 fix). ──
   const allItems  = groups.flatMap(g => g.items)
   const histogram = buildHistogram(groups)
-  const T             = histogram.hasStandard + histogram.hasSubstandard + histogram.none
-  const miCount       = histogram.hasStandard + histogram.hasSubstandard
-  const standardCount = histogram.hasStandard
+  const facility  = computeFacilityMetrics(groups)
   const maiMiCount    = histogram.none
   const naCount       = histogram.na
   const flaggedCount  = allItems.filter(i => i.reviewFlag).length
 
   // 6 metrics per CLAUDE.md
-  const pctSuccess       = computeScoreFromItems(groups)
-  const pctHasFacility   = T > 0       ? Math.round((miCount / T) * 100) : 0
-  const pctMeetsStandard = miCount > 0 ? Math.round((standardCount / miCount) * 100) : 0
+  const pctSuccess       = Math.round(facility.pctSuccess)
+  const pctHasFacility   = Math.round(facility.pctHasFacility)
+  const pctMeetsStandard = Math.round(facility.pctMeetsStandard)
 
   function toggleGroup(groupId: string) {
     setOpenGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }))
@@ -452,9 +450,9 @@ export default function StationChecklistPage({
             {/* 6 metrics per CLAUDE.md */}
             <div className="space-y-2.5 text-xs border-t border-border pt-4">
               {[
-                { label: 'จำนวนรายการ (ไม่รวม N/A)', value: T,                   color: 'text-foreground' },
-                { label: 'จำนวนรายการที่มีสิ่งอำนวยฯ', value: miCount,           color: 'text-blue-600' },
-                { label: 'จำนวนรายการที่ได้มาตรฐาน',   value: standardCount,     color: 'text-[#52aa4e]' },
+                { label: 'จำนวนรายการ (ไม่รวม N/A)', value: facility.total,          color: 'text-foreground' },
+                { label: 'จำนวนรายการที่มีสิ่งอำนวยฯ', value: facility.hasItem,        color: 'text-blue-600' },
+                { label: 'จำนวนรายการที่ได้มาตรฐาน',   value: facility.meetsStandard,  color: 'text-[#52aa4e]' },
                 { label: 'ร้อยละความสำเร็จ',             value: `${pctSuccess}%`,       color: 'text-[#52aa4e]' },
                 { label: 'ร้อยละการจัดให้มีสิ่งอำนวยฯ', value: `${pctHasFacility}%`,   color: 'text-blue-600' },
                 { label: 'ร้อยละการได้มาตรฐาน',          value: `${pctMeetsStandard}%`, color: 'text-[#52aa4e]' },

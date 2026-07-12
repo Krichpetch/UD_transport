@@ -6,6 +6,7 @@ import { SidebarProvider } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppSidebar } from '@/components/sidebar/AppSidebar'
 import { AppNavbar } from '@/components/navbar/AppNavbar'
+import { RequireRole } from '@/components/auth/require-role'
 import { useAuthStore, useAuthHasHydrated } from '@/stores/auth.store'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -20,16 +21,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!hydrated || !token) return null
 
   return (
-    <TooltipProvider>
-      <SidebarProvider style={{ '--sidebar-width-icon': '4rem' } as React.CSSProperties}>
-        <AppSidebar />
-        <div className="flex min-h-screen w-full flex-col">
-          <AppNavbar />
-          <main className="flex-1 p-6">
-            {children}
-          </main>
-        </div>
-      </SidebarProvider>
-    </TooltipProvider>
+    <RequireRole roles={['ADMIN', 'EXECUTIVE']} redirectTo="/audit">
+      <TooltipProvider>
+        <SidebarProvider style={{ '--sidebar-width-icon': '4rem' } as React.CSSProperties}>
+          <AppSidebar />
+          <div className="flex min-h-screen w-full flex-col">
+            <AppNavbar />
+            <main className="flex-1 p-6">
+              {children}
+            </main>
+          </div>
+        </SidebarProvider>
+      </TooltipProvider>
+    </RequireRole>
   )
 }

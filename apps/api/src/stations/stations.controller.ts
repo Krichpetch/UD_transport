@@ -4,6 +4,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  NotImplementedException,
   Param,
   Patch,
   Post,
@@ -19,6 +20,7 @@ import { StationsService } from './stations.service'
 import { CreateStationDto } from './dto/create-station.dto'
 import { UpdateStationDto } from './dto/update-station.dto'
 import { BatchOtpDto } from './dto/otp-row.dto'
+import { MetricsQueryDto } from './dto/metrics-query.dto'
 
 interface AuthRequest extends Request {
   user: { id: string; username: string; role: string }
@@ -36,6 +38,30 @@ export class StationsController {
   summary(@Req() req: AuthRequest) {
     if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE') throw new ForbiddenException()
     return this.stations.summary()
+  }
+
+  // Must come before @Get(':id') to avoid route conflict.
+  @Get('metrics')
+  metrics(@Query() query: MetricsQueryDto, @Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE') throw new ForbiddenException()
+    if (query.cabinetApproved !== undefined) {
+      // TODO(executive-dashboard): wire when มติครม. field lands on Station.
+      throw new NotImplementedException({
+        code: 'CABINET_APPROVED_NOT_IMPLEMENTED',
+        message: 'ยังไม่รองรับการกรองตามมติ ครม. ในขณะนี้',
+      })
+    }
+    const { cabinetApproved: _cabinetApproved, ...filters } = query
+    return this.stations.computeMetrics(filters)
+  }
+
+  // Must come before @Get(':id') to avoid route conflict.
+  // Slim uncapped station list for the dashboard's map/table/filters — see
+  // StationsService.findMapNodes for why this is exempt from findAll()'s 100-row cap.
+  @Get('map-nodes')
+  mapNodes(@Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE') throw new ForbiddenException()
+    return this.stations.findMapNodes()
   }
 
   // Must come before @Get(':id') to avoid route conflict

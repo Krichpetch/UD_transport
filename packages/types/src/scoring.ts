@@ -52,6 +52,34 @@ export interface ValueHistogram {
   total:               number
 }
 
+// The six สนข.-spec metrics (CLAUDE.md "Scoring formulas"), derived from buildHistogram's
+// canonical bucketing — never re-derive value/flagged eligibility rules here directly.
+// Bare-มี (standardUnspecified) and unanswered (nullOrOther) are excluded from every field
+// below, same as N/A: eligible = hasStandard + hasSubstandard + none only.
+export interface FacilityMetrics {
+  total:             number  // 3.1 จำนวนรายการทั้งหมด (ไม่รวม N/A / bare-มี / unanswered)
+  hasItem:           number  // 3.2 จำนวนรายการที่มีสิ่งอำนวยความสะดวก
+  meetsStandard:     number  // 3.3 จำนวนรายการที่ได้มาตรฐาน
+  pctSuccess:        number  // 3.4 ร้อยละความสำเร็จ — unrounded; callers format for display
+  pctHasFacility:    number  // 3.5 ร้อยละการจัดให้มีสิ่งอำนวยความสะดวก
+  pctMeetsStandard:  number  // 3.6 ร้อยละการได้มาตรฐาน
+}
+
+export function computeFacilityMetrics(items: unknown): FacilityMetrics {
+  const h = buildHistogram(items)
+  const total         = h.hasStandard + h.hasSubstandard + h.none
+  const hasItem       = h.hasStandard + h.hasSubstandard
+  const meetsStandard = h.hasStandard
+  return {
+    total,
+    hasItem,
+    meetsStandard,
+    pctSuccess:       total   > 0 ? (meetsStandard / total)   * 100 : 0,
+    pctHasFacility:   total   > 0 ? (hasItem / total)          * 100 : 0,
+    pctMeetsStandard: hasItem > 0 ? (meetsStandard / hasItem)  * 100 : 0,
+  }
+}
+
 export function buildHistogram(items: unknown): ValueHistogram {
   const h: ValueHistogram = {
     hasStandard: 0, hasSubstandard: 0, standardUnspecified: 0,

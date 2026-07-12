@@ -12,9 +12,12 @@ import {
   approveChecklist,
   rejectChecklist,
   setItemFlag,
+  getStationMetrics,
+  getStationMapNodes,
   type CreateStationInput,
   type UpdateStationInput,
   type StationFilters,
+  type StationMetricsFilters,
 } from '@/lib/api/stations'
 
 export function useStations(filters?: StationFilters) {
@@ -59,6 +62,24 @@ export function useStationSummary() {
   return useQuery({
     queryKey: ['stations', 'summary'],
     queryFn:  getStationSummary,
+  })
+}
+
+// Server-side facility-metrics aggregation — replaces the old per-station useQueries fan-out.
+// Only meaningful once a sub-item is picked, but the endpoint accepts the call unconditionally.
+export function useStationMetrics(filters: StationMetricsFilters, enabled: boolean) {
+  return useQuery({
+    queryKey: ['stations', 'metrics', filters],
+    queryFn:  () => getStationMetrics(filters),
+    enabled,
+  })
+}
+
+// Slim uncapped station list for the dashboard's map/table/filters (findAll() is capped at 100).
+export function useStationMapNodes() {
+  return useQuery({
+    queryKey: ['stations', 'map-nodes'],
+    queryFn:  getStationMapNodes,
   })
 }
 
