@@ -261,7 +261,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
               </div>
 
               {/* Mode chips */}
-              <div className="flex gap-2 overflow-x-auto bg-white px-4 pb-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex gap-2 overflow-x-auto bg-white px-4 pb-3 [scrollbar-none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 {MODE_TABS.map((modeTab) => (
                   <button
                     key={modeTab.value}
