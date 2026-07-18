@@ -20,6 +20,12 @@ enum ChecklistStatus {
   REJECTED
 }
 
+enum TemplateStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+}
+
 enum CoordSource {
   OFFICIAL  // authoritative government/operator data
   GEOCODED  // derived from province/district centroid
@@ -81,8 +87,55 @@ model Station {
   @@unique([nameTh, mode, responsibleAgency, province])
 }
 
+// E-form redesign (Session E1, Part A) — versioned checklist form definitions.
+// Exactly ONE ACTIVE row per (mode, variantKey) is enforced in service logic (a DB constraint
+// can't express "at most one row where status=X" without a partial index scoped to a single
+// literal, which Prisma's schema DSL can't declare — see migrations/*_eform_templates for the
+// rationale, matching the project's existing migrations_manual/ precedent for PG features the
+// schema DSL can't represent).
+//
+// variantKey defaults to 'standard'; future year-built law-era variants (Part A2.5) are added as
+// new rows keyed by a different variantKey — never a schema change. definition: JSON, validated
+// at seed/write time by @repo/types#parseTemplateDefinition, never trusted blindly at read time
+// by callers that score against it.
+model ChecklistTemplate {
+  id         String         @id @default(cuid())
+  mode       String
+  variantKey String         @default("standard")
+  version    Int
+  status     TemplateStatus @default(DRAFT)
+  definition Json
+  notes      String?
+  createdAt  DateTime       @default(now())
+
+  checklists Checklist[]
+
+  @@unique([mode, variantKey, version])
+}
+
+// E-form redesign (Session E1, Part A2.1) — PROVISIONAL law registry seeded from the สนข. draft
+// comparison table "Checklist ตามปี" (2566-04 revision). `code` is a stable identifier — do not
+// rename; only nameTh/ministry corrections are expected. effectiveYear is nullable: enforcement
+// start dates need สนข. confirmation and must never be guessed from the Buddhist year in nameTh.
+model LawReference {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  nameTh        String
+  ministry      String
+  buddhistYear  Int
+  effectiveYear Int?
+  notes         String?
+  createdAt     DateTime @default(now())
+}
+
 // Stores one checklist submission (draft or submitted) per station per auditor session.
 // items: JSON snapshot of ChecklistGroup[] at submission time.
+//
+// Two partial unique indexes enforce "one DRAFT" and "one pending-review SUBMITTED" per
+// (stationId, auditorId) — see migrations/20260718170200_checklist_draft_submit_uniqueness.
+// Not representable here: Prisma's schema DSL has no partial-index (WHERE-scoped @@unique)
+// syntax, so they exist only as raw SQL in migration history, same category as the PostGIS
+// geography column in migrations_manual/ (a Postgres feature the DSL can't declare).
 model Checklist {
   id          String          @id @default(cuid())
   stationId   String
@@ -95,6 +148,19 @@ model Checklist {
   submittedAt DateTime?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+
+  // E-form redesign (Session E1, Part A.4) — the template this checklist was filled against.
+  // Nullable only because pre-E1 pilot rows are backfilled after the fact (see migrations/
+  // *_eform_backfill); every NEW checklist stamps the mode's current ACTIVE template at creation
+  // and this stamp NEVER changes afterward — an audit is a record against the form it was filled
+  // on, not a live pointer that drifts when the template is later revised.
+  templateId      String?
+  template        ChecklistTemplate? @relation(fields: [templateId], references: [id])
+  templateVersion Int?
+
+  // Part C — auditor's free-text closing remarks on the submission. Nullable; length-capped at
+  // the DTO layer (4000 chars), not here.
+  finalThoughts String?
 
   // Admin review outcome — set when an ADMIN rejects a SUBMITTED checklist and
   // sends it back to the auditor with feedback. Null until a reject happens.

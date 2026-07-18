@@ -14,7 +14,7 @@ const STATION_B = 'station-b-id'
 const CHECKLIST_A = 'checklist-a-id'
 const CHECKLIST_B = 'checklist-b-id'
 
-const itemsB = [{ groupId: 'A1', items: [{ id: 'A1.1', reviewFlag: false }] }]
+const itemsB = [{ groupId: 'A1', groupName: '(A1) ที่จอดรถ', items: [{ id: 'A1.1', labelTh: 'ที่จอดรถสำหรับคนพิการ', reviewFlag: false }] }]
 
 const checklistB = {
   id: CHECKLIST_B,
@@ -100,7 +100,7 @@ describe('StationsService › BOLA: reject/flag cross-station authorization', ()
   it('approveChecklist: blocks approval when an item has reviewFlag=true', async () => {
     checklistFindFirst.mockResolvedValueOnce({
       ...checklistB,
-      items: [{ groupId: 'A1', items: [{ id: 'A1.1', reviewFlag: true }] }],
+      items: [{ groupId: 'A1', groupName: '(A1) ที่จอดรถ', items: [{ id: 'A1.1', labelTh: 'ที่จอดรถสำหรับคนพิการ', reviewFlag: true }] }],
     })
     await expect(
       service.approveChecklist(STATION_B, CHECKLIST_B),

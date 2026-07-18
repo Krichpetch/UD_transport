@@ -1,13 +1,20 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
-import { ChecklistStatus } from '@prisma/client'
+import { ChecklistStatus, Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../audit/audit.service'
 import { CreateStationDto } from './dto/create-station.dto'
 import { UpdateStationDto } from './dto/update-station.dto'
 import { OtpRowDto } from './dto/otp-row.dto'
 import { computeScoreFromItems, scoreToStatus, hasReviewFlag } from '../checklists/scoring'
-import { computeFacilityMetrics } from '@repo/types'
-import type { ChecklistGroup, ChecklistSubItem } from '@repo/types'
+import { computeFacilityMetrics, parseChecklistItems } from '@repo/types'
+import type { ParsedChecklistGroup, StoredChecklistNode } from '@repo/types'
+
+// Prisma's Json columns want InputJsonValue; every call site here passes data that has already
+// been structurally validated (parseChecklistItems, or DTO-typed as object[]/plain JSON) — this
+// is a single named bridge for the TS/Prisma interop gap, never a blind cast of unvalidated input.
+function toJson(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue
+}
 
 // Same "latest checklist" selection ChecklistsService.findLatest() uses for a single station —
 // any of these three statuses, most recent by submittedAt wins. DRAFT is excluded.
@@ -303,23 +310,26 @@ export class StationsService {
     const cl = await this.prisma.checklist.findFirst({ where: { id: checklistId, stationId } })
     if (!cl) throw new NotFoundException()
 
-    const groups = cl.items as unknown as ChecklistGroup[]
+    const groups = parseChecklistItems(cl.items)
     let before: boolean | undefined
     let found = false
-    const updatedGroups = groups.map(g => ({
-      ...g,
-      items: g.items.map(it => {
-        if (it.id !== itemId) return it
+    // Recurses into subItems (v2 nested trees) as well as flat v1 leaves — the target item could
+    // be at any depth.
+    const updateNode = (it: StoredChecklistNode): StoredChecklistNode => {
+      if (it.id === itemId) {
         found = true
         before = it.reviewFlag
         return { ...it, reviewFlag }
-      }),
-    }))
+      }
+      if (it.subItems) return { ...it, subItems: it.subItems.map(updateNode) }
+      return it
+    }
+    const updatedGroups: ParsedChecklistGroup[] = groups.map(g => ({ ...g, items: g.items.map(updateNode) }))
     if (!found) throw new NotFoundException('checklist item not found')
 
     const updated = await this.prisma.checklist.update({
       where: { id: checklistId, stationId },
-      data: { items: updatedGroups as object },
+      data: { items: toJson(updatedGroups) },
     })
     return { checklist: updated, before: before ?? false, after: reviewFlag }
   }
@@ -355,11 +365,11 @@ export class StationsService {
       if (draft) {
         await tx.checklist.update({
           where: { id: draft.id },
-          data: { items: cl.items as object, reviewNotes: notes, updatedAt: new Date() },
+          data: { items: toJson(cl.items), reviewNotes: notes, updatedAt: new Date() },
         })
       } else {
         await tx.checklist.create({
-          data: { stationId, auditorId: cl.auditorId, items: cl.items as object, status: 'DRAFT', reviewNotes: notes },
+          data: { stationId, auditorId: cl.auditorId, items: toJson(cl.items), status: 'DRAFT', reviewNotes: notes },
         })
       }
       return cl
@@ -452,7 +462,7 @@ export class StationsService {
     const key       = otpStationKey(row.station.mode, nameTh, province)
     const auditDate = new Date(row.lastInspected)
     // Re-derive score from items; never trust the client-computed row.score.
-    const importedScore  = computeScoreFromItems(row.items as unknown)
+    const importedScore  = computeScoreFromItems(row.items)
     const importedStatus = scoreToStatus(importedScore)
 
     const station = await this.prisma.$transaction(async (tx) => {
@@ -476,14 +486,14 @@ export class StationsService {
       if (existing) {
         await tx.checklist.update({
           where: { id: existing.id },
-          data:  { items: row.items as object, score: importedScore },
+          data:  { items: toJson(row.items), score: importedScore },
         })
       } else {
         const created = await tx.checklist.create({
           data: {
             stationId:   station.id,
             auditorId:   adminId,
-            items:       row.items as object,
+            items:       toJson(row.items),
             score:       importedScore,
             status:      'APPROVED',
             submittedAt: auditDate,
@@ -589,18 +599,25 @@ export class StationsService {
       orderBy: [{ stationId: 'asc' }, { submittedAt: 'desc' }],
     })
 
-    const collected: ChecklistSubItem[] = []
+    const collected: StoredChecklistNode[] = []
     // Only meaningful (and only populated) when subItem is set — the per-station names behind
     // the aggregate "has the item but isn't standard yet" count, for the dashboard's drill-down
     // list. Mirrors the old client-side fan-out's equivalent list exactly.
     const failingStations: { id: string; nameTh: string; province: string }[] = []
     let evaluatedStations = 0
     for (const cl of checklists) {
-      const groups = cl.items as unknown as ChecklistGroup[]
-      if (!Array.isArray(groups)) continue
+      // Malformed rows are skipped, not thrown — this aggregates across every historical
+      // checklist for the dashboard, so one bad row must never take the whole aggregate down
+      // (same resilience the old `if (!Array.isArray(groups)) continue` defensive check gave).
+      let groups: ParsedChecklistGroup[]
+      try {
+        groups = parseChecklistItems(cl.items)
+      } catch {
+        continue
+      }
 
       if (filters.subItem) {
-        let found: ChecklistSubItem | undefined
+        let found: StoredChecklistNode | undefined
         for (const g of groups) {
           found = g.items?.find(it => it.id === filters.subItem)
           if (found) break

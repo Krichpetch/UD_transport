@@ -1,36 +1,47 @@
 /**
- * Session 2 (CODE_REVIEW.md 4.8, interim stopgap) — a double-tap on "ส่งรายงาน"
- * currently creates two SUBMITTED checklist rows for the same station/auditor.
- * This is a plain read-then-write guard, NOT a real uniqueness guarantee — the
- * real fix is the partial unique index landing with the E-form redesign.
- *
- * TODO(eform-redesign): remove when partial unique index lands (4.8)
+ * E-form redesign (Session E1, Part D) — replaces the Session-2 10-minute read-then-write
+ * stopgap with a real DB constraint: a partial unique index enforces at most one pending-review
+ * (SUBMITTED, not yet APPROVED/REJECTED) checklist per (stationId, auditorId) — see
+ * migrations/20260718170200_checklist_draft_submit_uniqueness. ChecklistsService.submit() now
+ * relies on that constraint firing (Prisma error code P2002) rather than checking beforehand.
  */
 
 import { ConflictException } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { Test } from '@nestjs/testing'
 import { ChecklistsService } from '../checklists.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StationsService } from '../../stations/stations.service'
 import { AuditLogService } from '../../audit/audit.service'
 
-describe('ChecklistsService.submit — interim double-submit guard (4.8 stopgap)', () => {
+function p2002(): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+    code: 'P2002',
+    clientVersion: 'test',
+  })
+}
+
+describe('ChecklistsService.submit — pending-review uniqueness (Part D partial unique index)', () => {
   let service: ChecklistsService
   const checklistCreate = jest.fn()
-  const checklistFindFirst = jest.fn()
   const findOne = jest.fn()
   const distanceToStationMeters = jest.fn()
   const auditLog = jest.fn()
+  const templateFindFirst = jest.fn()
 
   beforeEach(async () => {
     jest.clearAllMocks()
+    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', coordStatus: 'APPROXIMATE' })
+    templateFindFirst.mockResolvedValue(null)
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         ChecklistsService,
         {
           provide: PrismaService,
           useValue: {
-            checklist: { create: checklistCreate, findFirst: checklistFindFirst },
+            checklist: { create: checklistCreate },
+            checklistTemplate: { findFirst: templateFindFirst },
           },
         },
         { provide: StationsService, useValue: { findOne, distanceToStationMeters } },
@@ -41,17 +52,14 @@ describe('ChecklistsService.submit — interim double-submit guard (4.8 stopgap)
     service = moduleRef.get(ChecklistsService)
   })
 
-  it('rejects a second submit within the dedupe window (409) without creating a new row', async () => {
-    findOne.mockResolvedValue({ id: 's1', coordStatus: 'APPROXIMATE' })
-    checklistFindFirst.mockResolvedValue({ id: 'cl-existing', status: 'SUBMITTED', submittedAt: new Date() })
+  it('converts a P2002 unique-violation into a 409 DUPLICATE_SUBMIT, without retrying the write', async () => {
+    checklistCreate.mockRejectedValue(p2002())
 
     await expect(service.submit('s1', 'u1', [])).rejects.toThrow(ConflictException)
-    expect(checklistCreate).not.toHaveBeenCalled()
+    expect(checklistCreate).toHaveBeenCalledTimes(1)
   })
 
-  it('allows submit when no recent duplicate exists', async () => {
-    findOne.mockResolvedValue({ id: 's1', coordStatus: 'APPROXIMATE' })
-    checklistFindFirst.mockResolvedValue(null)
+  it('allows submit when no pending duplicate exists', async () => {
     checklistCreate.mockResolvedValue({ id: 'cl1', stationId: 's1', auditorId: 'u1', status: 'SUBMITTED' })
 
     const result = await service.submit('s1', 'u1', [])
@@ -60,19 +68,10 @@ describe('ChecklistsService.submit — interim double-submit guard (4.8 stopgap)
     expect(checklistCreate).toHaveBeenCalledTimes(1)
   })
 
-  it('scopes the duplicate check to this station + auditor + SUBMITTED status within the window', async () => {
-    findOne.mockResolvedValue({ id: 's1', coordStatus: 'APPROXIMATE' })
-    checklistFindFirst.mockResolvedValue(null)
-    checklistCreate.mockResolvedValue({ id: 'cl1', stationId: 's1', auditorId: 'u1', status: 'SUBMITTED' })
+  it('re-throws non-P2002 errors unchanged', async () => {
+    const otherError = new Error('connection reset')
+    checklistCreate.mockRejectedValue(otherError)
 
-    await service.submit('s1', 'u1', [])
-
-    const whereArg = checklistFindFirst.mock.calls[0][0].where as {
-      stationId: string; auditorId: string; status: string; submittedAt: { gte: Date }
-    }
-    expect(whereArg.stationId).toBe('s1')
-    expect(whereArg.auditorId).toBe('u1')
-    expect(whereArg.status).toBe('SUBMITTED')
-    expect(whereArg.submittedAt.gte).toBeInstanceOf(Date)
+    await expect(service.submit('s1', 'u1', [])).rejects.toBe(otherError)
   })
 })

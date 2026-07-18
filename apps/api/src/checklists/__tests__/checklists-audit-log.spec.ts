@@ -22,6 +22,7 @@ describe('ChecklistsService — AuditLog on write paths', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks()
+    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', coordStatus: 'APPROXIMATE' })
     const moduleRef = await Test.createTestingModule({
       providers: [
         ChecklistsService,
@@ -32,6 +33,10 @@ describe('ChecklistsService — AuditLog on write paths', () => {
               create: checklistCreate,
               update: checklistUpdate,
               findFirst: checklistFindFirst,
+            },
+            checklistTemplate: {
+              // No ACTIVE template in this fixture — service degrades gracefully (Part A.4).
+              findFirst: jest.fn().mockResolvedValue(null),
             },
           },
         },
@@ -44,7 +49,6 @@ describe('ChecklistsService — AuditLog on write paths', () => {
   })
 
   it('writes a SUBMIT_CHECKLIST audit log entry on submit()', async () => {
-    findOne.mockResolvedValue({ id: 's1', coordStatus: 'APPROXIMATE' })
     checklistCreate.mockResolvedValue({ id: 'cl1', stationId: 's1', auditorId: 'u1', status: 'SUBMITTED' })
 
     await service.submit('s1', 'u1', [])

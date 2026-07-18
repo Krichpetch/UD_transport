@@ -1,7 +1,8 @@
 import { Body, Controller, ForbiddenException, Get, Param, Post, Req, UseGuards } from '@nestjs/common'
 import { Request } from 'express'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
-import { ChecklistsService, type SubmitGps } from './checklists.service'
+import { ChecklistsService } from './checklists.service'
+import { SaveDraftChecklistDto, SubmitChecklistDto } from './dto/submit-checklist.dto'
 
 interface AuthRequest extends Request {
   user: { id: string; username: string; role: string }
@@ -33,7 +34,7 @@ export class ChecklistsController {
   @Post('draft')
   saveDraft(
     @Param('stationId') stationId: string,
-    @Body() body: { items: unknown },
+    @Body() body: SaveDraftChecklistDto,
     @Req() req: AuthRequest,
   ) {
     if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
@@ -43,10 +44,10 @@ export class ChecklistsController {
   @Post('submit')
   submit(
     @Param('stationId') stationId: string,
-    @Body() body: { items: unknown; score?: number; gps?: SubmitGps },
+    @Body() body: SubmitChecklistDto,
     @Req() req: AuthRequest,
   ) {
     if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
-    return this.checklists.submit(stationId, req.user.id, body.items, body.score, body.gps)
+    return this.checklists.submit(stationId, req.user.id, body.items, body.score, body.gps, body.finalThoughts)
   }
 }
