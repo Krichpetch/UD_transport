@@ -1,87 +1,87 @@
 'use client'
 
 import * as React from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { getChecklistTemplate, getStationTypeLabel } from '@/lib/constants'
+import { useSearchParams } from 'next/navigation'
+import { getStationTypeLabel } from '@/lib/constants'
 import { useStation } from '@/hooks/use-stations'
-import { useSaveDraft, useSubmitChecklist, useMyDraft } from '@/hooks/use-checklists'
-import { saveDraft } from '@/lib/api/checklists'
-import type { ChecklistGroup, ChecklistValue, ChecklistPhoto } from '@repo/types'
+import { useSaveDraft, useSubmitChecklist, useMyDraft, useTemplateForAudit } from '@/hooks/use-checklists'
+import { useUpdateYearBuilt } from '@/hooks/use-stations'
 import { computeScoreFromItems, buildHistogram, scoreToStatus } from '@repo/types'
 import {
-  MapPin, Save, Send, CheckSquare, Square, Clock, User as UserIcon,
-  StickyNote, AlertTriangle, Loader2, X,
+  MapPin, Save, Send, Clock, User as UserIcon,
+  AlertTriangle, Loader2, X, FlaskConical,
 } from 'lucide-react'
-import { PhotoPicker } from '@/components/audit/PhotoPicker'
 import { StationSearchPicker } from '@/components/audit/StationSearchPicker'
+import { LeafAnswerRow } from '@/components/audit/LeafAnswerRow'
+import { V2ItemPage } from '@/components/audit/V2PagerForm'
 import { useAuthStore } from '@/stores/auth.store'
+import { useAuditFormStore } from '@/stores/audit-form.store'
+import { buildStoredGroups, countProgressForNodes, groupDisplayName } from '@/lib/audit-form'
 import { ApiError } from '@/lib/api'
 import { getCurrentPosition, haversineMeters, PROXIMITY_BYPASS } from '@/lib/geolocation'
 import type { SubmitGps } from '@/lib/geolocation'
 import type { ChecklistRecord } from '@/lib/api/checklists'
+import { YEAR_BUILT_MIN, yearBuiltMax } from '@repo/types'
 
 const PROXIMITY_RADIUS_M = 1000
-
-// Grows row-by-row with content (no manual drag handle) up to a sane max height, past which a
-// scrollbar takes over — height is synced to scrollHeight on every value change.
-function AutoGrowTextarea({
-  value, onChange, placeholder, className,
-}: {
-  value: string
-  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
-  placeholder?: string
-  className?: string
-}) {
-  const ref = React.useRef<HTMLTextAreaElement>(null)
-
-  React.useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${el.scrollHeight}px`
-  }, [value])
-
-  return (
-    <textarea
-      ref={ref}
-      value={value}
-      onChange={onChange}
-      placeholder={placeholder}
-      rows={1}
-      className={`themed-scrollbar max-h-40 resize-none overflow-y-auto ${className ?? ''}`}
-    />
-  )
-}
+const AUTOSAVE_DEBOUNCE_MS = 4000
+const FINAL_THOUGHTS_MAX = 4000
 
 export default function AuditPage() {
-  const qc = useQueryClient()
   const user = useAuthStore((s) => s.user)
+  const searchParams = useSearchParams()
+  // Part B.2 — v2 preview is admin-only and gated behind an explicit query flag; the server
+  // additionally 403s a non-admin caller, so this client-side check is UX only, not the guard.
+  // Same flag name/value ("preview=v2") as the underlying API call (lib/api/checklists.ts) —
+  // deliberately kept identical end-to-end so there is only one spelling to remember or type.
+  const v2PreviewRequested = searchParams.get('preview') === 'v2'
+  const v2PreviewAllowed = v2PreviewRequested && user?.role === 'ADMIN'
+
   const [selectedId, setSelectedId] = React.useState('')
   const { data: station } = useStation(selectedId)
-  const { data: draft, isLoading: draftLoading } = useMyDraft(selectedId)
+  // v2 preview never reads or writes a real draft (getTemplateForAudit skips the draft lookup
+  // server-side too when previewing — see checklists.service.ts) — and the /draft endpoint is
+  // AUDITOR-only, so an ADMIN previewing v2 would otherwise get a needless 403 on every station
+  // pick. Passing '' disables the query via its existing `enabled: !!stationId` guard.
+  const { data: draft, isLoading: draftLoading } = useMyDraft(v2PreviewAllowed ? '' : selectedId)
+  const { data: templateResp, isLoading: templateLoading } = useTemplateForAudit(selectedId, v2PreviewAllowed)
   const saveDraftMutation = useSaveDraft(selectedId)
   const submitMutation = useSubmitChecklist(selectedId)
+  const updateYearBuiltMutation = useUpdateYearBuilt()
+
   const [submitResult, setSubmitResult] = React.useState<ChecklistRecord | null>(null)
   const [submitWarning, setSubmitWarning] = React.useState('')
   const [locating, setLocating] = React.useState(false)
-
-  const [groups, setGroups] = React.useState<ChecklistGroup[]>([])
   const [currentPage, setCurrentPage] = React.useState(0)
-  const [resumedFromDraft, setResumedFromDraft] = React.useState(false)
-  const [autoSaveStatus, setAutoSaveStatus] = React.useState<'idle' | 'saving' | 'saved'>('idle')
-  const [expandedNotes, setExpandedNotes] = React.useState<Set<string>>(new Set())
 
-  // ── Check-in gate (Screen B) — confirm-to-start + GPS capture ──
+  // ── Check-in gate (Screen B) — confirm-to-start + GPS capture + year-built capture ──
   const [checkedIn, setCheckedIn] = React.useState(false)
   const [checkInStatus, setCheckInStatus] = React.useState<'idle' | 'checking' | 'blocked' | 'ok'>('idle')
   const [checkInMessage, setCheckInMessage] = React.useState('')
   const [locationUnverified, setLocationUnverified] = React.useState(false)
   const [rejectionBannerDismissed, setRejectionBannerDismissed] = React.useState(false)
+  const [yearBuiltInput, setYearBuiltInput] = React.useState('')
 
-  // Tracks which stationId the form has been seeded for — prevents re-seeding on background refetches
+  // Part D — Zustand audit-form store: single source of truth for answers/finalThoughts once
+  // hydrated. Server data hydrates it ONCE per (station, preview-mode) via the guard below;
+  // background refetches of the queries above never re-hydrate (both are refetchOnWindowFocus:
+  // false, staleTime: Infinity — see hooks/use-checklists.ts).
+  const templateDef = useAuditFormStore((s) => s.templateDef)
+  const answers = useAuditFormStore((s) => s.answers)
+  const finalThoughts = useAuditFormStore((s) => s.finalThoughts)
+  const dirty = useAuditFormStore((s) => s.dirty)
+  const hydrated = useAuditFormStore((s) => s.hydrated)
+  const resumedFromDraft = useAuditFormStore((s) => s.resumedFromDraft)
+  const eraUnresolved = useAuditFormStore((s) => s.eraUnresolved)
+  const saveStatus = useAuditFormStore((s) => s.saveStatus)
+  const hydrate = useAuditFormStore((s) => s.hydrate)
+  const setFinalThoughts = useAuditFormStore((s) => s.setFinalThoughts)
+  const setSaveStatus = useAuditFormStore((s) => s.setSaveStatus)
+  const markSaved = useAuditFormStore((s) => s.markSaved)
+  const resetForm = useAuditFormStore((s) => s.reset)
+
   const seededForRef = React.useRef<string | null>(null)
   const autoSaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-  const savedBadgeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Reset all form + check-in state when the selected station changes
   React.useEffect(() => {
@@ -89,137 +89,69 @@ export default function AuditPage() {
     setCurrentPage(0)
     setSubmitResult(null)
     setSubmitWarning('')
-    setResumedFromDraft(false)
-    setGroups([])
-    setAutoSaveStatus('idle')
-    setExpandedNotes(new Set())
     setCheckedIn(false)
     setCheckInStatus('idle')
     setCheckInMessage('')
     setLocationUnverified(false)
     setRejectionBannerDismissed(false)
+    setYearBuiltInput('')
+    resetForm()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [station?.id])
 
-  // Seed form exactly once per station — never overwrite the user's in-progress work
+  // Hydrate the store exactly once per (station, template-mode load) — never on a background
+  // refetch of the same data (Part D P0 fix #1: tab-switch reset).
   React.useEffect(() => {
-    if (!station || draftLoading) return
-    if (seededForRef.current === station.id) return  // already seeded for this station
-    seededForRef.current = station.id
-    if (draft?.items && draft.items.length > 0) {
-      setGroups(draft.items as ChecklistGroup[])
-      setResumedFromDraft(true)
-    } else {
-      setGroups(getChecklistTemplate(station.mode))
-      setResumedFromDraft(false)
-    }
-  }, [station?.id, draftLoading, draft, station])
+    if (!station || draftLoading || templateLoading || !templateResp?.template) return
+    const key = `${station.id}:${v2PreviewAllowed}`
+    if (seededForRef.current === key) return
+    seededForRef.current = key
+    hydrate({
+      stationId: station.id,
+      templateDef: templateResp.template,
+      storedItems: draft?.items ?? null,
+      finalThoughts: draft?.finalThoughts ?? '',
+      yearBuilt: templateResp.appliedYearBuilt,
+      eraUnresolved: templateResp.eraUnresolved,
+      resumedFromDraft: !!(draft?.items && (draft.items as unknown[]).length > 0),
+    })
+    setYearBuiltInput(station.yearBuilt != null ? String(station.yearBuilt) : '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [station, draftLoading, templateLoading, draft, templateResp, v2PreviewAllowed])
 
-  // Debounced autosave — fires 2s after the last edit, only once checked in and ≥1 item answered
+  // Debounced autosave — fires AUTOSAVE_DEBOUNCE_MS after the last edit, once checked in and
+  // dirty. Skipped entirely in v2 preview (v2 is not activated — nothing to persist for real).
   React.useEffect(() => {
-    const answered = groups.flatMap((g) => g.items).some((i) => i.value !== null)
-    if (!selectedId || !seededForRef.current || !answered || !checkedIn) return
+    if (!selectedId || !hydrated || !dirty || !checkedIn || v2PreviewAllowed || !templateDef) return
 
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
-
     autoSaveTimerRef.current = setTimeout(async () => {
-      setAutoSaveStatus('saving')
+      setSaveStatus('saving')
       try {
-        const saved = await saveDraft(selectedId, groups)
-        // Update cache directly — no invalidation, no refetch, no risk of re-seeding
-        qc.setQueryData(['checklist', selectedId, 'draft'], saved)
-        setAutoSaveStatus('saved')
-        if (savedBadgeTimerRef.current) clearTimeout(savedBadgeTimerRef.current)
-        savedBadgeTimerRef.current = setTimeout(() => setAutoSaveStatus('idle'), 2500)
+        await saveDraftMutation.mutateAsync({ items: buildStoredGroups(templateDef, answers), finalThoughts })
+        markSaved()
       } catch {
-        setAutoSaveStatus('idle')
+        setSaveStatus('error')
       }
-    }, 2000)
+    }, AUTOSAVE_DEBOUNCE_MS)
 
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groups, selectedId, checkedIn])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answers, finalThoughts, dirty, selectedId, checkedIn, hydrated, v2PreviewAllowed])
 
-  const allItems = groups.flatMap((g) => g.items)
-  const answered = allItems.filter((i) => i.value !== null).length
-  const total = allItems.length
+  const score = templateDef ? computeScoreFromItems(buildStoredGroups(templateDef, answers), templateDef) : 0
+  const { answered, total } = templateDef ? countProgressForNodes(templateDef.groups.flatMap((g) => g.items), answers) : { answered: 0, total: 0 }
   const progress = total > 0 ? Math.round((answered / total) * 100) : 0
+  const isV1 = templateDef?.schemaVersion === 1
 
-  // Single source of truth for the score — same formula the server re-derives at submit time.
-  const score = computeScoreFromItems(groups)
-
-  function setItemValue(groupId: string, itemId: string, value: ChecklistValue) {
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.groupId !== groupId
-          ? g
-          : {
-              ...g,
-              items: g.items.map((item) =>
-                item.id !== itemId
-                  ? item
-                  : {
-                      ...item,
-                      value: item.value === value ? null : value,
-                      meetsStandard: value === 'มี' ? item.meetsStandard : false,
-                    }
-              ),
-            }
-      )
-    )
-  }
-
-  function setMeetsStandard(groupId: string, itemId: string, ms: boolean) {
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.groupId !== groupId
-          ? g
-          : {
-              ...g,
-              items: g.items.map((item) =>
-                item.id === itemId ? { ...item, meetsStandard: ms } : item
-              ),
-            }
-      )
-    )
-  }
-
-  function setItemNote(groupId: string, itemId: string, note: string) {
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.groupId !== groupId
-          ? g
-          : {
-              ...g,
-              items: g.items.map((item) => (item.id !== itemId ? item : { ...item, note })),
-            }
-      )
-    )
-  }
-
-  function toggleNoteOpen(itemId: string) {
-    setExpandedNotes((prev) => {
-      const next = new Set(prev)
-      if (next.has(itemId)) next.delete(itemId)
-      else next.add(itemId)
-      return next
-    })
-  }
-
-  function attachPhotos(groupId: string, itemId: string, photos: ChecklistPhoto[]) {
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.groupId !== groupId
-          ? g
-          : {
-              ...g,
-              items: g.items.map((item) =>
-                item.id !== itemId ? item : { ...item, photos: [...item.photos, ...photos] }
-              ),
-            }
-      )
-    )
+  async function saveYearBuilt(): Promise<void> {
+    if (!station || v2PreviewAllowed) return
+    const n = Number(yearBuiltInput)
+    if (!yearBuiltInput || Number.isNaN(n) || n < YEAR_BUILT_MIN || n > yearBuiltMax()) return
+    if (station.yearBuilt === n) return
+    await updateYearBuiltMutation.mutateAsync({ id: station.id, yearBuilt: n })
   }
 
   // ── Check-in (Screen B "เริ่มการตรวจประเมิน") — client-side pre-check only. The
@@ -228,6 +160,7 @@ export default function AuditPage() {
     if (!station) return
     setCheckInStatus('checking')
     setCheckInMessage('')
+    await saveYearBuilt()
 
     if (PROXIMITY_BYPASS) {
       setLocationUnverified(false)
@@ -267,8 +200,9 @@ export default function AuditPage() {
 
   // ── Submit — server re-verifies distance; on a location rejection, save as draft ──
   async function handleSubmit() {
-    if (!station) return
+    if (!station || !templateDef) return
     setSubmitWarning('')
+    const items = buildStoredGroups(templateDef, answers)
 
     let gps: SubmitGps | undefined
     if (!PROXIMITY_BYPASS) {
@@ -276,17 +210,15 @@ export default function AuditPage() {
       const pos = await getCurrentPosition()
       setLocating(false)
       if (pos.status === 'ok') gps = { lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy }
-      // else leave gps undefined — server hard-blocks coordStatus=OK stations with
-      // LOCATION_REQUIRED, handled in the catch below exactly like an out-of-range reject.
     }
 
     try {
-      const result = await submitMutation.mutateAsync({ items: groups, score, gps })
+      const result = await submitMutation.mutateAsync({ items, score, gps, finalThoughts })
       setSubmitResult(result)
     } catch (err) {
       const code = err instanceof ApiError ? err.code : undefined
       if (code === 'OUT_OF_RANGE' || code === 'LOCATION_REQUIRED') {
-        await saveDraftMutation.mutateAsync(groups)
+        await saveDraftMutation.mutateAsync({ items, finalThoughts })
         setSubmitWarning(
           (err instanceof ApiError ? err.message : null) ??
             'ไม่สามารถส่งรายงานได้ งานของคุณถูกบันทึกเป็นร่างแล้ว กรุณาลองส่งใหม่เมื่อถึงพื้นที่สถานี'
@@ -297,12 +229,6 @@ export default function AuditPage() {
     }
   }
 
-  const VALUE_OPTIONS: { value: ChecklistValue; label: string; active: string; inactive: string }[] = [
-    { value: 'มี',    label: 'มี',            active: 'border-blue-300 bg-blue-50 text-blue-700',   inactive: 'border-border bg-white text-muted-foreground' },
-    { value: 'ไม่มี', label: 'ไม่มี',         active: 'border-red-200 bg-red-50 text-red-700',      inactive: 'border-border bg-white text-muted-foreground' },
-    { value: 'N/A',  label: 'ไม่เกี่ยวข้อง', active: 'border-gray-200 bg-gray-50 text-gray-600',   inactive: 'border-border bg-white text-muted-foreground' },
-  ]
-
   const stationPicker = (
     <StationSearchPicker
       value={selectedId}
@@ -311,12 +237,23 @@ export default function AuditPage() {
     />
   )
 
-  if (!selectedId || !station || draftLoading) {
+  if (!selectedId || !station || draftLoading || templateLoading) {
     return (
       <div className="space-y-4">
         {stationPicker}
         <div className="rounded-xl bg-white p-6 text-center text-sm text-muted-foreground shadow-sm">
           {!selectedId ? 'กรุณาเลือกสถานีเพื่อเริ่มการตรวจสอบ' : 'กำลังโหลด…'}
+        </div>
+      </div>
+    )
+  }
+
+  if (!templateDef) {
+    return (
+      <div className="space-y-4">
+        {stationPicker}
+        <div className="rounded-xl bg-white p-6 text-center text-sm text-muted-foreground shadow-sm">
+          ยังไม่มีแบบฟอร์มตรวจสอบสำหรับประเภทสถานีนี้ กรุณาติดต่อผู้ดูแลระบบ
         </div>
       </div>
     )
@@ -392,6 +329,13 @@ export default function AuditPage() {
       <div className="space-y-4">
         {stationPicker}
 
+        {v2PreviewAllowed && (
+          <div className="flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs text-purple-700 shadow-sm">
+            <FlaskConical size={14} className="shrink-0" />
+            <span>โหมดตัวอย่าง v2 (DRAFT) — สำหรับผู้ดูแลระบบเท่านั้น ไม่มีการบันทึกจริง</span>
+          </div>
+        )}
+
         {rejectionNote && (
           <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-700 shadow-sm">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
@@ -428,6 +372,28 @@ export default function AuditPage() {
             </div>
           </div>
 
+          {/* Part C.6 — year-built capture, required at confirm-to-start */}
+          <div className="border-t border-border pt-4">
+            <label className="text-xs font-medium text-foreground">
+              ปีที่ก่อสร้าง (พ.ศ.)
+              <input
+                type="number"
+                inputMode="numeric"
+                value={yearBuiltInput}
+                onChange={(e) => setYearBuiltInput(e.target.value)}
+                onBlur={saveYearBuilt}
+                disabled={v2PreviewAllowed}
+                placeholder="เช่น 2555"
+                className="border-border focus:ring-ring mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 disabled:opacity-50"
+              />
+            </label>
+            {eraUnresolved && (
+              <p className="mt-1.5 text-[10px] text-amber-600">
+                ⚠ ยังไม่สามารถระบุปีก่อสร้างที่แน่ชัดได้ — ระบบใช้เกณฑ์ตามกฎหมายฉบับล่าสุดเป็นการชั่วคราว
+              </p>
+            )}
+          </div>
+
           {checkInStatus === 'blocked' && (
             <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">
               <AlertTriangle size={14} className="mt-0.5 shrink-0" />
@@ -458,11 +424,24 @@ export default function AuditPage() {
     )
   }
 
-  const isSummaryPage = currentPage === groups.length
+  const groups = templateDef.groups
+  // v2's pager is one level deeper than v1's: v1 paginates group-by-group; v2 paginates
+  // item-by-item within a group (A1 → A1.1, A1.2, …), continuing seamlessly into the next
+  // group's first item — see V2PagerForm.tsx for what renders inside one item's page.
+  const v2Pages = isV1 ? [] : groups.flatMap((g) => g.items.map((item) => ({ group: g, item })))
+  const totalPages = isV1 ? groups.length : v2Pages.length
+  const isSummaryPage = currentPage === totalPages
 
   return (
     <div className="space-y-4">
       {stationPicker}
+
+      {v2PreviewAllowed && (
+        <div className="flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs text-purple-700 shadow-sm">
+          <FlaskConical size={14} className="shrink-0" />
+          <span>โหมดตัวอย่าง v2 (DRAFT) — สำหรับผู้ดูแลระบบเท่านั้น ไม่มีการบันทึกจริง</span>
+        </div>
+      )}
 
       {/* Header with overall progress — always visible */}
       <div className="rounded-xl bg-white p-4 shadow-sm">
@@ -480,21 +459,15 @@ export default function AuditPage() {
           </div>
         </div>
         <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-          <div
-            className="h-full rounded-full bg-accent transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
+          <div className="h-full rounded-full bg-accent transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
         <div className="mt-2 flex items-center gap-3">
           {resumedFromDraft && (
             <p className="text-[10px] text-muted-foreground">↩ ดำเนินการต่อจากร่างที่บันทึกไว้</p>
           )}
-          {autoSaveStatus === 'saving' && (
-            <p className="text-[10px] text-muted-foreground">กำลังบันทึก…</p>
-          )}
-          {autoSaveStatus === 'saved' && (
-            <p className="text-[10px] text-accent">✓ บันทึกอัตโนมัติแล้ว</p>
-          )}
+          {saveStatus === 'saving' && <p className="text-[10px] text-muted-foreground">กำลังบันทึก…</p>}
+          {saveStatus === 'saved' && <p className="text-[10px] text-accent">✓ บันทึกอัตโนมัติแล้ว</p>}
+          {saveStatus === 'error' && <p className="text-[10px] text-red-500">บันทึกอัตโนมัติไม่สำเร็จ</p>}
         </div>
         {locationUnverified && (
           <p className="mt-2 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[10px] text-amber-700">
@@ -511,8 +484,8 @@ export default function AuditPage() {
         </div>
       )}
 
-      {/* Summary page */}
       {isSummaryPage ? (
+        /* Summary page — shared between v1 and v2 (per-group progress list is mode-agnostic) */
         <div className="overflow-hidden rounded-xl bg-white shadow-sm">
           <div className="border-b px-4 py-3">
             <p className="text-sm font-bold text-gray-900">สรุปผลการตรวจสอบ</p>
@@ -520,135 +493,100 @@ export default function AuditPage() {
           </div>
           <div className="divide-y">
             {groups.map((g) => {
-              const ans = g.items.filter((i) => i.value !== null).length
-              const done = ans === g.items.length
+              const p = countProgressForNodes(g.items, answers)
+              const done = p.answered === p.total
               return (
-                <div key={g.groupId} className="flex items-center justify-between px-4 py-3">
-                  <span className="text-sm text-gray-800">{g.groupName}</span>
+                <div key={g.code} className="flex items-center justify-between px-4 py-3">
+                  <span className="text-sm text-gray-800">{groupDisplayName(g)}</span>
                   <span className={`text-xs font-semibold ${done ? 'text-green-600' : 'text-amber-600'}`}>
-                    {ans}/{g.items.length} {done ? '✓' : '⚠'}
+                    {p.answered}/{p.total} {done ? '✓' : '⚠'}
                   </span>
                 </div>
               )
             })}
           </div>
-          <div className="border-t px-4 py-4 space-y-3">
-            <p className="text-sm text-gray-500">
-              คะแนน UD (ประมาณ):{' '}
-              <span className="font-bold text-gray-900">{score}%</span>
+          {isV1 && (
+            <>
+              {/* Part C.7 — final thoughts, before the submit action */}
+              <div className="border-t px-4 py-4">
+                <label className="text-xs font-semibold text-gray-700">
+                  ความคิดเห็นเพิ่มเติม
+                  <textarea
+                    value={finalThoughts}
+                    onChange={(e) => setFinalThoughts(e.target.value.slice(0, FINAL_THOUGHTS_MAX))}
+                    rows={3}
+                    placeholder="สรุปข้อสังเกตหรือข้อเสนอแนะเพิ่มเติม (ถ้ามี)"
+                    className="border-border placeholder:text-muted-foreground focus:ring-ring mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1"
+                  />
+                </label>
+                <p className="mt-1 text-right text-[10px] text-muted-foreground">{finalThoughts.length}/{FINAL_THOUGHTS_MAX}</p>
+              </div>
+              <div className="border-t px-4 py-4 space-y-3">
+                <p className="text-sm text-gray-500">
+                  คะแนน UD (ประมาณ): <span className="font-bold text-gray-900">{score}%</span>
+                </p>
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitMutation.isPending || locating || progress < 100}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground disabled:opacity-50"
+                >
+                  {(submitMutation.isPending || locating) ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                  {locating ? 'กำลังระบุตำแหน่ง…' : submitMutation.isPending ? 'กำลังส่ง…' : 'ส่งรายงาน'}
+                </button>
+                {progress < 100 && (
+                  <p className="text-center text-xs text-amber-600">ยังมีรายการที่ยังไม่ได้ตอบ ({total - answered} ข้อ)</p>
+                )}
+              </div>
+            </>
+          )}
+          {!isV1 && (
+            <p className="px-4 py-4 text-center text-xs text-purple-600">
+              โหมดตัวอย่าง v2 — ไม่สามารถส่งรายงานจริงได้ในขั้นตอนนี้
             </p>
-            <button
-              onClick={handleSubmit}
-              disabled={submitMutation.isPending || locating || progress < 100}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground disabled:opacity-50"
-            >
-              {(submitMutation.isPending || locating) ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-              {locating ? 'กำลังระบุตำแหน่ง…' : submitMutation.isPending ? 'กำลังส่ง…' : 'ส่งรายงาน'}
-            </button>
-            {progress < 100 && (
-              <p className="text-center text-xs text-amber-600">
-                ยังมีรายการที่ยังไม่ได้ตอบ ({total - answered} ข้อ)
-              </p>
-            )}
-          </div>
+          )}
         </div>
-      ) : (
-        /* Group checklist page */
+      ) : isV1 ? (
+        /* v1 — Group checklist page (flat pager, byte-for-byte the same interaction as before —
+           see LeafAnswerRow for the shared control implementation) */
         (() => {
           const group = groups[currentPage]!  // ponytail: safe — currentPage < groups.length guaranteed above
           return (
             <div className="overflow-hidden rounded-xl bg-white shadow-sm">
-              {/* Step indicator */}
               <div className="flex items-center justify-between border-b px-4 py-3">
-                <span className="text-sm font-semibold text-gray-700">{group.groupName}</span>
+                <span className="text-sm font-semibold text-gray-700">{groupDisplayName(group)}</span>
                 <span className="text-xs text-gray-400">หน้า {currentPage + 1} / {groups.length}</span>
               </div>
-              {/* Items */}
               <div className="divide-border divide-y">
-                {group.items.map((item) => (
-                  <div key={item.id} className="px-4 py-3.5">
-                    <div className="mb-2.5 flex items-start gap-2">
-                      <span className="text-muted-foreground bg-secondary mt-0.5 shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px]">
-                        {item.id}
-                      </span>
-                      <div className="flex-1">
-                        <p className="text-foreground text-sm leading-snug">{item.labelTh}</p>
-                        {item.cabinetPriority && (
-                          <span className="mt-0.5 inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">
-                            มติ ครม.
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {VALUE_OPTIONS.map((opt) => (
-                        <button
-                          key={opt.value!}
-                          onClick={() => setItemValue(group.groupId, item.id, opt.value)}
-                          className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-all ${
-                            item.value === opt.value ? opt.active : opt.inactive
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                    {item.value === 'มี' && (
-                      <button
-                        onClick={() => setMeetsStandard(group.groupId, item.id, !item.meetsStandard)}
-                        className={`mt-2 flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
-                          item.meetsStandard
-                            ? 'border-green-300 bg-green-50 text-green-700'
-                            : 'border-border text-muted-foreground'
-                        }`}
-                      >
-                        {item.meetsStandard ? (
-                          <CheckSquare size={13} className="shrink-0" />
-                        ) : (
-                          <Square size={13} className="shrink-0" />
-                        )}
-                        ได้มาตรฐาน
-                      </button>
-                    )}
-                    {item.photos.length > 0 && (
-                      <div className="mt-2.5 flex flex-wrap gap-1.5">
-                        {item.photos.map((p) => (
-                          <img
-                            key={p.id}
-                            src={p.url}
-                            alt={p.filename}
-                            className="size-14 rounded-lg border border-border object-cover"
-                          />
-                        ))}
-                      </div>
-                    )}
-                    <PhotoPicker
-                      onPhotosUploaded={(photos) => attachPhotos(group.groupId, item.id, photos)}
-                    />
-                    {item.note || expandedNotes.has(item.id) ? (
-                      <AutoGrowTextarea
-                        value={item.note}
-                        onChange={(e) => setItemNote(group.groupId, item.id, e.target.value)}
-                        placeholder="บันทึกเพิ่มเติม (ถ้ามี)"
-                        className="border-border placeholder:text-muted-foreground focus:ring-ring mt-2.5 w-full rounded-lg border bg-white px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1"
-                      />
-                    ) : (
-                      <button
-                        onClick={() => toggleNoteOpen(item.id)}
-                        className="text-muted-foreground hover:text-foreground mt-2.5 flex items-center gap-1 text-[11px]"
-                      >
-                        <StickyNote size={11} /> เพิ่มบันทึก
-                      </button>
-                    )}
-                  </div>
-                ))}
+                {group.items.map((item) => <LeafAnswerRow key={item.code} node={item} />)}
               </div>
+            </div>
+          )
+        })()
+      ) : (
+        /* v2 — item-level pager: (A1) ที่จอดรถ paginates to A1.1, then A1.2, and so on */
+        (() => {
+          const page = v2Pages[currentPage]!  // ponytail: safe — currentPage < v2Pages.length guaranteed above
+          const p = countProgressForNodes([page.item], answers)
+          return (
+            <div className="overflow-hidden rounded-xl bg-white shadow-sm">
+              <div className="border-b px-4 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-gray-700">{groupDisplayName(page.group)}</span>
+                  <span className="text-xs text-gray-400">รายการ {currentPage + 1} / {v2Pages.length}</span>
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {page.item.num ? `${page.item.num}. ` : ''}{page.item.labelTh}
+                  <span className="ml-1.5">({p.answered}/{p.total})</span>
+                </p>
+              </div>
+              <V2ItemPage item={page.item} groupLabel={groupDisplayName(page.group)} />
             </div>
           )
         })()
       )}
 
-      {/* Navigation */}
+      {/* Navigation — prev/next apply to both v1 and v2's pager; save-draft is v1-only (v2
+          preview never persists — see the autosave effect's v2PreviewAllowed guard above). */}
       <div className="flex gap-3 pb-6">
         {currentPage > 0 && (
           <button
@@ -658,14 +596,16 @@ export default function AuditPage() {
             ← ก่อนหน้า
           </button>
         )}
-        <button
-          onClick={() => saveDraftMutation.mutate(groups)}
-          disabled={saveDraftMutation.isPending}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-white py-3 text-sm font-medium text-foreground shadow-sm disabled:opacity-50"
-        >
-          <Save size={15} />
-          {saveDraftMutation.isPending ? 'กำลังบันทึก…' : 'บันทึกร่าง'}
-        </button>
+        {isV1 && (
+          <button
+            onClick={() => saveDraftMutation.mutate({ items: buildStoredGroups(templateDef, answers), finalThoughts })}
+            disabled={saveDraftMutation.isPending}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-white py-3 text-sm font-medium text-foreground shadow-sm disabled:opacity-50"
+          >
+            <Save size={15} />
+            {saveDraftMutation.isPending ? 'กำลังบันทึก…' : 'บันทึกร่าง'}
+          </button>
+        )}
         {!isSummaryPage && (
           <button
             onClick={() => setCurrentPage((p) => p + 1)}

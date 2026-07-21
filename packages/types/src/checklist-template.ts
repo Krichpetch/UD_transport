@@ -16,18 +16,54 @@ export const TEMPLATE_ANSWER_TYPES: readonly TemplateAnswerType[] = ['choice', '
 // `choices` list; absent means "use this default."
 export const DEFAULT_CHOICE_VALUES = ['มี', 'ไม่มี', 'N/A'] as const
 
-export type ThresholdOperator = 'gte' | 'lte' | 'range'
+export type ThresholdOperator = 'gte' | 'lte' | 'range' | 'tiered'
+
+// A tiered lookup band (DATA_DICTIONARY_v2.md, "Era-dependent criteria" §, `tiered` operator).
+// `max` absent means "open-ended" — only valid on the last tier, optionally extended by
+// incrementPer/incrementBy (e.g. +1 required per each additional 100 over the tier's `min`).
+export interface TemplateTier {
+  min: number
+  max?: number | null
+  required: number
+  incrementPer?: number
+  incrementBy?: number
+}
+
+// One auditor-entered numeric input feeding a `tiered` measurement (e.g. basis/provided).
+export interface TemplateMeasurementInput {
+  key: string
+  labelTh: string
+}
+
+// The era-varying slice of a measurement's value fields — keyed by LawReference.code inside
+// TemplateMeasurement.byLaw. Only the fields relevant to the measurement's operator are set
+// (value/value2 for gte|lte|range, tiers for tiered).
+export interface TemplateMeasurementByLawEntry {
+  value?: number | null
+  value2?: number | null
+  tiers?: TemplateTier[]
+}
 
 // A single numeric criterion attached to a presence_standard leaf (DATA_DICTIONARY_v2.md §2).
 // Canonical unit is centimeters except the slope convention `ratio_1_x` (auditor enters the X of
 // 1:X; larger X passes for a `gte` threshold). Stored on TEMPLATE data (admin-editable, never
 // re-derives past submissions' stored answers — only how NEW/re-scored answers are graded).
+//
+// Era variance (Session E2): any operator's value fields may be wrapped in `byLaw` instead of
+// (or in addition to, as a fallback) being set flat — see TemplateMeasurementByLawEntry. Resolved
+// server-side (see era-resolution.ts) before a client ever sees the template; `byLaw` is stripped
+// from what GET template-for-audit returns. `tiered` is a new operator: the required value is a
+// lookup on an auditor-entered basis (`inputs[0]`) compared against an auditor-entered provided
+// count (`inputs[1]`) — see TemplateTier.
 export interface TemplateMeasurement {
   key: string
   operator: ThresholdOperator
-  value: number
+  value?: number | null    // gte/lte/range — absent when only `byLaw` supplies it
   value2?: number | null   // only meaningful for operator === 'range'
+  tiers?: TemplateTier[]   // tiered, flat (era-independent) shape — absent when only `byLaw` supplies it
+  inputs?: TemplateMeasurementInput[]  // tiered only — the auditor's two numeric entry fields
   unit: string
+  byLaw?: Record<string, TemplateMeasurementByLawEntry>  // keyed by LawReference.code
   sourceText?: string
   note?: string
   autoGrade: boolean        // false => guidance only; never feeds a standards verdict
@@ -112,27 +148,99 @@ function checkString(v: unknown, path: string, field: string): string {
 }
 
 function checkThresholdOperator(v: unknown, path: string): ThresholdOperator {
-  if (v !== 'gte' && v !== 'lte' && v !== 'range') fail(path, `operator must be gte|lte|range, got ${JSON.stringify(v)}`)
+  if (v !== 'gte' && v !== 'lte' && v !== 'range' && v !== 'tiered') {
+    fail(path, `operator must be gte|lte|range|tiered, got ${JSON.stringify(v)}`)
+  }
   return v
 }
 
-function parseMeasurement(raw: unknown, path: string): TemplateMeasurement {
+function parseTier(raw: unknown, path: string): TemplateTier {
+  if (!isPlainObject(raw)) fail(path, 'tier must be an object')
+  const o = raw as Record<string, unknown>
+  if (typeof o.min !== 'number') fail(`${path}.min`, 'must be a number')
+  if (o.max !== undefined && o.max !== null && typeof o.max !== 'number') fail(`${path}.max`, 'must be a number or null')
+  if (typeof o.required !== 'number') fail(`${path}.required`, 'must be a number')
+  if (o.incrementPer !== undefined && typeof o.incrementPer !== 'number') fail(`${path}.incrementPer`, 'must be a number')
+  if (o.incrementBy !== undefined && typeof o.incrementBy !== 'number') fail(`${path}.incrementBy`, 'must be a number')
+  return {
+    min: o.min as number,
+    max: typeof o.max === 'number' ? o.max : null,
+    required: o.required as number,
+    incrementPer: typeof o.incrementPer === 'number' ? o.incrementPer : undefined,
+    incrementBy: typeof o.incrementBy === 'number' ? o.incrementBy : undefined,
+  }
+}
+
+function parseTiers(raw: unknown, path: string): TemplateTier[] {
+  if (!Array.isArray(raw) || raw.length === 0) fail(path, 'must be a non-empty array')
+  return (raw as unknown[]).map((t, i) => parseTier(t, `${path}[${i}]`))
+}
+
+function parseMeasurementInput(raw: unknown, path: string): TemplateMeasurementInput {
+  if (!isPlainObject(raw)) fail(path, 'input must be an object')
+  const o = raw as Record<string, unknown>
+  return { key: checkString(o.key, path, 'key'), labelTh: checkString(o.labelTh, path, 'labelTh') }
+}
+
+function parseByLawEntry(raw: unknown, path: string, operator: ThresholdOperator): TemplateMeasurementByLawEntry {
+  if (!isPlainObject(raw)) fail(path, 'byLaw entry must be an object')
+  const o = raw as Record<string, unknown>
+  if (operator === 'tiered') {
+    if (o.tiers === undefined) fail(`${path}.tiers`, 'tiered byLaw entry requires tiers')
+    return { tiers: parseTiers(o.tiers, `${path}.tiers`) }
+  }
+  if (typeof o.value !== 'number') fail(`${path}.value`, 'must be a number')
+  if (operator === 'range' && typeof o.value2 !== 'number') fail(`${path}.value2`, 'range operator requires numeric value2')
+  return { value: o.value as number, value2: typeof o.value2 === 'number' ? o.value2 : null }
+}
+
+// Exported (not just used internally) so era-overrides.ts can validate override measurement
+// arrays through the exact same rules a template's own measurements[] are held to.
+export function parseMeasurement(raw: unknown, path: string): TemplateMeasurement {
   if (!isPlainObject(raw)) fail(path, 'measurement must be an object')
   const o = raw as Record<string, unknown>
   const key = checkString(o.key, path, 'key')
   const operator = checkThresholdOperator(o.operator, `${path}.operator`)
-  if (typeof o.value !== 'number') fail(`${path}.value`, 'must be a number')
-  if (operator === 'range' && typeof o.value2 !== 'number') {
-    fail(`${path}.value2`, 'range operator requires numeric value2')
-  }
   const unit = checkString(o.unit, path, 'unit')
   if (typeof o.autoGrade !== 'boolean') fail(`${path}.autoGrade`, 'must be a boolean')
+
+  let byLaw: Record<string, TemplateMeasurementByLawEntry> | undefined
+  if (o.byLaw !== undefined) {
+    if (!isPlainObject(o.byLaw)) fail(`${path}.byLaw`, 'must be an object keyed by LawReference code')
+    byLaw = {}
+    for (const [lawCode, entry] of Object.entries(o.byLaw)) {
+      byLaw[lawCode] = parseByLawEntry(entry, `${path}.byLaw.${lawCode}`, operator)
+    }
+  }
+
+  let inputs: TemplateMeasurementInput[] | undefined
+  let tiers: TemplateTier[] | undefined
+  let value: number | undefined
+  let value2: number | undefined
+
+  if (operator === 'tiered') {
+    if (!Array.isArray(o.inputs) || o.inputs.length < 2) fail(`${path}.inputs`, 'tiered operator requires at least 2 inputs (basis, provided)')
+    inputs = (o.inputs as unknown[]).map((inp, i) => parseMeasurementInput(inp, `${path}.inputs[${i}]`))
+    if (o.tiers !== undefined) tiers = parseTiers(o.tiers, `${path}.tiers`)
+    if (!tiers && !byLaw) fail(path, 'tiered measurement requires flat tiers or byLaw')
+  } else {
+    if (o.value !== undefined) value = typeof o.value === 'number' ? o.value : fail(`${path}.value`, 'must be a number')
+    if (operator === 'range' && value !== undefined && typeof o.value2 !== 'number') {
+      fail(`${path}.value2`, 'range operator requires numeric value2')
+    }
+    if (typeof o.value2 === 'number') value2 = o.value2
+    if (value === undefined && !byLaw) fail(`${path}.value`, 'must be a number (or supplied via byLaw)')
+  }
+
   return {
     key,
     operator,
-    value: o.value as number,
-    value2: typeof o.value2 === 'number' ? o.value2 : null,
+    value: value ?? null,
+    value2: value2 ?? null,
+    tiers,
+    inputs,
     unit,
+    byLaw,
     sourceText: typeof o.sourceText === 'string' ? o.sourceText : undefined,
     note: typeof o.note === 'string' ? o.note : undefined,
     autoGrade: o.autoGrade as boolean,

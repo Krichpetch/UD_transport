@@ -24,6 +24,10 @@ function p2002(): Prisma.PrismaClientKnownRequestError {
 describe('ChecklistsService.submit — pending-review uniqueness (Part D partial unique index)', () => {
   let service: ChecklistsService
   const checklistCreate = jest.fn()
+  // Session E2, Part A — submit() now looks up the auditor's existing DRAFT (if any) to reuse
+  // its era-resolution stamp; this suite only cares about P2002 handling, so "no existing draft"
+  // (null) is the fixed answer for every test here.
+  const checklistFindFirst = jest.fn()
   const findOne = jest.fn()
   const distanceToStationMeters = jest.fn()
   const auditLog = jest.fn()
@@ -31,8 +35,9 @@ describe('ChecklistsService.submit — pending-review uniqueness (Part D partial
 
   beforeEach(async () => {
     jest.clearAllMocks()
-    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', coordStatus: 'APPROXIMATE' })
+    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', coordStatus: 'APPROXIMATE', yearBuilt: null })
     templateFindFirst.mockResolvedValue(null)
+    checklistFindFirst.mockResolvedValue(null)
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -40,7 +45,7 @@ describe('ChecklistsService.submit — pending-review uniqueness (Part D partial
         {
           provide: PrismaService,
           useValue: {
-            checklist: { create: checklistCreate },
+            checklist: { create: checklistCreate, findFirst: checklistFindFirst },
             checklistTemplate: { findFirst: templateFindFirst },
           },
         },

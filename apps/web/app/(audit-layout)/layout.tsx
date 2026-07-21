@@ -26,7 +26,12 @@ export default function AuditLayout({ children }: { children: React.ReactNode })
   if (!hydrated || !token) return null
 
   return (
-    <RequireRole roles={['AUDITOR']} redirectTo="/dashboard">
+    // E-form redesign (Session E2, Part B.2) — ADMIN is let through this route-level gate too,
+    // solely so the v2-preview query flag (?preview=v2) has somewhere to land; the checklist
+    // template endpoint already 403s a non-admin caller for that flag (checklists.controller.ts),
+    // and admin/dev accounts using this route for anything other than that preview is not a new
+    // exposure (they already have every other permission in the system).
+    <RequireRole roles={['AUDITOR', 'ADMIN']} redirectTo="/dashboard">
       <div className="min-h-screen overflow-x-hidden bg-background">
         <header className="border-border bg-card/80 supports-[backdrop-filter]:bg-card/60 sticky top-0 z-30 flex items-center justify-between gap-3 border-b px-4 py-3 backdrop-blur">
           <div className="min-w-0">

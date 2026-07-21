@@ -8,6 +8,7 @@ import {
   getStationFilterOptions,
   createStation,
   updateStation,
+  updateStationYearBuilt,
   getPendingReviews,
   approveChecklist,
   rejectChecklist,
@@ -100,6 +101,18 @@ export function useUpdateStation() {
     onSuccess: (_data, vars) => {
       void qc.invalidateQueries({ queryKey: ['stations'] })
       void qc.invalidateQueries({ queryKey: ['station', vars.id] })
+    },
+  })
+}
+
+// E-form redesign (Session E2, Part A/C.6) — auditor-editable build year, set at confirm-to-start.
+export function useUpdateYearBuilt() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, yearBuilt }: { id: string; yearBuilt: number }) => updateStationYearBuilt(id, yearBuilt),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: ['station', vars.id] })
+      void qc.invalidateQueries({ queryKey: ['checklist', vars.id, 'template'] })
     },
   })
 }

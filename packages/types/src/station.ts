@@ -36,6 +36,9 @@ export interface Station {
   scope?: StationScope
   isOperational?: boolean
   urgentIssues: string[]
+  // E-form redesign (Session E2, Part A) — Buddhist year, auditor-entered at confirm-to-start.
+  // Nullable until an auditor first captures it; drives era resolution (see era-resolution.ts).
+  yearBuilt?: number | null
 }
 
 export interface KpiSummary {

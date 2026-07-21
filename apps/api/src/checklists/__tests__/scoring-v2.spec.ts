@@ -9,7 +9,7 @@
  * pass byte-for-byte, proving these additions never touched the v1 (flat, no subItems, no
  * templateDef) code path.
  */
-import { computeScoreFromItems, buildHistogram, computeFacilityMetrics, deriveMeasuredStandard } from '../scoring'
+import { computeScoreFromItems, buildHistogram, computeFacilityMetrics, deriveMeasuredStandard, ratioLengthKey, ratioHeightKey } from '../scoring'
 import type { ChecklistTemplateDefinition } from '@repo/types'
 
 describe('deriveMeasuredStandard', () => {
@@ -47,6 +47,44 @@ describe('deriveMeasuredStandard', () => {
     expect(deriveMeasuredStandard(range, { m1: 50 })).toBe(true)
     expect(deriveMeasuredStandard(range, { m1: 44 })).toBe(false)
     expect(deriveMeasuredStandard(range, { m1: 51 })).toBe(false)
+  })
+
+  it('ratio_1_x (ความชัน) is computed from raw ความยาว/ความสูง, not entered directly', () => {
+    // 1:12 slope, gte -- flatter (larger ratio) passes
+    const ratio = [{ key: 'm1', operator: 'gte' as const, value: 12, unit: 'ratio_1_x', autoGrade: true }]
+    // length 1200cm / height 100cm = ratio 12 -> exactly at the boundary, passes
+    expect(deriveMeasuredStandard(ratio, { [ratioLengthKey('m1')]: 1200, [ratioHeightKey('m1')]: 100 })).toBe(true)
+    // length 1100cm / height 100cm = ratio 11 -> steeper than 1:12, fails
+    expect(deriveMeasuredStandard(ratio, { [ratioLengthKey('m1')]: 1100, [ratioHeightKey('m1')]: 100 })).toBe(false)
+  })
+
+  it('ratio_1_x returns null (ungraded) when height is missing or zero', () => {
+    const ratio = [{ key: 'm1', operator: 'gte' as const, value: 12, unit: 'ratio_1_x', autoGrade: true }]
+    expect(deriveMeasuredStandard(ratio, { [ratioLengthKey('m1')]: 1200 })).toBeNull()
+    expect(deriveMeasuredStandard(ratio, { [ratioLengthKey('m1')]: 1200, [ratioHeightKey('m1')]: 0 })).toBeNull()
+  })
+
+  it('percent slope (ความลาดชัน ร้อยละ) is ALSO computed from raw ความยาว/ความสูง — same real criterion, seeded as unit:percent instead of ratio_1_x', () => {
+    // "ความลาดชัน ไม่เกิน ร้อยละ 10" -- lte 10
+    const percent = [{ key: 'm1', operator: 'lte' as const, value: 10, unit: 'percent', autoGrade: true }]
+    // height 100cm / length 1000cm * 100 = 10% -- exactly at the boundary, passes
+    expect(deriveMeasuredStandard(percent, { [ratioLengthKey('m1')]: 1000, [ratioHeightKey('m1')]: 100 })).toBe(true)
+    // height 110cm / length 1000cm * 100 = 11% -- steeper than 10%, fails
+    expect(deriveMeasuredStandard(percent, { [ratioLengthKey('m1')]: 1000, [ratioHeightKey('m1')]: 110 })).toBe(false)
+  })
+
+  it('percent slope returns null (ungraded) when length is missing or zero', () => {
+    const percent = [{ key: 'm1', operator: 'lte' as const, value: 10, unit: 'percent', autoGrade: true }]
+    expect(deriveMeasuredStandard(percent, { [ratioHeightKey('m1')]: 100 })).toBeNull()
+    expect(deriveMeasuredStandard(percent, { [ratioLengthKey('m1')]: 0, [ratioHeightKey('m1')]: 100 })).toBeNull()
+  })
+
+  it('unit:degree is left alone (not treated as a slope) — direct entry, not length/height-derived', () => {
+    // Door hinge-opening angle (e.g. B2.1-5's 90 องศา) has no length/height to derive from; the
+    // plain single-value path (values[m.key]) must still apply to unit:'degree'.
+    const angle = [{ key: 'm1', operator: 'gte' as const, value: 90, unit: 'degree', autoGrade: true }]
+    expect(deriveMeasuredStandard(angle, { m1: 90 })).toBe(true)
+    expect(deriveMeasuredStandard(angle, { m1: 89 })).toBe(false)
   })
 })
 

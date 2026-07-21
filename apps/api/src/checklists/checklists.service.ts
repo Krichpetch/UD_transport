@@ -5,7 +5,13 @@ import { StationsService } from '../stations/stations.service'
 import { AuditLogService } from '../audit/audit.service'
 import { isProximityBypassActive } from '../config/validate-env'
 import { computeScoreFromItems } from './scoring'
-import { parseChecklistItems, ChecklistItemsParseError, type ChecklistTemplateDefinition } from '@repo/types'
+import {
+  parseChecklistItems,
+  ChecklistItemsParseError,
+  resolveTemplateEras,
+  filterApplicableItems,
+  type ChecklistTemplateDefinition,
+} from '@repo/types'
 
 // Prisma's Json columns want InputJsonValue; `items` arrives already structurally validated by
 // validateItemsPayload (parseChecklistItems) below — this is a single named bridge for the
@@ -69,6 +75,62 @@ export class ChecklistsService {
     })
   }
 
+  // E-form redesign (Session E2, Part A) — resolves a template's byLaw-varying measurements
+  // against a build year, once, so both the score re-derivation and the appliedLawRefs stamp
+  // come from the exact same resolution (never two separate passes that could disagree).
+  // `templateDef` may be undefined (no ACTIVE template yet) — degrades to an empty stamp,
+  // matching every other getActiveTemplate() call site's graceful-degradation convention.
+  private resolveEraStamp(templateDef: ChecklistTemplateDefinition | undefined, yearBuilt: number | null) {
+    if (!templateDef) {
+      return { resolvedDef: undefined, appliedYearBuilt: yearBuilt, appliedLawRefs: null as Record<string, string> | null }
+    }
+    const { resolved, appliedLawRefs } = resolveTemplateEras(templateDef, yearBuilt)
+    return {
+      resolvedDef: resolved,
+      appliedYearBuilt: yearBuilt,
+      appliedLawRefs: Object.keys(appliedLawRefs).length > 0 ? appliedLawRefs : null,
+    }
+  }
+
+  // Part A.6 — GET template-for-audit: returns the mode's ACTIVE template with every byLaw value
+  // already resolved to a flat value (the client never sees or picks between eras). Resolves
+  // against an in-progress DRAFT's own stamp when one exists (an audit already underway must not
+  // have its thresholds shift under it if the station's yearBuilt is corrected later — see
+  // Checklist.appliedYearBuilt doc); otherwise resolves live against the station's current
+  // yearBuilt, since no stamp exists yet.
+  //
+  // `preview` (Part B.2, admin/dev-only — the controller only honors this for ADMIN callers)
+  // serves the mode's v2 DRAFT definition instead, for the gated v2-preview renderer. This is
+  // read-only rendering support ONLY — v2 is never ACTIVE, so no real checklist is ever created
+  // or submitted against it; saveDraft/submit always stamp/validate against the ACTIVE template.
+  async getTemplateForAudit(stationId: string, auditorId: string, preview?: boolean) {
+    const station = await this.stations.findOne(stationId)
+    const template = preview
+      ? await this.prisma.checklistTemplate.findFirst({ where: { mode: station.mode, variantKey: 'standard', version: 2 } })
+      : await this.getActiveTemplate(station.mode)
+    if (!template) return { template: null, templateId: null, templateVersion: null, appliedYearBuilt: station.yearBuilt, appliedLawRefs: null, eraUnresolved: false, preview: !!preview }
+
+    const draft = preview ? null : await this.prisma.checklist.findFirst({ where: { stationId, auditorId, status: 'DRAFT' } })
+    const yearBuilt = draft?.appliedYearBuilt ?? station.yearBuilt ?? null
+    const templateDef = template.definition as unknown as ChecklistTemplateDefinition
+    // Item redaction (Session E2 follow-up) BEFORE value resolution: a criterion the build year
+    // predates is removed from the tree entirely (product decision — "hide the item", see
+    // @repo/types#filterApplicableItems), so appliedLawRefs below only ever names laws actually
+    // relevant to what the auditor can see.
+    const filtered = filterApplicableItems(templateDef, yearBuilt)
+    const { resolved, appliedLawRefs, eraUnresolved } = resolveTemplateEras(filtered, yearBuilt)
+
+    return {
+      template: resolved,
+      templateId: template.id,
+      templateVersion: template.version,
+      appliedYearBuilt: yearBuilt,
+      appliedLawRefs: Object.keys(appliedLawRefs).length > 0 ? appliedLawRefs : null,
+      eraUnresolved,
+      preview: !!preview,
+    }
+  }
+
   // Part C — size-bounds the payload explicitly, then runs it through @repo/types'
   // parseChecklistItems (Part B), the single structural validator for both v1 and v2 shapes.
   // A thrown ChecklistItemsParseError becomes a 400 naming the offending path/code; `templateDef`
@@ -98,7 +160,7 @@ export class ChecklistsService {
   // find-then-create/update like before, but a concurrent double-create now loses cleanly via
   // the real DB constraint (P2002) instead of racing on a read-then-write check — the loser
   // falls back to updating the row the winner just created.
-  async saveDraft(stationId: string, auditorId: string, items: unknown) {
+  async saveDraft(stationId: string, auditorId: string, items: unknown, finalThoughts?: string) {
     const station = await this.stations.findOne(stationId)
     const template = await this.getActiveTemplate(station.mode)
     this.validateItemsPayload(items, template?.definition as ChecklistTemplateDefinition | undefined)
@@ -111,9 +173,18 @@ export class ChecklistsService {
     if (existing) {
       checklist = await this.prisma.checklist.update({
         where: { id: existing.id },
-        data: { items: toJson(items), updatedAt: new Date() },
+        // Part D — drafts persist finalThoughts too (cold-reload resume restores it); undefined
+        // (field omitted from the request) leaves the stored value untouched rather than nulling
+        // it out on every autosave tick that doesn't happen to include it.
+        data: { items: toJson(items), ...(finalThoughts !== undefined && { finalThoughts }), updatedAt: new Date() },
       })
     } else {
+      // Stamped once at creation and never touched again — see Checklist.templateId /
+      // appliedYearBuilt doc. Meaningful even with no ACTIVE template (appliedYearBuilt alone).
+      const { appliedYearBuilt, appliedLawRefs } = this.resolveEraStamp(
+        template?.definition as ChecklistTemplateDefinition | undefined,
+        station.yearBuilt,
+      )
       try {
         checklist = await this.prisma.checklist.create({
           data: {
@@ -124,6 +195,9 @@ export class ChecklistsService {
             // Stamped once at creation and never touched again — see Checklist.templateId doc.
             templateId: template?.id,
             templateVersion: template?.version,
+            appliedYearBuilt,
+            appliedLawRefs: appliedLawRefs === null ? Prisma.JsonNull : toJson(appliedLawRefs),
+            finalThoughts: finalThoughts ?? null,
           },
         })
       } catch (err) {
@@ -131,7 +205,7 @@ export class ChecklistsService {
           const winner = await this.prisma.checklist.findFirstOrThrow({ where: { stationId, auditorId, status: 'DRAFT' } })
           checklist = await this.prisma.checklist.update({
             where: { id: winner.id },
-            data: { items: toJson(items), updatedAt: new Date() },
+            data: { items: toJson(items), ...(finalThoughts !== undefined && { finalThoughts }), updatedAt: new Date() },
           })
         } else {
           throw err
@@ -172,6 +246,17 @@ export class ChecklistsService {
     const templateDef = template?.definition as ChecklistTemplateDefinition | undefined
     this.validateItemsPayload(items, templateDef)
 
+    // Reuse the auditor's in-progress DRAFT's era stamp when one exists — that's the resolution
+    // the auditor was actually answering against (via GET template-for-audit) while filling the
+    // form; a direct submit with no prior draft stamps fresh from the station's yearBuilt now.
+    // Either way this is the ONE resolution used for both the stamp and the auto-graded score
+    // below — never two separate passes that could disagree (Part A.6/A.7).
+    const existingDraft = await this.prisma.checklist.findFirst({ where: { stationId, auditorId, status: 'DRAFT' } })
+    const { resolvedDef, appliedYearBuilt, appliedLawRefs } = this.resolveEraStamp(
+      templateDef,
+      existingDraft?.appliedYearBuilt ?? station.yearBuilt,
+    )
+
     const bypassAllowed = isProximityBypassActive()
 
     let distanceM: number | null = null
@@ -200,9 +285,10 @@ export class ChecklistsService {
       locationVerified = true
     }
 
-    // Re-derive score server-side; never trust the client-supplied value. Passing templateDef
-    // lets measured presence_standard leaves auto-grade against the template's thresholds.
-    const score = computeScoreFromItems(items, templateDef)
+    // Re-derive score server-side; never trust the client-supplied value. Passing the ERA-
+    // RESOLVED template def (not the raw ACTIVE one) lets measured presence_standard leaves
+    // auto-grade against the correct era's thresholds, including tiered byLaw criteria.
+    const score = computeScoreFromItems(items, resolvedDef)
 
     let checklist
     try {
@@ -211,6 +297,8 @@ export class ChecklistsService {
           stationId,
           auditorId,
           items: toJson(items),
+          appliedYearBuilt,
+          appliedLawRefs: appliedLawRefs === null ? Prisma.JsonNull : toJson(appliedLawRefs),
           score,
           status: 'SUBMITTED',
           submittedAt: new Date(),

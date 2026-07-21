@@ -19,6 +19,7 @@ import { AuditLogService } from '../audit/audit.service'
 import { StationsService } from './stations.service'
 import { CreateStationDto } from './dto/create-station.dto'
 import { UpdateStationDto } from './dto/update-station.dto'
+import { UpdateYearBuiltDto } from './dto/update-year-built.dto'
 import { BatchOtpDto } from './dto/otp-row.dto'
 import { MetricsQueryDto } from './dto/metrics-query.dto'
 
@@ -177,6 +178,14 @@ export class StationsController {
   async update(@Param('id') id: string, @Body() dto: UpdateStationDto, @Req() req: AuthRequest) {
     if (req.user.role !== 'ADMIN') throw new ForbiddenException()
     return this.stations.update(id, dto, req.user.id)
+  }
+
+  // E-form redesign (Session E2, Part A) — deliberately AUDITOR + ADMIN, not admin-only like the
+  // rest of this controller's mutations: build year is captured by the auditor in the field.
+  @Patch(':id/year-built')
+  async updateYearBuilt(@Param('id') id: string, @Body() dto: UpdateYearBuiltDto, @Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    return this.stations.updateYearBuilt(id, dto.yearBuilt, req.user.id)
   }
 
   @SkipThrottle()

@@ -23,6 +23,9 @@ const FINAL_THOUGHTS_MAX_LENGTH = 4000
 
 export class SaveDraftChecklistDto {
   @IsArray() items: object[]
+  // Session E2, Part D — drafts persist finalThoughts too, so a cold-reload resume restores it
+  // (same field, same cap as the submit-time one below).
+  @IsOptional() @IsString() @MaxLength(FINAL_THOUGHTS_MAX_LENGTH) finalThoughts?: string
 }
 
 export class SubmitChecklistDto {

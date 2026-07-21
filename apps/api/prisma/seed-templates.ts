@@ -23,6 +23,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import {
   parseTemplateDefinition,
+  applyEraOverrides,
   type ChecklistTemplateDefinition,
   type ChecklistTemplateGroupDef,
   type TemplateNode,
@@ -41,6 +42,15 @@ const V2_FILES: Record<Mode, string> = {
   ทางราง: 'template_rail_v2.json',
   ทางเรือ: 'template_water_v2.json',
   ทางอากาศ: 'template_air_v2.json',
+}
+// Session E2, Part A.4 — per-mode era-override files, merged onto the base v2 seed before
+// validation/upsert. A mode with no file here yet (only rail exists at authoring time) is a
+// no-op, not an error — see apps/docs/Checklist_Utils/era_overrides_rail.json's `_readme`.
+const ERA_OVERRIDE_FILES: Record<Mode, string> = {
+  ทางบก: 'era_overrides_land.json',
+  ทางราง: 'era_overrides_rail.json',
+  ทางเรือ: 'era_overrides_water.json',
+  ทางอากาศ: 'era_overrides_air.json',
 }
 const V2_DIR = path.resolve(__dirname, '..', '..', 'docs', 'Checklist_Utils')
 
@@ -139,7 +149,15 @@ async function main() {
     // row. Flagged here rather than loosened in the shared validator, which should stay strict
     // about canonical TransportMode values for every other caller.
     if (raw.mode === 'ทางน้ำ') raw.mode = 'ทางเรือ'
-    const v2def = parseTemplateDefinition(raw) // throws loudly on any mismatch — v2 files are loaded verbatim, never coerced
+    let v2def = parseTemplateDefinition(raw) // throws loudly on any mismatch — v2 files are loaded verbatim, never coerced
+
+    const overridesPath = path.join(V2_DIR, ERA_OVERRIDE_FILES[mode])
+    if (fs.existsSync(overridesPath)) {
+      const overridesRaw = JSON.parse(fs.readFileSync(overridesPath, 'utf-8'))
+      v2def = applyEraOverrides(v2def, overridesRaw)
+      report.push(`v2 ${mode}: applied era overrides from ${ERA_OVERRIDE_FILES[mode]} (${Object.keys(overridesRaw.overrides ?? {}).length} leaf(ves))`)
+    }
+
     const v2stats = tagLeaves(v2def)
     await upsertTemplate(mode, 2, 'DRAFT', v2def, 'PROVISIONAL — see apps/docs/Checklist_Utils/DATA_DICTIONARY_v2.md; NOT activated in Session E1')
     report.push(`v2 ${mode}: ${v2stats.total} leaves, ${v2stats.tagged}/${v2stats.total} facility-tagged`)

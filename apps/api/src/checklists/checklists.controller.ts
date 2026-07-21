@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Param, Post, Req, UseGuards } from '@nestjs/common'
+import { Body, Controller, ForbiddenException, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common'
 import { Request } from 'express'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { ChecklistsService } from './checklists.service'
@@ -31,6 +31,23 @@ export class ChecklistsController {
     return this.checklists.findDraft(stationId, req.user.id)
   }
 
+  // E-form redesign (Session E2, Part A.6) — the ACTIVE template with byLaw values already
+  // resolved (client never picks between eras). AUDITOR-only: this is keyed to "my" in-progress
+  // draft's stamp when one exists, same guard as /draft above. `preview=v2` (Part B.2) is
+  // additionally gated to ADMIN — a pilot AUDITOR can never fetch the un-activated v2 DRAFT
+  // definition through this endpoint, regardless of what query string they send.
+  @Get('template')
+  findTemplateForAudit(
+    @Param('stationId') stationId: string,
+    @Query('preview') preview: string | undefined,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'AUDITOR' && req.user.role !== 'ADMIN') throw new ForbiddenException()
+    const wantsV2Preview = preview === 'v2'
+    if (wantsV2Preview && req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.checklists.getTemplateForAudit(stationId, req.user.id, wantsV2Preview)
+  }
+
   @Post('draft')
   saveDraft(
     @Param('stationId') stationId: string,
@@ -38,7 +55,7 @@ export class ChecklistsController {
     @Req() req: AuthRequest,
   ) {
     if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
-    return this.checklists.saveDraft(stationId, req.user.id, body.items)
+    return this.checklists.saveDraft(stationId, req.user.id, body.items, body.finalThoughts)
   }
 
   @Post('submit')

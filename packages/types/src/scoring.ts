@@ -26,7 +26,7 @@
 //     thresholds — re-derived every call, per DATA_DICTIONARY_v2.md §2: "store the entered
 //     values, never the derived verdict"). Every existing call site omits it and is unaffected.
 
-import type { ChecklistTemplateDefinition, TemplateMeasurement, TemplateNode } from './checklist-template.js'
+import type { ChecklistTemplateDefinition, TemplateMeasurement, TemplateNode, TemplateTier } from './checklist-template.js'
 import { walkTemplateLeaves } from './checklist-template.js'
 
 type TemplateAnswerKind = 'choice' | 'presence' | 'presence_standard'
@@ -47,10 +47,36 @@ interface StoredGroup {
   items: StoredItem[]
 }
 
-// gte/lte/range-inclusive comparison against a leaf's measurements[]. All autoGrade=true
+// Tiered lookup (Session E2) — the required value for `basis` is the tier whose [min, max] band
+// contains it; an open-ended top tier (`max` absent) may extend the required count every
+// `incrementPer` over `min`, adding `incrementBy` each step. Returns null if `basis` falls
+// outside every tier (no band covers it — treated as ungraded, not a failure).
+export function tierRequiredFor(tiers: TemplateTier[], basis: number): number | null {
+  const sorted = [...tiers].sort((a, b) => a.min - b.min)
+  for (const t of sorted) {
+    const max = t.max ?? Infinity
+    if (basis < t.min || basis > max) continue
+    if (t.incrementPer && t.incrementBy) {
+      const extra = Math.floor((basis - t.min) / t.incrementPer) * t.incrementBy
+      return t.required + extra
+    }
+    return t.required
+  }
+  return null
+}
+
+export function passesTiered(tiers: TemplateTier[], basis: number, provided: number): boolean | null {
+  const required = tierRequiredFor(tiers, basis)
+  if (required === null) return null
+  return provided >= required
+}
+
+// gte/lte/range-inclusive/tiered comparison against a leaf's measurements[]. All autoGrade=true
 // measurements on the leaf must pass. Returns null when a verdict can't be derived yet (missing
-// numeric entry, or every measurement on the leaf is autoGrade=false / guidance-only) — callers
-// treat null like bare-มี: parked, excluded from standards eligibility, not a confirmed failure.
+// numeric entry, an unresolved byLaw group, or every measurement on the leaf is autoGrade=false /
+// guidance-only) — callers treat null like bare-มี: parked, excluded from standards eligibility,
+// not a confirmed failure. `values` is keyed by measurement `key` for gte/lte/range, and by each
+// `inputs[].key` (e.g. "basis"/"provided") for tiered — never prefixed by the measurement key.
 export function deriveMeasuredStandard(
   measurements: TemplateMeasurement[] | undefined,
   values: Record<string, number> | undefined,
@@ -60,7 +86,33 @@ export function deriveMeasuredStandard(
   if (graded.length === 0) return null
   if (!values) return null
   for (const m of graded) {
-    const v = values[m.key]
+    if (m.operator === 'tiered') {
+      if (!m.tiers || !m.inputs || m.inputs.length < 2) return null // byLaw not resolved, or malformed
+      const basis = values[m.inputs[0]!.key]
+      const provided = values[m.inputs[1]!.key]
+      if (typeof basis !== 'number' || typeof provided !== 'number') return null
+      const pass = passesTiered(m.tiers, basis, provided)
+      if (pass === null) return null
+      if (!pass) return false
+      continue
+    }
+    if (m.value == null) return null // byLaw not resolved
+    let v: number | undefined
+    if (m.unit === 'ratio_1_x' || m.unit === 'percent') {
+      // Slope convention (Session E2 follow-up) — the auditor enters raw ความยาว/ความสูง (cm) for
+      // EVERY seeded slope criterion, whether the source form expresses the threshold as a ratio
+      // (1:X) or a percent grade — both are the same physical quantity (rise ÷ run), just
+      // formatted differently. NOT extended to unit:'degree': the seeded degree measurements mix
+      // genuine slope angles (one criterion, convertible the same way) with door hinge-opening
+      // angles (three criteria) that have no length/height to derive from at all — see
+      // ratioLengthKey/ratioHeightKey's doc.
+      const length = values[ratioLengthKey(m.key)]
+      const height = values[ratioHeightKey(m.key)]
+      if (typeof length !== 'number' || typeof height !== 'number' || length === 0 || height === 0) return null
+      v = m.unit === 'percent' ? (height / length) * 100 : length / height
+    } else {
+      v = values[m.key]
+    }
     if (typeof v !== 'number') return null
     const pass =
       m.operator === 'gte' ? v >= m.value :
@@ -69,6 +121,20 @@ export function deriveMeasuredStandard(
     if (!pass) return false
   }
   return true
+}
+
+// Slope convention (Session E2 follow-up) — ความชัน measurements (unit 'ratio_1_x' or 'percent')
+// are entered as raw length/height (cm) rather than the ratio/percent itself; deriveMeasuredStandard
+// computes length ÷ height (ratio) or (height ÷ length) × 100 (percent) and compares it against
+// the threshold like any other gte/lte/range value. Keys are scoped per-measurement so two slope
+// measurements on the same leaf (none currently seeded, but not structurally forbidden) can't
+// collide. Exported so the entry form and the scoring path always agree on the exact key names —
+// never two independent guesses at the same convention.
+export function ratioLengthKey(measurementKey: string): string {
+  return `${measurementKey}__length`
+}
+export function ratioHeightKey(measurementKey: string): string {
+  return `${measurementKey}__height`
 }
 
 function buildLeafTemplateIndex(templateDef?: ChecklistTemplateDefinition): Map<string, TemplateNode> {
@@ -106,6 +172,11 @@ export function computeScoreFromItems(items: unknown, templateDef?: ChecklistTem
   let eligible = 0
   let standard = 0
   for (const it of allLeaves) {
+    // Universal not-applicable marker (Session E2 follow-up) — `value: 'N/A'` may be set on ANY
+    // answerType, not just 'choice' (e.g. a v2 presence_standard leaf the auditor marked
+    // ไม่เกี่ยวข้อง because a sibling mutually-exclusive criterion applies instead). Excluded from
+    // every bucket, exactly like v1's N/A always was.
+    if (it.value === 'N/A') continue
     const kind: TemplateAnswerKind = it.answerType ?? (it.value !== undefined ? 'choice' : it.present !== undefined ? 'presence' : 'choice')
     if (kind === 'presence') continue // never eligible for standards — จัดให้มีฯ only, see module doc
     if (kind === 'presence_standard') {
@@ -120,9 +191,9 @@ export function computeScoreFromItems(items: unknown, templateDef?: ChecklistTem
     }
     // 'choice' — original v1 formula, unchanged (note: a missing/undefined `value` key falls
     // through as eligible-but-not-standard, exactly as the pre-E1 filter predicate did — this
-    // looks odd but is deliberate parity with the byte-for-byte original, not a new decision)
+    // looks odd but is deliberate parity with the byte-for-byte original, not a new decision).
+    // N/A is handled above, universally, before this branch is ever reached.
     if (it.value === null) continue
-    if (it.value === 'N/A') continue
     if (it.value === 'มี' && it.flagged === true) continue
     eligible++
     if (it.value === 'มี' && it.meetsStandard === true) standard++
@@ -150,7 +221,9 @@ export interface ValueHistogram {
   hasSubstandard:      number  // มี + meetsStandard=false + flagged=false
   standardUnspecified: number  // มี + meetsStandard=false + flagged=true  (bare มี, or presence_standard "present" pending standard)
   none:                number  // ไม่มี
-  na:                  number  // N/A (choice leaves only — v2 leaves have no N/A concept)
+  na:                  number  // N/A — universal marker, any answerType (Session E2 follow-up:
+                                // some v2 criteria are mutually-exclusive alternatives, e.g. three
+                                // ramp-length bands where only one applies; the other two are N/A)
   nullOrOther:         number  // null (unanswered / OTHER that slipped through)
   total:               number  // every leaf visited, of every answerType
   // v2 pure-'presence' leaves (มี/ไม่มี only — no ได้มาตรฐาน concept). Deliberately kept OUT of
@@ -210,6 +283,8 @@ export function buildHistogram(items: unknown, templateDef?: ChecklistTemplateDe
     const leaves = Array.isArray(g?.items) ? flattenLeaves(g.items) : []
     for (const it of leaves) {
       h.total++
+      // Universal not-applicable marker — see the matching comment in computeScoreFromItems.
+      if (it.value === 'N/A') { h.na++; continue }
       const kind: TemplateAnswerKind = it.answerType ?? (it.value !== undefined ? 'choice' : it.present !== undefined ? 'presence' : 'choice')
 
       if (kind === 'presence') {
@@ -233,9 +308,9 @@ export function buildHistogram(items: unknown, templateDef?: ChecklistTemplateDe
       }
 
       // 'choice' — original v1 classification, unchanged (a missing/undefined `value` key
-      // silently falls through with only `total` counted — matches the pre-E1 original exactly)
+      // silently falls through with only `total` counted — matches the pre-E1 original exactly).
+      // N/A is handled above, universally, before this branch is ever reached.
       if (it.value === null)    { h.nullOrOther++; continue }
-      if (it.value === 'N/A')   { h.na++;          continue }
       if (it.value === 'ไม่มี') { h.none++;        continue }
       if (it.value === 'มี') {
         if (it.meetsStandard)        h.hasStandard++

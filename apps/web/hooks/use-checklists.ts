@@ -5,10 +5,10 @@ import {
   getLatestChecklist,
   getChecklistHistory,
   getMyDraft,
+  getTemplateForAudit,
   saveDraft,
   submitChecklist,
 } from '@/lib/api/checklists'
-import type { ChecklistGroup } from '@repo/types'
 import type { SubmitGps } from '@/lib/geolocation'
 
 export function useChecklist(stationId: string) {
@@ -29,6 +29,19 @@ export function useMyDraft(stationId: string) {
   })
 }
 
+// E-form redesign (Session E2, Part A.6/D) — the era-resolved template driving the audit-form
+// engine. staleTime: Infinity + refetchOnWindowFocus: false for the same reason as useMyDraft:
+// a background refetch must never race the in-progress form's hydration (Part D P0 fix).
+export function useTemplateForAudit(stationId: string, preview?: boolean) {
+  return useQuery({
+    queryKey: ['checklist', stationId, 'template', preview ?? false],
+    queryFn:  () => getTemplateForAudit(stationId, preview),
+    enabled:  !!stationId,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  })
+}
+
 export function useChecklistHistory(stationId: string) {
   return useQuery({
     queryKey: ['checklist', stationId, 'history'],
@@ -40,7 +53,8 @@ export function useChecklistHistory(stationId: string) {
 export function useSaveDraft(stationId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (items: ChecklistGroup[]) => saveDraft(stationId, items),
+    mutationFn: ({ items, finalThoughts }: { items: unknown[]; finalThoughts?: string }) =>
+      saveDraft(stationId, items, finalThoughts),
     onSuccess:  () => qc.invalidateQueries({ queryKey: ['checklist', stationId] }),
   })
 }
@@ -48,9 +62,9 @@ export function useSaveDraft(stationId: string) {
 export function useSubmitChecklist(stationId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ items, score, gps }: {
-      items: ChecklistGroup[]; score: number; gps?: SubmitGps
-    }) => submitChecklist(stationId, items, score, gps),
+    mutationFn: ({ items, score, gps, finalThoughts }: {
+      items: unknown[]; score: number; gps?: SubmitGps; finalThoughts?: string
+    }) => submitChecklist(stationId, items, score, gps, finalThoughts),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['checklist', stationId] })
       qc.invalidateQueries({ queryKey: ['station', stationId] })

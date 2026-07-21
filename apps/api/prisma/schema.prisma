@@ -82,6 +82,11 @@ model Station {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
+  // E-form redesign (Session E2, Part A) — Buddhist year, captured by the AUDITOR in the field
+  // (not master data from สนข.) at confirm-to-start; editable on later audits. Drives era
+  // resolution — see @repo/types#resolveEra. Every change writes an AuditLog entry.
+  yearBuilt         Int?
+
   checklists Checklist[]
 
   @@unique([nameTh, mode, responsibleAgency, province])
@@ -161,6 +166,16 @@ model Checklist {
   // Part C — auditor's free-text closing remarks on the submission. Nullable; length-capped at
   // the DTO layer (4000 chars), not here.
   finalThoughts String?
+
+  // E-form redesign (Session E2, Part A) — era-resolution stamp, alongside the existing
+  // templateId/templateVersion stamp above. Set once at checklist creation (saveDraft's create
+  // branch, or submit() when no prior draft exists) from the station's yearBuilt AT THAT MOMENT;
+  // NEVER changes afterward — a corrected station year affects only future checklists, not this
+  // one. appliedLawRefs is keyed `${leafCode}#${measurementKey}` -> resolved LawReference.code
+  // (see @repo/types#resolveTemplateEras); null when the template had no byLaw-varying leaves,
+  // same graceful-degradation as a null templateId.
+  appliedYearBuilt Int?
+  appliedLawRefs   Json?
 
   // Admin review outcome — set when an ADMIN rejects a SUBMITTED checklist and
   // sends it back to the auditor with feedback. Null until a reject happens.

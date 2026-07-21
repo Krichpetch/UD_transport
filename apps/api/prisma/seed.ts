@@ -41,10 +41,16 @@ async function main() {
   ]
 
   for (const s of stations) {
+    // Match on the model's real unique constraint (nameTh, mode, responsibleAgency, province) —
+    // not `id` (a cuid `.create()` never sets to `s.nameTh` in practice once matched once), which
+    // meant every re-run tried to CREATE a fresh row and could collide with real OTP-imported
+    // data sharing the same natural key instead of updating the existing one.
     await prisma.station.upsert({
-      where: { id: s.nameTh },
+      where: { nameTh_mode_responsibleAgency_province: {
+        nameTh: s.nameTh, mode: s.mode, responsibleAgency: s.responsibleAgency, province: s.province,
+      } },
       update: s,
-      create: { id: s.nameTh, ...s },
+      create: s,
     })
   }
 

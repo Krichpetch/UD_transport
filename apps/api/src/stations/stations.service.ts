@@ -6,7 +6,7 @@ import { CreateStationDto } from './dto/create-station.dto'
 import { UpdateStationDto } from './dto/update-station.dto'
 import { OtpRowDto } from './dto/otp-row.dto'
 import { computeScoreFromItems, scoreToStatus, hasReviewFlag } from '../checklists/scoring'
-import { computeFacilityMetrics, parseChecklistItems } from '@repo/types'
+import { computeFacilityMetrics, parseChecklistItems, isValidYearBuilt } from '@repo/types'
 import type { ParsedChecklistGroup, StoredChecklistNode } from '@repo/types'
 
 // Prisma's Json columns want InputJsonValue; every call site here passes data that has already
@@ -262,6 +262,26 @@ export class StationsService {
 
     await this.auditLog.log({
       userId: adminId, action: 'UPDATE', entityType: 'Station', entityId: id, before, after,
+    })
+    return after
+  }
+
+  // E-form redesign (Session E2, Part A) — auditor-editable build year, deliberately open to the
+  // AUDITOR role (PM-confirmed: captured in the field, not master data) as well as ADMIN. Drives
+  // era resolution for future checklists only (see @repo/types#resolveTemplateEras) — an
+  // in-progress checklist's stamp never changes retroactively. Every change is audit-logged.
+  async updateYearBuilt(id: string, yearBuilt: number, userId: string) {
+    if (!isValidYearBuilt(yearBuilt)) {
+      throw new BadRequestException({ code: 'INVALID_YEAR_BUILT', message: 'ปี พ.ศ. ที่ก่อสร้างไม่ถูกต้อง' })
+    }
+    const before = await this.prisma.station.findUnique({ where: { id } })
+    if (!before) throw new NotFoundException()
+
+    const after = await this.prisma.station.update({ where: { id }, data: { yearBuilt } })
+
+    await this.auditLog.log({
+      userId, action: 'UPDATE_YEAR_BUILT', entityType: 'Station', entityId: id,
+      before: { yearBuilt: before.yearBuilt }, after: { yearBuilt: after.yearBuilt },
     })
     return after
   }

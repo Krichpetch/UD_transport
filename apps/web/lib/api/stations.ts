@@ -163,6 +163,12 @@ export function updateStation(id: string, data: UpdateStationInput) {
   return api.patch<Station>(`/stations/${id}`, data)
 }
 
+// E-form redesign (Session E2, Part A/C.6) — auditor-editable build year, captured at
+// confirm-to-start. Open to AUDITOR as well as ADMIN — see stations.controller.ts.
+export function updateStationYearBuilt(id: string, yearBuilt: number) {
+  return api.patch<Station>(`/stations/${id}/year-built`, { yearBuilt })
+}
+
 export function getPendingReviews() {
   return api.get<string[]>('/stations/pending-reviews')
 }
