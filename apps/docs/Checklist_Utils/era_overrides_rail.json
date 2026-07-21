@@ -1,0 +1,98 @@
+{
+ "_readme": [
+  "ERA OVERRIDES — rail (ทางราง). Merged onto template_rail_v2.json by merge script (to be written in E2/E-data session).",
+  "One entry per leaf whose measurement VALUES vary by law era. Item-level applicability is NOT handled here (that is lawRefs filtering).",
+  "Format: leafCode -> { measurements: [ ... ] } — REPLACES that leaf's measurements array entirely on merge.",
+  "This file is a FORMAT REFERENCE with one real example. The full set will be regenerated from Krichpetch's manual year-variance summary file.",
+  "All values carry confirmed:false until threshold review; 2564 tier table below is PLACEHOLDER — source table was garbled, needs verification against the paper form."
+ ],
+ "_schema": {
+  "operators": [
+   "gte",
+   "lte",
+   "range",
+   "tiered"
+  ],
+  "tiered": "auditor inputs `basis` and `provided`; pass = provided >= tier lookup on basis. Tier: {min, max?, required, incrementPer?, incrementBy?} — incrementPer/By extend the top tier open-endedly.",
+  "byLaw": "keys are LawReference codes (MHT_2548, MHT_2564, PSD_2555, MOT_2556, PROJECT). Resolution picks the latest law with effectiveYear <= station.yearBuilt. May wrap any operator's value fields.",
+  "units": [
+   "cm",
+   "count",
+   "ratio_1_x",
+   "percent",
+   "degree"
+  ]
+ },
+ "overrides": {
+  "A1.1-1": {
+   "labelHint": "กำหนดให้มีที่จอดรถสำหรับคนพิการ ดังนี้",
+   "measurements": [
+    {
+     "key": "m1",
+     "operator": "tiered",
+     "unit": "count",
+     "inputs": [
+      {
+       "key": "basis",
+       "labelTh": "จำนวนที่จอดรถทั้งหมด (คัน)"
+      },
+      {
+       "key": "provided",
+       "labelTh": "จำนวนที่จอดรถสำหรับคนพิการ (ช่องจอด)"
+      }
+     ],
+     "byLaw": {
+      "MHT_2548": {
+       "tiers": [
+        {
+         "min": 10,
+         "max": 50,
+         "required": 1
+        },
+        {
+         "min": 51,
+         "max": 100,
+         "required": 2
+        },
+        {
+         "min": 101,
+         "required": 2,
+         "incrementPer": 100,
+         "incrementBy": 1
+        }
+       ]
+      },
+      "MHT_2564": {
+       "tiers": [
+        {
+         "min": 1,
+         "max": 25,
+         "required": 1,
+         "_placeholder": true
+        },
+        {
+         "min": 26,
+         "max": 50,
+         "required": 2,
+         "_placeholder": true
+        },
+        {
+         "min": 51,
+         "required": 2,
+         "incrementPer": 100,
+         "incrementBy": 1,
+         "_placeholder": true
+        }
+       ],
+       "_note": "PLACEHOLDER — source comparison table was garbled ('<25 / 26-50 / 151 (6 ที่จอด)'); verify against paper form before confirming"
+      }
+     },
+     "sourceText": "ตารางที่จอดรถสำหรับคนพิการ แยกตามกฎกระทรวงฯ 2548/2564",
+     "autoGrade": true,
+     "extracted": false,
+     "confirmed": false
+    }
+   ]
+  }
+ }
+}

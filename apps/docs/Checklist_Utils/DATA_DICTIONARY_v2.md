@@ -52,6 +52,36 @@ Any leaf whose criterion involves a physical dimension carries a `measurements[]
 - `extracted: true, confirmed: false` marks machine-extracted thresholds pending human review — see `threshold_review.csv` (803 rows). Review workflow: admin confirms/corrects values; `confirmed` flips true. Extraction coverage: 615 of 1,522 leaves (rail 181 / land 175 / air 173 / water 86).
 - Auditor answer shape for measurement leaves: `{ present: boolean, values?: { m1: number, ... }, meetsStandard: derived }`.
 
+### Era-dependent criteria (UPDATED 2026-07-19: year-built is AUDITOR INPUT)
+
+Two mechanisms, both driven by the station's build year (Buddhist year, entered by the **auditor** in the E-form before answering — NOT master data from สนข.):
+
+1. **Item applicability** — items exist/vanish per era, derived by filtering the template's `lawRefs` against the laws in force for the build year (already representable; no per-era template copies).
+2. **Value variance** — the same criterion carries different threshold values per era. Modeled with an optional `byLaw` wrapper on any measurement:
+
+```json
+"measurements": [{
+  "key": "m1", "operator": "tiered", "unit": "count",
+  "inputs": [
+    { "key": "basis",    "labelTh": "จำนวนที่จอดรถทั้งหมด (คัน)" },
+    { "key": "provided", "labelTh": "จำนวนที่จอดรถสำหรับคนพิการ (ช่อง)" } ],
+  "byLaw": {
+    "MHT_2548": { "tiers": [
+      { "min": 10,  "max": 50,            "required": 1 },
+      { "min": 51,  "max": 100,           "required": 2 },
+      { "min": 101, "required": 2, "incrementPer": 100, "incrementBy": 1 } ] },
+    "MHT_2564": { "tiers": [ "…different table…" ] }
+  },
+  "extracted": false, "confirmed": false }]
+```
+
+- **`tiered` operator** (new, era-independent concept): the required value is a lookup on another auditor input. Auditor enters the basis (e.g. total parking) and the provided count; pass = `provided >= tierLookup(basis)`. Note the wheelchair-seating table (B3.2: 4–25 ที่นั่ง → 1 …) needs `tiered` even without era variance.
+- **`byLaw`** may wrap values for ANY operator (gte/lte/range/tiered). Criteria without era variance keep flat values — no shape change for the ~95% that don't vary.
+- **Resolution**: build year → for each `byLaw` group pick the latest law whose effective year ≤ year. Until สนข. supplies real enforcement dates, resolution uses `LawReference.effectiveYear ?? buddhistYear` and is flagged **provisional**. Build year < oldest law → apply oldest, flag `eraUnresolved`.
+- **Stamping**: the resolved law keys are stamped on the checklist (`appliedLawRefs` + `appliedYearBuilt`) at creation, like template stamping — an audit is a record against the rules it was graded under. Correcting a station's year later affects new audits only.
+- **Storage**: `Station.yearBuilt` (nullable int, Buddhist year). Auditor sets it at confirm-to-start; pre-filled and editable on later audits; every change audit-logged.
+- **Maintenance path**: era-varying criteria live in per-mode `era_overrides_{mode}.json` files merged onto the base v2 seeds by script — the base workbooks/converter pipeline stays untouched, and สนข. revisions edit one small file.
+
 Scoring note (for E1 Part E parity): the current v1 convention excludes bare `มี` answers from denominators; `presence` leaves are the structural descendants of that convention — the rollup design must state explicitly whether `presence` leaves count toward standards percentages (recommended: they count toward การจัดให้มีฯ but not การได้มาตรฐาน). Derived (auto-graded) standards verdicts count in การได้มาตรฐาน exactly like manual ones.
 
 ## 3. JSON shape (per template file)
