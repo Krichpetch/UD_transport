@@ -33,4 +33,11 @@ export class MinioService implements OnModuleInit {
   async getPresignedUrl(key: string, expirySeconds = 3600): Promise<string> {
     return this.publicClient.presignedGetObject(this.bucket, key, expirySeconds)
   }
+
+  // Session E3, Part C.3 — auditor-initiated photo deletion (wrong-evidence case). Removes the
+  // object from the bucket; callers are responsible for also stripping the ChecklistPhoto entry
+  // from the stored items JSON and audit-logging the deletion.
+  async remove(key: string): Promise<void> {
+    await this.client.removeObject(this.bucket, key)
+  }
 }

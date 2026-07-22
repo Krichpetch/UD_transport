@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Trash2, X } from 'lucide-react'
 import type { ChecklistPhoto } from '@repo/types'
 
 const VISIBLE = 3
@@ -11,14 +11,27 @@ export function PhotoLightbox({
   photos,
   startIndex,
   onClose,
+  onDelete,
 }: {
   photos: ChecklistPhoto[]
   startIndex: number
   onClose: () => void
+  // Session E3, Part C.2/C.3 — auditors get a delete action on their own photos, reusing this
+  // same viewer rather than a second one; admins (no onDelete passed) stay read-only.
+  onDelete?: (photo: ChecklistPhoto) => void | Promise<void>
 }) {
   const [idx, setIdx] = React.useState(startIndex)
+  const [deleting, setDeleting] = React.useState(false)
   const total = photos.length
-  const photo = photos[idx]!
+  const photo = photos[idx]
+
+  // Reacts to the PARENT's photos array actually shrinking (after a successful delete mutation
+  // re-renders with one fewer photo) rather than guessing the post-delete index up front.
+  React.useEffect(() => {
+    if (total === 0) { onClose(); return }
+    if (idx > total - 1) setIdx(total - 1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total])
 
   // Scroll lock
   React.useEffect(() => {
@@ -37,6 +50,20 @@ export function PhotoLightbox({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [idx, total, onClose])
+
+  // The shrink-driven effect above closes the lightbox on the render where total hits 0; this
+  // guards the one render in between (photo briefly undefined) without skipping any hook above.
+  if (!photo) return null
+
+  async function handleDelete() {
+    if (!onDelete || deleting || !photo) return
+    setDeleting(true)
+    try {
+      await onDelete(photo)
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div
@@ -73,7 +100,19 @@ export function PhotoLightbox({
           loading="lazy"
           className="max-h-[85vh] max-w-[80vw] rounded-xl object-contain shadow-2xl"
         />
-        <p className="mt-2 text-center text-xs text-white/50">{photo.filename}</p>
+        <div className="mt-2 flex items-center justify-center gap-3">
+          <p className="text-center text-xs text-white/50">{photo.filename}</p>
+          {onDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); void handleDelete() }}
+              disabled={deleting}
+              className="flex items-center gap-1 rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-medium text-red-200 hover:bg-red-500/30 disabled:opacity-50"
+            >
+              {deleting ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+              ลบรูปนี้
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Next */}
@@ -89,7 +128,10 @@ export function PhotoLightbox({
 }
 
 // ── Thumbnail strip — max VISIBLE + "+N" overflow ──────────────
-export function ChecklistPhotoGallery({ photos }: { photos: ChecklistPhoto[] }) {
+export function ChecklistPhotoGallery({ photos, onDelete }: {
+  photos: ChecklistPhoto[]
+  onDelete?: (photo: ChecklistPhoto) => void | Promise<void>
+}) {
   const [lightboxIdx, setLightboxIdx] = React.useState<number | null>(null)
   const btnRefs = React.useRef<(HTMLButtonElement | null)[]>([])
 
@@ -136,6 +178,7 @@ export function ChecklistPhotoGallery({ photos }: { photos: ChecklistPhoto[] }) 
           photos={photos}
           startIndex={lightboxIdx}
           onClose={close}
+          onDelete={onDelete}
         />
       )}
     </>

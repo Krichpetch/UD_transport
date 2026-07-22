@@ -3,9 +3,10 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Settings, LogOut } from 'lucide-react'
+import { Settings, LogOut, RotateCcw } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
 import { useAuthStore, useAuthHasHydrated } from '@/stores/auth.store'
+import { useMyRejectedCount } from '@/hooks/use-checklists'
 
 export default function AuditLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -13,6 +14,10 @@ export default function AuditLayout({ children }: { children: React.ReactNode })
   const token = useAuthStore((s) => s.token)
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
+  // Session E3, Part B.1 — persistent header badge, one cheap dedicated query, never the full
+  // rejected-checklist list (see ChecklistsService.countMyRejected's doc). AUDITOR-only endpoint;
+  // an ADMIN using this layout for the v2 preview flag simply never sees a nonzero count.
+  const { data: rejectedCount } = useMyRejectedCount(user?.role === 'AUDITOR')
 
   React.useEffect(() => {
     if (hydrated && !token) router.replace('/login')
@@ -39,6 +44,16 @@ export default function AuditLayout({ children }: { children: React.ReactNode })
             <p className="text-muted-foreground text-xs">ผู้ตรวจสอบ</p>
           </div>
           <div className="flex items-center gap-1.5">
+            {!!rejectedCount && (
+              <Link
+                href="/audit"
+                title="งานที่ถูกตีกลับ"
+                className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-semibold text-red-600"
+              >
+                <RotateCcw size={13} />
+                {rejectedCount}
+              </Link>
+            )}
             <Link
               href="/settings"
               title="บัญชีของฉัน"

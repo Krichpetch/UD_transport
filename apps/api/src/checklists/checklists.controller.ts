@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common'
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common'
 import { Request } from 'express'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { ChecklistsService } from './checklists.service'
@@ -66,5 +66,45 @@ export class ChecklistsController {
   ) {
     if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
     return this.checklists.submit(stationId, req.user.id, body.items, body.score, body.gps, body.finalThoughts)
+  }
+
+  // Session E3, Part C.3 — auditor removes a photo they uploaded (wrong-evidence case), while the
+  // checklist is still DRAFT or REJECTED. `photoId` is the MinIO object key (contains a slash —
+  // "checklist-photos/<hex>.<ext>" — so it travels as a query param, never a route segment, same
+  // convention as GET /uploads/presign?key=).
+  @Delete(':checklistId/items/:itemId/photo')
+  deletePhoto(
+    @Param('stationId') stationId: string,
+    @Param('checklistId') checklistId: string,
+    @Param('itemId') itemId: string,
+    @Query('photoId') photoId: string,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (!photoId) throw new BadRequestException('photoId is required')
+    return this.checklists.deletePhoto(stationId, checklistId, req.user.id, itemId, photoId)
+  }
+}
+
+// Session E3, Part B.1 — the auditor's own returned-work list, not scoped to any one station,
+// so it lives in a sibling controller rather than under ChecklistsController's
+// stations/:stationId/checklist prefix.
+@Controller('checklists')
+@UseGuards(JwtAuthGuard)
+export class MyChecklistsController {
+  constructor(private readonly checklists: ChecklistsService) {}
+
+  // Cheap dedicated query for a persistent header badge — must stay light enough to call on
+  // every page, never the full list (see ChecklistsService.countMyRejected's doc).
+  @Get('rejected/count')
+  count(@Req() req: AuthRequest) {
+    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    return this.checklists.countMyRejected(req.user.id)
+  }
+
+  @Get('rejected')
+  list(@Req() req: AuthRequest) {
+    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    return this.checklists.findMyRejected(req.user.id)
   }
 }

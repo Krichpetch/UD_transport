@@ -25,6 +25,10 @@ interface HydrateParams {
   yearBuilt: number | null
   eraUnresolved: boolean
   resumedFromDraft: boolean
+  // Session E3, Part C.3 — the auditor's own DRAFT checklist id, when one already exists (a
+  // resumed or already-autosaved draft). Null for a brand-new checklist with no row yet — see
+  // setChecklistId below for how it's filled in once the first autosave creates one.
+  checklistId?: string | null
 }
 
 interface AuditFormState {
@@ -38,8 +42,12 @@ interface AuditFormState {
   hydrated: boolean
   dirty: boolean            // true once an edit has happened since the last successful save
   saveStatus: SaveStatus
+  checklistId: string | null
 
   hydrate: (params: HydrateParams) => void
+  // Session E3, Part C.3 — called once the first autosave creates a draft row (or on hydrate,
+  // when resuming an existing one) so photo-delete has a checklist id to scope the request to.
+  setChecklistId: (id: string) => void
   setAnswer: (code: string, patch: Partial<AuditAnswer>) => void
   // Session E2 follow-up — one atomic update across several leaf codes at once (the
   // container-level ไม่มี/มี cascade in V2PagerForm's ContainerNode). A single set() call, not N
@@ -64,8 +72,9 @@ export const useAuditFormStore = create<AuditFormState>((set) => ({
   hydrated: false,
   dirty: false,
   saveStatus: 'idle',
+  checklistId: null,
 
-  hydrate: ({ stationId, templateDef, storedItems, finalThoughts, yearBuilt, eraUnresolved, resumedFromDraft }) => set({
+  hydrate: ({ stationId, templateDef, storedItems, finalThoughts, yearBuilt, eraUnresolved, resumedFromDraft, checklistId }) => set({
     stationId,
     templateDef,
     answers: storedItems ? hydrateAnswers(templateDef, storedItems) : seedAnswers(templateDef),
@@ -76,7 +85,10 @@ export const useAuditFormStore = create<AuditFormState>((set) => ({
     hydrated: true,
     dirty: false,
     saveStatus: 'idle',
+    checklistId: checklistId ?? null,
   }),
+
+  setChecklistId: (id) => set({ checklistId: id }),
 
   setAnswer: (code, patch) => set((state) => ({
     answers: { ...state.answers, [code]: { ...(state.answers[code] ?? defaultAnswer()), ...patch } },
@@ -108,5 +120,6 @@ export const useAuditFormStore = create<AuditFormState>((set) => ({
     hydrated: false,
     dirty: false,
     saveStatus: 'idle',
+    checklistId: null,
   }),
 }))

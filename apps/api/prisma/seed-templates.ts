@@ -24,6 +24,9 @@ import * as path from 'path'
 import {
   parseTemplateDefinition,
   applyEraOverrides,
+  RAIL_TRAIN_VARIANT_KEY,
+  RAIL_METRO_VARIANT_KEY,
+  STANDARD_VARIANT_KEY,
   type ChecklistTemplateDefinition,
   type ChecklistTemplateGroupDef,
   type TemplateNode,
@@ -37,20 +40,22 @@ const prisma = new PrismaClient()
 const MODES = ['ทางบก', 'ทางราง', 'ทางเรือ', 'ทางอากาศ'] as const
 type Mode = typeof MODES[number]
 
-const V2_FILES: Record<Mode, string> = {
-  ทางบก: 'template_land_v2.json',
-  ทางราง: 'template_rail_v2.json',
-  ทางเรือ: 'template_water_v2.json',
-  ทางอากาศ: 'template_air_v2.json',
-}
-// Session E2, Part A.4 — per-mode era-override files, merged onto the base v2 seed before
-// validation/upsert. A mode with no file here yet (only rail exists at authoring time) is a
-// no-op, not an error — see apps/docs/Checklist_Utils/era_overrides_rail.json's `_readme`.
-const ERA_OVERRIDE_FILES: Record<Mode, string> = {
-  ทางบก: 'era_overrides_land.json',
-  ทางราง: 'era_overrides_rail.json',
-  ทางเรือ: 'era_overrides_water.json',
-  ทางอากาศ: 'era_overrides_air.json',
+// Session E3, Part A — per-mode v2 DRAFT variant(s). Every mode but rail has exactly one variant
+// ('standard'), keeping its pre-existing filename unchanged. Rail now has two: `rail_train`'s file
+// is the same template_rail_v2.json seeded since Session E1/E2 (DECISION: that workbook IS the
+// รถไฟ checklist) — no rename, so re-running this script against the migrated DB row still matches
+// by (mode, variantKey, version). `rail_metro`'s workbook has not been delivered yet; its entry
+// follows the template_{mode}_{variant}_v2.json / era_overrides_{mode}_{variant}.json convention
+// for whenever it arrives — a missing file is a logged no-op, not an error (see the main loop).
+interface VariantFiles { variantKey: string; file: string; overridesFile?: string }
+const V2_VARIANTS: Record<Mode, VariantFiles[]> = {
+  ทางบก:    [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_land_v2.json',  overridesFile: 'era_overrides_land.json' }],
+  ทางราง:   [
+    { variantKey: RAIL_TRAIN_VARIANT_KEY, file: 'template_rail_v2.json', overridesFile: 'era_overrides_rail.json' },
+    { variantKey: RAIL_METRO_VARIANT_KEY, file: 'template_rail_rail_metro_v2.json', overridesFile: 'era_overrides_rail_rail_metro.json' },
+  ],
+  ทางเรือ:  [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_water_v2.json', overridesFile: 'era_overrides_water.json' }],
+  ทางอากาศ: [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_air_v2.json',   overridesFile: 'era_overrides_air.json' }],
 }
 const V2_DIR = path.resolve(__dirname, '..', '..', 'docs', 'Checklist_Utils')
 
@@ -111,11 +116,18 @@ function buildV1Definition(mode: Mode): ChecklistTemplateDefinition {
   return { schemaVersion: 1, mode, provisional: false, groups }
 }
 
-async function upsertTemplate(mode: Mode, version: number, status: 'ACTIVE' | 'DRAFT', def: ChecklistTemplateDefinition, notes: string) {
+async function upsertTemplate(
+  mode: Mode,
+  variantKey: string,
+  version: number,
+  status: 'ACTIVE' | 'DRAFT',
+  def: ChecklistTemplateDefinition,
+  notes: string,
+) {
   await prisma.checklistTemplate.upsert({
-    where: { mode_variantKey_version: { mode, variantKey: 'standard', version } },
+    where: { mode_variantKey_version: { mode, variantKey, version } },
     update: { definition: def as unknown as Prisma.InputJsonValue, status, notes },
-    create: { mode, variantKey: 'standard', version, status, definition: def as unknown as Prisma.InputJsonValue, notes },
+    create: { mode, variantKey, version, status, definition: def as unknown as Prisma.InputJsonValue, notes },
   })
 }
 
@@ -136,33 +148,46 @@ async function main() {
   for (const mode of MODES) {
     const v1def = parseTemplateDefinition(buildV1Definition(mode)) // round-trip through the validator as a sanity check
     const v1stats = tagLeaves(v1def)
-    await upsertTemplate(mode, 1, 'ACTIVE', v1def, 'v1 parity anchor — item-for-item, code-for-code with the pre-E1 in-code form (apps/web/lib/constants.ts)')
+    // v1 is NOT split by variant (Session E3, Part A decision) — the live parity anchor stays at
+    // variantKey='standard' for every mode, rail included, until v2 activation.
+    await upsertTemplate(mode, STANDARD_VARIANT_KEY, 1, 'ACTIVE', v1def, 'v1 parity anchor — item-for-item, code-for-code with the pre-E1 in-code form (apps/web/lib/constants.ts)')
     report.push(`v1 ${mode}: ${v1stats.total} items, ${v1stats.tagged}/${v1stats.total} facility-tagged`)
     if (v1stats.unmatched.length) report.push(`  v1 ${mode} unmatched: ${v1stats.unmatched.join(' | ')}`)
 
-    const rawPath = path.join(V2_DIR, V2_FILES[mode])
-    const raw = JSON.parse(fs.readFileSync(rawPath, 'utf-8'))
-    // Data-quality fix, not a restructure: template_water_v2.json's `mode` field says "ทางน้ำ" —
-    // the source workbook's own term — instead of this project's canonical TransportMode
-    // "ทางเรือ" (CLAUDE.md taxonomy). Every group/item code and label is untouched; only this one
-    // top-level field is normalized before validation so it maps to the right ChecklistTemplate
-    // row. Flagged here rather than loosened in the shared validator, which should stay strict
-    // about canonical TransportMode values for every other caller.
-    if (raw.mode === 'ทางน้ำ') raw.mode = 'ทางเรือ'
-    let v2def = parseTemplateDefinition(raw) // throws loudly on any mismatch — v2 files are loaded verbatim, never coerced
+    // v2 DRAFT(s) — one per declared variant; a missing source file is a logged no-op (Session
+    // E3, Part A: the pipeline must be ready for a variant's workbook without being blocked by
+    // its absence).
+    for (const variant of V2_VARIANTS[mode]) {
+      const rawPath = path.join(V2_DIR, variant.file)
+      if (!fs.existsSync(rawPath)) {
+        report.push(`v2 ${mode} [${variant.variantKey}]: SKIPPED — ${variant.file} not found (workbook not authored yet)`)
+        continue
+      }
+      const raw = JSON.parse(fs.readFileSync(rawPath, 'utf-8'))
+      // Data-quality fix, not a restructure: template_water_v2.json's `mode` field says "ทางน้ำ" —
+      // the source workbook's own term — instead of this project's canonical TransportMode
+      // "ทางเรือ" (CLAUDE.md taxonomy). Every group/item code and label is untouched; only this one
+      // top-level field is normalized before validation so it maps to the right ChecklistTemplate
+      // row. Flagged here rather than loosened in the shared validator, which should stay strict
+      // about canonical TransportMode values for every other caller.
+      if (raw.mode === 'ทางน้ำ') raw.mode = 'ทางเรือ'
+      let v2def = parseTemplateDefinition(raw) // throws loudly on any mismatch — v2 files are loaded verbatim, never coerced
 
-    const overridesPath = path.join(V2_DIR, ERA_OVERRIDE_FILES[mode])
-    if (fs.existsSync(overridesPath)) {
-      const overridesRaw = JSON.parse(fs.readFileSync(overridesPath, 'utf-8'))
-      v2def = applyEraOverrides(v2def, overridesRaw)
-      report.push(`v2 ${mode}: applied era overrides from ${ERA_OVERRIDE_FILES[mode]} (${Object.keys(overridesRaw.overrides ?? {}).length} leaf(ves))`)
-    }
+      if (variant.overridesFile) {
+        const overridesPath = path.join(V2_DIR, variant.overridesFile)
+        if (fs.existsSync(overridesPath)) {
+          const overridesRaw = JSON.parse(fs.readFileSync(overridesPath, 'utf-8'))
+          v2def = applyEraOverrides(v2def, overridesRaw)
+          report.push(`v2 ${mode} [${variant.variantKey}]: applied era overrides from ${variant.overridesFile} (${Object.keys(overridesRaw.overrides ?? {}).length} leaf(ves))`)
+        }
+      }
 
-    const v2stats = tagLeaves(v2def)
-    await upsertTemplate(mode, 2, 'DRAFT', v2def, 'PROVISIONAL — see apps/docs/Checklist_Utils/DATA_DICTIONARY_v2.md; NOT activated in Session E1')
-    report.push(`v2 ${mode}: ${v2stats.total} leaves, ${v2stats.tagged}/${v2stats.total} facility-tagged`)
-    if (v2stats.unmatched.length) {
-      report.push(`  v2 ${mode} unmatched (${v2stats.unmatched.length}): ${v2stats.unmatched.slice(0, 30).join(' | ')}${v2stats.unmatched.length > 30 ? ' ...' : ''}`)
+      const v2stats = tagLeaves(v2def)
+      await upsertTemplate(mode, variant.variantKey, 2, 'DRAFT', v2def, 'PROVISIONAL — see apps/docs/Checklist_Utils/DATA_DICTIONARY_v2.md; NOT activated in Session E1')
+      report.push(`v2 ${mode} [${variant.variantKey}]: ${v2stats.total} leaves, ${v2stats.tagged}/${v2stats.total} facility-tagged`)
+      if (v2stats.unmatched.length) {
+        report.push(`  v2 ${mode} [${variant.variantKey}] unmatched (${v2stats.unmatched.length}): ${v2stats.unmatched.slice(0, 30).join(' | ')}${v2stats.unmatched.length > 30 ? ' ...' : ''}`)
+      }
     }
   }
 

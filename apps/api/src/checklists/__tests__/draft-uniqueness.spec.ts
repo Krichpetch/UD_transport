@@ -12,6 +12,7 @@ import { ChecklistsService } from '../checklists.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StationsService } from '../../stations/stations.service'
 import { AuditLogService } from '../../audit/audit.service'
+import { MinioService } from '../../minio/minio.service'
 
 function p2002(): Prisma.PrismaClientKnownRequestError {
   return new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
@@ -50,6 +51,7 @@ describe('ChecklistsService.saveDraft — P2002 race handling (Part D partial un
         },
         { provide: StationsService, useValue: { findOne } },
         { provide: AuditLogService, useValue: { log: auditLog } },
+        { provide: MinioService, useValue: { getPresignedUrl: jest.fn().mockResolvedValue('https://example.test/photo'), remove: jest.fn() } },
       ],
     }).compile()
 

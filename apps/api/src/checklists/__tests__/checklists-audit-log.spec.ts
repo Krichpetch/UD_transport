@@ -10,6 +10,7 @@ import { ChecklistsService } from '../checklists.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StationsService } from '../../stations/stations.service'
 import { AuditLogService } from '../../audit/audit.service'
+import { MinioService } from '../../minio/minio.service'
 
 describe('ChecklistsService — AuditLog on write paths', () => {
   let service: ChecklistsService
@@ -42,6 +43,7 @@ describe('ChecklistsService — AuditLog on write paths', () => {
         },
         { provide: StationsService, useValue: { findOne, distanceToStationMeters } },
         { provide: AuditLogService, useValue: { log: auditLog } },
+        { provide: MinioService, useValue: { getPresignedUrl: jest.fn().mockResolvedValue('https://example.test/photo'), remove: jest.fn() } },
       ],
     }).compile()
 

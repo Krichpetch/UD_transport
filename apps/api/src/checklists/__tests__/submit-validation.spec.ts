@@ -11,6 +11,7 @@ import { ChecklistsService } from '../checklists.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StationsService } from '../../stations/stations.service'
 import { AuditLogService } from '../../audit/audit.service'
+import { MinioService } from '../../minio/minio.service'
 import { SubmitChecklistDto } from '../dto/submit-checklist.dto'
 import type { ChecklistTemplateDefinition } from '@repo/types'
 
@@ -57,6 +58,7 @@ describe('ChecklistsService — Part C item validation (via saveDraft)', () => {
         },
         { provide: StationsService, useValue: { findOne } },
         { provide: AuditLogService, useValue: { log: auditLog } },
+        { provide: MinioService, useValue: { getPresignedUrl: jest.fn().mockResolvedValue('https://example.test/photo'), remove: jest.fn() } },
       ],
     }).compile()
 

@@ -8,6 +8,9 @@ import {
   getTemplateForAudit,
   saveDraft,
   submitChecklist,
+  deleteChecklistPhoto,
+  getMyRejectedCount,
+  getMyRejectedChecklists,
 } from '@/lib/api/checklists'
 import type { SubmitGps } from '@/lib/geolocation'
 
@@ -69,6 +72,36 @@ export function useSubmitChecklist(stationId: string) {
       qc.invalidateQueries({ queryKey: ['checklist', stationId] })
       qc.invalidateQueries({ queryKey: ['station', stationId] })
       qc.invalidateQueries({ queryKey: ['stations', 'summary'] })
+      qc.invalidateQueries({ queryKey: ['checklists', 'rejected'] })
     },
+  })
+}
+
+// Session E3, Part C.3 — deleting a photo the auditor uploaded themselves (wrong-evidence case).
+export function useDeleteChecklistPhoto(stationId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ checklistId, itemId, photoId }: { checklistId: string; itemId: string; photoId: string }) =>
+      deleteChecklistPhoto(stationId, checklistId, itemId, photoId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['checklist', stationId] })
+    },
+  })
+}
+
+// Session E3, Part B.1 — auditor home's "งานที่ถูกตีกลับ" badge/list.
+export function useMyRejectedCount(enabled = true) {
+  return useQuery({
+    queryKey: ['checklists', 'rejected', 'count'],
+    queryFn: getMyRejectedCount,
+    enabled,
+  })
+}
+
+export function useMyRejectedChecklists(enabled: boolean) {
+  return useQuery({
+    queryKey: ['checklists', 'rejected'],
+    queryFn: getMyRejectedChecklists,
+    enabled,
   })
 }

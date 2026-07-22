@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { getChecklistTemplate } from '@/lib/constants'
 import { useStation } from '@/hooks/use-stations'
-import { useChecklist } from '@/hooks/use-checklists'
+import { useChecklist, useChecklistHistory } from '@/hooks/use-checklists'
 import { useApproveChecklist, useRejectChecklist, useSetItemFlag } from '@/hooks/use-stations'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ChecklistGroup, ChecklistSubItem } from '@repo/types'
@@ -17,10 +17,45 @@ import {
   XCircle,
   Loader2,
   FileSpreadsheet,
+  RotateCcw,
 } from 'lucide-react'
 import { ChecklistPhotoGallery } from '@/components/checklist/ChecklistPhotoGallery'
 import { useAuthStore } from '@/stores/auth.store'
 import Link from 'next/link'
+
+// ─── Resubmission marker (Session E3, Part B.4) ────────────────
+// Fetches this station's checklist history (already used elsewhere for the approve quick-action)
+// only when expanded, and resolves the specific prior checklist by id — no dedicated per-checklist
+// route exists in this app, so the prior rejection's own notes/date are shown inline instead of a
+// navigable link.
+function ResubmissionMarker({ stationId, respondsToChecklistId }: { stationId: string; respondsToChecklistId: string }) {
+  const [expanded, setExpanded] = React.useState(false)
+  const { data: history } = useChecklistHistory(stationId)
+  const prior = history?.find((c) => c.id === respondsToChecklistId)
+
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center gap-1.5 text-left font-medium text-amber-700"
+      >
+        <RotateCcw size={11} className="shrink-0" />
+        การส่งซ้ำ — เป็นการแก้ไขจากรายงานที่ถูกปฏิเสธก่อนหน้า
+        {expanded ? <ChevronUp size={11} className="ml-auto shrink-0" /> : <ChevronDown size={11} className="ml-auto shrink-0" />}
+      </button>
+      {expanded && (
+        <div className="mt-1.5 border-t border-amber-200 pt-1.5 text-amber-700">
+          {!history ? 'กำลังโหลด…' : !prior ? 'ไม่พบข้อมูลรายงานก่อนหน้า' : (
+            <>
+              {prior.reviewedAt && <p>ถูกปฏิเสธเมื่อ: {new Date(prior.reviewedAt).toLocaleString('th-TH')}</p>}
+              {prior.reviewNotes && <p className="mt-0.5">หมายเหตุ: {prior.reviewNotes}</p>}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ─── Score Circle ─────────────────────────────────────────────
 function ScoreCircle({ score }: { score: number }) {
@@ -310,6 +345,12 @@ export default function StationChecklistPage({
                 <span>ส่งเมื่อ: <strong className="text-foreground">{new Date(checklist.submittedAt).toLocaleString('th-TH')}</strong></span>
               )}
             </div>
+          )}
+
+          {/* Session E3, Part B.4 — "resubmission of <link>" marker: expands to the prior
+              rejection's own notes/date, resolved from this station's history by id. */}
+          {checklist?.respondsToChecklistId && (
+            <ResubmissionMarker stationId={id} respondsToChecklistId={checklist.respondsToChecklistId} />
           )}
 
           {groups.map(group => {

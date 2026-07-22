@@ -23,6 +23,18 @@ export interface ChecklistRecord {
   finalThoughts?: string | null
   appliedYearBuilt?: number | null
   appliedLawRefs?: Record<string, string> | null
+  // Session E3, Part B.4 — set when this checklist is a resubmission fixing a rejection; the id
+  // of the REJECTED checklist it responds to, or null for an ordinary (non-resubmission) submit.
+  respondsToChecklistId?: string | null
+}
+
+// Session E3, Part B.1 — "งานที่ถูกตีกลับ" on the auditor home.
+export interface RejectedChecklistSummary {
+  id: string
+  stationId: string
+  reviewNotes: string | null
+  reviewedAt: string | null
+  station: { nameTh: string; province: string; mode: string }
 }
 
 export function getLatestChecklist(stationId: string) {
@@ -72,4 +84,22 @@ export function submitChecklist(
   return api.post<ChecklistRecord>(`/stations/${stationId}/checklist/submit`, {
     items, score, gps, finalThoughts,
   })
+}
+
+// Session E3, Part C.3 — auditor removes a photo they uploaded, while the checklist is still
+// DRAFT or REJECTED. photoId is the MinIO object key (contains a slash) — always sent as a
+// query param, never a route segment, matching the presign endpoint's convention.
+export function deleteChecklistPhoto(stationId: string, checklistId: string, itemId: string, photoId: string) {
+  return api.delete<ChecklistRecord>(
+    `/stations/${stationId}/checklist/${checklistId}/items/${encodeURIComponent(itemId)}/photo?photoId=${encodeURIComponent(photoId)}`,
+  )
+}
+
+// Session E3, Part B.1 — cheap dedicated badge count; never fetches the full list.
+export function getMyRejectedCount() {
+  return api.get<number>('/checklists/rejected/count')
+}
+
+export function getMyRejectedChecklists() {
+  return api.get<RejectedChecklistSummary[]>('/checklists/rejected')
 }

@@ -13,6 +13,7 @@ import { ChecklistsService } from '../checklists.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StationsService } from '../../stations/stations.service'
 import { AuditLogService } from '../../audit/audit.service'
+import { MinioService } from '../../minio/minio.service'
 
 function p2002(): Prisma.PrismaClientKnownRequestError {
   return new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
@@ -51,6 +52,7 @@ describe('ChecklistsService.submit — pending-review uniqueness (Part D partial
         },
         { provide: StationsService, useValue: { findOne, distanceToStationMeters } },
         { provide: AuditLogService, useValue: { log: auditLog } },
+        { provide: MinioService, useValue: { getPresignedUrl: jest.fn().mockResolvedValue('https://example.test/photo'), remove: jest.fn() } },
       ],
     }).compile()
 

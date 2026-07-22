@@ -4,12 +4,12 @@ import * as React from 'react'
 import { useSearchParams } from 'next/navigation'
 import { getStationTypeLabel } from '@/lib/constants'
 import { useStation } from '@/hooks/use-stations'
-import { useSaveDraft, useSubmitChecklist, useMyDraft, useTemplateForAudit } from '@/hooks/use-checklists'
+import { useSaveDraft, useSubmitChecklist, useMyDraft, useTemplateForAudit, useMyRejectedChecklists } from '@/hooks/use-checklists'
 import { useUpdateYearBuilt } from '@/hooks/use-stations'
 import { computeScoreFromItems, buildHistogram, scoreToStatus } from '@repo/types'
 import {
   MapPin, Save, Send, Clock, User as UserIcon,
-  AlertTriangle, Loader2, X, FlaskConical,
+  AlertTriangle, Loader2, X, FlaskConical, RotateCcw,
 } from 'lucide-react'
 import { StationSearchPicker } from '@/components/audit/StationSearchPicker'
 import { LeafAnswerRow } from '@/components/audit/LeafAnswerRow'
@@ -20,12 +20,49 @@ import { buildStoredGroups, countProgressForNodes, groupDisplayName } from '@/li
 import { ApiError } from '@/lib/api'
 import { getCurrentPosition, haversineMeters, PROXIMITY_BYPASS } from '@/lib/geolocation'
 import type { SubmitGps } from '@/lib/geolocation'
-import type { ChecklistRecord } from '@/lib/api/checklists'
+import type { ChecklistRecord, RejectedChecklistSummary } from '@/lib/api/checklists'
 import { YEAR_BUILT_MIN, yearBuiltMax } from '@repo/types'
 
 const PROXIMITY_RADIUS_M = 1000
 const AUTOSAVE_DEBOUNCE_MS = 4000
 const FINAL_THOUGHTS_MAX = 4000
+
+// Session E3, Part B.1 — "งานที่ถูกตีกลับ" section on the auditor home. Selecting an entry jumps
+// straight into that station's audit flow, which hydrates from the seeded draft (carrying the
+// rejected answers forward) and shows the admin's notes pinned at the top of the confirm-to-start
+// screen (see the rejectionNote banner further down this file).
+function ReturnedWorkSection({ items, onSelect }: { items: RejectedChecklistSummary[]; onSelect: (stationId: string) => void }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-red-200 bg-white shadow-sm">
+      <div className="flex items-center gap-2 border-b border-red-100 bg-red-50 px-4 py-2.5">
+        <RotateCcw size={13} className="text-red-600" />
+        <p className="text-xs font-semibold text-red-700">งานที่ถูกตีกลับ ({items.length})</p>
+      </div>
+      <div className="divide-y divide-border">
+        {items.map((r) => (
+          <button
+            key={r.id}
+            onClick={() => onSelect(r.stationId)}
+            className="flex w-full flex-col items-start gap-0.5 px-4 py-3 text-left transition-colors hover:bg-secondary/60"
+          >
+            <div className="flex w-full items-center justify-between gap-2">
+              <span className="text-sm font-medium text-foreground">{r.station.nameTh}</span>
+              {r.reviewedAt && (
+                <span className="shrink-0 text-[10px] text-muted-foreground">
+                  {new Date(r.reviewedAt).toLocaleDateString('th-TH')}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] text-muted-foreground">{r.station.province}</span>
+            {r.reviewNotes && (
+              <p className="mt-0.5 line-clamp-2 text-xs text-red-600">{r.reviewNotes}</p>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export default function AuditPage() {
   const user = useAuthStore((s) => s.user)
@@ -48,6 +85,10 @@ export default function AuditPage() {
   const saveDraftMutation = useSaveDraft(selectedId)
   const submitMutation = useSubmitChecklist(selectedId)
   const updateYearBuiltMutation = useUpdateYearBuilt()
+  // Session E3, Part B.1 — the full returned-work list, fetched only on the home screen (no
+  // station picked yet) — the header badge (layout.tsx) already covers every other screen with
+  // its own cheap count-only query.
+  const { data: myRejected } = useMyRejectedChecklists(!selectedId && user?.role === 'AUDITOR')
 
   const [submitResult, setSubmitResult] = React.useState<ChecklistRecord | null>(null)
   const [submitWarning, setSubmitWarning] = React.useState('')
@@ -58,7 +99,10 @@ export default function AuditPage() {
   const [checkedIn, setCheckedIn] = React.useState(false)
   const [checkInStatus, setCheckInStatus] = React.useState<'idle' | 'checking' | 'blocked' | 'ok'>('idle')
   const [checkInMessage, setCheckInMessage] = React.useState('')
-  const [locationUnverified, setLocationUnverified] = React.useState(false)
+  // Session E3, Part E — holds the specific reason, not just a boolean: an APPROXIMATE station
+  // gets "พิกัดสถานีอยู่ระหว่างการยืนยัน" (the STATION's coordinate isn't confirmed yet) rather
+  // than a message implying the AUDITOR's own GPS reading is what's in doubt.
+  const [locationUnverifiedMessage, setLocationUnverifiedMessage] = React.useState('')
   const [rejectionBannerDismissed, setRejectionBannerDismissed] = React.useState(false)
   const [yearBuiltInput, setYearBuiltInput] = React.useState('')
 
@@ -75,6 +119,7 @@ export default function AuditPage() {
   const eraUnresolved = useAuditFormStore((s) => s.eraUnresolved)
   const saveStatus = useAuditFormStore((s) => s.saveStatus)
   const hydrate = useAuditFormStore((s) => s.hydrate)
+  const setChecklistId = useAuditFormStore((s) => s.setChecklistId)
   const setFinalThoughts = useAuditFormStore((s) => s.setFinalThoughts)
   const setSaveStatus = useAuditFormStore((s) => s.setSaveStatus)
   const markSaved = useAuditFormStore((s) => s.markSaved)
@@ -92,7 +137,7 @@ export default function AuditPage() {
     setCheckedIn(false)
     setCheckInStatus('idle')
     setCheckInMessage('')
-    setLocationUnverified(false)
+    setLocationUnverifiedMessage('')
     setRejectionBannerDismissed(false)
     setYearBuiltInput('')
     resetForm()
@@ -114,6 +159,7 @@ export default function AuditPage() {
       yearBuilt: templateResp.appliedYearBuilt,
       eraUnresolved: templateResp.eraUnresolved,
       resumedFromDraft: !!(draft?.items && (draft.items as unknown[]).length > 0),
+      checklistId: draft?.id ?? null,
     })
     setYearBuiltInput(station.yearBuilt != null ? String(station.yearBuilt) : '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,7 +174,11 @@ export default function AuditPage() {
     autoSaveTimerRef.current = setTimeout(async () => {
       setSaveStatus('saving')
       try {
-        await saveDraftMutation.mutateAsync({ items: buildStoredGroups(templateDef, answers), finalThoughts })
+        const saved = await saveDraftMutation.mutateAsync({ items: buildStoredGroups(templateDef, answers), finalThoughts })
+        // Session E3, Part C.3 — the first autosave of a brand-new checklist is what creates its
+        // DRAFT row; photo-delete needs that id to scope its request to, so the store learns it
+        // here rather than staying null for the rest of this session.
+        setChecklistId(saved.id)
         markSaved()
       } catch {
         setSaveStatus('error')
@@ -163,7 +213,7 @@ export default function AuditPage() {
     await saveYearBuilt()
 
     if (PROXIMITY_BYPASS) {
-      setLocationUnverified(false)
+      setLocationUnverifiedMessage('')
       setCheckInStatus('ok')
       setCheckedIn(true)
       return
@@ -185,13 +235,20 @@ export default function AuditPage() {
       if (distance > PROXIMITY_RADIUS_M) {
         setCheckInStatus('blocked')
         setCheckInMessage(
-          `คุณอยู่นอกพื้นที่สถานี (ห่างประมาณ ${Math.round(distance).toLocaleString()} ม.) กรุณาเข้าใกล้สถานีแล้วลองใหม่`
+          `คุณอยู่นอกพื้นที่สถานี ${station.nameTh} (ห่างประมาณ ${Math.round(distance).toLocaleString()} ม.) กรุณาเข้าใกล้สถานีแล้วลองใหม่`
         )
         return
       }
-      setLocationUnverified(false)
+      setLocationUnverifiedMessage('')
     } else {
-      setLocationUnverified(true)
+      // Session E3, Part E.2 — APPROXIMATE means the STATION's own coordinate isn't confirmed
+      // yet (centroid fallback), not that the auditor's GPS reading failed — a different message
+      // than the generic "can't verify" wording, which reads as a false gate on the auditor.
+      setLocationUnverifiedMessage(
+        station.coordStatus === 'APPROXIMATE'
+          ? 'พิกัดสถานีอยู่ระหว่างการยืนยัน'
+          : 'ไม่สามารถยืนยันตำแหน่งได้ – พิกัดสถานีเป็นค่าโดยประมาณ'
+      )
     }
 
     setCheckInStatus('ok')
@@ -219,9 +276,14 @@ export default function AuditPage() {
       const code = err instanceof ApiError ? err.code : undefined
       if (code === 'OUT_OF_RANGE' || code === 'LOCATION_REQUIRED') {
         await saveDraftMutation.mutateAsync({ items, finalThoughts })
+        // Session E3, Part E.2 — surface distance + station name clearly when the server body
+        // carries distanceM (OUT_OF_RANGE); LOCATION_REQUIRED has no distance to show.
+        const distanceM = err instanceof ApiError && typeof err.data.distanceM === 'number' ? err.data.distanceM : null
         setSubmitWarning(
-          (err instanceof ApiError ? err.message : null) ??
-            'ไม่สามารถส่งรายงานได้ งานของคุณถูกบันทึกเป็นร่างแล้ว กรุณาลองส่งใหม่เมื่อถึงพื้นที่สถานี'
+          distanceM != null
+            ? `คุณอยู่นอกพื้นที่สถานี ${station.nameTh} (ห่างประมาณ ${Math.round(distanceM).toLocaleString()} ม.) งานของคุณถูกบันทึกเป็นร่างแล้ว กรุณาลองส่งใหม่เมื่อถึงพื้นที่สถานี`
+            : (err instanceof ApiError ? err.message : null) ??
+              'ไม่สามารถส่งรายงานได้ งานของคุณถูกบันทึกเป็นร่างแล้ว กรุณาลองส่งใหม่เมื่อถึงพื้นที่สถานี'
         )
       } else {
         setSubmitWarning(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการส่งรายงาน')
@@ -241,6 +303,9 @@ export default function AuditPage() {
     return (
       <div className="space-y-4">
         {stationPicker}
+        {!selectedId && myRejected && myRejected.length > 0 && (
+          <ReturnedWorkSection items={myRejected} onSelect={setSelectedId} />
+        )}
         <div className="rounded-xl bg-white p-6 text-center text-sm text-muted-foreground shadow-sm">
           {!selectedId ? 'กรุณาเลือกสถานีเพื่อเริ่มการตรวจสอบ' : 'กำลังโหลด…'}
         </div>
@@ -469,10 +534,10 @@ export default function AuditPage() {
           {saveStatus === 'saved' && <p className="text-[10px] text-accent">✓ บันทึกอัตโนมัติแล้ว</p>}
           {saveStatus === 'error' && <p className="text-[10px] text-red-500">บันทึกอัตโนมัติไม่สำเร็จ</p>}
         </div>
-        {locationUnverified && (
+        {locationUnverifiedMessage && (
           <p className="mt-2 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[10px] text-amber-700">
             <AlertTriangle size={11} className="shrink-0" />
-            ไม่สามารถยืนยันตำแหน่งได้ – พิกัดสถานีเป็นค่าโดยประมาณ
+            {locationUnverifiedMessage}
           </p>
         )}
       </div>

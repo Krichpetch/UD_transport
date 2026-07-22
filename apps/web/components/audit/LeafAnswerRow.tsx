@@ -7,6 +7,8 @@ import { deriveMeasuredStandard, ratioLengthKey, ratioHeightKey } from '@repo/ty
 import { useAuditFormStore } from '@/stores/audit-form.store'
 import { PhotoPicker } from '@/components/audit/PhotoPicker'
 import { ThresholdModalTrigger } from '@/components/audit/ThresholdModal'
+import { ChecklistPhotoGallery } from '@/components/checklist/ChecklistPhotoGallery'
+import { useDeleteChecklistPhoto } from '@/hooks/use-checklists'
 
 // E-form redesign (Session E2, Part C) — one answerable leaf's controls, shared by the v1 pager
 // and the v2 pager so both stay driven by the exact same interaction code (no forked มี/ไม่มี
@@ -67,9 +69,25 @@ export function LeafAnswerRow({ node, disabled = false, breadcrumb }: {
 }) {
   const answer = useAuditFormStore((s) => s.answers[node.code])
   const setAnswer = useAuditFormStore((s) => s.setAnswer)
+  const stationId = useAuditFormStore((s) => s.stationId)
+  const checklistId = useAuditFormStore((s) => s.checklistId)
+  const deletePhotoMutation = useDeleteChecklistPhoto(stationId ?? '')
   const [notesOpen, setNotesOpen] = React.useState(false)
 
   if (!answer || !node.answerType) return null
+
+  // Session E3, Part C.3 — removes a photo the auditor just added (wrong-evidence case), while
+  // the checklist is DRAFT/REJECTED-being-fixed, which is the only state this form ever renders
+  // in. If autosave has already created a draft row, the server call also deletes the MinIO
+  // object and audit-logs it; if not (photo added before the first autosave tick), there's
+  // nothing persisted yet to delete server-side — the local removal is itself the fix, and the
+  // next autosave simply never writes this photo out.
+  async function handleDeletePhoto(photo: ChecklistPhoto) {
+    if (checklistId) {
+      await deletePhotoMutation.mutateAsync({ checklistId, itemId: node.code, photoId: photo.id })
+    }
+    setAnswer(node.code, { photos: answer!.photos.filter((p) => p.id !== photo.id) })
+  }
 
   const rowDisabledCls = disabled ? 'opacity-40 pointer-events-none' : ''
 
@@ -106,13 +124,14 @@ export function LeafAnswerRow({ node, disabled = false, breadcrumb }: {
       )}
 
       {answer.photos.length > 0 && (
-        <div className="mt-2.5 flex flex-wrap gap-1.5">
-          {answer.photos.map((p: ChecklistPhoto) => (
-            <img key={p.id} src={p.url} alt={p.filename} className="size-14 rounded-lg border border-border object-cover" />
-          ))}
+        <div className="mt-2.5">
+          <ChecklistPhotoGallery photos={answer.photos} onDelete={handleDeletePhoto} />
         </div>
       )}
-      <PhotoPicker onPhotosUploaded={(photos) => setAnswer(node.code, { photos: [...answer.photos, ...photos] })} />
+      <PhotoPicker
+        existingCount={answer.photos.length}
+        onPhotosUploaded={(photos) => setAnswer(node.code, { photos: [...answer.photos, ...photos] })}
+      />
 
       {answer.note || notesOpen ? (
         <textarea

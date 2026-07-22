@@ -18,10 +18,15 @@ interface PendingPhoto {
 interface Props {
   onPhotosUploaded: (photos: ChecklistPhoto[]) => void
   disabled?: boolean
+  // Session E3, Part C.1 — how many photos this item already has (persisted + already-uploaded-
+  // this-session), so the picker can disable adding once the combined total would exceed the cap.
+  // Server-side enforcement is the real gate (checklists.service.ts); this is UX only.
+  existingCount?: number
 }
 
 const MAX_DIM = 1920
 const JPEG_QUALITY = 0.82
+const MAX_PHOTOS_PER_ITEM = 5
 
 async function compressImage(file: File): Promise<File> {
   return new Promise((resolve) => {
@@ -52,18 +57,29 @@ async function compressImage(file: File): Promise<File> {
   })
 }
 
-export function PhotoPicker({ onPhotosUploaded, disabled = false }: Props) {
+export function PhotoPicker({ onPhotosUploaded, disabled = false, existingCount = 0 }: Props) {
   const [photos,    setPhotos]   = React.useState<PendingPhoto[]>([])
   const [open,      setOpen]     = React.useState(false)
   const [uploading, setUploading] = React.useState(false)
+  const [limitMessage, setLimitMessage] = React.useState('')
 
   // Track all object URLs so we can revoke on unmount
   const previewUrls = React.useRef<string[]>([])
   React.useEffect(() => () => { previewUrls.current.forEach(URL.revokeObjectURL) }, [])
 
+  const remaining = Math.max(0, MAX_PHOTOS_PER_ITEM - existingCount - photos.length)
+  const atLimit = remaining === 0
+
   function addFiles(files: FileList | null) {
     if (!files || files.length === 0) return
-    const next: PendingPhoto[] = Array.from(files).map(file => {
+    setLimitMessage('')
+    const incoming = Array.from(files)
+    const accepted = incoming.slice(0, remaining)
+    if (accepted.length < incoming.length) {
+      setLimitMessage(`เพิ่มรูปได้อีก ${remaining} รูป (สูงสุด ${MAX_PHOTOS_PER_ITEM} รูปต่อรายการ)`)
+    }
+    if (accepted.length === 0) return
+    const next: PendingPhoto[] = accepted.map(file => {
       const preview = URL.createObjectURL(file)
       previewUrls.current.push(preview)
       return { id: `${Date.now()}-${Math.random()}`, file, preview, status: 'pending' as const }
@@ -117,38 +133,44 @@ export function PhotoPicker({ onPhotosUploaded, disabled = false }: Props) {
   const pendingCount = photos.filter(p => p.status === 'pending' || p.status === 'failed').length
   const doneCount    = photos.filter(p => p.status === 'done').length
 
+  const triggerDisabled = disabled || atLimit
   const triggerCls = `flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors ${
-    disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-secondary'
+    triggerDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-secondary'
   }`
 
   // ---- Trigger buttons (no confirmation overlay open) ----
   if (!open) {
     return (
-      <div className="mt-2.5 flex gap-2">
-        <label className={triggerCls}>
-          <Camera size={12} />
-          ถ่ายภาพ
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            disabled={disabled}
-            onChange={(e) => { addFiles(e.target.files); e.currentTarget.value = '' }}
-          />
-        </label>
-        <label className={triggerCls}>
-          <Plus size={12} />
-          เลือกรูป
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            disabled={disabled}
-            onChange={(e) => { addFiles(e.target.files); e.currentTarget.value = '' }}
-          />
-        </label>
+      <div className="mt-2.5 space-y-1">
+        <div className="flex gap-2">
+          <label className={triggerCls}>
+            <Camera size={12} />
+            ถ่ายภาพ
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              disabled={triggerDisabled}
+              onChange={(e) => { addFiles(e.target.files); e.currentTarget.value = '' }}
+            />
+          </label>
+          <label className={triggerCls}>
+            <Plus size={12} />
+            เลือกรูป
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              disabled={triggerDisabled}
+              onChange={(e) => { addFiles(e.target.files); e.currentTarget.value = '' }}
+            />
+          </label>
+        </div>
+        {atLimit && (
+          <p className="text-[10px] text-amber-600">ครบจำนวนรูปภาพสูงสุด ({MAX_PHOTOS_PER_ITEM} รูปต่อรายการ) แล้ว</p>
+        )}
       </div>
     )
   }
@@ -213,7 +235,7 @@ export function PhotoPicker({ onPhotosUploaded, disabled = false }: Props) {
         ))}
 
         {/* Add more from gallery */}
-        {!uploading && (
+        {!uploading && !atLimit && (
           <label className="flex size-16 cursor-pointer items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground transition-colors hover:bg-secondary">
             <Plus size={18} />
             <input
@@ -226,6 +248,9 @@ export function PhotoPicker({ onPhotosUploaded, disabled = false }: Props) {
           </label>
         )}
       </div>
+      {limitMessage && (
+        <p className="px-3 pb-2 text-[10px] text-amber-600">{limitMessage}</p>
+      )}
 
       {/* Action bar */}
       <div className="flex gap-2 border-t px-3 py-2">
