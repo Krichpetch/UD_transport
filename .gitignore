@@ -18,6 +18,18 @@ coverage
 # Turbo
 .turbo
 
+# Python (checklist migration tool)
+tools/checklist-migration/.venv
+tools/checklist-migration/__pycache__
+tools/checklist-migration/.pytest_cache
+tools/checklist-migration/**/__pycache__
+
+# checklist migration tool: real สนข. documents and generated checklist
+# data (contains real checklist text) never get committed — code + tests
+# with synthetic fixtures do.
+tools/checklist-migration/input/
+tools/checklist-migration/output/
+
 # Vercel
 .vercel
 

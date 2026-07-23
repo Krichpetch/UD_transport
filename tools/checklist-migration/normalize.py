@@ -47,6 +47,29 @@ def label_key(text: str) -> str:
     return t
 
 
+def fuzz_key(text: str) -> str:
+    """Matching key for fuzzy scoring only — same normalization as
+    label_key(), but whitespace is collapsed to single spaces rather than
+    stripped entirely.
+
+    label_key() removes ALL whitespace, which is correct for exact
+    equality (spacing is the most volatile artifact of DOCX/xlsx
+    extraction) but wrong for rapidfuzz's token_set_ratio: spaceless Thai
+    has no token boundaries, so token_set_ratio degenerates to a plain
+    full-string ratio and loses its word-overlap behavior. Keeping single
+    spaces preserves tokens for the fuzzy pass.
+    """
+    t = unicodedata.normalize("NFC", text or "")
+    t = t.translate(THAI_DIGITS)
+    t = NUM_PREFIX_RE.sub("", t)
+    t = t.rstrip("*").strip()
+    t = re.sub(r"(?<=\d),(?=\d{3})", "", t)
+    t = re.sub(r"[()\[\]“”\"'`]", "", t)
+    t = re.sub(r"[–—\-]+", "-", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
 def extract_numbers(text: str):
     """Ordered list of numeric literals (commas stripped, Thai digits ok).
 

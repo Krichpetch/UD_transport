@@ -387,11 +387,14 @@ def main(path, outdir):
 
     ov, dt = set(st.overview_items), set(st.detail_items)
     (outdir / "new_ir.json").write_text(
-        json.dumps(st.records, ensure_ascii=False, indent=1), encoding="utf8")
+        json.dumps(st.records, ensure_ascii=False, indent=1),
+        encoding="utf8", newline="\n")
     (outdir / "tree_preview.json").write_text(
-        json.dumps(build_tree(st.records), ensure_ascii=False, indent=1), encoding="utf8")
+        json.dumps(build_tree(st.records), ensure_ascii=False, indent=1),
+        encoding="utf8", newline="\n")
     (outdir / "remarks_raw.json").write_text(
-        json.dumps(st.remarks, ensure_ascii=False, indent=1), encoding="utf8")
+        json.dumps(st.remarks, ensure_ascii=False, indent=1),
+        encoding="utf8", newline="\n")
 
     lines = ["# Parse report", "", f"Source: {path}", "", "## Counters", ""]
     lines += [f"- {k}: {v}" for k, v in sorted(st.counters.items())]
@@ -406,7 +409,8 @@ def main(path, outdir):
               f"- detail-only items: {sorted(dt - ov)}", "",
               "## Warnings", ""]
     lines += [f"- {w}" for w in st.warnings] or ["- none"]
-    (outdir / "parse_report.md").write_text("\n".join(lines), encoding="utf8")
+    (outdir / "parse_report.md").write_text(
+        "\n".join(lines), encoding="utf8", newline="\n")
     print("\n".join(lines))
 
 
