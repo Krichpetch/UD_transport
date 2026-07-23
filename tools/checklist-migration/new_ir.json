@@ -1,0 +1,1967 @@
+[
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.1",
+   "label": "ที่จอดรถสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "1",
+  "numSource": "positional",
+  "labelRaw": "กำหนดให้มีที่จอดรถสำหรับคนพิการ ดังนี้",
+  "labelKey": "กำหนดให้มีที่จอดรถสำหรับคนพิการดังนี้",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": [
+   [
+    "ที่จอดรถทั้งหมด",
+    "ที่จอดรถสำหรับคนพิการ"
+   ],
+   [
+    "10-50 คัน",
+    "อย่างน้อย 1 ช่องจอด"
+   ],
+   [
+    "51-100 คัน",
+    "อย่างน้อย 2 ช่องจอด"
+   ],
+   [
+    "101 คัน ขึ้นไป",
+    "2 ช่องจอด และเพิ่ม 1 ช่องจอด ทุก ๆ 100 คันที่เพิ่ม"
+   ]
+  ],
+  "star": false,
+  "ordinal": 1,
+  "code": "A1.1-1"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.1",
+   "label": "ที่จอดรถสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "2",
+  "numSource": "positional",
+  "labelRaw": "ที่จอดรถสำหรับคนพิการให้จัดไว้ใกล้ทางเข้าและออก อาคารให้มากที่สด มีพื้นผิวเรียบเสมอกัน มีสัญลักษณ์ รูปคนพิการบนพื้นของที่จอดรถ และมีป้ายแสดง ที่จอดรถของคนพิการ",
+  "labelKey": "ที่จอดรถสำหรับคนพิการให้จัดไว้ใกล้ทางเข้าและออกอาคารให้มากที่สดมีพื้นผิวเรียบเสมอกันมีสัญลักษณ์รูปคนพิการบนพื้นของที่จอดรถและมีป้ายแสดงที่จอดรถของคนพิการ",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 2,
+  "code": "A1.1-2"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.1",
+   "label": "ที่จอดรถสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "3",
+  "numSource": "positional",
+  "labelRaw": "ที่จอดรถสำหรับคนพิการและผู้สูงอายุต้องเป็นพื้นที่ สี่เหลี่ยมผืนผ้า",
+  "labelKey": "ที่จอดรถสำหรับคนพิการและผู้สูงอายุต้องเป็นพื้นที่สี่เหลี่ยมผืนผ้า",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 3,
+  "code": "A1.1-3"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.1",
+   "label": "ที่จอดรถสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "4",
+  "numSource": "positional",
+  "labelRaw": "ขนาดกว้างไม่น้อยกว่า 2,400 มิลลิเมตรและยาวไม่น้อยกว่า 6,000 มิลลิเมตร",
+  "labelKey": "ขนาดกว้างไม่น้อยกว่า2400มิลลิเมตรและยาวไม่น้อยกว่า6000มิลลิเมตร",
+  "numbers": [
+   2400.0,
+   6000.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 4,
+  "code": "A1.1-4"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.1",
+   "label": "ที่จอดรถสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "5",
+  "numSource": "positional",
+  "labelRaw": "จัดให้มีที่ว่างข้างที่จอดรถกว้างไม่น้อยกว่า 1,000 มิลลิเมตรตลอดความยาวของที่จอดรถ",
+  "labelKey": "จัดให้มีที่ว่างข้างที่จอดรถกว้างไม่น้อยกว่า1000มิลลิเมตรตลอดความยาวของที่จอดรถ",
+  "numbers": [
+   1000.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 5,
+  "code": "A1.1-5"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.1",
+   "label": "ที่จอดรถสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "6",
+  "numSource": "positional",
+  "labelRaw": "มีสัญลักษณ์รูปคนพิการนั่งรถเข็นคนพิการ (Wheelchair) อยู่บนพื้นของที่จอดรถด้านที่ติดกับทางเดินรถ ขนาดสัญลักษณ์กว้างไม่น้อยกว่า 900 มิลลิเมตร และยาวไม่น้อยกว่า 900 มิลลิเมตร",
+  "labelKey": "มีสัญลักษณ์รูปคนพิการนั่งรถเข็นคนพิการWheelchairอยู่บนพื้นของที่จอดรถด้านที่ติดกับทางเดินรถขนาดสัญลักษณ์กว้างไม่น้อยกว่า900มิลลิเมตรและยาวไม่น้อยกว่า900มิลลิเมตร",
+  "numbers": [
+   900.0,
+   900.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 6,
+  "code": "A1.1-6"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.2",
+   "label": "ป้ายแสดงอุปกรณ์หรือสิ่งอำนวยความสะดวกสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "1",
+  "numSource": "positional",
+  "labelRaw": "ป้ายพื้นสีน้ำเงิน สัญลักษณ์รูปคนพิการนั่งรถเข็นคนพิการ (Wheelchair) สีขาว หรือ ป้ายพื้นสีขาว สัญลักษณ์รูปคนพิการนั่งรถเข็นคนพิการ Wheelchair) สีน้ำเงิน",
+  "labelKey": "ป้ายพื้นสีน้ำเงินสัญลักษณ์รูปคนพิการนั่งรถเข็นคนพิการWheelchairสีขาวหรือป้ายพื้นสีขาวสัญลักษณ์รูปคนพิการนั่งรถเข็นคนพิการWheelchairสีน้ำเงิน",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 1,
+  "code": "A1.2-1"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.2",
+   "label": "ป้ายแสดงอุปกรณ์หรือสิ่งอำนวยความสะดวกสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "2",
+  "numSource": "positional",
+  "labelRaw": "ป้ายเป็นรูปสี่เหลี่ยมจัตุรัสหรือสี่เหลี่ยมผืนผ้า",
+  "labelKey": "ป้ายเป็นรูปสี่เหลี่ยมจัตุรัสหรือสี่เหลี่ยมผืนผ้า",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 2,
+  "code": "A1.2-2"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.2",
+   "label": "ป้ายแสดงอุปกรณ์หรือสิ่งอำนวยความสะดวกสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "3",
+  "numSource": "positional",
+  "labelRaw": "มีป้ายแสดงที่จอดรถของคนพิการ ขนาดกว้าง ไม่น้อยกว่า 300 มิลลิเมตร และยาวไม่น้อยกว่า300 มิลลิเมตร",
+  "labelKey": "มีป้ายแสดงที่จอดรถของคนพิการขนาดกว้างไม่น้อยกว่า300มิลลิเมตรและยาวไม่น้อยกว่า300มิลลิเมตร",
+  "numbers": [
+   300.0,
+   300.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 3,
+  "code": "A1.2-3"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.2",
+   "label": "ป้ายแสดงอุปกรณ์หรือสิ่งอำนวยความสะดวกสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "4",
+  "numSource": "positional",
+  "labelRaw": "ป้ายสัญลักษณ์ติดตั้งในบริเวณที่สามารถมองเห็นได้ อย่างชัดเจน และจัดให้มีแสงส่องสว่างเป็นพิเศษ ทั้งกลางวันและกลางคืน",
+  "labelKey": "ป้ายสัญลักษณ์ติดตั้งในบริเวณที่สามารถมองเห็นได้อย่างชัดเจนและจัดให้มีแสงส่องสว่างเป็นพิเศษทั้งกลางวันและกลางคืน",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 4,
+  "code": "A1.2-4"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.2",
+   "label": "ป้ายแสดงอุปกรณ์หรือสิ่งอำนวยความสะดวกสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "5",
+  "numSource": "positional",
+  "labelRaw": "ป้ายสัญลักษณ์ติดตั้งอยู่สูงจากพื้นไม่น้อยกว่า2,000 มิลลิเมตร",
+  "labelKey": "ป้ายสัญลักษณ์ติดตั้งอยู่สูงจากพื้นไม่น้อยกว่า2000มิลลิเมตร",
+  "numbers": [
+   2000.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 5,
+  "code": "A1.2-5"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.3",
+   "label": "พื้นผิวต่างสัมผัสชนิดเตือน(Warning Tactile/Block)"
+  },
+  "subheader": null,
+  "num": "1",
+  "numSource": "positional",
+  "labelRaw": "ให้มีการติดตั้งที่พื้นบริเวณที่มีระดับต่างกันเกิน200 มิลลิเมตร โดยมีขนาดกว้างไม่น้อยกว่า 300 มิลลิเมตรและมีความยาวเท่ากับและขนานไปกับความกว้างของช่องทางเดินของพื้นต่างระดับ",
+  "labelKey": "ให้มีการติดตั้งที่พื้นบริเวณที่มีระดับต่างกันเกิน200มิลลิเมตรโดยมีขนาดกว้างไม่น้อยกว่า300มิลลิเมตรและมีความยาวเท่ากับและขนานไปกับความกว้างของช่องทางเดินของพื้นต่างระดับ",
+  "numbers": [
+   200.0,
+   300.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 1,
+  "code": "A1.3-1"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.3",
+   "label": "พื้นผิวต่างสัมผัสชนิดเตือน(Warning Tactile/Block)"
+  },
+  "subheader": null,
+  "num": "2",
+  "numSource": "inferred",
+  "labelRaw": "ตำแหน่งติดตั้งพื้นผิวต่างสัมผัสอย่างน้อย ดังนี้",
+  "labelKey": "ตำแหน่งติดตั้งพื้นผิวต่างสัมผัสอย่างน้อยดังนี้",
+  "numbers": [],
+  "isLeaf": false,
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 2,
+  "code": "A1.3-2"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.3",
+   "label": "พื้นผิวต่างสัมผัสชนิดเตือน(Warning Tactile/Block)"
+  },
+  "subheader": null,
+  "num": "2.1",
+  "numSource": "literal",
+  "labelRaw": "ทางขึ้นและทางลงของทางลาดหรือบันได",
+  "labelKey": "ทางขึ้นและทางลงของทางลาดหรือบันได",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "2",
+  "code": "A1.3-2.1"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.3",
+   "label": "พื้นผิวต่างสัมผัสชนิดเตือน(Warning Tactile/Block)"
+  },
+  "subheader": null,
+  "num": "2.2",
+  "numSource": "literal",
+  "labelRaw": "พื้นด้านหน้าและด้านหลังของประตูทางเข้าอาคาร",
+  "labelKey": "พื้นด้านหน้าและด้านหลังของประตูทางเข้าอาคาร",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "2",
+  "code": "A1.3-2.2"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.3",
+   "label": "พื้นผิวต่างสัมผัสชนิดเตือน(Warning Tactile/Block)"
+  },
+  "subheader": null,
+  "num": "2.3",
+  "numSource": "literal",
+  "labelRaw": "บริเวณที่เป็นทางแยก",
+  "labelKey": "บริเวณที่เป็นทางแยก",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "2",
+  "code": "A1.3-2.3"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.3",
+   "label": "พื้นผิวต่างสัมผัสชนิดเตือน(Warning Tactile/Block)"
+  },
+  "subheader": null,
+  "num": "3",
+  "numSource": "positional",
+  "labelRaw": "ขอบของพื้นผิวต่างสัมผัสอยู่ห่างจากจุดเริ่มต้นของทางขึ้น หรือทางลงของพื้นต่างระดับ ทางลาด บันได หรือประตู ไม่น้อยกว่า 300 มิลลิเมตร แต่ไม่เกิน 350 มิลลิเมตร",
+  "labelKey": "ขอบของพื้นผิวต่างสัมผัสอยู่ห่างจากจุดเริ่มต้นของทางขึ้นหรือทางลงของพื้นต่างระดับทางลาดบันไดหรือประตูไม่น้อยกว่า300มิลลิเมตรแต่ไม่เกิน350มิลลิเมตร",
+  "numbers": [
+   300.0,
+   350.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 3,
+  "code": "A1.3-3"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.3",
+   "label": "พื้นผิวต่างสัมผัสชนิดเตือน(Warning Tactile/Block)"
+  },
+  "subheader": null,
+  "num": "4",
+  "numSource": "positional",
+  "labelRaw": "ทางเข้าอาคาร ทางเดินระหว่างอาคาร และทางเชื่อม ระหว่างอาคาร ในกรณีที่มีสิ่งกีดขวางที่จำเป็น บนทางเดิน ต้องจัดให้อยู่ในแนวเดียวกัน โดยไม่กีดขวาง ทางเดิน และจัดให้มีพื้นผิวต่างสัมผัสหรือมีการกั้น เพื่อให้ทราบก่อนถึงสิ่งกีดขวาง และอยู่ห่างสิ่งกีดขวาง ไม่น้อยกว่า 300 มิลลิเมตร",
+  "labelKey": "ทางเข้าอาคารทางเดินระหว่างอาคารและทางเชื่อมระหว่างอาคารในกรณีที่มีสิ่งกีดขวางที่จำเป็นบนทางเดินต้องจัดให้อยู่ในแนวเดียวกันโดยไม่กีดขวางทางเดินและจัดให้มีพื้นผิวต่างสัมผัสหรือมีการกั้นเพื่อให้ทราบก่อนถึงสิ่งกีดขวางและอยู่ห่างสิ่งกีดขวางไม่น้อยกว่า300มิลลิเมตร",
+  "numbers": [
+   300.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 4,
+  "code": "A1.3-4"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.3",
+   "label": "พื้นผิวต่างสัมผัสชนิดเตือน(Warning Tactile/Block)"
+  },
+  "subheader": null,
+  "num": "5",
+  "numSource": "positional",
+  "labelRaw": "ทางเท้า ทางข้าม ให้มีพื้นผิวต่างสัมผัสบริเวณที่มีสิ่งกีดขวาง บริเวณจุดรับและส่ง บริเวณอันตราย บริเวณที่มี การหักมุมบริเวณที่มีทางแยก หรือบริเวณทางต่างระดับ",
+  "labelKey": "ทางเท้าทางข้ามให้มีพื้นผิวต่างสัมผัสบริเวณที่มีสิ่งกีดขวางบริเวณจุดรับและส่งบริเวณอันตรายบริเวณที่มีการหักมุมบริเวณที่มีทางแยกหรือบริเวณทางต่างระดับ",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 5,
+  "code": "A1.3-5"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.3",
+   "label": "พื้นผิวต่างสัมผัสชนิดเตือน(Warning Tactile/Block)"
+  },
+  "subheader": null,
+  "num": "6",
+  "numSource": "positional",
+  "labelRaw": "ติดตั้งพื้นผิวต่างสัมผัสเตือนที่ริมขอบถนน",
+  "labelKey": "ติดตั้งพื้นผิวต่างสัมผัสเตือนที่ริมขอบถนน",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 6,
+  "code": "A1.3-6"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.4",
+   "label": "พื้นผิวต่างสัมผัสชนิดนำทาง(Guiding Tactile/Block)*"
+  },
+  "subheader": null,
+  "num": "1",
+  "numSource": "positional",
+  "labelRaw": "สามารถนำทางคนพิการทางการเห็นไปสู่จุดหมายที่สำคัญในพื้นที่ เช่น จากจุดขึ้น-ลงยานพาหนะนำไปยัง เคาน์เตอร์หลัก นำไปยังที่จำหน่ายตั๋ว นำไปยังห้องน้ำ สำหรับคนพิการ นำไปยังลิฟต์โดยสาร ไปยังชานชาลา นำไปยังจุดที่มีเจ้าหน้าที่ให้บริการและช่วยเหลือ",
+  "labelKey": "สามารถนำทางคนพิการทางการเห็นไปสู่จุดหมายที่สำคัญในพื้นที่เช่นจากจุดขึ้น-ลงยานพาหนะนำไปยังเคาน์เตอร์หลักนำไปยังที่จำหน่ายตั๋วนำไปยังห้องน้ำสำหรับคนพิการนำไปยังลิฟต์โดยสารไปยังชานชาลานำไปยังจุดที่มีเจ้าหน้าที่ให้บริการและช่วยเหลือ",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 1,
+  "code": "A1.4-1"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.4",
+   "label": "พื้นผิวต่างสัมผัสชนิดนำทาง(Guiding Tactile/Block)*"
+  },
+  "subheader": null,
+  "num": "2",
+  "numSource": "positional",
+  "labelRaw": "บริเวณพื้นที่หรือโถงอาคารที่กว้าง ๆ ไม่สามารถใช้ ปลายไม้เท้าขาวแตะขอบผนังอาคารได้",
+  "labelKey": "บริเวณพื้นที่หรือโถงอาคารที่กว้างๆไม่สามารถใช้ปลายไม้เท้าขาวแตะขอบผนังอาคารได้",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 2,
+  "code": "A1.4-2"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.4",
+   "label": "พื้นผิวต่างสัมผัสชนิดนำทาง(Guiding Tactile/Block)*"
+  },
+  "subheader": null,
+  "num": "3",
+  "numSource": "positional",
+  "labelRaw": "การติดตั้งพื้นผิวต่างสัมผัสชนิดนำทางนี้ ใช้ควบคู่กับ พื้นผิวต่างสัมผัสชนิดเตือน โดยจะนำทางไปสู่ป้ายให้ข้อมูล เช่น แผนผังต่างสัมผัสหรือจุดบริการข้อมูลที่มีเจ้าหน้าที่ ประจำการอยู่",
+  "labelKey": "การติดตั้งพื้นผิวต่างสัมผัสชนิดนำทางนี้ใช้ควบคู่กับพื้นผิวต่างสัมผัสชนิดเตือนโดยจะนำทางไปสู่ป้ายให้ข้อมูลเช่นแผนผังต่างสัมผัสหรือจุดบริการข้อมูลที่มีเจ้าหน้าที่ประจำการอยู่",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 3,
+  "code": "A1.4-3"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.4",
+   "label": "พื้นผิวต่างสัมผัสชนิดนำทาง(Guiding Tactile/Block)*"
+  },
+  "subheader": null,
+  "num": "4",
+  "numSource": "positional",
+  "labelRaw": "บริเวณที่ติดตั้งภายในอาคารที่มีเส้นทางการเดินซับซ้อนกรณีที่มีระบบนำทางโดยผู้ช่วยนำทาง(Leading Passenger) แล้วไม่จำเป็นต้องติดตั้ง",
+  "labelKey": "บริเวณที่ติดตั้งภายในอาคารที่มีเส้นทางการเดินซับซ้อนกรณีที่มีระบบนำทางโดยผู้ช่วยนำทางLeadingPassengerแล้วไม่จำเป็นต้องติดตั้ง",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 4,
+  "code": "A1.4-4"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.4",
+   "label": "พื้นผิวต่างสัมผัสชนิดนำทาง(Guiding Tactile/Block)*"
+  },
+  "subheader": null,
+  "num": "5",
+  "numSource": "positional",
+  "labelRaw": "บริเวณลานกว้าง (Open Plaza)บริเวณจุดเปลี่ยนถ่ายการเดินทางบริเวณทางข้าม กรณีทางข้ามที่เป็นวงเวียน (Roundabouts) และทางข้ามส่วนที่อยู่บริเวณ ช่วงถนน (Midblock Crossings)",
+  "labelKey": "บริเวณลานกว้างOpenPlazaบริเวณจุดเปลี่ยนถ่ายการเดินทางบริเวณทางข้ามกรณีทางข้ามที่เป็นวงเวียนRoundaboutsและทางข้ามส่วนที่อยู่บริเวณช่วงถนนMidblockCrossings",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 5,
+  "code": "A1.4-5"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.4",
+   "label": "พื้นผิวต่างสัมผัสชนิดนำทาง(Guiding Tactile/Block)*"
+  },
+  "subheader": null,
+  "num": "6",
+  "numSource": "positional",
+  "labelRaw": "นำทางไปยังประตูเข้าสถานีรถไฟด้านที่มีพนักงานประจำอยู่",
+  "labelKey": "นำทางไปยังประตูเข้าสถานีรถไฟด้านที่มีพนักงานประจำอยู่",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 6,
+  "code": "A1.4-6"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.4",
+   "label": "พื้นผิวต่างสัมผัสชนิดนำทาง(Guiding Tactile/Block)*"
+  },
+  "subheader": null,
+  "num": "7",
+  "numSource": "positional",
+  "labelRaw": "นำทางไปยังบันไดสถานีรถไฟ",
+  "labelKey": "นำทางไปยังบันไดสถานีรถไฟ",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 7,
+  "code": "A1.4-7"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.5",
+   "label": "พื้นผิวต่างสัมผัสชนิดเปลี่ยนทิศทาง (Positioning Tactile/Block)*"
+  },
+  "subheader": null,
+  "num": "1",
+  "numSource": "positional",
+  "labelRaw": "มีการติดตั้งเพื่อเชื่อมต่อพื้นผิวต่างสัมผัสชนิดนำทาง(Guiding Block) และเพื่อใช้กับจุดสิ้นสุดและ จุดเปลี่ยนทั้งหมดของพื้นผิวต่างสัมผัสชนิดนำทาง (Guiding Block) สำหรับบอกการเปลี่ยนแปลง ทิศทางเดินเท้า",
+  "labelKey": "มีการติดตั้งเพื่อเชื่อมต่อพื้นผิวต่างสัมผัสชนิดนำทางGuidingBlockและเพื่อใช้กับจุดสิ้นสุดและจุดเปลี่ยนทั้งหมดของพื้นผิวต่างสัมผัสชนิดนำทางGuidingBlockสำหรับบอกการเปลี่ยนแปลงทิศทางเดินเท้า",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 1,
+  "code": "A1.5-1"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.6",
+   "label": "ทางลาดขอบถนน (ทางลาดตัดคันหิน)"
+  },
+  "subheader": null,
+  "num": "1",
+  "numSource": "positional",
+  "labelRaw": "พื้นผิวต่อเนื่องระหว่างพื้นถนนกับทางลาดต้องมีพื้นเรียบและไม่ขรุขระ",
+  "labelKey": "พื้นผิวต่อเนื่องระหว่างพื้นถนนกับทางลาดต้องมีพื้นเรียบและไม่ขรุขระ",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 1,
+  "code": "A1.6-1"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.6",
+   "label": "ทางลาดขอบถนน (ทางลาดตัดคันหิน)"
+  },
+  "subheader": null,
+  "num": "2",
+  "numSource": "positional",
+  "labelRaw": "ต้องมีทางลาดจากทางเท้าลงสู่พื้นถนน",
+  "labelKey": "ต้องมีทางลาดจากทางเท้าลงสู่พื้นถนน",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 2,
+  "code": "A1.6-2"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.6",
+   "label": "ทางลาดขอบถนน (ทางลาดตัดคันหิน)"
+  },
+  "subheader": null,
+  "num": "3",
+  "numSource": "positional",
+  "labelRaw": "ทางลาดต้องมีความกว้างไม่น้อยกว่า 1,200 มิลลิเมตรและต้องมีความลาดชันไม่เกิน 1 : 12",
+  "labelKey": "ทางลาดต้องมีความกว้างไม่น้อยกว่า1200มิลลิเมตรและต้องมีความลาดชันไม่เกิน1:12",
+  "numbers": [
+   1200.0,
+   1.0,
+   12.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 3,
+  "code": "A1.6-3"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.6",
+   "label": "ทางลาดขอบถนน (ทางลาดตัดคันหิน)"
+  },
+  "subheader": null,
+  "num": "4",
+  "numSource": "positional",
+  "labelRaw": "ขอบทางลาดปาดต้องมีความลาดชัน (Ramp slope)ร้อยละ 10",
+  "labelKey": "ขอบทางลาดปาดต้องมีความลาดชันRampslopeร้อยละ10",
+  "numbers": [
+   10.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 4,
+  "code": "A1.6-4"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A1",
+   "label": "ที่จอดรถ"
+  },
+  "item": {
+   "code": "A1.6",
+   "label": "ทางลาดขอบถนน (ทางลาดตัดคันหิน)"
+  },
+  "subheader": null,
+  "num": "5",
+  "numSource": "positional",
+  "labelRaw": "ติดตั้งพื้นผิวต่างสัมผัสเตือนที่ริมขอบถนน",
+  "labelKey": "ติดตั้งพื้นผิวต่างสัมผัสเตือนที่ริมขอบถนน",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 5,
+  "code": "A1.6-5"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.1",
+   "label": "ป้ายแสดงอุปกรณ์หรือสิ่งอำนวยความสะดวกสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "1",
+  "numSource": "positional",
+  "labelRaw": "มีสัญลักษณ์รูปคนพิการ เครื่องหมายแสดงทางไปสู่อุปกรณ์หรือสิ่งอำนวยความสะดวก และมีสัญลักษณ์ หรือตัวอักษรแสดงประเภทของอุปกรณ์หรือสิ่งอำนวย ความสะดวก โดยมีสีขาวและพื้นป้ายเป็นสีน้ำเงิน หรือมีสีน้ำเงินและพื้นป้ายเป็นสีขาว",
+  "labelKey": "มีสัญลักษณ์รูปคนพิการเครื่องหมายแสดงทางไปสู่อุปกรณ์หรือสิ่งอำนวยความสะดวกและมีสัญลักษณ์หรือตัวอักษรแสดงประเภทของอุปกรณ์หรือสิ่งอำนวยความสะดวกโดยมีสีขาวและพื้นป้ายเป็นสีน้ำเงินหรือมีสีน้ำเงินและพื้นป้ายเป็นสีขาว",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 1,
+  "code": "A2.1-1"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.1",
+   "label": "ป้ายแสดงอุปกรณ์หรือสิ่งอำนวยความสะดวกสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "2",
+  "numSource": "positional",
+  "labelRaw": "ป้ายเป็นรูปสี่เหลี่ยมจัตุรัสหรือสี่เหลี่ยมผืนผ้า",
+  "labelKey": "ป้ายเป็นรูปสี่เหลี่ยมจัตุรัสหรือสี่เหลี่ยมผืนผ้า",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 2,
+  "code": "A2.1-2"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.1",
+   "label": "ป้ายแสดงอุปกรณ์หรือสิ่งอำนวยความสะดวกสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "3",
+  "numSource": "positional",
+  "labelRaw": "ป้ายสัญลักษณ์คนพิการ ขนาดกว้างไม่น้อยกว่า300 มิลลิเมตร และยาวไม่น้อยกว่า 300 มิลลิเมตร",
+  "labelKey": "ป้ายสัญลักษณ์คนพิการขนาดกว้างไม่น้อยกว่า300มิลลิเมตรและยาวไม่น้อยกว่า300มิลลิเมตร",
+  "numbers": [
+   300.0,
+   300.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 3,
+  "code": "A2.1-3"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.1",
+   "label": "ป้ายแสดงอุปกรณ์หรือสิ่งอำนวยความสะดวกสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "4",
+  "numSource": "positional",
+  "labelRaw": "ติดตั้งในบริเวณที่สามารถมองเห็นได้อย่างชัดเจน และจัดให้มีแสงส่องสว่างเป็นพิเศษทั้งกลางวันและกลางคืน",
+  "labelKey": "ติดตั้งในบริเวณที่สามารถมองเห็นได้อย่างชัดเจนและจัดให้มีแสงส่องสว่างเป็นพิเศษทั้งกลางวันและกลางคืน",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 4,
+  "code": "A2.1-4"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "1",
+  "numSource": "inferred",
+  "labelRaw": "กรณีทางลาดที่ความยาวไม่เกิน 2,500 มิลลิเมตร",
+  "labelKey": "กรณีทางลาดที่ความยาวไม่เกิน2500มิลลิเมตร",
+  "numbers": [
+   2500.0
+  ],
+  "isLeaf": false,
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 1,
+  "code": "A2.2-1"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "1.1",
+  "numSource": "literal",
+  "labelRaw": "มีทางลาดในบริเวณพื้นที่ต่างระดับ โดยพื้นผิวเป็นวัสดุที่ป้องกันการลื่นไถล",
+  "labelKey": "มีทางลาดในบริเวณพื้นที่ต่างระดับโดยพื้นผิวเป็นวัสดุที่ป้องกันการลื่นไถล",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "1",
+  "code": "A2.2-1.1"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "1.2",
+  "numSource": "literal",
+  "labelRaw": "ความกว้างสุทธิไม่น้อยกว่า 900 มิลลิเมตร",
+  "labelKey": "ความกว้างสุทธิไม่น้อยกว่า900มิลลิเมตร",
+  "numbers": [
+   900.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "1",
+  "code": "A2.2-1.2"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "1.3",
+  "numSource": "literal",
+  "labelRaw": "พื้นที่หน้าทางลาดเป็นที่ว่างยาวไม่น้อยกว่า1,500 มิลลิเมตร",
+  "labelKey": "พื้นที่หน้าทางลาดเป็นที่ว่างยาวไม่น้อยกว่า1500มิลลิเมตร",
+  "numbers": [
+   1500.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "1",
+  "code": "A2.2-1.3"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "1.4",
+  "numSource": "literal",
+  "labelRaw": "ความลาดชันไม่เกิน 1:12",
+  "labelKey": "ความลาดชันไม่เกิน1:12",
+  "numbers": [
+   1.0,
+   12.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "1",
+  "code": "A2.2-1.4"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "1.5",
+  "numSource": "literal",
+  "labelRaw": "ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลลิเมตร และมีราวกันตก/ ราวจับทำด้วยวัสดุที่มั่นคงและแข็งแรง",
+  "labelKey": "ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิวของทางลาดไม่น้อยกว่า50มิลลิเมตรและมีราวกันตก/ราวจับทำด้วยวัสดุที่มั่นคงและแข็งแรง",
+  "numbers": [
+   50.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "1",
+  "code": "A2.2-1.5"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": "ระยะความสูงของราวจับ",
+  "num": "2",
+  "numSource": "inferred",
+  "labelRaw": "กรณีทางลาดที่มีความยาวตั้งแต่ 2,500 - 6,000 มิลลิเมตร",
+  "labelKey": "กรณีทางลาดที่มีความยาวตั้งแต่2500-6000มิลลิเมตร",
+  "numbers": [
+   2500.0,
+   6000.0
+  ],
+  "isLeaf": false,
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 2,
+  "code": "A2.2-2"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": "ระยะความสูงของราวจับ",
+  "num": "2.1",
+  "numSource": "literal",
+  "labelRaw": "มีทางลาดในบริเวณพื้นที่ต่างระดับ โดยพื้นผิว เป็นวัสดุที่ป้องกันการลื่นไถล และติดตั้งราวจับทั้งสองด้าน โดยมีลักษณะดังข้อ 4.",
+  "labelKey": "มีทางลาดในบริเวณพื้นที่ต่างระดับโดยพื้นผิวเป็นวัสดุที่ป้องกันการลื่นไถลและติดตั้งราวจับทั้งสองด้านโดยมีลักษณะดังข้อ4.",
+  "numbers": [
+   4.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "2",
+  "code": "A2.2-2.1"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": "ระยะความสูงของราวจับ",
+  "num": "2.2",
+  "numSource": "literal",
+  "labelRaw": "ความกว้างสุทธิไม่น้อยกว่า 900 มิลลิเมตร",
+  "labelKey": "ความกว้างสุทธิไม่น้อยกว่า900มิลลิเมตร",
+  "numbers": [
+   900.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "2",
+  "code": "A2.2-2.2"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": "ระยะความสูงของราวจับ",
+  "num": "2.3",
+  "numSource": "literal",
+  "labelRaw": "พื้นที่หน้าทางลาดเป็นที่ว่างยาวไม่น้อยกว่า 1,500 มิลลิเมตร",
+  "labelKey": "พื้นที่หน้าทางลาดเป็นที่ว่างยาวไม่น้อยกว่า1500มิลลิเมตร",
+  "numbers": [
+   1500.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "2",
+  "code": "A2.2-2.3"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": "ระยะความสูงของราวจับ",
+  "num": "2.4",
+  "numSource": "literal",
+  "labelRaw": "ความลาดชันไม่เกิน 1:12",
+  "labelKey": "ความลาดชันไม่เกิน1:12",
+  "numbers": [
+   1.0,
+   12.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "2",
+  "code": "A2.2-2.4"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": "ระยะความสูงของราวจับ",
+  "num": "2.5",
+  "numSource": "literal",
+  "labelRaw": "ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลลิเมตร และมีราวกันตก/ ราวจับทำด้วยวัสดุที่มั่นคงและแข็งแรง",
+  "labelKey": "ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิวของทางลาดไม่น้อยกว่า50มิลลิเมตรและมีราวกันตก/ราวจับทำด้วยวัสดุที่มั่นคงและแข็งแรง",
+  "numbers": [
+   50.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "2",
+  "code": "A2.2-2.5"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": "ระยะความสูงของราวจับ",
+  "num": "3",
+  "numSource": "inferred",
+  "labelRaw": "กรณีที่ทางลาดยาวตั้งแต่ 6,000 มิลลิเมตร ขึ้นไป",
+  "labelKey": "กรณีที่ทางลาดยาวตั้งแต่6000มิลลิเมตรขึ้นไป",
+  "numbers": [
+   6000.0
+  ],
+  "isLeaf": false,
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 3,
+  "code": "A2.2-3"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": "ระยะความสูงของราวจับ",
+  "num": "3.1",
+  "numSource": "literal",
+  "labelRaw": "มีทางลาดในบริเวณพื้นที่ต่างระดับ โดยพื้นผิวเป็น วัสดุที่ป้องกันการลื่นไถล และติดตั้งราวจับทั้งสองด้าน โดยมีลักษณะดังข้อ 4.",
+  "labelKey": "มีทางลาดในบริเวณพื้นที่ต่างระดับโดยพื้นผิวเป็นวัสดุที่ป้องกันการลื่นไถลและติดตั้งราวจับทั้งสองด้านโดยมีลักษณะดังข้อ4.",
+  "numbers": [
+   4.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "3",
+  "code": "A2.2-3.1"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": "ระยะความสูงของราวจับ",
+  "num": "3.2",
+  "numSource": "literal",
+  "labelRaw": "ความกว้างสุทธิไม่น้อยกว่า 1,500 มิลลิเมตร",
+  "labelKey": "ความกว้างสุทธิไม่น้อยกว่า1500มิลลิเมตร",
+  "numbers": [
+   1500.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "3",
+  "code": "A2.2-3.2"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": "ระยะความสูงของราวจับ",
+  "num": "3.3",
+  "numSource": "literal",
+  "labelRaw": "พื้นที่หน้าทางลาดเป็นที่ว่างยาวไม่น้อยกว่า 1,500 มิลลิเมตร",
+  "labelKey": "พื้นที่หน้าทางลาดเป็นที่ว่างยาวไม่น้อยกว่า1500มิลลิเมตร",
+  "numbers": [
+   1500.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "3",
+  "code": "A2.2-3.3"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": "ระยะความสูงของราวจับ",
+  "num": "3.4",
+  "numSource": "literal",
+  "labelRaw": "ความลาดชันไม่เกิน 1:12",
+  "labelKey": "ความลาดชันไม่เกิน1:12",
+  "numbers": [
+   1.0,
+   12.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "3",
+  "code": "A2.2-3.4"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": "ระยะความสูงของราวจับ",
+  "num": "3.5",
+  "numSource": "literal",
+  "labelRaw": "ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลลิเมตร และมีราวกันตก/ ราวจับทำด้วยวัสดุที่มั่นคงและแข็งแรง",
+  "labelKey": "ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิวของทางลาดไม่น้อยกว่า50มิลลิเมตรและมีราวกันตก/ราวจับทำด้วยวัสดุที่มั่นคงและแข็งแรง",
+  "numbers": [
+   50.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "3",
+  "code": "A2.2-3.5"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": "ระยะความสูงของราวจับ",
+  "num": "3.6",
+  "numSource": "literal",
+  "labelRaw": "จัดให้มีชานพักยาวไม่น้อยกว่า 1,500 มิลลิเมตร คั่นระหว่างแต่ละช่วงของทางลาด",
+  "labelKey": "จัดให้มีชานพักยาวไม่น้อยกว่า1500มิลลิเมตรคั่นระหว่างแต่ละช่วงของทางลาด",
+  "numbers": [
+   1500.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "3",
+  "code": "A2.2-3.6"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": "หรือ ลักษณะของราวจับด้านที่ติดผนัง",
+  "num": "4.3",
+  "numSource": "literal",
+  "labelRaw": "สูงจากพื้นไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
+  "labelKey": "สูงจากพื้นไม่น้อยกว่า800มิลลิเมตรแต่ไม่เกิน900มิลลิเมตร",
+  "numbers": [
+   800.0,
+   900.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "code": "A2.2-4.3"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": "หรือ ลักษณะของราวจับด้านที่ติดผนัง",
+  "num": "4.6",
+  "numSource": "literal",
+  "labelRaw": "ราวจับด้านที่อยู่ติดผนังให้มีระยะห่างจากผนัง ไม่น้อยกว่า 50 มิลลิเมตร มีความสูงจากจุดยึด ไม่น้อยกว่า 120 มิลลิเมตร และผนังบริเวณราวจับ ต้องเป็นผนังเรียบ",
+  "labelKey": "ราวจับด้านที่อยู่ติดผนังให้มีระยะห่างจากผนังไม่น้อยกว่า50มิลลิเมตรมีความสูงจากจุดยึดไม่น้อยกว่า120มิลลิเมตรและผนังบริเวณราวจับต้องเป็นผนังเรียบ",
+  "numbers": [
+   50.0,
+   120.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "code": "A2.2-4.6"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "4",
+  "numSource": "positional",
+  "labelRaw": "พื้นที่บริเวณที่จุดเริ่มต้นและสิ้นสุดทางลาด ให้เป็นพื้นที่ว่างปราศจากสิ่งกีดขวางโดยมีความกว้างและความยาว ไม่น้อยกว่า 1,500 x 1,500 มิลลิเมตร",
+  "labelKey": "พื้นที่บริเวณที่จุดเริ่มต้นและสิ้นสุดทางลาดให้เป็นพื้นที่ว่างปราศจากสิ่งกีดขวางโดยมีความกว้างและความยาวไม่น้อยกว่า1500x1500มิลลิเมตร",
+  "numbers": [
+   1500.0,
+   1500.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 4,
+  "code": "A2.2-4"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "5",
+  "numSource": "positional",
+  "labelRaw": "มีป้ายแสดงทิศทาง ตำแหน่ง หรือหมายเลขชั้น ของอาคารที่คนพิการทางการเห็น และผู้สูงอายุสามารถ ทราบความหมายได้ ตั้งอยู่บริเวณทางขึ้นและทางลง ของทางลาดที่เชื่อมระหว่างชั้นของอาคาร",
+  "labelKey": "มีป้ายแสดงทิศทางตำแหน่งหรือหมายเลขชั้นของอาคารที่คนพิการทางการเห็นและผู้สูงอายุสามารถทราบความหมายได้ตั้งอยู่บริเวณทางขึ้นและทางลงของทางลาดที่เชื่อมระหว่างชั้นของอาคาร",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 5,
+  "code": "A2.2-5"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.2",
+   "label": "ทางลาดสำหรับคนพิการ"
+  },
+  "subheader": null,
+  "num": "6",
+  "numSource": "positional",
+  "labelRaw": "มีสัญลักษณ์รูปคนพิการและผู้สูงอายุติดไว้ในบริเวณทางลาดที่จัดไว้",
+  "labelKey": "มีสัญลักษณ์รูปคนพิการและผู้สูงอายุติดไว้ในบริเวณทางลาดที่จัดไว้",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 6,
+  "code": "A2.2-6"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.3",
+   "label": "บันไดสำหรับคนพิการและผู้สูงอายุ"
+  },
+  "subheader": null,
+  "num": "1",
+  "numSource": "inferred",
+  "labelRaw": "บันได",
+  "labelKey": "บันได",
+  "numbers": [],
+  "isLeaf": false,
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 1,
+  "code": "A2.3-1"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.3",
+   "label": "บันไดสำหรับคนพิการและผู้สูงอายุ"
+  },
+  "subheader": null,
+  "num": "1.1",
+  "numSource": "literal",
+  "labelRaw": "พื้นผิวของบันไดเป็นวัสดุที่ไม่ลื่น และมีความกว้างสุทธิไม่น้อยกว่า 1,500 มิลลิเมตร",
+  "labelKey": "พื้นผิวของบันไดเป็นวัสดุที่ไม่ลื่นและมีความกว้างสุทธิไม่น้อยกว่า1500มิลลิเมตร",
+  "numbers": [
+   1500.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "1",
+  "code": "A2.3-1.1"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.3",
+   "label": "บันไดสำหรับคนพิการและผู้สูงอายุ"
+  },
+  "subheader": null,
+  "num": "1.2",
+  "numSource": "literal",
+  "labelRaw": "มีชานพักทุกระยะในแนวดิ่งไม่เกิน 2,000 มิลลิเมตร",
+  "labelKey": "มีชานพักทุกระยะในแนวดิ่งไม่เกิน2000มิลลิเมตร",
+  "numbers": [
+   2000.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "1",
+  "code": "A2.3-1.2"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.3",
+   "label": "บันไดสำหรับคนพิการและผู้สูงอายุ"
+  },
+  "subheader": null,
+  "num": "1.3",
+  "numSource": "literal",
+  "labelRaw": "บันไดมีลูกตั้งสูงไม่เกิน 150 มิลลิเมตร โดยลูกตั้งต้องไม่มีช่องเปิดโล่ง และมีลูกนอนกว้างไม่น้อยกว่า280 มิลลิเมตร",
+  "labelKey": "บันไดมีลูกตั้งสูงไม่เกิน150มิลลิเมตรโดยลูกตั้งต้องไม่มีช่องเปิดโล่งและมีลูกนอนกว้างไม่น้อยกว่า280มิลลิเมตร",
+  "numbers": [
+   150.0,
+   280.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "1",
+  "code": "A2.3-1.3"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.3",
+   "label": "บันไดสำหรับคนพิการและผู้สูงอายุ"
+  },
+  "subheader": null,
+  "num": "1.4",
+  "numSource": "literal",
+  "labelRaw": "บริเวณที่ว่างใต้บันไดและทางลาดที่มีความสูง จากพื้นไม่เกิน 2,000 มิลลิเมตร ต้องมีราวปิดกั้น เพื่อป้องกันการเข้าไปบริเวณดังกล่าว หรือมีขอบทางสัญจรกั้น โดยมีพื้นผิวต่างสัมผัส ชนิดเตือน (Warning Tactile/Block)",
+  "labelKey": "บริเวณที่ว่างใต้บันไดและทางลาดที่มีความสูงจากพื้นไม่เกิน2000มิลลิเมตรต้องมีราวปิดกั้นเพื่อป้องกันการเข้าไปบริเวณดังกล่าวหรือมีขอบทางสัญจรกั้นโดยมีพื้นผิวต่างสัมผัสชนิดเตือนWarningTactile/Block",
+  "numbers": [
+   2000.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "1",
+  "code": "A2.3-1.4"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.3",
+   "label": "บันไดสำหรับคนพิการและผู้สูงอายุ"
+  },
+  "subheader": "ราวจับบนทางราบ",
+  "num": "2",
+  "numSource": "inferred",
+  "labelRaw": "ราวจับ",
+  "labelKey": "ราวจับ",
+  "numbers": [],
+  "isLeaf": false,
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 2,
+  "code": "A2.3-2"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.3",
+   "label": "บันไดสำหรับคนพิการและผู้สูงอายุ"
+  },
+  "subheader": "ราวจับบนทางราบ",
+  "num": "2.1",
+  "numSource": "literal",
+  "labelRaw": "ราวจับทำด้วยวัสดุผิวเรียบ ลักษณะกลม เส้นผ่านศูนย์กลาง 30 ถึง 40 มิลลิเมตร",
+  "labelKey": "ราวจับทำด้วยวัสดุผิวเรียบลักษณะกลมเส้นผ่านศูนย์กลาง30ถึง40มิลลิเมตร",
+  "numbers": [
+   30.0,
+   40.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "2",
+  "code": "A2.3-2.1"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.3",
+   "label": "บันไดสำหรับคนพิการและผู้สูงอายุ"
+  },
+  "subheader": "ราวจับบนทางราบ",
+  "num": "2.2",
+  "numSource": "literal",
+  "labelRaw": "ติดตั้งสูงจากพื้น 800 ถึง 900 มิลลิเมตร",
+  "labelKey": "ติดตั้งสูงจากพื้น800ถึง900มิลลิเมตร",
+  "numbers": [
+   800.0,
+   900.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "2",
+  "code": "A2.3-2.2"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.3",
+   "label": "บันไดสำหรับคนพิการและผู้สูงอายุ"
+  },
+  "subheader": "ราวจับบนทางราบ",
+  "num": "2.3",
+  "numSource": "literal",
+  "labelRaw": "กรณีที่เป็นกำแพงพื้นผิวเรียบ ให้ติดตั้งห่างจากผนัง อย่างน้อย 50 มิลลิเมตร โดยสูงจากจุดยึดอย่างน้อย 120 มิลลิเมตร",
+  "labelKey": "กรณีที่เป็นกำแพงพื้นผิวเรียบให้ติดตั้งห่างจากผนังอย่างน้อย50มิลลิเมตรโดยสูงจากจุดยึดอย่างน้อย120มิลลิเมตร",
+  "numbers": [
+   50.0,
+   120.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "2",
+  "code": "A2.3-2.3"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.3",
+   "label": "บันไดสำหรับคนพิการและผู้สูงอายุ"
+  },
+  "subheader": "ราวจับบนทางราบ",
+  "num": "3",
+  "numSource": "inferred",
+  "labelRaw": "ราวบันได",
+  "labelKey": "ราวบันได",
+  "numbers": [],
+  "isLeaf": false,
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "ordinal": 3,
+  "code": "A2.3-3"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.3",
+   "label": "บันไดสำหรับคนพิการและผู้สูงอายุ"
+  },
+  "subheader": "ราวจับบนทางราบ",
+  "num": "3.1",
+  "numSource": "literal",
+  "labelRaw": "มีราวบันไดทั้งสองข้าง",
+  "labelKey": "มีราวบันไดทั้งสองข้าง",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "3",
+  "code": "A2.3-3.1"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.3",
+   "label": "บันไดสำหรับคนพิการและผู้สูงอายุ"
+  },
+  "subheader": "ราวจับบนทางราบ",
+  "num": "3.2",
+  "numSource": "literal",
+  "labelRaw": "ทำด้วยวัสดุเรียบ มีความมั่นคงแข็งแรง ไม่เป็นอันตรายในการจับและไม่ลื่น",
+  "labelKey": "ทำด้วยวัสดุเรียบมีความมั่นคงแข็งแรงไม่เป็นอันตรายในการจับและไม่ลื่น",
+  "numbers": [],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "3",
+  "code": "A2.3-3.2"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.3",
+   "label": "บันไดสำหรับคนพิการและผู้สูงอายุ"
+  },
+  "subheader": "ราวจับบนทางราบ",
+  "num": "3.3",
+  "numSource": "literal",
+  "labelRaw": "ลักษณะกลม เส้นผ่านศูนย์กลางไม่น้อยกว่า30 มิลลิเมตร แต่ไม่เกิน 40 มิลลิเมตร",
+  "labelKey": "ลักษณะกลมเส้นผ่านศูนย์กลางไม่น้อยกว่า30มิลลิเมตรแต่ไม่เกิน40มิลลิเมตร",
+  "numbers": [
+   30.0,
+   40.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "3",
+  "code": "A2.3-3.3"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.3",
+   "label": "บันไดสำหรับคนพิการและผู้สูงอายุ"
+  },
+  "subheader": "ราวจับบนทางราบ",
+  "num": "3.4",
+  "numSource": "literal",
+  "labelRaw": "สูงจากพื้นไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
+  "labelKey": "สูงจากพื้นไม่น้อยกว่า800มิลลิเมตรแต่ไม่เกิน900มิลลิเมตร",
+  "numbers": [
+   800.0,
+   900.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "3",
+  "code": "A2.3-3.4"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.3",
+   "label": "บันไดสำหรับคนพิการและผู้สูงอายุ"
+  },
+  "subheader": "ราวจับบนทางราบ",
+  "num": "3.5",
+  "numSource": "literal",
+  "labelRaw": "ติดตั้งราวจับราวที่สองในระดับความสูงระหว่าง700 -750 มิลลิเมตร จากพื้น เพื่อประโยชน์ ต่อผู้ใช้รถเข็นคนพิการ (Wheelchair)",
+  "labelKey": "ติดตั้งราวจับราวที่สองในระดับความสูงระหว่าง700-750มิลลิเมตรจากพื้นเพื่อประโยชน์ต่อผู้ใช้รถเข็นคนพิการWheelchair",
+  "numbers": [
+   700.0,
+   750.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence_standard",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "3",
+  "code": "A2.3-3.5"
+ },
+ {
+  "section": null,
+  "group": {
+   "code": "A2",
+   "label": "การเชื่อมต่อและการเข้าถึง ระบบขนส่ง สาธารณะอื่น ๆ"
+  },
+  "item": {
+   "code": "A2.3",
+   "label": "บันไดสำหรับคนพิการและผู้สูงอายุ"
+  },
+  "subheader": "ราวจับบนทางราบ",
+  "num": "3.6",
+  "numSource": "literal",
+  "labelRaw": "ราวจับคู่ (Double rail)* สำหรับราวจับของเด็ก ติดตั้งสูงจากพื้น 600-650 มิลลิเมตร",
+  "labelKey": "ราวจับคู่Doublerail*สำหรับราวจับของเด็กติดตั้งสูงจากพื้น600-650มิลลิเมตร",
+  "numbers": [
+   600.0,
+   650.0
+  ],
+  "isLeaf": true,
+  "answerType": "presence",
+  "grayedHalf": false,
+  "tierBlock": null,
+  "star": false,
+  "parent": "3",
+  "code": "A2.3-3.6"
+ }
+]
