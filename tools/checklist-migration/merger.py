@@ -187,23 +187,51 @@ def _max_major(codes, item_code):
     return best
 
 
-def _max_minor(codes, item_code, major):
+def _max_minor(codes, item_code, prefix_suffix):
+    """Highest minor index already used directly under prefix_suffix — e.g.
+    prefix_suffix "2" matches old codes "…-2.1", "…-2.2"; prefix_suffix
+    "2.1" matches "…-2.1.1". Depth-agnostic so nesting beyond one level
+    (major.minor) reserves correctly too."""
     best = 0
-    prefix = f"{major}."
+    prefix = f"{prefix_suffix}."
     for c in codes:
         n = _num_suffix(item_code, c)
         if n.startswith(prefix):
+            first_seg = n[len(prefix):].split(".", 1)[0]
             try:
-                best = max(best, int(n.split(".", 1)[1]))
+                best = max(best, int(first_seg))
             except ValueError:
                 pass
     return best
 
 
-def _allocate_added_codes(item_code, item_new_records, final_code_of, old_item_codes):
-    """Mutates final_code_of (new_code -> final_code) in place, minting the
-    next free suffix for every ADDED record in this item. Retired (REMOVED)
-    old codes are never reused because old_item_codes includes them."""
+def _assign_codes_for_item(item_code, item_new_records, final_code_of, old_item_codes):
+    """Mutates final_code_of (new_code -> final_code) in place so every
+    record in this item ends up with a real, unique final code.
+
+    Matched leaves already carry their retained old code (set by merge()
+    before this runs) and are left untouched. Everything else — containers
+    (which never go through leaf alignment, so they have no entry yet) and
+    genuinely new/ADDED leaves — gets resolved here, walked in depth order
+    (shallowest first) so a child can always see its parent's already-
+    resolved final code, however many levels deep the nesting goes. Retired
+    (REMOVED) old codes are never reused because old_item_codes includes
+    them in `claimed`.
+
+    A container keeps its own new-document position as-is UNLESS that code
+    is already claimed by something else in this item — typically a
+    matched leaf that retained an old code from a position the document
+    has since reorganised around. Only then is the container reminted,
+    exactly like a genuinely new record would be; its descendants then
+    naturally inherit the corrected prefix since they're resolved after
+    their parent in the depth-ordered walk.
+    """
+    claimed = set(old_item_codes)
+    for r in item_new_records:
+        fc = final_code_of.get(r["code"])
+        if fc is not None:
+            claimed.add(fc)
+
     reserved_majors = set()
     for c in old_item_codes:
         n = _num_suffix(item_code, c)
@@ -213,43 +241,47 @@ def _allocate_added_codes(item_code, item_new_records, final_code_of, old_item_c
             except ValueError:
                 pass
     next_major = _max_major(old_item_codes, item_code) + 1
-
-    for r in item_new_records:
-        if r.get("parent") is not None:
-            continue
-        new_code = r["code"]
-        if new_code in final_code_of and final_code_of[new_code] is not None:
-            continue
-        if final_code_of.get(new_code) is None and _is_added(final_code_of, new_code):
-            while next_major in reserved_majors:
-                next_major += 1
-            final_code_of[new_code] = f"{item_code}-{next_major}"
-            reserved_majors.add(next_major)
-            next_major += 1
-
     minor_counters = {}
-    for r in item_new_records:
+    by_num = {r["num"]: r for r in item_new_records}
+
+    def mint_top():
+        nonlocal next_major
+        while next_major in reserved_majors or f"{item_code}-{next_major}" in claimed:
+            next_major += 1
+        code = f"{item_code}-{next_major}"
+        reserved_majors.add(next_major)
+        next_major += 1
+        return code
+
+    def mint_under(parent_final):
+        suffix = _num_suffix(item_code, parent_final)
+        n = minor_counters.get(suffix, _max_minor(old_item_codes, item_code, suffix) + 1)
+        code = f"{parent_final}.{n}"
+        while code in claimed:
+            n += 1
+            code = f"{parent_final}.{n}"
+        minor_counters[suffix] = n + 1
+        return code
+
+    for r in sorted(item_new_records, key=lambda rec: rec["num"].count(".")):
+        new_code = r["code"]
+        if final_code_of.get(new_code) is not None:
+            continue  # matched leaf — keeps its retained old code
+
         parent = r.get("parent")
         if parent is None:
-            continue
-        new_code = r["code"]
-        if not _is_added(final_code_of, new_code):
-            continue
-        parent_record = next((x for x in item_new_records if x.get("num") == parent
-                               and x.get("parent") is None), None)
-        parent_final = final_code_of.get(parent_record["code"]) if parent_record else None
-        if parent_final is None:
-            continue
-        major = _num_suffix(item_code, parent_final)
-        if major not in minor_counters:
-            minor_counters[major] = _max_minor(old_item_codes, item_code, major) + 1
-        n = minor_counters[major]
-        final_code_of[new_code] = f"{item_code}-{major}.{n}"
-        minor_counters[major] = n + 1
+            final = new_code if not r["isLeaf"] and new_code not in claimed else mint_top()
+        else:
+            parent_record = by_num.get(parent)
+            parent_final = final_code_of.get(parent_record["code"]) if parent_record else None
+            if parent_final is None:
+                continue  # orphaned (parent filtered out elsewhere) — stays unresolved
+            own_suffix = r["num"].rsplit(".", 1)[-1]
+            natural = f"{parent_final}.{own_suffix}"
+            final = natural if not r["isLeaf"] and natural not in claimed else mint_under(parent_final)
 
-
-def _is_added(final_code_of, new_code):
-    return new_code in final_code_of and final_code_of[new_code] is None
+        final_code_of[new_code] = final
+        claimed.add(final)
 
 
 # --------------------------------------------------------------------------
@@ -383,11 +415,28 @@ def merge(mode_key, old_definition, old_records, new_records, leaf_matches,
 
     # Containers never go through leaf-level alignment (aligner.align()
     # only produces leaf_matches for isLeaf=True records) — structure is
-    # the new document's alone to own, so containers always keep their
-    # own new-doc code. Only *leaves* carry the code-stability contract.
+    # the new document's alone to own, so a container normally keeps its
+    # own new-doc code. The exception (collision with a matched leaf's
+    # retained old code) is resolved per-item in _assign_codes_for_item,
+    # below, since detecting it requires seeing the whole item's records.
+
+    # Resolve every item's codes exactly once, across ALL of its records —
+    # an item occasionally spans more than one group (split_edition_
+    # duplicates() rebases a repeated block onto a fresh top-level code but
+    # leaves its original group tag alone), and minting "next free" codes
+    # per (group, item) pair instead of per item would let two group-scoped
+    # passes over the same item independently pick the same numbers.
+    item_codes_seen = []
     for r in new_records:
-        if not r.get("isLeaf") and r.get("code"):
-            final_code_of.setdefault(r["code"], r["code"])
+        it = r.get("item")
+        if it and it["code"] not in item_codes_seen:
+            item_codes_seen.append(it["code"])
+    for item_code in item_codes_seen:
+        item_records = [r for r in new_records
+                         if r.get("item") and r["item"]["code"] == item_code]
+        old_item_codes = [r["code"] for r in old_records
+                           if r.get("item") and r["item"]["code"] == item_code]
+        _assign_codes_for_item(item_code, item_records, final_code_of, old_item_codes)
 
     review_rows = []
     groups_out = []
@@ -398,9 +447,6 @@ def merge(mode_key, old_definition, old_records, new_records, leaf_matches,
         for it in _collect_items(new_records, g["code"]):
             item_records = [r for r in g_records
                              if r.get("item") and r["item"]["code"] == it["code"]]
-            old_item_codes = [r["code"] for r in old_records
-                               if r.get("item") and r["item"]["code"] == it["code"]]
-            _allocate_added_codes(it["code"], item_records, final_code_of, old_item_codes)
             subitems = _build_subitems(it["code"], item_records, final_code_of,
                                         old_by_code, mode_key, review_rows)
             items_out.append({"code": it["code"], "labelTh": it["label"],

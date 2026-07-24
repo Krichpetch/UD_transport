@@ -170,6 +170,7 @@ class ParserState:
         self.overview_items = {}
         self.detail_items = {}
         self.groups_seen = {}
+        self.item_occurrence = Counter()
 
 
 def parse_overview_table(rows, cols, st):
@@ -240,9 +241,12 @@ def parse_detail_table(rows, cols, st):
         if itext_origin:
             m = ITEM_CODE_RE.match(itext_origin)
             if m:
-                st.item = {"code": m.group(1),
-                           "label": clean_ws(ITEM_CODE_RE.sub("", itext_origin))}
-                st.detail_items[m.group(1)] = st.item["label"]
+                code = m.group(1)
+                st.item_occurrence[code] += 1
+                st.item = {"code": code,
+                           "label": clean_ws(ITEM_CODE_RE.sub("", itext_origin)),
+                           "occurrence": st.item_occurrence[code]}
+                st.detail_items[code] = st.item["label"]
                 st.counters["item_starts"] += 1
 
         # per-row subheader: inherited item-column text that is NOT an item code
@@ -338,10 +342,16 @@ def container_pass(records):
     other section that also restarts at .1 — a real ambiguity in how this
     document nests repeated case blocks, not a numbering bug to paper
     over here. See subtype_scope.csv workflow notes for how that surfaces
-    downstream."""
+    downstream. Grouped by (item code, occurrence) rather than item code
+    alone, so ordinal counting and owner inference each restart cleanly
+    when the SAME item code is explicitly re-started later in the document
+    (a fresh origin item-code cell, not just a numbering quirk) — this is
+    what lets split_edition_duplicates() below catch repeated blocks that
+    have no literal numbering to collide on (see its own docstring)."""
     by_item = defaultdict(list)
     for r in records:
-        by_item[(r["item"] or {}).get("code")].append(r)
+        it = r["item"] or {}
+        by_item[(it.get("code"), it.get("occurrence"))].append(r)
     for recs in by_item.values():
         for r in recs:
             if r["num"] and "." in r["num"]:
@@ -363,7 +373,7 @@ def container_pass(records):
                         owner["numSource"] = "inferred"
                     r["parent"] = owner["num"]
     # ordinals + provisional codes
-    for item_code, recs in by_item.items():
+    for (item_code, _occurrence), recs in by_item.items():
         n = 0
         for r in recs:
             if not (r["num"] and "." in str(r["num"])):

@@ -112,3 +112,52 @@ def test_split_is_noop_when_no_top_level_code_repeats():
     out, metro_only = _run(recs)
     assert len(out) == 2
     assert metro_only == []
+
+
+def _occ_item(n):
+    return {"code": "A2.5", "label": "พื้นผิวต่างสัมผัสชนิดนำทาง", "occurrence": n}
+
+
+def leaf_occ(label, item, **kw):
+    r = {"item": item, "group": {"code": "A2", "label": "g"}, "num": None,
+         "labelRaw": label, "labelKey": label, "isLeaf": True,
+         "answerType": "presence_standard", "grayedHalf": False,
+         "tierBlock": None, "subheader": None, "numSource": "positional"}
+    r.update(kw)
+    return r
+
+
+def test_occurrence_reset_lets_ordinal_collide_on_purely_positional_repeats():
+    """A2.5 real-data bug: the DOCX explicitly re-starts the SAME item code
+    later in the document (a fresh origin item-code cell), with every
+    child purely positional (no literal numbering at all). Without
+    occurrence-aware grouping the ordinal counter runs continuously across
+    both blocks (1,2,3,4 — never colliding), so split_edition_duplicates
+    has no signal to catch the repeat and a whole duplicate block survives
+    as extra, wrongly-coded leaves."""
+    occ1, occ2 = _occ_item(1), _occ_item(2)
+    recs = [
+        leaf_occ("criterion A", occ1),
+        leaf_occ("criterion B", occ1),
+        leaf_occ("criterion A", occ2),   # byte-identical repeat, no restart signal
+        leaf_occ("criterion B", occ2),
+    ]
+    container_pass(recs)
+    assert [r["num"] for r in recs] == ["1", "2", "1", "2"]
+    out, metro_only = split_edition_duplicates(recs)
+    assert len(out) == 2
+    assert metro_only == []
+
+
+def test_occurrence_reset_rebases_genuinely_different_repeat_content():
+    occ1, occ2 = _occ_item(1), _occ_item(2)
+    recs = [
+        leaf_occ("criterion A", occ1),
+        leaf_occ("criterion A, elevator-specific wording", occ2),
+    ]
+    container_pass(recs)
+    out, metro_only = split_edition_duplicates(recs)
+    assert len(out) == 2
+    codes = [r["code"] for r in out]
+    assert len(set(codes)) == 2
+    assert metro_only == [out[1]["code"]]

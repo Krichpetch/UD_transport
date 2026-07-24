@@ -233,6 +233,48 @@ def test_era_override_candidate_handles_multivalue_remark():
     assert result["era_overrides_candidates"]["A2.3-3.7"]["MHT_2564"] == [50.0, 100.0]
 
 
+def test_added_leaf_three_levels_deep_gets_minted_not_left_null():
+    """merger.py's code minting used to only handle two levels (item-major
+    and major.minor); a leaf ADDED three levels deep under a container
+    nested inside another container was silently left with
+    final_code_of[...] == None forever (the real-data B1.1-2.1 bug)."""
+    top = new_leaf("A1.1-2", "2", "container top")
+    top["isLeaf"] = False
+    mid = new_leaf("A1.1-2.1", "2.1", "container mid", parent="2")
+    mid["isLeaf"] = False
+    deep = new_leaf("A1.1-2.1.1", "2.1.1", "new leaf, three levels deep", parent="2.1")
+    new = [top, mid, deep]
+    matches = [match(None, "A1.1-2.1.1", "ADDED", None)]
+    result = merge("rail", OLD_DEF, [], new, matches, "doc.docx")
+    container = result["definition"]["groups"][0]["items"][0]["subItems"][0]
+    grandchild = container["subItems"][0]["subItems"][0]
+    assert grandchild["code"] is not None
+    assert grandchild["code"] == "A1.1-2.1.1"
+
+
+def test_container_reminted_when_it_collides_with_matched_leaf_retained_code():
+    """A3.2-1 real-data bug: a leaf's retained OLD code coincidentally
+    equals a container's fresh NEW-position code once the document has
+    been reorganised (new content inserted ahead of the leaf's old spot)."""
+    old = [old_leaf("A1.1-1", "1", "signage requirement")]
+    container = new_leaf("A1.1-1", "1", "staircase (new content)")
+    container["isLeaf"] = False
+    child = new_leaf("A1.1-1.1", "1.1", "staircase surface", parent="1")
+    signage = new_leaf("A1.1-4", "4", "signage requirement")  # moved to position 4
+    new = [container, child, signage]
+    matches = [match("A1.1-1", "A1.1-4", "MOVED_WITHIN"),
+               match(None, "A1.1-1.1", "ADDED", None)]
+    result = merge("rail", OLD_DEF, old, new, matches, "doc.docx")
+    subitems = result["definition"]["groups"][0]["items"][0]["subItems"]
+    codes = [s["code"] for s in subitems]
+    assert len(codes) == len(set(codes))
+    signage_final = next(s for s in subitems if s.get("answerType"))
+    container_final = next(s for s in subitems if "subItems" in s)
+    assert signage_final["code"] == "A1.1-1"
+    assert container_final["code"] != "A1.1-1"
+    assert container_final["subItems"][0]["code"] == f"{container_final['code']}.1"
+
+
 # --------------------------------------------------------------------------
 # rail subtype scope (metro vs train)
 # --------------------------------------------------------------------------
