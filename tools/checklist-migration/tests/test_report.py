@@ -72,4 +72,29 @@ def test_review_csv_flags_remark_vs_label_numeric_disagreement(tmp_path):
     remarks = [{"labelKey": "จุดสัมผัสสูงไม่เกิน200มม", "2548": "200", "2564": "150"}]
     rows = write_review_csv("rail", result, tmp_path / "review.csv", remarks=remarks)
     assert len(rows) == 1
-    assert "disagrees" in rows[0][4]
+    assert "disagree" in rows[0][4]
+
+
+def test_review_csv_multivalue_remark_matching_both_label_numbers_is_not_flagged(tmp_path):
+    """A leaf with two thresholds (e.g. two 'ไม่น้อยกว่า' clauses) may have a
+    comma-separated remark like "50,120" — each value must be checked
+    individually against the label's numbers, not parsed as one number."""
+    new_rec = leaf("A2.3-3.7", "ห่างจากผนังไม่น้อยกว่า50มม สูงไม่น้อยกว่า120มม", numbers=[50.0, 120.0])
+    new_rec["labelKey"] = "ห่างจากผนังไม่น้อยกว่า50มม สูงไม่น้อยกว่า120มม"
+    m = make_match(leaf("A2.3-3.7", "เดิม"), new_rec, "UNCHANGED", 1.0, "exact")
+    result = AlignResult(leaf_matches=[m])
+    remarks = [{"labelKey": new_rec["labelKey"], "2548": "50,120", "2564": "50,120"}]
+    rows = write_review_csv("rail", result, tmp_path / "review.csv", remarks=remarks)
+    assert rows == []
+
+
+def test_review_csv_multivalue_remark_flags_only_the_mismatched_value(tmp_path):
+    new_rec = leaf("A2.3-3.7", "ห่างจากผนังไม่น้อยกว่า50มม สูงไม่น้อยกว่า120มม", numbers=[50.0, 120.0])
+    new_rec["labelKey"] = "ห่างจากผนังไม่น้อยกว่า50มม สูงไม่น้อยกว่า120มม"
+    m = make_match(leaf("A2.3-3.7", "เดิม"), new_rec, "UNCHANGED", 1.0, "exact")
+    result = AlignResult(leaf_matches=[m])
+    remarks = [{"labelKey": new_rec["labelKey"], "2548": "40,120", "2564": "40,120"}]
+    rows = write_review_csv("rail", result, tmp_path / "review.csv", remarks=remarks)
+    assert len(rows) == 1
+    assert "40" in rows[0][4]
+    assert "120" not in rows[0][4]

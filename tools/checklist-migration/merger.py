@@ -13,10 +13,82 @@ from pathlib import Path
 
 from aligner import _collect_groups, _collect_items, comparison_numbers
 from enrich_measurements import extract as extract_measurements
+from normalize import parse_remark_numbers
 
 
 class UndecidedReviewRows(Exception):
     pass
+
+
+# --------------------------------------------------------------------------
+# rail subtype scope (metro vs train) — opt-in, separate from Stage 4 review
+# --------------------------------------------------------------------------
+#
+# The รถไฟฟ้า (metro) and รถไฟ (train) checklists are separate template
+# documents (see @repo/types/template-variant.ts), but a single revised DOCX
+# can carry additions that only apply to one subtype (e.g. metro-only items
+# appended at the end of a shared item). subtype_scope.csv — a small,
+# hand-maintained file in `outdir`, absent by default — lets a reviewer tag
+# just those specific codes; everything else is unaffected and applies to
+# both outputs. Tag at whatever level is convenient: a leaf/container code
+# (e.g. "B1.1-9.1"), an item code (e.g. "B1.5"), or a group code — a record
+# is dropped if ANY of its own code / item code / group code is scoped to
+# the other subtype. Dropping a container this way drops its whole subtree
+# for free, since _build_subitems() only recurses into records it can still
+# see in `top`/`children`.
+
+SUBTYPE_SCOPE_HEADER = ["code", "scope"]  # scope: "metro_only" | "train_only"
+
+
+def load_subtype_scope(path):
+    """dict code -> 'metro_only'/'train_only'. Missing file = no tags (every
+    record applies to both subtypes) — this is the common, no-friction case."""
+    if not Path(path).exists():
+        return {}
+    scope = {}
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        for row in csv.DictReader(f):
+            code = (row.get("code") or "").strip()
+            tag = (row.get("scope") or "").strip()
+            if code and tag:
+                scope[code] = tag
+    return scope
+
+
+def infer_target_subtype(mode_key):
+    """'metro'/'train'/None from a mode key like 'rail_metro'/'rail_train' —
+    matches RAIL_METRO_VARIANT_KEY/RAIL_TRAIN_VARIANT_KEY's naming. None
+    means "not a subtype-split run" — no filtering, e.g. plain 'rail' or
+    any other mode."""
+    key = mode_key.lower()
+    if "metro" in key:
+        return "metro"
+    if "train" in key:
+        return "train"
+    return None
+
+
+def filter_new_records_by_subtype(new_records, scope_map, target_subtype):
+    """Drops new-side records tagged for the OTHER rail subtype. No-op when
+    there's nothing to filter (no scope file, or a non-subtype-split run)."""
+    if not scope_map or target_subtype is None:
+        return new_records
+
+    def excluded(r):
+        ids = [r.get("code")]
+        if r.get("item"):
+            ids.append(r["item"]["code"])
+        if r.get("group"):
+            ids.append(r["group"]["code"])
+        for i in ids:
+            tag = scope_map.get(i)
+            if tag == "metro_only" and target_subtype != "metro":
+                return True
+            if tag == "train_only" and target_subtype != "train":
+                return True
+        return False
+
+    return [r for r in new_records if not excluded(r)]
 
 
 # --------------------------------------------------------------------------
@@ -200,7 +272,7 @@ def _measurements_for(old_rec, new_rec, mode, review_rows):
             review_rows.append([
                 mode, new_rec["code"], mm["operator"], mm["value"],
                 mm.get("value2", ""), mm["unit"], mm["sourceText"],
-                new_rec.get("labelRaw", "")[:120],
+                new_rec.get("labelRaw", ""),
                 json.dumps(old_measurements, ensure_ascii=False),
             ])
     return extracted
@@ -255,13 +327,17 @@ def _build_subitems(item_code, item_new_records, final_code_of, old_by_code,
 # remarks + era overrides
 # --------------------------------------------------------------------------
 
-def _numeric(value):
-    if value is None:
+def _numeric_or_list(value):
+    """A remark cell is usually one number, but may pack more than one
+    threshold comma-separated when its leaf has multiple measurements (see
+    parse_remark_numbers). Collapse the common single-value case back to a
+    plain float so existing single-threshold consumers/tests are unaffected;
+    multi-value cells surface as a list so nothing is silently merged into
+    one bogus number."""
+    values = parse_remark_numbers(value)
+    if not values:
         return None
-    try:
-        return float(str(value).replace(",", "").strip())
-    except (TypeError, ValueError):
-        return None
+    return values[0] if len(values) == 1 else values
 
 
 def build_remarks_and_era(remarks_raw, new_by_labelkey, final_code_of):
@@ -279,7 +355,7 @@ def build_remarks_and_era(remarks_raw, new_by_labelkey, final_code_of):
             "2564": r.get("2564"),
             "labelSnippet": r.get("criterion"),
         }
-        n48, n64 = _numeric(r.get("2548")), _numeric(r.get("2564"))
+        n48, n64 = _numeric_or_list(r.get("2548")), _numeric_or_list(r.get("2564"))
         if n48 is not None and n64 is not None and n48 != n64:
             era_candidates[final_code] = {
                 "labelHint": r.get("criterion"),
@@ -359,13 +435,20 @@ def merge(mode_key, old_definition, old_records, new_records, leaf_matches,
 
 def run(mode_key, outdir):
     """Reads the artifacts run.py already wrote to `outdir` and emits Stage
-    5 outputs into the same directory."""
+    5 outputs into the same directory. If outdir/subtype_scope.csv exists
+    and mode_key is a rail_metro/rail_train run, new-side records tagged for
+    the other subtype are dropped before the tree is built."""
     outdir = Path(outdir)
     decisions = load_review_decisions(outdir / f"migration_review_{mode_key}.csv")
 
     matches = json.loads((outdir / "matches.json").read_text(encoding="utf-8"))
     old_records = json.loads((outdir / "old_ir.json").read_text(encoding="utf-8"))
     new_records = json.loads((outdir / "new_ir.json").read_text(encoding="utf-8"))
+
+    scope_map = load_subtype_scope(outdir / "subtype_scope.csv")
+    new_records = filter_new_records_by_subtype(
+        new_records, scope_map, infer_target_subtype(mode_key))
+
     new_by_code = {r["code"]: r for r in new_records if r.get("code")}
 
     leaf_matches = resolve_leaf_matches(matches["leaf_matches"], decisions, new_by_code)

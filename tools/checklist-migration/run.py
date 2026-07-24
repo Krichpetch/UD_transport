@@ -4,6 +4,11 @@ Runs Stage 1 (docx_parser) + Stage 2 (flatten_old) + Stage 3 (aligner) and
 writes migration_report_{mode}.md + migration_review_{mode}.csv (Stage 4).
 Stage 5 (merger) is a separate, explicit step — it refuses to run while any
 review row is undecided, so it is not chained here automatically.
+
+Outputs are namespaced by input DOCX: everything lands in
+<outdir>/<docx stem>/, not directly in <outdir>. This keeps reruns against
+a different or revised DOCX for the same mode (e.g. a fuller rail export,
+or rail_metro vs rail_train) from overwriting each other's artifacts.
 """
 import argparse
 import json
@@ -16,7 +21,7 @@ from report import write_report, write_review_csv
 
 
 def run(mode, docx_path, old_path, outdir):
-    outdir = Path(outdir)
+    outdir = Path(outdir) / Path(docx_path).stem
     outdir.mkdir(parents=True, exist_ok=True)
     old_path = str(Path(old_path).resolve())
 
@@ -52,10 +57,12 @@ def main():
     ap.add_argument("--docx", required=True, help="revised checklist DOCX")
     ap.add_argument("--old", required=True, help="template_{mode}_v2.json")
     ap.add_argument("--outdir", default=None,
-                     help="default: ./output/<mode> (gitignored — see .gitignore)")
+                     help="default: ./output/<mode> (gitignored — see .gitignore); "
+                          "the DOCX filename stem is always appended as a subfolder")
     args = ap.parse_args()
     outdir = args.outdir or f"./output/{args.mode}"
     run(args.mode, args.docx, args.old, outdir)
+    print(f"-> {Path(outdir) / Path(args.docx).stem}")
 
 
 if __name__ == "__main__":

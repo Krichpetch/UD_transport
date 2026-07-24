@@ -3,8 +3,9 @@ import json
 
 import pytest
 
-from merger import (UndecidedReviewRows, load_review_decisions, merge,
-                     resolve_leaf_matches)
+from merger import (UndecidedReviewRows, filter_new_records_by_subtype,
+                     infer_target_subtype, load_review_decisions,
+                     load_subtype_scope, merge, resolve_leaf_matches, run)
 from normalize import label_key
 
 A1 = {"code": "A1", "label": "ที่จอดรถ"}
@@ -215,3 +216,137 @@ def test_era_override_candidate_emitted_when_2548_ne_2564():
     assert result["remarks"]["A1.3-1"]["2564"] == "150"
     assert result["era_overrides_candidates"]["A1.3-1"]["MHT_2548"] == 200.0
     assert result["era_overrides_candidates"]["A1.3-1"]["MHT_2564"] == 150.0
+
+
+def test_era_override_candidate_handles_multivalue_remark():
+    """A leaf with two thresholds may carry a comma-separated remark like
+    "50,120" — each value is its own threshold, not a thousands-grouped
+    number, so 2548 vs 2564 must compare as lists, not one garbled float."""
+    old = [old_leaf("A2.3-3.7", "1", "ห่างจากผนังไม่น้อยกว่า 50 มม สูงไม่น้อยกว่า 120 มม")]
+    new = [new_leaf("A2.3-3.7", "1", "ห่างจากผนังไม่น้อยกว่า 50 มม สูงไม่น้อยกว่า 100 มม")]
+    matches = [match("A2.3-3.7", "A2.3-3.7", "UNCHANGED")]
+    remarks_raw = [{"item": "A2.3", "criterion": "ราวจับ",
+                    "labelKey": new[0]["labelKey"],
+                    "2548": "50,120", "2564": "50,100"}]
+    result = merge("rail", OLD_DEF, old, new, matches, "doc.docx", remarks_raw=remarks_raw)
+    assert result["era_overrides_candidates"]["A2.3-3.7"]["MHT_2548"] == [50.0, 120.0]
+    assert result["era_overrides_candidates"]["A2.3-3.7"]["MHT_2564"] == [50.0, 100.0]
+
+
+# --------------------------------------------------------------------------
+# rail subtype scope (metro vs train)
+# --------------------------------------------------------------------------
+
+def test_infer_target_subtype():
+    assert infer_target_subtype("rail_metro") == "metro"
+    assert infer_target_subtype("rail_train") == "train"
+    assert infer_target_subtype("rail") is None
+    assert infer_target_subtype("land") is None
+
+
+def test_load_subtype_scope_missing_file_is_empty(tmp_path):
+    assert load_subtype_scope(tmp_path / "nope.csv") == {}
+
+
+def test_load_subtype_scope_reads_code_to_tag(tmp_path):
+    p = tmp_path / "subtype_scope.csv"
+    write_csv(p, [["B1.1-9.1", "metro_only"], ["B1.1-9.2", "metro_only"]],
+              header=("code", "scope"))
+    assert load_subtype_scope(p) == {"B1.1-9.1": "metro_only", "B1.1-9.2": "metro_only"}
+
+
+def test_filter_new_records_drops_metro_only_for_train_target():
+    shared = new_leaf("A1.1-1", "1", "ทั่วไป")
+    metro_only = new_leaf("A1.1-2", "2", "เฉพาะรถไฟฟ้า")
+    scope = {"A1.1-2": "metro_only"}
+    train_out = filter_new_records_by_subtype([shared, metro_only], scope, "train")
+    metro_out = filter_new_records_by_subtype([shared, metro_only], scope, "metro")
+    assert [r["code"] for r in train_out] == ["A1.1-1"]
+    assert [r["code"] for r in metro_out] == ["A1.1-1", "A1.1-2"]
+
+
+def test_filter_new_records_only_drops_directly_tagged_records():
+    """filter_new_records_by_subtype() only removes records whose OWN code/
+    item code/group code is tagged — it does not walk parent chains. A
+    child left behind after its container is filtered out becomes
+    unreachable once merge() builds the tree (see the whole-subtree test
+    below), but the flat list returned here still contains it."""
+    header = new_leaf("B1.1-9", "9", "กรณีพิเศษสำหรับรถไฟฟ้า")
+    child = new_leaf("B1.1-9.1", "9.1", "ราวจับพิเศษ", parent="9")
+    scope = {"B1.1-9": "metro_only"}
+    out = filter_new_records_by_subtype([header, child], scope, "train")
+    assert out == [child]
+
+
+def test_tagging_container_code_drops_whole_subtree_from_built_tree():
+    """Tagging just the container code should drop its children too, without
+    listing every descendant leaf — once the container is filtered out of
+    new_records, _build_subitems()'s recursion never reaches its orphaned
+    children, so they silently disappear from the built tree."""
+    shared = new_leaf("A1.1-1", "1", "ทั่วไป")
+    header = new_leaf("A1.1-2", "2", "กรณีพิเศษสำหรับรถไฟฟ้า")
+    header["isLeaf"] = False
+    child = new_leaf("A1.1-2.1", "2.1", "ราวจับพิเศษ", parent="2")
+    new_records = [shared, header, child]
+    leaf_matches = [
+        match(None, "A1.1-1", "ADDED"),
+        match(None, "A1.1-2.1", "ADDED"),
+    ]
+    filtered = filter_new_records_by_subtype(new_records, {"A1.1-2": "metro_only"}, "train")
+    result = merge("rail_train", OLD_DEF, [], filtered, leaf_matches, "doc.docx")
+    assert _subitem_codes(result) == ["A1.1-1"]
+
+
+def test_filter_new_records_noop_without_scope_or_target():
+    recs = [new_leaf("A1.1-1", "1", "ทั่วไป")]
+    assert filter_new_records_by_subtype(recs, {}, "train") == recs
+    assert filter_new_records_by_subtype(recs, {"A1.1-1": "metro_only"}, None) == recs
+
+
+def _subitem_codes(result):
+    codes = []
+    for g in result["definition"]["groups"]:
+        for it in g["items"]:
+            for sub in it["subItems"]:
+                codes.append(sub["code"])
+    return codes
+
+
+def test_run_produces_different_trees_for_metro_vs_train(tmp_path):
+    """End-to-end: the same Stage 1-4 artifacts, run twice under
+    rail_metro/rail_train mode keys, must differ by exactly the container
+    (and its child) tagged in subtype_scope.csv."""
+    shared = new_leaf("A1.1-1", "1", "ทั่วไป")
+    metro_header = new_leaf("A1.1-2", "2", "กรณีพิเศษสำหรับรถไฟฟ้า")
+    metro_header["isLeaf"] = False
+    metro_child = new_leaf("A1.1-2.1", "2.1", "ราวจับพิเศษ", parent="2")
+    new_records = [shared, metro_header, metro_child]
+    old_records = []  # nothing pre-existing — everything is a fresh ADDED leaf
+    leaf_matches = [
+        {"old_code": None, "new_code": "A1.1-1", "old_label": None,
+         "new_label": "ทั่วไป", "status": "ADDED", "score": None,
+         "rationale": "new", "decision": "auto"},
+        {"old_code": None, "new_code": "A1.1-2.1", "old_label": None,
+         "new_label": "ราวจับพิเศษ", "status": "ADDED", "score": None,
+         "rationale": "new", "decision": "auto"},
+    ]
+
+    for mode_key in ("rail_metro", "rail_train"):
+        outdir = tmp_path / mode_key
+        outdir.mkdir()
+        old_def_path = outdir / "old_definition.json"
+        old_def_path.write_text(json.dumps(OLD_DEF, ensure_ascii=False), encoding="utf-8")
+        matches_json = {"leaf_matches": leaf_matches,
+                         "_old_template_path": str(old_def_path),
+                         "_source_docx": "doc.docx"}
+        (outdir / "matches.json").write_text(json.dumps(matches_json, ensure_ascii=False), encoding="utf-8")
+        (outdir / "old_ir.json").write_text(json.dumps(old_records, ensure_ascii=False), encoding="utf-8")
+        (outdir / "new_ir.json").write_text(json.dumps(new_records, ensure_ascii=False), encoding="utf-8")
+        write_csv(outdir / f"migration_review_{mode_key}.csv", [])
+        write_csv(outdir / "subtype_scope.csv", [["A1.1-2", "metro_only"]], header=("code", "scope"))
+
+    metro_result = run("rail_metro", tmp_path / "rail_metro")
+    train_result = run("rail_train", tmp_path / "rail_train")
+
+    assert _subitem_codes(metro_result) == ["A1.1-1", "A1.1-2"]
+    assert _subitem_codes(train_result) == ["A1.1-1"]

@@ -8,8 +8,8 @@ import unicodedata
 
 THAI_DIGITS = str.maketrans("๐๑๒๓๔๕๖๗๘๙", "0123456789")
 
-# Numbering prefixes like "1. ", "2.1 ", "(2.3) ", "๓."
-NUM_PREFIX_RE = re.compile(r"^\s*\(?\d+(?:\.\d+)?\)?[\.\s]\s*")
+# Numbering prefixes like "1. ", "2.1 ", "2.2.1 ", "(2.3) ", "๓."
+NUM_PREFIX_RE = re.compile(r"^\s*\(?\d+(?:\.\d+)*\)?[\.\s]\s*")
 # Item code prefixes like "(A1.1)"
 ITEM_CODE_RE = re.compile(r"^\s*\(([A-Z]\d+\.\d+)\)\s*")
 # Group prefixes like "A1)"
@@ -80,10 +80,37 @@ def extract_numbers(text: str):
     return [float(x) for x in re.findall(r"\d+(?:\.\d+)?", t)]
 
 
+def parse_remark_numbers(text):
+    """Remark cells (2548/2564 columns) may pack more than one threshold as
+    comma-separated numbers when a leaf has multiple measurements (e.g.
+    "50,120" for a leaf with a wall-gap gte and a height gte). Unlike label
+    text, these cells are always mm/cm-scale checklist thresholds, never a
+    real thousands-grouped number, so every comma here is a value separator
+    — contrast extract_numbers(), which strips genuine thousands commas.
+    """
+    if text is None:
+        return []
+    out = []
+    for part in str(text).translate(THAI_DIGITS).split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            out.append(float(part))
+        except ValueError:
+            pass
+    return out
+
+
 def literal_num_prefix(text: str):
-    """Return ('2.1', rest) if the text starts with a literal number prefix."""
+    """Return ('2.2.1', rest) if the text starts with a literal number
+    prefix — any nesting depth, not just 1-2 levels. A 2-level-only pattern
+    would stop at "2.2" for a "2.2.1 ..." row (a case block's internally
+    restarted sub-numbering), stranding the "1" as leading label text and
+    leaving every sibling row (2.2.1, 2.2.2, ...) truncated to the same
+    "2.2" num — a code collision, not just a cosmetic label glitch."""
     t = clean_ws(text).translate(THAI_DIGITS)
-    m = re.match(r"^(\d+(?:\.\d+)?)[\.\s]\s*(.*)$", t)
+    m = re.match(r"^(\d+(?:\.\d+)*)[\.\s]\s*(.*)$", t)
     if m and not re.match(r"^\d+\s*[-–]\s*\d", t):  # avoid '10-50 คัน' ranges
         return m.group(1).rstrip("."), m.group(2)
     return None, t

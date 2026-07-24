@@ -4,6 +4,7 @@ Usage: python docx_parser.py <file.docx> <outdir>
 
 Outputs: new_ir.json, tree_preview.json, remarks_raw.json, parse_report.md
 """
+import csv
 import json
 import re
 import sys
@@ -315,28 +316,50 @@ def parse_detail_table(rows, cols, st):
 
 def container_pass(records):
     """Mark container criteria: a record R becomes a container when later
-    records in the same item carry dot-numbers n.m whose major n 'belongs' to R
-    (R.num == n, or R is the nearest preceding non-dot record)."""
+    records in the same item carry dot-numbers n.m[.k...] whose immediate
+    parent prefix (n for n.m; n.m for n.m.k; ...) 'belongs' to R (R.num
+    equals that prefix, or R is the nearest preceding record at a
+    shallower nesting depth). Depth-based, not "dot vs no dot", so a case
+    block that restarts its own sub-numbering two levels deep (2.2 ->
+    2.2.1..2.2.4) nests under its own header rather than jumping straight
+    to the outer item-level container.
+
+    Owner inference is deliberately LAZY (owner["num"] is only assigned
+    the first time it's needed, from whichever dotted child asks first) —
+    NOT hoisted into an upfront positional pass. An item can have several
+    top-level sections that each restart their own sub-numbering at .1
+    (two unrelated "กรณี..." case blocks, say) — hoisting would give each
+    section's un-numbered header a distinct, unique num, but then a child
+    genuinely written as "1.1" in the DOCX would no longer structurally
+    match its own (now differently-numbered) header, breaking parent
+    assignment for the entire second block. Lazy inference keeps parent-
+    finding correct (the nearest not-yet-numbered candidate is always the
+    true owner) at the cost of the container code colliding with any
+    other section that also restarts at .1 — a real ambiguity in how this
+    document nests repeated case blocks, not a numbering bug to paper
+    over here. See subtype_scope.csv workflow notes for how that surfaces
+    downstream."""
     by_item = defaultdict(list)
     for r in records:
         by_item[(r["item"] or {}).get("code")].append(r)
     for recs in by_item.values():
-        last_plain = None
         for r in recs:
             if r["num"] and "." in r["num"]:
-                major = r["num"].split(".")[0]
-                # find owner: nearest preceding plain record with num==major or numless
+                parent_num = r["num"].rsplit(".", 1)[0]
+                depth = r["num"].count(".")
+                # find owner: nearest preceding record at a shallower depth
                 owner = None
                 for cand in reversed(recs[:recs.index(r)]):
-                    if not (cand["num"] and "." in cand["num"]):
-                        if cand["num"] in (major, None):
+                    cand_depth = cand["num"].count(".") if cand["num"] else 0
+                    if cand_depth < depth:
+                        if cand["num"] in (parent_num, None):
                             owner = cand
                         break
                 if owner is not None:
                     owner["isLeaf"] = False
                     owner.pop("answerType", None)
                     if owner["num"] is None:
-                        owner["num"] = major
+                        owner["num"] = parent_num
                         owner["numSource"] = "inferred"
                     r["parent"] = owner["num"]
     # ordinals + provisional codes
@@ -349,6 +372,81 @@ def container_pass(records):
                 if r["num"] is None:
                     r["num"] = str(n)
             r["code"] = f"{item_code}-{r['num']}" if item_code else None
+
+
+def _rebase_num(num, old_top, new_top):
+    """'2.1' rebased from top '2' to top '8' -> '8.1'. Only the leading
+    (top-level) segment changes; everything after it is untouched."""
+    parts = num.split(".")
+    assert parts[0] == old_top
+    return ".".join([new_top] + parts[1:])
+
+
+def split_edition_duplicates(records):
+    """This DOCX interleaves TWO editions per item back to back — a base
+    (รถไฟ/train) edition and a second (รถไฟฟ้า/metro) edition — and both
+    frequently restart their own top-level numbering. container_pass()'s
+    lazy owner inference is correct for parent-finding within each
+    edition, but it means the second edition's un-numbered headers get
+    re-inferred to the SAME top-level num as the first edition's, so they
+    collide onto one code (see container_pass's docstring).
+
+    This splits them back apart, one item at a time, using document order
+    (a header's whole subtree is always the contiguous run of records
+    between it and the next top-level record — true regardless of nesting
+    depth, since nested rows are always laid out immediately after their
+    parent): the first occurrence of a top-level code is the base edition
+    and is left alone; a later occurrence is either
+      - a byte-identical repeat of the same criterion in both editions
+        (dropped — one copy is enough), or
+      - a genuinely different criterion that only exists in the metro
+        edition (kept, but re-based onto a freshly minted top-level code
+        so it no longer collides with the base edition's).
+
+    Returns (records, metro_only_codes) — metro_only_codes are the newly
+    minted codes, ready to paste into subtype_scope.csv as metro_only.
+    """
+    by_item = defaultdict(list)
+    for r in records:
+        by_item[(r["item"] or {}).get("code")].append(r)
+
+    to_drop = set()
+    metro_only_codes = []
+
+    for item_code, recs in by_item.items():
+        if not item_code:
+            continue
+        top_positions = [i for i, r in enumerate(recs) if r.get("parent") is None]
+        used_tops = {r["num"] for r in recs if r.get("parent") is None}
+        next_top = max((int(n) for n in used_tops if n.isdigit()), default=0) + 1
+
+        seen_top_code = {}
+        for ti, pos in enumerate(top_positions):
+            end = top_positions[ti + 1] if ti + 1 < len(top_positions) else len(recs)
+            header = recs[pos]
+            block = recs[pos:end]
+            code = header["code"]
+            first = seen_top_code.get(code)
+            if first is None:
+                seen_top_code[code] = header
+                continue
+
+            if header["labelRaw"] == first["labelRaw"]:
+                to_drop.update(id(r) for r in block)
+                continue
+
+            old_top = header["num"]
+            new_top = str(next_top)
+            next_top += 1
+            for r in block:
+                if r["num"].split(".")[0] == old_top:
+                    r["num"] = _rebase_num(r["num"], old_top, new_top)
+                    r["code"] = f"{item_code}-{r['num']}"
+                if r.get("parent") and r["parent"].split(".")[0] == old_top:
+                    r["parent"] = _rebase_num(r["parent"], old_top, new_top)
+            metro_only_codes.append(header["code"])
+
+    return [r for r in records if id(r) not in to_drop], metro_only_codes
 
 
 def build_tree(records):
@@ -382,6 +480,7 @@ def main(path, outdir):
         st.counters[f"table_{ti}_rows"] = len(rows)
 
     container_pass(st.records)
+    st.records, metro_only_codes = split_edition_duplicates(st.records)
     leaves = sum(1 for r in st.records if r["isLeaf"])
     containers = sum(1 for r in st.records if not r["isLeaf"])
 
@@ -396,6 +495,13 @@ def main(path, outdir):
         json.dumps(st.remarks, ensure_ascii=False, indent=1),
         encoding="utf8", newline="\n")
 
+    if metro_only_codes:
+        with open(outdir / "metro_only_candidates.csv", "w", newline="",
+                  encoding="utf-8-sig") as f:
+            w = csv.writer(f)
+            w.writerow(["code", "scope"])
+            w.writerows([c, "metro_only"] for c in metro_only_codes)
+
     lines = ["# Parse report", "", f"Source: {path}", "", "## Counters", ""]
     lines += [f"- {k}: {v}" for k, v in sorted(st.counters.items())]
     lines += ["", "## Inventory",
@@ -403,7 +509,9 @@ def main(path, outdir):
               f"- detail items (2.2): {len(dt)}",
               f"- groups in detail: {sorted(st.groups_seen)}",
               f"- answerable leaves: {leaves}   containers: {containers}",
-              f"- remark rows captured: {len(st.remarks)}", "",
+              f"- remark rows captured: {len(st.remarks)}",
+              f"- metro-only additions split out (see metro_only_candidates.csv): {len(metro_only_codes)}",
+              "",
               "## 2.1 vs 2.2 cross-check",
               f"- overview-only items: {sorted(ov - dt)}",
               f"- detail-only items: {sorted(dt - ov)}", "",

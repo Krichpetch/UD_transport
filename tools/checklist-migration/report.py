@@ -8,6 +8,8 @@ import csv
 from collections import Counter
 from pathlib import Path
 
+from normalize import parse_remark_numbers
+
 STATUS_ORDER = ["UNCHANGED", "MOVED_WITHIN", "MOVED_ACROSS", "MODIFIED",
                 "REVIEW", "ADDED", "REMOVED"]
 
@@ -82,20 +84,30 @@ def _suspicious_signals(m):
     return signals
 
 
+def _fmt_num(v):
+    return str(int(v)) if float(v).is_integer() else str(v)
+
+
 def _remark_disagreement(m, remarks_by_labelkey):
+    """Compares each threshold in the 2564 remark against the new label's
+    own numbers. Remark cells may hold more than one threshold, comma-
+    separated (see parse_remark_numbers) — a leaf with two gte thresholds
+    ("50,120") must have BOTH values checked individually, not the whole
+    cell parsed as one number."""
     new = m.get("new")
     if not new:
         return None
     remark = remarks_by_labelkey.get(new.get("labelKey"))
     if not remark:
         return None
-    r64 = remark.get("2564")
-    try:
-        r64_num = float(str(r64).replace(",", "").strip())
-    except (TypeError, ValueError):
+    r64_values = parse_remark_numbers(remark.get("2564"))
+    if not r64_values:
         return None
-    if r64_num not in (new.get("numbers") or []):
-        return f"remark 2564 value ({r64}) disagrees with new label's own numbers"
+    label_numbers = new.get("numbers") or []
+    mismatched = [v for v in r64_values if v not in label_numbers]
+    if mismatched:
+        vals = ", ".join(_fmt_num(v) for v in mismatched)
+        return f"remark 2564 value(s) ({vals}) disagree with new label's own numbers"
     return None
 
 
@@ -116,7 +128,7 @@ def write_review_csv(mode, result, path, remarks=None):
         rows.append([
             m["old_code"] or "", m["new_code"] or "", m["status"],
             _fmt_score(m["score"]), "; ".join(reasons),
-            (m["old_label"] or "")[:120], (m["new_label"] or "")[:120],
+            m["old_label"] or "", m["new_label"] or "",
             "",  # decision — blank until a human fills it in
         ])
 
