@@ -31,13 +31,21 @@ enum CoordSource {
   GEOCODED  // derived from province/district centroid
   MANUAL    // hand-placed by admin
   NONE      // no coordinate data available
+  // Station masterlist cutover (tools/station-masterlist/convert_masterlist.py) — provenance
+  // of coordinates resolved from Merged_Station_Coordinates_V2.xlsx.
+  NATIVE    // workbook's own ละติจูด/ลองจิจูด columns
+  FILE2     // workbook's X_File2/Y_File2 columns, already WGS84
+  FILE2_UTM // X_File2/Y_File2 detected as UTM zone 47N (EPSG:32647), converted to WGS84
 }
 
 enum CoordStatus {
-  OK          // real, station-specific coordinate
-  APPROXIMATE // centroid fallback or rough area
-  PENDING     // not yet verified
-  INVALID     // known bad value (e.g. 0,0)
+  OK             // real, station-specific coordinate
+  APPROXIMATE    // centroid fallback or rough area
+  PENDING        // not yet verified
+  INVALID        // known bad value (e.g. 0,0)
+  PENDING_COORDS // masterlist cutover: station exists but no source had usable coordinates —
+                 // never gets a fabricated fallback; blocked from the proximity gate until a
+                 // human supplies real coordinates.
 }
 
 enum StationScope {
@@ -64,13 +72,25 @@ model Station {
   nameTh            String
   mode              String    // 'ทางบก' | 'ทางราง' | 'ทางเรือ' | 'ทางอากาศ'
   railSubtype       String?   // 'รถไฟฟ้า' | 'รถไฟ' (rail only)
-  province          String
-  region            String
+  // Station masterlist cutover — line/route the station sits on (สาย/เส้นทาง), e.g. a metro
+  // line. Empty string (never null) when the source row had none: identity is (mode, nameTh,
+  // line), and Postgres composite unique indexes treat NULL as distinct-from-itself, which
+  // would silently defeat the uniqueness guarantee for the common no-line case.
+  line              String    @default("")
+  // Station masterlist cutover — ประเภทสถานี raw value (e.g. สถานีรถไฟฟ้า, ท่าเรือโดยสาร);
+  // railSubtype above is derived from this for rail rows.
+  stationType       String?
+  province          String?   // nullable: masterlist has no province for ~447 rail rows — never fabricate one
+  region            String?   // nullable alongside province — region is derived FROM province
   responsibleAgency String
   lat               Float?
   lng               Float?
   coordSource       CoordSource @default(NONE)
   coordStatus       CoordStatus @default(PENDING)
+  // Station masterlist cutover provenance (see tools/station-masterlist/convert_masterlist.py) —
+  // kept for future coordinate disputes, not consumed by app logic.
+  coordMatchStatus  String?
+  matchedNameFile2  String?
   scope             StationScope @default(IN_SCOPE)
   isOperational     Boolean   @default(true)
   sourceFile        String?
@@ -89,7 +109,10 @@ model Station {
 
   checklists Checklist[]
 
-  @@unique([nameTh, mode, responsibleAgency, province])
+  // Station masterlist cutover — identity is (mode, name, line), never name alone: 30+ stations
+  // legitimately share a name across lines/modes. Replaces the pre-cutover
+  // [nameTh, mode, responsibleAgency, province] key (province is no longer reliably present).
+  @@unique([mode, nameTh, line])
 }
 
 // E-form redesign (Session E1, Part A) — versioned checklist form definitions.

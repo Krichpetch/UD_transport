@@ -57,7 +57,27 @@ const V2_VARIANTS: Record<Mode, VariantFiles[]> = {
   ทางเรือ:  [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_water_v2.json', overridesFile: 'era_overrides_water.json' }],
   ทางอากาศ: [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_air_v2.json',   overridesFile: 'era_overrides_air.json' }],
 }
-const V2_DIR = path.resolve(__dirname, '..', '..', 'docs', 'Checklist_Utils')
+
+// v3-migration-cutover — candidate templates from the checklist-migration pipeline
+// (tools/checklist-migration/). DRAFT only; no era-override application in this loop —
+// applyEraOverrides() fails silently on this pipeline's candidate-file shape, so wiring it in
+// here would look like it worked while doing nothing. Era overrides on v3 are a separate,
+// deliberately deferred task.
+const V3_VARIANTS: Record<Mode, VariantFiles[]> = {
+  ทางบก:    [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_land_v3.json' }],
+  ทางราง:   [
+    { variantKey: RAIL_TRAIN_VARIANT_KEY, file: 'template_rail_rail_train_v3.json' },
+    { variantKey: RAIL_METRO_VARIANT_KEY, file: 'template_rail_rail_metro_v3.json' },
+  ],
+  ทางเรือ:  [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_water_v3.json' }],
+  ทางอากาศ: [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_air_v3.json' }],
+}
+
+// tools/checklist_json/ is the real current home for these seed JSONs — moved here (from the
+// original apps/docs/Checklist_Utils) by two prior refactors (commits c86e0c6, 66e3339). This
+// path previously still pointed at apps/docs/Checklist_Utils, which no longer exists — every
+// v2 file lookup was silently hitting the "missing file, skip" branch below. Fixed here.
+const TEMPLATE_JSON_DIR = path.resolve(__dirname, '..', '..', '..', 'tools', 'checklist_json')
 
 // ---- facility-catalog name matching (Part A2.4) --------------------------------------------
 
@@ -158,7 +178,7 @@ async function main() {
     // E3, Part A: the pipeline must be ready for a variant's workbook without being blocked by
     // its absence).
     for (const variant of V2_VARIANTS[mode]) {
-      const rawPath = path.join(V2_DIR, variant.file)
+      const rawPath = path.join(TEMPLATE_JSON_DIR, variant.file)
       if (!fs.existsSync(rawPath)) {
         report.push(`v2 ${mode} [${variant.variantKey}]: SKIPPED — ${variant.file} not found (workbook not authored yet)`)
         continue
@@ -174,7 +194,7 @@ async function main() {
       let v2def = parseTemplateDefinition(raw) // throws loudly on any mismatch — v2 files are loaded verbatim, never coerced
 
       if (variant.overridesFile) {
-        const overridesPath = path.join(V2_DIR, variant.overridesFile)
+        const overridesPath = path.join(TEMPLATE_JSON_DIR, variant.overridesFile)
         if (fs.existsSync(overridesPath)) {
           const overridesRaw = JSON.parse(fs.readFileSync(overridesPath, 'utf-8'))
           v2def = applyEraOverrides(v2def, overridesRaw)
@@ -187,6 +207,27 @@ async function main() {
       report.push(`v2 ${mode} [${variant.variantKey}]: ${v2stats.total} leaves, ${v2stats.tagged}/${v2stats.total} facility-tagged`)
       if (v2stats.unmatched.length) {
         report.push(`  v2 ${mode} [${variant.variantKey}] unmatched (${v2stats.unmatched.length}): ${v2stats.unmatched.slice(0, 30).join(' | ')}${v2stats.unmatched.length > 30 ? ' ...' : ''}`)
+      }
+    }
+
+    // v3 DRAFT(s) — candidates from the checklist-migration pipeline. Mirrors the v2 loop
+    // exactly except: no era-override application (see V3_VARIANTS comment above), and the
+    // water mode-string fix is applied here rather than in the source file.
+    for (const variant of V3_VARIANTS[mode]) {
+      const rawPath = path.join(TEMPLATE_JSON_DIR, variant.file)
+      if (!fs.existsSync(rawPath)) {
+        report.push(`v3 ${mode} [${variant.variantKey}]: SKIPPED — ${variant.file} not found`)
+        continue
+      }
+      const raw = JSON.parse(fs.readFileSync(rawPath, 'utf-8'))
+      if (raw.mode === 'ทางน้ำ') raw.mode = 'ทางเรือ'
+      const v3def = parseTemplateDefinition(raw) // throws loudly on any mismatch — v3 files are loaded verbatim, never coerced
+
+      const v3stats = tagLeaves(v3def)
+      await upsertTemplate(mode, variant.variantKey, 3, 'DRAFT', v3def, 'PROVISIONAL — checklist-migration pipeline candidate; NOT activated, NOT era-overridden')
+      report.push(`v3 ${mode} [${variant.variantKey}]: ${v3stats.total} leaves, ${v3stats.tagged}/${v3stats.total} facility-tagged`)
+      if (v3stats.unmatched.length) {
+        report.push(`  v3 ${mode} [${variant.variantKey}] unmatched (${v3stats.unmatched.length}): ${v3stats.unmatched.slice(0, 30).join(' | ')}${v3stats.unmatched.length > 30 ? ' ...' : ''}`)
       }
     }
   }
