@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """
 Enrich the v2 template JSONs with structured, admin-editable measurement
-criteria extracted from leaf text. All linear units normalized to CM.
+criteria extracted from leaf text. All linear units normalized to MM —
+matches the official checklist documents' own wording (every threshold is
+phrased in มิลลิเมตร), so the question text and the auditor's entered
+value are always in the same unit. (Previously normalized to cm, which
+left every mm-labeled question asking for a cm-scale answer — see
+Notion "Feedback after first meeting", Open decision #13.)
 
 Adds to measurement-bearing leaves:
   "measurements": [
     { "key": "m1",
       "operator": "gte" | "lte" | "range",
-      "value": <number, cm>, "value2": <number, cm — range only>,
-      "unit": "cm" | "ratio_1_x",
+      "value": <number, mm>, "value2": <number, mm — range only>,
+      "unit": "mm" | "ratio_1_x",
       "sourceText": "<matched fragment>",
       "autoGrade": true,
       "extracted": true, "confirmed": false } ]
@@ -28,14 +33,14 @@ from pathlib import Path
 NUM = r"(\d{1,3}(?:,\d{3})*(?:\.\d+)?)"
 UNIT = r"(มิลลิเมตร|มม\.?|เซนติเมตร|ซม\.?|เมตร)"
 
-def to_cm(num_str, unit):
+def to_mm(num_str, unit):
     v = float(num_str.replace(",", ""))
     if unit and unit.startswith(("มิลลิเมตร", "มม")):
-        v = v / 10.0
-    elif unit and unit.startswith(("เซนติเมตร", "ซม")):
         pass
+    elif unit and unit.startswith(("เซนติเมตร", "ซม")):
+        v = v * 10.0
     elif unit == "เมตร":
-        v = v * 100.0
+        v = v * 1000.0
     return round(v, 2)
 
 # ordered, consuming patterns
@@ -81,29 +86,29 @@ def extract(text):
                 a, ua, b, ub = g[0], g[1], g[2], g[3]
                 unit = ua or ub
                 out.append({"key": f"m{idx}", "operator": "range",
-                            "value": to_cm(a, unit), "value2": to_cm(b, unit),
-                            "unit": "cm", "sourceText": m.group(0).strip()})
+                            "value": to_mm(a, unit), "value2": to_mm(b, unit),
+                            "unit": "mm", "sourceText": m.group(0).strip()})
             elif kind == "range2":
                 a, b, unit = g[0], g[1], g[2]
                 out.append({"key": f"m{idx}", "operator": "range",
-                            "value": to_cm(a, unit), "value2": to_cm(b, unit),
-                            "unit": "cm", "sourceText": m.group(0).strip()})
+                            "value": to_mm(a, unit), "value2": to_mm(b, unit),
+                            "unit": "mm", "sourceText": m.group(0).strip()})
             elif kind == "dims":
                 a, b, unit = g[0], g[1], g[2]
                 out.append({"key": f"m{idx}", "operator": "gte",
-                            "value": to_cm(a, unit), "unit": "cm",
+                            "value": to_mm(a, unit), "unit": "mm",
                             "sourceText": m.group(0).strip() + " (กว้าง)"})
                 idx += 1
                 out.append({"key": f"m{idx}", "operator": "gte",
-                            "value": to_cm(b, unit), "unit": "cm",
+                            "value": to_mm(b, unit), "unit": "mm",
                             "sourceText": m.group(0).strip() + " (ยาว)"})
             elif kind == "gte":
                 out.append({"key": f"m{idx}", "operator": "gte",
-                            "value": to_cm(g[0], g[1]), "unit": "cm",
+                            "value": to_mm(g[0], g[1]), "unit": "mm",
                             "sourceText": m.group(0).strip()})
             elif kind == "lte":
                 out.append({"key": f"m{idx}", "operator": "lte",
-                            "value": to_cm(g[0], g[1]), "unit": "cm",
+                            "value": to_mm(g[0], g[1]), "unit": "mm",
                             "sourceText": m.group(0).strip()})
             elif kind == "slope":
                 out.append({"key": f"m{idx}", "operator": "gte",
@@ -145,7 +150,7 @@ def main(tdir):
                                            mm["unit"], mm["sourceText"],
                                            n["labelTh"][:120]])
         walk(d["groups"])
-        d["measurementUnit"] = "cm"
+        d["measurementUnit"] = "mm"
         with open(p, "w", encoding="utf-8") as f:
             json.dump(d, f, ensure_ascii=False, indent=1)
         print(f"{key:6} {count[0]} leaves enriched, {count[1]} measurements")
@@ -153,7 +158,7 @@ def main(tdir):
     with open(tdir / "threshold_review.csv", "w", newline="",
               encoding="utf-8-sig") as f:
         w = csv.writer(f)
-        w.writerow(["mode", "leaf_code", "operator", "value_cm", "value2_cm",
+        w.writerow(["mode", "leaf_code", "operator", "value_mm", "value2_mm",
                     "unit", "source_fragment", "leaf_text"])
         w.writerows(review)
     print(f"review file: {len(review)} rows -> threshold_review.csv")

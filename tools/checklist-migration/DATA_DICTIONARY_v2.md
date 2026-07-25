@@ -39,16 +39,16 @@ Any leaf whose criterion involves a physical dimension carries a `measurements[]
 ```json
 "measurements": [
   { "key": "m1", "operator": "gte" | "lte" | "range",
-    "value": 90, "value2": null,
-    "unit": "cm",
+    "value": 900, "value2": null,
+    "unit": "mm",
     "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
     "autoGrade": true,
     "extracted": true, "confirmed": false } ]
 ```
 
-- **Canonical unit is CENTIMETERS.** Source forms use มิลลิเมตร; all values were converted (900 มม. → 90). The auditor E-form renders one numeric input (cm) per measurement.
+- **Canonical unit is MILLIMETERS.** Source forms phrase every threshold in มิลลิเมตร, so the stored value matches that wording exactly (900 มม. → 900) — the auditor E-form renders one numeric input (mm) per measurement, in the same unit the question asks about. (Previously converted to cm; that left every mm-worded question asking for a cm-scale answer — see Notion "Feedback after first meeting", Open decision #13.)
 - `autoGrade: true` → ได้มาตรฐาน/ไม่ได้มาตรฐาน is **derived** by comparing the auditor's entered value against the threshold (gte / lte / range inclusive); the auditor enters numbers, not the standards verdict, for these leaves. Presence (มี/ไม่มี) stays manual.
-- **Slopes are the one non-cm unit**: `unit: "ratio_1_x"` (e.g. ความลาดชันไม่เกิน 1:12 → auditor inputs the X of 1:X; X ≥ 12 passes). Confirm this input convention with สนข. — degrees are the alternative.
+- **Slopes are the one non-mm unit**: `unit: "ratio_1_x"` (e.g. ความลาดชันไม่เกิน 1:12 → auditor inputs the X of 1:X; X ≥ 12 passes). Confirm this input convention with สนข. — degrees are the alternative.
 - `extracted: true, confirmed: false` marks machine-extracted thresholds pending human review — see `threshold_review.csv` (803 rows). Review workflow: admin confirms/corrects values; `confirmed` flips true. Extraction coverage: 615 of 1,522 leaves (rail 181 / land 175 / air 173 / water 86).
 - Auditor answer shape for measurement leaves: `{ present: boolean, values?: { m1: number, ... }, meetsStandard: derived }`.
 

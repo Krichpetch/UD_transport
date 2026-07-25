@@ -296,7 +296,7 @@ function MeasurementInput({ code, measurement, values, setAnswer }: {
     )
   }
 
-  // Slope convention (Session E2 follow-up) — ความชัน is entered as raw ความยาว/ความสูง (cm) for
+  // Slope convention (Session E2 follow-up) — ความชัน is entered as raw ความยาว/ความสูง (mm) for
   // BOTH slope encodings seeded today (ratio_1_x and percent — the same physical quantity, rise ÷
   // run, just formatted differently by the source form); deriveMeasuredStandard (scoring.ts)
   // computes and grades the derived value server-side against the SAME keys. The readout here is
@@ -316,7 +316,7 @@ function MeasurementInput({ code, measurement, values, setAnswer }: {
         {measurement.sourceText && <p className="text-[11px] text-muted-foreground">{measurement.sourceText}</p>}
         <div className="flex gap-2">
           <label className="flex-1 text-[11px] text-muted-foreground">
-            ความยาว (ซม.)
+            ความยาว (มม.)
             <input
               type="number"
               inputMode="decimal"
@@ -326,7 +326,7 @@ function MeasurementInput({ code, measurement, values, setAnswer }: {
             />
           </label>
           <label className="flex-1 text-[11px] text-muted-foreground">
-            ความสูง (ซม.)
+            ความสูง (มม.)
             <input
               type="number"
               inputMode="decimal"
