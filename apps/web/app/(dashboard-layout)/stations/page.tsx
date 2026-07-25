@@ -865,7 +865,13 @@ export default function StationsPage() {
                                 <Link
                                   href={`/audit?preview=1&station=${station.id}`}
                                   target="_blank"
-                                  rel="noopener noreferrer"
+                                  // No rel="noopener" here deliberately: this is a same-origin
+                                  // link, and noopener would break more than it protects — auth
+                                  // (useAuthStore) persists to sessionStorage, which browsers only
+                                  // copy into a new tab when it stays in the opener's browsing-
+                                  // context group. noopener severs that group, so the new tab
+                                  // opened with no session and (audit-layout)/layout.tsx's
+                                  // `!token` guard bounced it straight to /login.
                                   className="border-border text-foreground hover:bg-secondary flex items-center rounded-lg border p-1.5 transition-colors"
                                   aria-label="ดูตัวอย่างแบบประเมิน"
                                 >
