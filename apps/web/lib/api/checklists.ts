@@ -57,10 +57,15 @@ export interface TemplateForAudit {
   preview: boolean
 }
 
-// `preview: true` requests the mode's un-activated v2 DRAFT definition — server-gated to ADMIN
-// (Part B.2); a non-admin caller gets a 403, not a silent fallback to v1.
-export function getTemplateForAudit(stationId: string, preview?: boolean) {
-  return api.get<TemplateForAudit>(`/stations/${stationId}/checklist/template${preview ? '?preview=v2' : ''}`)
+// `preview: true` requests read-only rendering (no draft hydration/autosave) of the station's
+// ACTIVE template — server-gated to ADMIN (Part B.2); a non-admin caller gets a 403. `version`
+// pins a specific template version instead (e.g. an un-activated DRAFT), also ADMIN-only.
+export function getTemplateForAudit(stationId: string, opts?: { preview?: boolean; version?: number }) {
+  const params = new URLSearchParams()
+  if (opts?.version != null) params.set('version', String(opts.version))
+  else if (opts?.preview) params.set('preview', '1')
+  const qs = params.toString()
+  return api.get<TemplateForAudit>(`/stations/${stationId}/checklist/template${qs ? `?${qs}` : ''}`)
 }
 
 export function getChecklistHistory(stationId: string) {

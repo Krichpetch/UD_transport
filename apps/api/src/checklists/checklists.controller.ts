@@ -33,19 +33,29 @@ export class ChecklistsController {
 
   // E-form redesign (Session E2, Part A.6) — the ACTIVE template with byLaw values already
   // resolved (client never picks between eras). AUDITOR-only: this is keyed to "my" in-progress
-  // draft's stamp when one exists, same guard as /draft above. `preview=v2` (Part B.2) is
-  // additionally gated to ADMIN — a pilot AUDITOR can never fetch the un-activated v2 DRAFT
-  // definition through this endpoint, regardless of what query string they send.
+  // draft's stamp when one exists, same guard as /draft above. `preview=1` (Part B.2) and/or
+  // `version=<n>` (Session E4, admin station-list preview button) are additionally gated to
+  // ADMIN — a pilot AUDITOR can never fetch a preview or an un-activated DRAFT definition through
+  // this endpoint, regardless of what query string they send.
   @Get('template')
   findTemplateForAudit(
     @Param('stationId') stationId: string,
     @Query('preview') preview: string | undefined,
+    @Query('version') version: string | undefined,
     @Req() req: AuthRequest,
   ) {
     if (req.user.role !== 'AUDITOR' && req.user.role !== 'ADMIN') throw new ForbiddenException()
-    const wantsV2Preview = preview === 'v2'
-    if (wantsV2Preview && req.user.role !== 'ADMIN') throw new ForbiddenException()
-    return this.checklists.getTemplateForAudit(stationId, req.user.id, wantsV2Preview)
+    const wantsPreview = preview === '1' || version !== undefined
+    if (wantsPreview && req.user.role !== 'ADMIN') throw new ForbiddenException()
+
+    let versionOverride: number | undefined
+    if (version !== undefined) {
+      versionOverride = Number(version)
+      if (!Number.isInteger(versionOverride) || versionOverride < 1) {
+        throw new BadRequestException('version must be a positive integer')
+      }
+    }
+    return this.checklists.getTemplateForAudit(stationId, req.user.id, wantsPreview, versionOverride)
   }
 
   @Post('draft')

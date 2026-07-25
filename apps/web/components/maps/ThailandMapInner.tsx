@@ -265,6 +265,21 @@ function ClusterMarker({ stations }: { stations: PlottableStation[] }) {
   )
 }
 
+// Leaflet caches its container's pixel size at init and never re-measures it on its own — a
+// container that resizes without the window itself resizing (grid breakpoint change, dialog
+// reveal, sidebar collapse) leaves the map showing stale/half-rendered gray tiles until the user
+// pans or zooms. A ResizeObserver on the map's own container catches every such case generically.
+function InvalidateSizeOnResize() {
+  const map = useMap()
+  React.useEffect(() => {
+    const container = map.getContainer()
+    const ro = new ResizeObserver(() => map.invalidateSize())
+    ro.observe(container)
+    return () => ro.disconnect()
+  }, [map])
+  return null
+}
+
 function FitBoundsOnChange({ stations }: { stations: PlottableStation[] }) {
   const map = useMap()
   React.useEffect(() => {
@@ -378,6 +393,7 @@ export default function ThailandMapInner({ stations }: { stations: Station[] }) 
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <FitBoundsOnChange stations={plottable} />
+        <InvalidateSizeOnResize />
         {groups.map(group =>
           group.length === 1
             ? <StationMarker key={group[0]!.id} station={group[0]!} />

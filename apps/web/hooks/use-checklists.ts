@@ -35,10 +35,10 @@ export function useMyDraft(stationId: string) {
 // E-form redesign (Session E2, Part A.6/D) — the era-resolved template driving the audit-form
 // engine. staleTime: Infinity + refetchOnWindowFocus: false for the same reason as useMyDraft:
 // a background refetch must never race the in-progress form's hydration (Part D P0 fix).
-export function useTemplateForAudit(stationId: string, preview?: boolean) {
+export function useTemplateForAudit(stationId: string, preview?: boolean, version?: number) {
   return useQuery({
-    queryKey: ['checklist', stationId, 'template', preview ?? false],
-    queryFn:  () => getTemplateForAudit(stationId, preview),
+    queryKey: ['checklist', stationId, 'template', preview ?? false, version ?? null],
+    queryFn:  () => getTemplateForAudit(stationId, { preview, version }),
     enabled:  !!stationId,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
