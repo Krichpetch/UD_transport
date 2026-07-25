@@ -141,7 +141,7 @@ def test_matched_leaf_numbers_changed_reextracts_and_logs_review_row():
     matches = [match("A1.1-4", "A1.1-4", "MODIFIED", 0.93)]
     result = merge("rail", OLD_DEF, old, new, matches, "doc.docx")
     leaf = result["definition"]["groups"][0]["items"][0]["subItems"][0]
-    assert leaf["measurements"][0]["value"] == 250.0
+    assert leaf["measurements"][0]["value"] == 2500.0
     assert leaf["measurements"][0]["confirmed"] is False
     assert len(result["threshold_review_rows"]) == 1
     assert result["threshold_review_rows"][0][1] == "A1.1-4"
@@ -196,7 +196,7 @@ def test_added_leaf_carries_its_natural_new_code_and_gets_fresh_extraction():
     assert codes == {"A1.1-1", "A1.1-2", "A1.1-9"}
     added = next(s for s in result["definition"]["groups"][0]["items"][0]["subItems"]
                  if s["code"] == "A1.1-9")
-    assert added["measurements"][0]["value"] == 10.0
+    assert added["measurements"][0]["value"] == 100.0
     assert added["measurements"][0]["confirmed"] is False
 
 

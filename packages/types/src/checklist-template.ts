@@ -45,7 +45,9 @@ export interface TemplateMeasurementByLawEntry {
 }
 
 // A single numeric criterion attached to a presence_standard leaf (DATA_DICTIONARY_v2.md §2).
-// Canonical unit is centimeters except the slope convention `ratio_1_x` (auditor enters the X of
+// Canonical unit is millimeters (matches the official checklist documents' own wording — every
+// threshold is phrased in มิลลิเมตร, so the question text and the auditor's entered value are
+// always in the same unit) except the slope convention `ratio_1_x` (auditor enters the X of
 // 1:X; larger X passes for a `gte` threshold). Stored on TEMPLATE data (admin-editable, never
 // re-derives past submissions' stored answers — only how NEW/re-scored answers are graded).
 //

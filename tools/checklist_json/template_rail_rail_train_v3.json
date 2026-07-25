@@ -41,8 +41,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 2,400 มิลลิเมตร",
-         "unit": "cm",
-         "value": 240.0
+         "unit": "mm",
+         "value": 2400
         },
         {
          "autoGrade": true,
@@ -51,8 +51,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 6,000 มิลลิเมตร",
-         "unit": "cm",
-         "value": 600.0
+         "unit": "mm",
+         "value": 6000
         }
        ],
        "num": "4"
@@ -69,8 +69,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 1,000 มิลลิเมตร",
-         "unit": "cm",
-         "value": 100.0
+         "unit": "mm",
+         "value": 1000
         }
        ],
        "num": "5"
@@ -87,8 +87,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-         "unit": "cm",
-         "value": 90.0
+         "unit": "mm",
+         "value": 900
         },
         {
          "autoGrade": true,
@@ -97,8 +97,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-         "unit": "cm",
-         "value": 90.0
+         "unit": "mm",
+         "value": 900
         }
        ],
        "num": "6"
@@ -133,8 +133,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         },
         {
          "autoGrade": true,
@@ -143,8 +143,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         }
        ],
        "num": "3"
@@ -167,8 +167,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 2,000 มิลลิเมตร",
-         "unit": "cm",
-         "value": 200.0
+         "unit": "mm",
+         "value": 2000
         }
        ],
        "num": "5"
@@ -191,8 +191,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         },
         {
          "autoGrade": true,
@@ -202,8 +202,8 @@
          "note": "bare spec (no qualifier in text) — verify operator during review",
          "operator": "gte",
          "sourceText": "200 มิลลิเมตร",
-         "unit": "cm",
-         "value": 20.0
+         "unit": "mm",
+         "value": 200
         }
        ],
        "num": "1"
@@ -245,9 +245,9 @@
          "key": "m1",
          "operator": "range",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร แต่ไม่เกิน 350 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0,
-         "value2": 35.0
+         "unit": "mm",
+         "value": 300,
+         "value2": 350
         }
        ],
        "num": "3"
@@ -264,8 +264,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         }
        ],
        "num": "4"
@@ -372,8 +372,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 1,200 มิลลิเมตร",
-         "unit": "cm",
-         "value": 120.0
+         "unit": "mm",
+         "value": 1200
         },
         {
          "autoGrade": true,
@@ -384,7 +384,7 @@
          "operator": "gte",
          "sourceText": "ความลาดชันไม่เกิน 1 : 12",
          "unit": "ratio_1_x",
-         "value": 12.0
+         "value": 12
         }
        ],
        "num": "3"
@@ -403,7 +403,7 @@
          "operator": "lte",
          "sourceText": "ความลาดชัน (Ramp slope) ร้อยละ 10",
          "unit": "percent",
-         "value": 10.0
+         "value": 10
         }
        ],
        "num": "4"
@@ -450,8 +450,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         },
         {
          "autoGrade": true,
@@ -460,8 +460,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         }
        ],
        "num": "3"
@@ -501,8 +501,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 90.0
+           "unit": "mm",
+           "value": 900
           }
          ],
          "num": "1.2"
@@ -519,8 +519,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "1.3"
@@ -539,7 +539,7 @@
            "operator": "gte",
            "sourceText": "ความลาดชันไม่เกิน 1:12",
            "unit": "ratio_1_x",
-           "value": 12.0
+           "value": 12
           }
          ],
          "num": "1.4"
@@ -556,8 +556,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
-           "unit": "cm",
-           "value": 5.0
+           "unit": "mm",
+           "value": 50
           }
          ],
          "num": "1.5"
@@ -587,8 +587,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 90.0
+           "unit": "mm",
+           "value": 900
           }
          ],
          "num": "2.2"
@@ -605,8 +605,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "2.3"
@@ -625,7 +625,7 @@
            "operator": "gte",
            "sourceText": "ความลาดชันไม่เกิน 1:12",
            "unit": "ratio_1_x",
-           "value": 12.0
+           "value": 12
           }
          ],
          "num": "2.4"
@@ -642,8 +642,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
-           "unit": "cm",
-           "value": 5.0
+           "unit": "mm",
+           "value": 50
           }
          ],
          "num": "2.5"
@@ -673,8 +673,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "3.2"
@@ -691,8 +691,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "3.3"
@@ -711,7 +711,7 @@
            "operator": "gte",
            "sourceText": "ความลาดชันไม่เกิน 1:12",
            "unit": "ratio_1_x",
-           "value": 12.0
+           "value": 12
           }
          ],
          "num": "3.4"
@@ -728,8 +728,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
-           "unit": "cm",
-           "value": 5.0
+           "unit": "mm",
+           "value": 50
           }
          ],
          "num": "3.5"
@@ -746,8 +746,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "3.6"
@@ -766,9 +766,9 @@
          "key": "m1",
          "operator": "range",
          "sourceText": "ไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
-         "unit": "cm",
-         "value": 80.0,
-         "value2": 90.0
+         "unit": "mm",
+         "value": 800,
+         "value2": 900
         }
        ],
        "num": "4.3"
@@ -785,8 +785,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
-         "unit": "cm",
-         "value": 5.0
+         "unit": "mm",
+         "value": 50
         },
         {
          "autoGrade": true,
@@ -795,8 +795,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 120 มิลลิเมตร",
-         "unit": "cm",
-         "value": 12.0
+         "unit": "mm",
+         "value": 120
         }
        ],
        "num": "4.6"
@@ -813,8 +813,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "1,500 x 1,500 มิลลิเมตร (กว้าง)",
-         "unit": "cm",
-         "value": 150.0
+         "unit": "mm",
+         "value": 1500
         },
         {
          "autoGrade": true,
@@ -823,8 +823,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "1,500 x 1,500 มิลลิเมตร (ยาว)",
-         "unit": "cm",
-         "value": 150.0
+         "unit": "mm",
+         "value": 1500
         }
        ],
        "num": "4"
@@ -864,8 +864,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "1.1"
@@ -882,8 +882,8 @@
            "key": "m1",
            "operator": "lte",
            "sourceText": "ไม่เกิน 2,000 มิลลิเมตร",
-           "unit": "cm",
-           "value": 200.0
+           "unit": "mm",
+           "value": 2000
           }
          ],
          "num": "1.2"
@@ -900,8 +900,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 280 มิลลิเมตร",
-           "unit": "cm",
-           "value": 28.0
+           "unit": "mm",
+           "value": 280
           },
           {
            "autoGrade": true,
@@ -910,8 +910,8 @@
            "key": "m2",
            "operator": "lte",
            "sourceText": "ไม่เกิน 150 มิลลิเมตร",
-           "unit": "cm",
-           "value": 15.0
+           "unit": "mm",
+           "value": 150
           }
          ],
          "num": "1.3"
@@ -928,8 +928,8 @@
            "key": "m1",
            "operator": "lte",
            "sourceText": "ไม่เกิน 2,000 มิลลิเมตร",
-           "unit": "cm",
-           "value": 200.0
+           "unit": "mm",
+           "value": 2000
           }
          ],
          "num": "1.4"
@@ -953,9 +953,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "30 ถึง 40 มิลลิเมตร",
-           "unit": "cm",
-           "value": 3.0,
-           "value2": 4.0
+           "unit": "mm",
+           "value": 30,
+           "value2": 40
           }
          ],
          "num": "2.1"
@@ -972,9 +972,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "800 ถึง 900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 80.0,
-           "value2": 90.0
+           "unit": "mm",
+           "value": 800,
+           "value2": 900
           }
          ],
          "num": "2.2"
@@ -991,8 +991,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "อย่างน้อย 50 มิลลิเมตร",
-           "unit": "cm",
-           "value": 5.0
+           "unit": "mm",
+           "value": 50
           },
           {
            "autoGrade": true,
@@ -1001,8 +1001,8 @@
            "key": "m2",
            "operator": "gte",
            "sourceText": "อย่างน้อย 120 มิลลิเมตร",
-           "unit": "cm",
-           "value": 12.0
+           "unit": "mm",
+           "value": 120
           }
          ],
          "num": "2.3"
@@ -1038,9 +1038,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 30 มิลลิเมตร แต่ไม่เกิน 40 มิลลิเมตร",
-           "unit": "cm",
-           "value": 3.0,
-           "value2": 4.0
+           "unit": "mm",
+           "value": 30,
+           "value2": 40
           }
          ],
          "num": "3.3"
@@ -1057,9 +1057,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 80.0,
-           "value2": 90.0
+           "unit": "mm",
+           "value": 800,
+           "value2": 900
           }
          ],
          "num": "3.4"
@@ -1076,9 +1076,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "700-750 มิลลิเมตร",
-           "unit": "cm",
-           "value": 70.0,
-           "value2": 75.0
+           "unit": "mm",
+           "value": 700,
+           "value2": 750
           }
          ],
          "num": "3.5"
@@ -1095,9 +1095,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "600-650 มิลลิเมตร",
-           "unit": "cm",
-           "value": 60.0,
-           "value2": 65.0
+           "unit": "mm",
+           "value": 600,
+           "value2": 650
           }
          ],
          "num": "3.6"
@@ -1114,8 +1114,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
-           "unit": "cm",
-           "value": 5.0
+           "unit": "mm",
+           "value": 50
           },
           {
            "autoGrade": true,
@@ -1124,8 +1124,8 @@
            "key": "m2",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 120 มิลลิเมตร",
-           "unit": "cm",
-           "value": 12.0
+           "unit": "mm",
+           "value": 120
           }
          ],
          "num": "3.7"
@@ -1148,8 +1148,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-           "unit": "cm",
-           "value": 30.0
+           "unit": "mm",
+           "value": 300
           }
          ],
          "num": "3.9"
@@ -1180,8 +1180,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         },
         {
          "autoGrade": true,
@@ -1191,8 +1191,8 @@
          "note": "bare spec (no qualifier in text) — verify operator during review",
          "operator": "gte",
          "sourceText": "200 มิลลิเมตร",
-         "unit": "cm",
-         "value": 20.0
+         "unit": "mm",
+         "value": 200
         }
        ],
        "num": "1"
@@ -1234,9 +1234,9 @@
          "key": "m1",
          "operator": "range",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร แต่ไม่เกิน 350 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0,
-         "value2": 35.0
+         "unit": "mm",
+         "value": 300,
+         "value2": 350
         }
        ],
        "num": "3"
@@ -1253,8 +1253,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         }
        ],
        "num": "4"
@@ -1361,8 +1361,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 1,200 มิลลิเมตร",
-         "unit": "cm",
-         "value": 120.0
+         "unit": "mm",
+         "value": 1200
         },
         {
          "autoGrade": true,
@@ -1373,7 +1373,7 @@
          "operator": "gte",
          "sourceText": "ความลาดชันไม่เกิน 1 : 12",
          "unit": "ratio_1_x",
-         "value": 12.0
+         "value": 12
         }
        ],
        "num": "3"
@@ -1392,7 +1392,7 @@
          "operator": "lte",
          "sourceText": "ความลาดชัน (Ramp slope) ร้อยละ 10",
          "unit": "percent",
-         "value": 10.0
+         "value": 10
         }
        ],
        "num": "4"
@@ -1439,8 +1439,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 2,400 มิลลิเมตร",
-         "unit": "cm",
-         "value": 240.0
+         "unit": "mm",
+         "value": 2400
         },
         {
          "autoGrade": true,
@@ -1449,8 +1449,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 6,000 มิลลิเมตร",
-         "unit": "cm",
-         "value": 600.0
+         "unit": "mm",
+         "value": 6000
         }
        ],
        "num": "4"
@@ -1467,8 +1467,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 1,000 มิลลิเมตร",
-         "unit": "cm",
-         "value": 100.0
+         "unit": "mm",
+         "value": 1000
         }
        ],
        "num": "5"
@@ -1485,8 +1485,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-         "unit": "cm",
-         "value": 90.0
+         "unit": "mm",
+         "value": 900
         },
         {
          "autoGrade": true,
@@ -1495,8 +1495,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-         "unit": "cm",
-         "value": 90.0
+         "unit": "mm",
+         "value": 900
         }
        ],
        "num": "6"
@@ -1525,8 +1525,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         },
         {
          "autoGrade": true,
@@ -1535,8 +1535,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         }
        ],
        "num": "9"
@@ -1559,8 +1559,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 2,000 มิลลิเมตร",
-         "unit": "cm",
-         "value": 200.0
+         "unit": "mm",
+         "value": 2000
         }
        ],
        "num": "11"
@@ -1585,7 +1585,7 @@
          "operator": "gte",
          "sourceText": "1:12",
          "unit": "ratio_1_x",
-         "value": 12.0
+         "value": 12
         }
        ],
        "num": "13"
@@ -1650,8 +1650,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 90.0
+           "unit": "mm",
+           "value": 900
           }
          ],
          "num": "1.1"
@@ -1686,8 +1686,8 @@
              "key": "m1",
              "operator": "gte",
              "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-             "unit": "cm",
-             "value": 90.0
+             "unit": "mm",
+             "value": 900
             }
            ],
            "num": "2.1.1"
@@ -1704,8 +1704,8 @@
              "key": "m1",
              "operator": "gte",
              "sourceText": "ไม่น้อยกว่า1,500 มิลลิเมตร",
-             "unit": "cm",
-             "value": 150.0
+             "unit": "mm",
+             "value": 1500
             },
             {
              "autoGrade": true,
@@ -1714,8 +1714,8 @@
              "key": "m2",
              "operator": "gte",
              "sourceText": "ไม่น้อยกว่า1,500 มิลลิเมตร",
-             "unit": "cm",
-             "value": 150.0
+             "unit": "mm",
+             "value": 1500
             }
            ],
            "num": "2.1.2"
@@ -1732,9 +1732,9 @@
              "key": "m1",
              "operator": "range",
              "sourceText": "ไม่น้อยกว่า30 มิลลิเมตร แต่ไม่เกิน 40 มิลลิเมตร",
-             "unit": "cm",
-             "value": 3.0,
-             "value2": 4.0
+             "unit": "mm",
+             "value": 30,
+             "value2": 40
             }
            ],
            "num": "2.1.3"
@@ -1751,8 +1751,8 @@
              "key": "m1",
              "operator": "gte",
              "sourceText": "ไม่น้อยกว่า1,000 มิลลิเมตร",
-             "unit": "cm",
-             "value": 100.0
+             "unit": "mm",
+             "value": 1000
             },
             {
              "autoGrade": true,
@@ -1761,8 +1761,8 @@
              "key": "m2",
              "operator": "lte",
              "sourceText": "ไม่เกิน800 มิลลิเมตร",
-             "unit": "cm",
-             "value": 80.0
+             "unit": "mm",
+             "value": 800
             }
            ],
            "num": "2.1.4"
@@ -1786,8 +1786,8 @@
              "key": "m1",
              "operator": "gte",
              "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-             "unit": "cm",
-             "value": 90.0
+             "unit": "mm",
+             "value": 900
             }
            ],
            "num": "2.2.1"
@@ -1804,9 +1804,9 @@
              "key": "m1",
              "operator": "range",
              "sourceText": "ไม่น้อยกว่า30 มิลลิเมตร แต่ไม่เกิน 40 มิลลิเมตร",
-             "unit": "cm",
-             "value": 3.0,
-             "value2": 4.0
+             "unit": "mm",
+             "value": 30,
+             "value2": 40
             }
            ],
            "num": "2.2.2"
@@ -1823,8 +1823,8 @@
              "key": "m1",
              "operator": "gte",
              "sourceText": "ไม่น้อยกว่า1,000 มิลลิเมตร",
-             "unit": "cm",
-             "value": 100.0
+             "unit": "mm",
+             "value": 1000
             },
             {
              "autoGrade": true,
@@ -1833,8 +1833,8 @@
              "key": "m2",
              "operator": "lte",
              "sourceText": "ไม่เกิน800 มิลลิเมตร",
-             "unit": "cm",
-             "value": 80.0
+             "unit": "mm",
+             "value": 800
             }
            ],
            "num": "2.2.3"
@@ -1851,9 +1851,9 @@
              "key": "m1",
              "operator": "range",
              "sourceText": "ไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
-             "unit": "cm",
-             "value": 80.0,
-             "value2": 90.0
+             "unit": "mm",
+             "value": 800,
+             "value2": 900
             }
            ],
            "num": "2.2.4"
@@ -1877,8 +1877,8 @@
              "key": "m1",
              "operator": "gte",
              "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-             "unit": "cm",
-             "value": 90.0
+             "unit": "mm",
+             "value": 900
             }
            ],
            "num": "2.3.1"
@@ -1911,8 +1911,8 @@
          "key": "m1",
          "operator": "lte",
          "sourceText": "ไม่เกิน 1,200 มิลลิเมตร",
-         "unit": "cm",
-         "value": 120.0
+         "unit": "mm",
+         "value": 1200
         },
         {
          "autoGrade": true,
@@ -1922,8 +1922,8 @@
          "note": "bare spec (no qualifier in text) — verify operator during review",
          "operator": "gte",
          "sourceText": "1,000 มิลลิเมตร",
-         "unit": "cm",
-         "value": 100.0
+         "unit": "mm",
+         "value": 1000
         }
        ],
        "num": "3"
@@ -1940,8 +1940,8 @@
          "key": "m1",
          "operator": "lte",
          "sourceText": "ไม่เกิน 20 มิลลิเมตร",
-         "unit": "cm",
-         "value": 2.0
+         "unit": "mm",
+         "value": 20
         },
         {
          "autoGrade": true,
@@ -1952,7 +1952,7 @@
          "operator": "lte",
          "sourceText": "45 องศา",
          "unit": "degree",
-         "value": 45.0
+         "value": 45
         }
        ],
        "num": "4"
@@ -1981,8 +1981,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         },
         {
          "autoGrade": true,
@@ -1992,8 +1992,8 @@
          "note": "bare spec (no qualifier in text) — verify operator during review",
          "operator": "gte",
          "sourceText": "200 มิลลิเมตร",
-         "unit": "cm",
-         "value": 20.0
+         "unit": "mm",
+         "value": 200
         }
        ],
        "num": "1"
@@ -2041,9 +2041,9 @@
          "key": "m1",
          "operator": "range",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร แต่ไม่เกิน 350 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0,
-         "value2": 35.0
+         "unit": "mm",
+         "value": 300,
+         "value2": 350
         }
        ],
        "num": "3"
@@ -2060,9 +2060,9 @@
          "key": "m1",
          "operator": "range",
          "sourceText": "ไม่น้อยกว่า300 มิลลิเมตร แต่ไม่เกิน 350 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0,
-         "value2": 35.0
+         "unit": "mm",
+         "value": 300,
+         "value2": 350
         }
        ],
        "num": "4"
@@ -2092,8 +2092,8 @@
          "note": "bare spec (no qualifier in text) — verify operator during review",
          "operator": "gte",
          "sourceText": "600 มิลลิเมตร",
-         "unit": "cm",
-         "value": 60.0
+         "unit": "mm",
+         "value": 600
         }
        ],
        "num": "7"
@@ -2194,8 +2194,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         },
         {
          "autoGrade": true,
@@ -2204,8 +2204,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         }
        ],
        "num": "3"
@@ -2252,8 +2252,8 @@
          "key": "m1",
          "operator": "lte",
          "sourceText": "ไม่เกิน 800 มิลลิเมตร",
-         "unit": "cm",
-         "value": 80.0
+         "unit": "mm",
+         "value": 800
         }
        ],
        "num": "3"
@@ -2270,8 +2270,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 700 มิลลิเมตร",
-         "unit": "cm",
-         "value": 70.0
+         "unit": "mm",
+         "value": 700
         },
         {
          "autoGrade": true,
@@ -2280,8 +2280,8 @@
          "key": "m2",
          "operator": "lte",
          "sourceText": "ไม่เกิน 750 มิลลิเมตร",
-         "unit": "cm",
-         "value": 75.0
+         "unit": "mm",
+         "value": 750
         }
        ],
        "num": "4"
@@ -2298,8 +2298,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 400 มิลลิเมตร",
-         "unit": "cm",
-         "value": 40.0
+         "unit": "mm",
+         "value": 400
         }
        ],
        "num": "5"
@@ -2346,8 +2346,8 @@
          "key": "m1",
          "operator": "lte",
          "sourceText": "ไม่เกิน 800 มิลลิเมตร",
-         "unit": "cm",
-         "value": 80.0
+         "unit": "mm",
+         "value": 800
         }
        ],
        "num": "3"
@@ -2364,8 +2364,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 700 มิลลิเมตร",
-         "unit": "cm",
-         "value": 70.0
+         "unit": "mm",
+         "value": 700
         },
         {
          "autoGrade": true,
@@ -2374,8 +2374,8 @@
          "key": "m2",
          "operator": "lte",
          "sourceText": "ไม่เกิน 750 มิลลิเมตร",
-         "unit": "cm",
-         "value": 75.0
+         "unit": "mm",
+         "value": 750
         }
        ],
        "num": "4"
@@ -2392,8 +2392,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 400 มิลลิเมตร",
-         "unit": "cm",
-         "value": 40.0
+         "unit": "mm",
+         "value": 400
         }
        ],
        "num": "5"
@@ -2524,8 +2524,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-         "unit": "cm",
-         "value": 90.0
+         "unit": "mm",
+         "value": 900
         },
         {
          "autoGrade": true,
@@ -2534,8 +2534,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 850 มิลลิเมตร",
-         "unit": "cm",
-         "value": 85.0
+         "unit": "mm",
+         "value": 850
         }
        ],
        "num": "2"
@@ -2570,8 +2570,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-         "unit": "cm",
-         "value": 90.0
+         "unit": "mm",
+         "value": 900
         },
         {
          "autoGrade": true,
@@ -2580,8 +2580,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 1,400 มิลลิเมตร",
-         "unit": "cm",
-         "value": 140.0
+         "unit": "mm",
+         "value": 1400
         }
        ],
        "num": "6"
@@ -2621,8 +2621,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 90.0
+           "unit": "mm",
+           "value": 900
           }
          ],
          "num": "1.2"
@@ -2639,8 +2639,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "1.3"
@@ -2659,7 +2659,7 @@
            "operator": "gte",
            "sourceText": "ความลาดชันไม่เกิน 1:12",
            "unit": "ratio_1_x",
-           "value": 12.0
+           "value": 12
           }
          ],
          "num": "1.4"
@@ -2676,8 +2676,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
-           "unit": "cm",
-           "value": 5.0
+           "unit": "mm",
+           "value": 50
           }
          ],
          "num": "1.5"
@@ -2707,8 +2707,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 90.0
+           "unit": "mm",
+           "value": 900
           }
          ],
          "num": "2.2"
@@ -2725,8 +2725,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "2.3"
@@ -2745,7 +2745,7 @@
            "operator": "gte",
            "sourceText": "ความลาดชันไม่เกิน 1:12",
            "unit": "ratio_1_x",
-           "value": 12.0
+           "value": 12
           }
          ],
          "num": "2.4"
@@ -2762,8 +2762,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
-           "unit": "cm",
-           "value": 5.0
+           "unit": "mm",
+           "value": 50
           }
          ],
          "num": "2.5"
@@ -2793,8 +2793,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "3.2"
@@ -2811,8 +2811,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "3.3"
@@ -2831,7 +2831,7 @@
            "operator": "gte",
            "sourceText": "ความลาดชันไม่เกิน 1:12",
            "unit": "ratio_1_x",
-           "value": 12.0
+           "value": 12
           }
          ],
          "num": "3.4"
@@ -2848,8 +2848,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
-           "unit": "cm",
-           "value": 5.0
+           "unit": "mm",
+           "value": 50
           }
          ],
          "num": "3.5"
@@ -2866,8 +2866,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "3.6"
@@ -2897,9 +2897,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 30 มิลลิเมตร แต่ไม่เกิน 40 มิลลิเมตร",
-           "unit": "cm",
-           "value": 3.0,
-           "value2": 4.0
+           "unit": "mm",
+           "value": 30,
+           "value2": 40
           }
          ],
          "num": "4.2"
@@ -2916,9 +2916,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 80.0,
-           "value2": 90.0
+           "unit": "mm",
+           "value": 800,
+           "value2": 900
           }
          ],
          "num": "4.3"
@@ -2935,9 +2935,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "700-750 มิลลิเมตร",
-           "unit": "cm",
-           "value": 70.0,
-           "value2": 75.0
+           "unit": "mm",
+           "value": 700,
+           "value2": 750
           }
          ],
          "num": "4.4"
@@ -2954,9 +2954,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "600-650 มิลลิเมตร",
-           "unit": "cm",
-           "value": 60.0,
-           "value2": 65.0
+           "unit": "mm",
+           "value": 600,
+           "value2": 650
           }
          ],
          "num": "4.5"
@@ -2973,8 +2973,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
-           "unit": "cm",
-           "value": 5.0
+           "unit": "mm",
+           "value": 50
           },
           {
            "autoGrade": true,
@@ -2983,8 +2983,8 @@
            "key": "m2",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 120 มิลลิเมตร",
-           "unit": "cm",
-           "value": 12.0
+           "unit": "mm",
+           "value": 120
           }
          ],
          "num": "4.6"
@@ -3007,8 +3007,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-           "unit": "cm",
-           "value": 30.0
+           "unit": "mm",
+           "value": 300
           }
          ],
          "num": "4.8"
@@ -3027,8 +3027,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "1,500 x 1,500 มิลลิเมตร (กว้าง)",
-         "unit": "cm",
-         "value": 150.0
+         "unit": "mm",
+         "value": 1500
         },
         {
          "autoGrade": true,
@@ -3037,8 +3037,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "1,500 x 1,500 มิลลิเมตร (ยาว)",
-         "unit": "cm",
-         "value": 150.0
+         "unit": "mm",
+         "value": 1500
         }
        ],
        "num": "5"
@@ -3073,8 +3073,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         },
         {
          "autoGrade": true,
@@ -3084,8 +3084,8 @@
          "note": "bare spec (no qualifier in text) — verify operator during review",
          "operator": "gte",
          "sourceText": "200 มิลลิเมตร",
-         "unit": "cm",
-         "value": 20.0
+         "unit": "mm",
+         "value": 200
         }
        ],
        "num": "1"
@@ -3133,9 +3133,9 @@
          "key": "m1",
          "operator": "range",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร แต่ไม่เกิน 350 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0,
-         "value2": 35.0
+         "unit": "mm",
+         "value": 300,
+         "value2": 350
         }
        ],
        "num": "3"
@@ -3152,8 +3152,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 600 มิลลิเมตร",
-         "unit": "cm",
-         "value": 60.0
+         "unit": "mm",
+         "value": 600
         },
         {
          "autoGrade": true,
@@ -3163,8 +3163,8 @@
          "note": "bare spec (no qualifier in text) — verify operator during review",
          "operator": "gte",
          "sourceText": "650 มิลลิเมตร",
-         "unit": "cm",
-         "value": 65.0
+         "unit": "mm",
+         "value": 650
         }
        ],
        "num": "4"
@@ -3265,8 +3265,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         },
         {
          "autoGrade": true,
@@ -3275,8 +3275,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         }
        ],
        "num": "3"
@@ -3329,8 +3329,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "1,500 x 1,500 มิลลิเมตร (กว้าง)",
-         "unit": "cm",
-         "value": 150.0
+         "unit": "mm",
+         "value": 1500
         },
         {
          "autoGrade": true,
@@ -3339,8 +3339,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "1,500 x 1,500 มิลลิเมตร (ยาว)",
-         "unit": "cm",
-         "value": 150.0
+         "unit": "mm",
+         "value": 1500
         }
        ],
        "num": "1"
@@ -3357,8 +3357,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 700 มิลลิเมตร",
-         "unit": "cm",
-         "value": 70.0
+         "unit": "mm",
+         "value": 700
         },
         {
          "autoGrade": true,
@@ -3367,8 +3367,8 @@
          "key": "m2",
          "operator": "lte",
          "sourceText": "ไม่เกิน 800 มิลลิเมตร",
-         "unit": "cm",
-         "value": 80.0
+         "unit": "mm",
+         "value": 800
         },
         {
          "autoGrade": true,
@@ -3377,8 +3377,8 @@
          "key": "m3",
          "operator": "lte",
          "sourceText": "ไม่เกิน 750 มิลลิเมตร",
-         "unit": "cm",
-         "value": 75.0
+         "unit": "mm",
+         "value": 750
         }
        ],
        "num": "2"
@@ -3395,8 +3395,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 800 มิลลิเมตร",
-         "unit": "cm",
-         "value": 80.0
+         "unit": "mm",
+         "value": 800
         },
         {
          "autoGrade": true,
@@ -3405,8 +3405,8 @@
          "key": "m2",
          "operator": "lte",
          "sourceText": "ไม่เกิน 1,100 มิลลิเมตร",
-         "unit": "cm",
-         "value": 110.0
+         "unit": "mm",
+         "value": 1100
         }
        ],
        "num": "3"
@@ -3423,8 +3423,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 750 มิลลิเมตร",
-         "unit": "cm",
-         "value": 75.0
+         "unit": "mm",
+         "value": 750
         }
        ],
        "num": "4"
@@ -3453,8 +3453,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "1,200 x 900 มิลลิเมตร (กว้าง)",
-         "unit": "cm",
-         "value": 120.0
+         "unit": "mm",
+         "value": 1200
         },
         {
          "autoGrade": true,
@@ -3463,8 +3463,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "1,200 x 900 มิลลิเมตร (ยาว)",
-         "unit": "cm",
-         "value": 90.0
+         "unit": "mm",
+         "value": 900
         }
        ],
        "num": "7"
@@ -3511,8 +3511,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "1,500 x 1,500 มิลลิเมตร (กว้าง)",
-         "unit": "cm",
-         "value": 150.0
+         "unit": "mm",
+         "value": 1500
         },
         {
          "autoGrade": true,
@@ -3521,8 +3521,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "1,500 x 1,500 มิลลิเมตร (ยาว)",
-         "unit": "cm",
-         "value": 150.0
+         "unit": "mm",
+         "value": 1500
         }
        ],
        "num": "1"
@@ -3550,8 +3550,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 850 มิลลิเมตร",
-           "unit": "cm",
-           "value": 85.0
+           "unit": "mm",
+           "value": 850
           },
           {
            "autoGrade": true,
@@ -3560,8 +3560,8 @@
            "key": "m2",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 700 มิลลิเมตร",
-           "unit": "cm",
-           "value": 70.0
+           "unit": "mm",
+           "value": 700
           },
           {
            "autoGrade": true,
@@ -3570,8 +3570,8 @@
            "key": "m3",
            "operator": "lte",
            "sourceText": "ไม่เกิน 750 มิลลิเมตร",
-           "unit": "cm",
-           "value": 75.0
+           "unit": "mm",
+           "value": 750
           }
          ],
          "num": "3.1"
@@ -3588,8 +3588,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 950 มิลลิเมตร",
-           "unit": "cm",
-           "value": 95.0
+           "unit": "mm",
+           "value": 950
           }
          ],
          "num": "3.2"
@@ -3614,8 +3614,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "1,500 x 1,500 มิลลิเมตร (กว้าง)",
-         "unit": "cm",
-         "value": 150.0
+         "unit": "mm",
+         "value": 1500
         },
         {
          "autoGrade": true,
@@ -3624,8 +3624,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "1,500 x 1,500 มิลลิเมตร (ยาว)",
-         "unit": "cm",
-         "value": 150.0
+         "unit": "mm",
+         "value": 1500
         }
        ],
        "num": "1"
@@ -3642,8 +3642,8 @@
          "key": "m1",
          "operator": "lte",
          "sourceText": "ไม่เกิน 800 มิลลิเมตร",
-         "unit": "cm",
-         "value": 80.0
+         "unit": "mm",
+         "value": 800
         }
        ],
        "num": "2"
@@ -3702,8 +3702,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "1,500 x 1,500 มิลลิเมตร (กว้าง)",
-         "unit": "cm",
-         "value": 150.0
+         "unit": "mm",
+         "value": 1500
         },
         {
          "autoGrade": true,
@@ -3712,8 +3712,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "1,500 x 1,500 มิลลิเมตร (ยาว)",
-         "unit": "cm",
-         "value": 150.0
+         "unit": "mm",
+         "value": 1500
         }
        ],
        "num": "1"
@@ -3730,8 +3730,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 800 มิลลิเมตร",
-         "unit": "cm",
-         "value": 80.0
+         "unit": "mm",
+         "value": 800
         },
         {
          "autoGrade": true,
@@ -3740,8 +3740,8 @@
          "key": "m2",
          "operator": "lte",
          "sourceText": "ไม่เกิน 900 มิลลิเมตร",
-         "unit": "cm",
-         "value": 90.0
+         "unit": "mm",
+         "value": 900
         }
        ],
        "num": "2"
@@ -3788,8 +3788,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-         "unit": "cm",
-         "value": 150.0
+         "unit": "mm",
+         "value": 1500
         }
        ],
        "num": "1"
@@ -3824,8 +3824,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-         "unit": "cm",
-         "value": 90.0
+         "unit": "mm",
+         "value": 900
         },
         {
          "autoGrade": true,
@@ -3836,7 +3836,7 @@
          "operator": "lte",
          "sourceText": "90 องศา",
          "unit": "degree",
-         "value": 90.0
+         "value": 90
         }
        ],
        "num": "5"
@@ -3853,9 +3853,9 @@
          "key": "m1",
          "operator": "range",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร แต่ไม่เกิน 350 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0,
-         "value2": 35.0
+         "unit": "mm",
+         "value": 300,
+         "value2": 350
         }
        ],
        "num": "6"
@@ -3877,9 +3877,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 450 มิลลิเมตร แต่ไม่เกิน 500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 45.0,
-           "value2": 50.0
+           "unit": "mm",
+           "value": 450,
+           "value2": 500
           }
          ],
          "num": "7.1"
@@ -3896,9 +3896,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 450 มิลลิเมตร แต่ไม่เกิน 500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 45.0,
-           "value2": 50.0
+           "unit": "mm",
+           "value": 450,
+           "value2": 500
           }
          ],
          "num": "7.2"
@@ -3928,9 +3928,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 650 มิลลิเมตร แต่ไม่เกิน 700 มิลลิเมตร",
-           "unit": "cm",
-           "value": 65.0,
-           "value2": 70.0
+           "unit": "mm",
+           "value": 650,
+           "value2": 700
           },
           {
            "autoGrade": true,
@@ -3939,9 +3939,9 @@
            "key": "m2",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 250 มิลลิเมตร แต่ไม่เกิน 300 มิลลิเมตร",
-           "unit": "cm",
-           "value": 25.0,
-           "value2": 30.0
+           "unit": "mm",
+           "value": 250,
+           "value2": 300
           }
          ],
          "num": "8.2"
@@ -3958,8 +3958,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "อย่างน้อย 600 มิลลิเมตร",
-           "unit": "cm",
-           "value": 60.0
+           "unit": "mm",
+           "value": 600
           }
          ],
          "num": "8.3"
@@ -3976,9 +3976,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 150 มิลลิเมตร แต่ไม่เกิน 200 มิลลิเมตร",
-           "unit": "cm",
-           "value": 15.0,
-           "value2": 20.0
+           "unit": "mm",
+           "value": 150,
+           "value2": 200
           },
           {
            "autoGrade": true,
@@ -3987,8 +3987,8 @@
            "key": "m2",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 550 มิลลิเมตร",
-           "unit": "cm",
-           "value": 55.0
+           "unit": "mm",
+           "value": 550
           }
          ],
          "num": "8.4"
@@ -4005,9 +4005,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 80.0,
-           "value2": 90.0
+           "unit": "mm",
+           "value": 800,
+           "value2": 900
           }
          ],
          "num": "8.5"
@@ -4037,9 +4037,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 750 มิลลิเมตร แต่ไม่เกิน 800 มิลลิเมตร",
-           "unit": "cm",
-           "value": 75.0,
-           "value2": 80.0
+           "unit": "mm",
+           "value": 750,
+           "value2": 800
           }
          ],
          "num": "9.2"
@@ -4081,9 +4081,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 500 มิลลิเมตร แต่ไม่เกิน 600 มิลลิเมตร",
-           "unit": "cm",
-           "value": 50.0,
-           "value2": 60.0
+           "unit": "mm",
+           "value": 500,
+           "value2": 600
           }
          ],
          "num": "11.2"
@@ -4100,9 +4100,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 1,200 มิลลิเมตร แต่ไม่เกิน 1,300 มิลลิเมตร",
-           "unit": "cm",
-           "value": 120.0,
-           "value2": 130.0
+           "unit": "mm",
+           "value": 1200,
+           "value2": 1300
           }
          ],
          "num": "11.3"
@@ -4119,9 +4119,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 1,000 มิลลิเมตร",
-           "unit": "cm",
-           "value": 80.0,
-           "value2": 100.0
+           "unit": "mm",
+           "value": 800,
+           "value2": 1000
           },
           {
            "autoGrade": true,
@@ -4130,9 +4130,9 @@
            "key": "m2",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 550 มิลลิเมตร แต่ไม่เกิน 600 มิลลิเมตร",
-           "unit": "cm",
-           "value": 55.0,
-           "value2": 60.0
+           "unit": "mm",
+           "value": 550,
+           "value2": 600
           }
          ],
          "num": "11.4"
@@ -4211,9 +4211,9 @@
          "key": "m1",
          "operator": "range",
          "sourceText": "250 มิลลิเมตร ถึง 950 มิลลิเมตร",
-         "unit": "cm",
-         "value": 25.0,
-         "value2": 95.0
+         "unit": "mm",
+         "value": 250,
+         "value2": 950
         }
        ],
        "num": "7"
@@ -4242,8 +4242,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "1,200 x 1,300 มิลลิเมตร (กว้าง)",
-         "unit": "cm",
-         "value": 120.0
+         "unit": "mm",
+         "value": 1200
         },
         {
          "autoGrade": true,
@@ -4252,8 +4252,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "1,200 x 1,300 มิลลิเมตร (ยาว)",
-         "unit": "cm",
-         "value": 130.0
+         "unit": "mm",
+         "value": 1300
         }
        ],
        "num": "2"
@@ -4270,9 +4270,9 @@
          "key": "m1",
          "operator": "range",
          "sourceText": "ไม่น้อยกว่า 700 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
-         "unit": "cm",
-         "value": 70.0,
-         "value2": 90.0
+         "unit": "mm",
+         "value": 700,
+         "value2": 900
         }
        ],
        "num": "3"
@@ -4301,8 +4301,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 150 มิลลิเมตร",
-         "unit": "cm",
-         "value": 15.0
+         "unit": "mm",
+         "value": 150
         }
        ],
        "num": "6"
@@ -4325,8 +4325,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         },
         {
          "autoGrade": true,
@@ -4336,8 +4336,8 @@
          "note": "bare spec (no qualifier in text) — verify operator during review",
          "operator": "gte",
          "sourceText": "200 มิลลิเมตร",
-         "unit": "cm",
-         "value": 20.0
+         "unit": "mm",
+         "value": 200
         }
        ],
        "num": "1"
@@ -4379,9 +4379,9 @@
          "key": "m1",
          "operator": "range",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร แต่ไม่เกิน 350 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0,
-         "value2": 35.0
+         "unit": "mm",
+         "value": 300,
+         "value2": 350
         }
        ],
        "num": "3"
@@ -4476,8 +4476,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 1,100 มิลลิเมตร",
-         "unit": "cm",
-         "value": 110.0
+         "unit": "mm",
+         "value": 1100
         },
         {
          "autoGrade": true,
@@ -4486,8 +4486,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 1,400 มิลลิเมตร",
-         "unit": "cm",
-         "value": 140.0
+         "unit": "mm",
+         "value": 1400
         }
        ],
        "num": "3"
@@ -4504,8 +4504,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-         "unit": "cm",
-         "value": 90.0
+         "unit": "mm",
+         "value": 900
         }
        ],
        "num": "4"
@@ -4527,9 +4527,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 30 มิลลิเมตร แต่ไม่เกิน 40 มิลลิเมตร",
-           "unit": "cm",
-           "value": 3.0,
-           "value2": 4.0
+           "unit": "mm",
+           "value": 30,
+           "value2": 40
           }
          ],
          "num": "5.1"
@@ -4546,9 +4546,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 80.0,
-           "value2": 90.0
+           "unit": "mm",
+           "value": 800,
+           "value2": 900
           }
          ],
          "num": "5.2"
@@ -4565,8 +4565,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 120 มิลลิเมตร",
-           "unit": "cm",
-           "value": 12.0
+           "unit": "mm",
+           "value": 120
           },
           {
            "autoGrade": true,
@@ -4576,8 +4576,8 @@
            "note": "bare spec (no qualifier in text) — verify operator during review",
            "operator": "gte",
            "sourceText": "50 มิลลิเมตร",
-           "unit": "cm",
-           "value": 5.0
+           "unit": "mm",
+           "value": 50
           }
          ],
          "num": "5.3"
@@ -4602,9 +4602,9 @@
          "key": "m1",
          "operator": "range",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร แต่ไม่เกิน 600 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0,
-         "value2": 60.0
+         "unit": "mm",
+         "value": 300,
+         "value2": 600
         }
        ],
        "num": "6"
@@ -4632,8 +4632,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 90.0
+           "unit": "mm",
+           "value": 900
           },
           {
            "autoGrade": true,
@@ -4642,8 +4642,8 @@
            "key": "m2",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 400 มิลลิเมตร",
-           "unit": "cm",
-           "value": 40.0
+           "unit": "mm",
+           "value": 400
           },
           {
            "autoGrade": true,
@@ -4653,8 +4653,8 @@
            "note": "bare spec (no qualifier in text) — verify operator during review",
            "operator": "gte",
            "sourceText": "1,200 มิลลิเมตร",
-           "unit": "cm",
-           "value": 120.0
+           "unit": "mm",
+           "value": 1200
           },
           {
            "autoGrade": true,
@@ -4664,8 +4664,8 @@
            "note": "bare spec (no qualifier in text) — verify operator during review",
            "operator": "gte",
            "sourceText": "1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "8.1"
@@ -4682,8 +4682,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 20 มิลลิเมตร",
-           "unit": "cm",
-           "value": 2.0
+           "unit": "mm",
+           "value": 20
           }
          ],
          "num": "8.2"
@@ -4743,9 +4743,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร แต่ไม่เกิน 1,200 มิลลิเมตร",
-           "unit": "cm",
-           "value": 90.0,
-           "value2": 120.0
+           "unit": "mm",
+           "value": 900,
+           "value2": 1200
           }
          ],
          "num": "13.3"
@@ -4782,8 +4782,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         },
         {
          "autoGrade": true,
@@ -4793,8 +4793,8 @@
          "note": "bare spec (no qualifier in text) — verify operator during review",
          "operator": "gte",
          "sourceText": "200 มิลลิเมตร",
-         "unit": "cm",
-         "value": 20.0
+         "unit": "mm",
+         "value": 200
         }
        ],
        "num": "1"
@@ -4816,9 +4816,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร แต่ไม่เกิน 600 มิลลิเมตร",
-           "unit": "cm",
-           "value": 30.0,
-           "value2": 60.0
+           "unit": "mm",
+           "value": 300,
+           "value2": 600
           },
           {
            "autoGrade": true,
@@ -4828,8 +4828,8 @@
            "note": "bare spec (no qualifier in text) — verify operator during review",
            "operator": "gte",
            "sourceText": "300 มิลลิเมตร",
-           "unit": "cm",
-           "value": 30.0
+           "unit": "mm",
+           "value": 300
           },
           {
            "autoGrade": true,
@@ -4839,8 +4839,8 @@
            "note": "bare spec (no qualifier in text) — verify operator during review",
            "operator": "gte",
            "sourceText": "900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 90.0
+           "unit": "mm",
+           "value": 900
           }
          ],
          "num": "2.1"
@@ -4871,9 +4871,9 @@
          "key": "m1",
          "operator": "range",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร แต่ไม่เกิน 350 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0,
-         "value2": 35.0
+         "unit": "mm",
+         "value": 300,
+         "value2": 350
         }
        ],
        "num": "3"
@@ -4967,8 +4967,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "1.1"
@@ -4985,8 +4985,8 @@
            "key": "m1",
            "operator": "lte",
            "sourceText": "ไม่เกิน 2,000 มิลลิเมตร",
-           "unit": "cm",
-           "value": 200.0
+           "unit": "mm",
+           "value": 2000
           }
          ],
          "num": "1.2"
@@ -5003,8 +5003,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 280 มิลลิเมตร",
-           "unit": "cm",
-           "value": 28.0
+           "unit": "mm",
+           "value": 280
           },
           {
            "autoGrade": true,
@@ -5013,8 +5013,8 @@
            "key": "m2",
            "operator": "lte",
            "sourceText": "ไม่เกิน 150 มิลลิเมตร",
-           "unit": "cm",
-           "value": 15.0
+           "unit": "mm",
+           "value": 150
           }
          ],
          "num": "1.3"
@@ -5031,8 +5031,8 @@
            "key": "m1",
            "operator": "lte",
            "sourceText": "ไม่เกิน 2,000 มิลลิเมตร",
-           "unit": "cm",
-           "value": 200.0
+           "unit": "mm",
+           "value": 2000
           }
          ],
          "num": "1.4"
@@ -5056,9 +5056,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "30 ถึง 40 มิลลิเมตร",
-           "unit": "cm",
-           "value": 3.0,
-           "value2": 4.0
+           "unit": "mm",
+           "value": 30,
+           "value2": 40
           }
          ],
          "num": "2.1"
@@ -5075,9 +5075,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "800 ถึง 900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 80.0,
-           "value2": 90.0
+           "unit": "mm",
+           "value": 800,
+           "value2": 900
           }
          ],
          "num": "2.2"
@@ -5094,8 +5094,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "อย่างน้อย 50 มิลลิเมตร",
-           "unit": "cm",
-           "value": 5.0
+           "unit": "mm",
+           "value": 50
           },
           {
            "autoGrade": true,
@@ -5104,8 +5104,8 @@
            "key": "m2",
            "operator": "gte",
            "sourceText": "อย่างน้อย 120 มิลลิเมตร",
-           "unit": "cm",
-           "value": 12.0
+           "unit": "mm",
+           "value": 120
           }
          ],
          "num": "2.3"
@@ -5141,9 +5141,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 30 มิลลิเมตร แต่ไม่เกิน 40 มิลลิเมตร",
-           "unit": "cm",
-           "value": 3.0,
-           "value2": 4.0
+           "unit": "mm",
+           "value": 30,
+           "value2": 40
           }
          ],
          "num": "3.3"
@@ -5160,9 +5160,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 80.0,
-           "value2": 90.0
+           "unit": "mm",
+           "value": 800,
+           "value2": 900
           }
          ],
          "num": "3.4"
@@ -5179,9 +5179,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "700-750 มิลลิเมตร",
-           "unit": "cm",
-           "value": 70.0,
-           "value2": 75.0
+           "unit": "mm",
+           "value": 700,
+           "value2": 750
           }
          ],
          "num": "3.5"
@@ -5198,9 +5198,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "600-650 มิลลิเมตร",
-           "unit": "cm",
-           "value": 60.0,
-           "value2": 65.0
+           "unit": "mm",
+           "value": 600,
+           "value2": 650
           }
          ],
          "num": "3.6"
@@ -5217,8 +5217,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
-           "unit": "cm",
-           "value": 5.0
+           "unit": "mm",
+           "value": 50
           },
           {
            "autoGrade": true,
@@ -5227,8 +5227,8 @@
            "key": "m2",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 120 มิลลิเมตร",
-           "unit": "cm",
-           "value": 12.0
+           "unit": "mm",
+           "value": 120
           }
          ],
          "num": "3.7"
@@ -5251,8 +5251,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-           "unit": "cm",
-           "value": 30.0
+           "unit": "mm",
+           "value": 300
           }
          ],
          "num": "3.9"
@@ -5283,8 +5283,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 1,200 มิลลิเมตร",
-         "unit": "cm",
-         "value": 120.0
+         "unit": "mm",
+         "value": 1200
         }
        ],
        "num": "1"
@@ -5301,8 +5301,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า1,200 มิลลิเมตร",
-         "unit": "cm",
-         "value": 120.0
+         "unit": "mm",
+         "value": 1200
         }
        ],
        "num": "2"
@@ -5331,9 +5331,9 @@
          "key": "m1",
          "operator": "range",
          "sourceText": "300 ถึง 350 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0,
-         "value2": 35.0
+         "unit": "mm",
+         "value": 300,
+         "value2": 350
         }
        ],
        "num": "5"
@@ -5356,8 +5356,8 @@
          "key": "m1",
          "operator": "lte",
          "sourceText": "ไม่เกิน 3,000 มิลลิเมตร",
-         "unit": "cm",
-         "value": 300.0
+         "unit": "mm",
+         "value": 3000
         }
        ],
        "num": "7"
@@ -5387,8 +5387,8 @@
          "note": "bare spec (no qualifier in text) — verify operator during review",
          "operator": "gte",
          "sourceText": "2,000 มิลลิเมตร",
-         "unit": "cm",
-         "value": 200.0
+         "unit": "mm",
+         "value": 2000
         }
        ],
        "num": "10"
@@ -5423,8 +5423,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         },
         {
          "autoGrade": true,
@@ -5434,8 +5434,8 @@
          "note": "bare spec (no qualifier in text) — verify operator during review",
          "operator": "gte",
          "sourceText": "200 มิลลิเมตร",
-         "unit": "cm",
-         "value": 20.0
+         "unit": "mm",
+         "value": 200
         }
        ],
        "num": "1"
@@ -5477,9 +5477,9 @@
          "key": "m1",
          "operator": "range",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร แต่ไม่เกิน 350 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0,
-         "value2": 35.0
+         "unit": "mm",
+         "value": 300,
+         "value2": 350
         }
        ],
        "num": "3"
@@ -5604,8 +5604,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         },
         {
          "autoGrade": true,
@@ -5615,8 +5615,8 @@
          "note": "bare spec (no qualifier in text) — verify operator during review",
          "operator": "gte",
          "sourceText": "200 มิลลิเมตร",
-         "unit": "cm",
-         "value": 20.0
+         "unit": "mm",
+         "value": 200
         }
        ],
        "num": "1"
@@ -5664,9 +5664,9 @@
          "key": "m1",
          "operator": "range",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร แต่ไม่เกิน 350 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0,
-         "value2": 35.0
+         "unit": "mm",
+         "value": 300,
+         "value2": 350
         }
        ],
        "num": "3"
@@ -5791,8 +5791,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-         "unit": "cm",
-         "value": 90.0
+         "unit": "mm",
+         "value": 900
         },
         {
          "autoGrade": true,
@@ -5801,8 +5801,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 850 มิลลิเมตร",
-         "unit": "cm",
-         "value": 85.0
+         "unit": "mm",
+         "value": 850
         }
        ],
        "num": "2"
@@ -5837,8 +5837,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-         "unit": "cm",
-         "value": 90.0
+         "unit": "mm",
+         "value": 900
         },
         {
          "autoGrade": true,
@@ -5847,8 +5847,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 1,400 มิลลิเมตร",
-         "unit": "cm",
-         "value": 140.0
+         "unit": "mm",
+         "value": 1400
         }
        ],
        "num": "6"
@@ -5877,8 +5877,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         },
         {
          "autoGrade": true,
@@ -5888,8 +5888,8 @@
          "note": "bare spec (no qualifier in text) — verify operator during review",
          "operator": "gte",
          "sourceText": "200 มิลลิเมตร",
-         "unit": "cm",
-         "value": 20.0
+         "unit": "mm",
+         "value": 200
         }
        ],
        "num": "1"
@@ -5937,9 +5937,9 @@
          "key": "m1",
          "operator": "range",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร แต่ไม่เกิน 350 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0,
-         "value2": 35.0
+         "unit": "mm",
+         "value": 300,
+         "value2": 350
         }
        ],
        "num": "3"
@@ -5956,8 +5956,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 600 มิลลิเมตร",
-         "unit": "cm",
-         "value": 60.0
+         "unit": "mm",
+         "value": 600
         },
         {
          "autoGrade": true,
@@ -5967,8 +5967,8 @@
          "note": "bare spec (no qualifier in text) — verify operator during review",
          "operator": "gte",
          "sourceText": "650 มิลลิเมตร",
-         "unit": "cm",
-         "value": 65.0
+         "unit": "mm",
+         "value": 650
         }
        ],
        "num": "4"
@@ -6057,8 +6057,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         },
         {
          "autoGrade": true,
@@ -6067,8 +6067,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-         "unit": "cm",
-         "value": 30.0
+         "unit": "mm",
+         "value": 300
         }
        ],
        "num": "3"
@@ -6192,8 +6192,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 90.0
+           "unit": "mm",
+           "value": 900
           }
          ],
          "num": "1.2"
@@ -6210,8 +6210,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "1.3"
@@ -6230,7 +6230,7 @@
            "operator": "gte",
            "sourceText": "ความลาดชันไม่เกิน 1:12",
            "unit": "ratio_1_x",
-           "value": 12.0
+           "value": 12
           }
          ],
          "num": "1.4"
@@ -6247,8 +6247,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
-           "unit": "cm",
-           "value": 5.0
+           "unit": "mm",
+           "value": 50
           }
          ],
          "num": "1.5"
@@ -6278,8 +6278,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 90.0
+           "unit": "mm",
+           "value": 900
           }
          ],
          "num": "2.2"
@@ -6296,8 +6296,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "2.3"
@@ -6316,7 +6316,7 @@
            "operator": "gte",
            "sourceText": "ความลาดชันไม่เกิน 1:12",
            "unit": "ratio_1_x",
-           "value": 12.0
+           "value": 12
           }
          ],
          "num": "2.4"
@@ -6333,8 +6333,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
-           "unit": "cm",
-           "value": 5.0
+           "unit": "mm",
+           "value": 50
           }
          ],
          "num": "2.5"
@@ -6364,8 +6364,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "3.2"
@@ -6382,8 +6382,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "3.3"
@@ -6402,7 +6402,7 @@
            "operator": "gte",
            "sourceText": "ความลาดชันไม่เกิน 1:12",
            "unit": "ratio_1_x",
-           "value": 12.0
+           "value": 12
           }
          ],
          "num": "3.4"
@@ -6419,8 +6419,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
-           "unit": "cm",
-           "value": 5.0
+           "unit": "mm",
+           "value": 50
           }
          ],
          "num": "3.5"
@@ -6437,8 +6437,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
-           "unit": "cm",
-           "value": 150.0
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "3.6"
@@ -6468,9 +6468,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 30 มิลลิเมตร แต่ไม่เกิน 40 มิลลิเมตร",
-           "unit": "cm",
-           "value": 3.0,
-           "value2": 4.0
+           "unit": "mm",
+           "value": 30,
+           "value2": 40
           }
          ],
          "num": "4.2"
@@ -6487,9 +6487,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "ไม่น้อยกว่า 800 มิลลิเมตรแต่ไม่เกิน 900 มิลลิเมตร",
-           "unit": "cm",
-           "value": 80.0,
-           "value2": 90.0
+           "unit": "mm",
+           "value": 800,
+           "value2": 900
           }
          ],
          "num": "4.3"
@@ -6506,9 +6506,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "700-750 มิลลิเมตร",
-           "unit": "cm",
-           "value": 70.0,
-           "value2": 75.0
+           "unit": "mm",
+           "value": 700,
+           "value2": 750
           }
          ],
          "num": "4.4"
@@ -6525,9 +6525,9 @@
            "key": "m1",
            "operator": "range",
            "sourceText": "600-650 มิลลิเมตร",
-           "unit": "cm",
-           "value": 60.0,
-           "value2": 65.0
+           "unit": "mm",
+           "value": 600,
+           "value2": 650
           }
          ],
          "num": "4.5"
@@ -6544,8 +6544,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
-           "unit": "cm",
-           "value": 5.0
+           "unit": "mm",
+           "value": 50
           },
           {
            "autoGrade": true,
@@ -6554,8 +6554,8 @@
            "key": "m2",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 120 มิลลิเมตร",
-           "unit": "cm",
-           "value": 12.0
+           "unit": "mm",
+           "value": 120
           }
          ],
          "num": "4.6"
@@ -6578,8 +6578,8 @@
            "key": "m1",
            "operator": "gte",
            "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
-           "unit": "cm",
-           "value": 30.0
+           "unit": "mm",
+           "value": 300
           }
          ],
          "num": "4.8"
@@ -6598,8 +6598,8 @@
          "key": "m1",
          "operator": "gte",
          "sourceText": "1,500 x 1,500 มิลลิเมตร (กว้าง)",
-         "unit": "cm",
-         "value": 150.0
+         "unit": "mm",
+         "value": 1500
         },
         {
          "autoGrade": true,
@@ -6608,8 +6608,8 @@
          "key": "m2",
          "operator": "gte",
          "sourceText": "1,500 x 1,500 มิลลิเมตร (ยาว)",
-         "unit": "cm",
-         "value": 150.0
+         "unit": "mm",
+         "value": 1500
         }
        ],
        "num": "5"

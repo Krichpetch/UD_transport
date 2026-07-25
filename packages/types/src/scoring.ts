@@ -99,7 +99,7 @@ export function deriveMeasuredStandard(
     if (m.value == null) return null // byLaw not resolved
     let v: number | undefined
     if (m.unit === 'ratio_1_x' || m.unit === 'percent') {
-      // Slope convention (Session E2 follow-up) — the auditor enters raw ความยาว/ความสูง (cm) for
+      // Slope convention (Session E2 follow-up) — the auditor enters raw ความยาว/ความสูง (mm) for
       // EVERY seeded slope criterion, whether the source form expresses the threshold as a ratio
       // (1:X) or a percent grade — both are the same physical quantity (rise ÷ run), just
       // formatted differently. NOT extended to unit:'degree': the seeded degree measurements mix
@@ -124,7 +124,7 @@ export function deriveMeasuredStandard(
 }
 
 // Slope convention (Session E2 follow-up) — ความชัน measurements (unit 'ratio_1_x' or 'percent')
-// are entered as raw length/height (cm) rather than the ratio/percent itself; deriveMeasuredStandard
+// are entered as raw length/height (mm) rather than the ratio/percent itself; deriveMeasuredStandard
 // computes length ÷ height (ratio) or (height ÷ length) × 100 (percent) and compares it against
 // the threshold like any other gte/lte/range value. Keys are scoped per-measurement so two slope
 // measurements on the same leaf (none currently seeded, but not structurally forbidden) can't
