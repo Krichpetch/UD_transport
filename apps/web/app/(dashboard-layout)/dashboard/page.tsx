@@ -33,12 +33,21 @@ function MetricRow({ label, value, pct }: { label: string; value: number; pct?: 
 // FILTER_SELECT_TRIGGER_CLS has drifted from this one (py-2/text-sm vs py-1.5/text-xs).
 const SELECT_TRIGGER_CLS = 'h-auto rounded-lg bg-background px-3 py-1.5 text-xs'
 
-// Shared fixed height for the chart/map/urgent-list/table cards below — Leaflet needs a sized
-// container to render into (a percentage-height chain collapses it), and giving every one of
-// these cards the same explicit height keeps them visually consistent regardless of how much
-// content each holds; each card's own body region scrolls internally past this height instead of
-// stretching the page.
+// Shared fixed height for the chart/map cards below — Leaflet needs a sized container to render
+// into (a percentage-height chain collapses it), and giving both cards the same explicit height
+// keeps them visually consistent; each card's own body region scrolls internally past this
+// height instead of stretching the page.
 const DASHBOARD_CARD_H = 'h-[420px]'
+
+// Station table row height — Tailwind's h-14 utility (56px), used on the header/footer bars and
+// every body row so the card is one deterministic size: 56px header + 10×56px rows + 56px footer
+// = 672px, never anything else. That's what keeps the table (and its "urgent stations" row-mate)
+// from resizing/reflowing when paging: every page renders exactly PAGE_SIZE (10) row slots
+// (padded with blank filler rows on a short last page or an empty result), and every column has
+// a fixed % width via <colgroup> so row height never depends on how much text a given page's
+// content has. STATION_LIST_CARD_H must stay a literal string (not computed) so Tailwind's
+// static scanner can see it — keep it in sync with PAGE_SIZE (10) below by hand if either changes.
+const STATION_LIST_CARD_H = 'h-[672px]'
 
 export default function DashboardPage() {
   const { data: summary } = useStationSummary()
@@ -129,6 +138,10 @@ export default function DashboardPage() {
 
   const tablePageCount = Math.max(1, Math.ceil(filteredStations.length / PAGE_SIZE))
   const pagedStations  = filteredStations.slice((tablePage - 1) * PAGE_SIZE, tablePage * PAGE_SIZE)
+  // Blank filler row count for a short last page (or zero results) — the table always renders
+  // exactly PAGE_SIZE row slots so its height (and STATION_LIST_CARD_H above) never changes
+  // between pages.
+  const tableFillerCount = PAGE_SIZE - pagedStations.length
 
   // Server-side aggregation (StationsService.computeMetrics) — replaces the old per-station
   // useQueries fan-out. Same filter set as filteredStations, plus subItem.
@@ -368,7 +381,7 @@ export default function DashboardPage() {
 
       {/* Urgent + Table */}
       <div className="grid gap-4 lg:grid-cols-5">
-        <div className={`bg-card border-border ${DASHBOARD_CARD_H} flex flex-col rounded-xl border p-5 lg:col-span-2`}>
+        <div className={`bg-card border-border ${STATION_LIST_CARD_H} flex flex-col rounded-xl border p-5 lg:col-span-2`}>
           <div className="mb-4 flex shrink-0 items-center gap-2">
             <AlertCircle size={14} className="text-[#f44336]" />
             <h2 className="text-foreground text-sm font-semibold">
@@ -405,8 +418,8 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className={`bg-card border-border ${DASHBOARD_CARD_H} flex flex-col rounded-xl border lg:col-span-3`}>
-          <div className="border-border flex shrink-0 items-center justify-between border-b px-5 py-4">
+        <div className={`bg-card border-border ${STATION_LIST_CARD_H} flex flex-col rounded-xl border lg:col-span-3`}>
+          <div className="border-border flex h-14 shrink-0 items-center justify-between border-b px-5">
             <h2 className="text-foreground text-sm font-semibold">
               รายการสถานี
               {hasFilters && <span className="ml-1 text-muted-foreground font-normal text-xs">({filteredStations.length})</span>}
@@ -415,21 +428,31 @@ export default function DashboardPage() {
               ดูทั้งหมด →
             </a>
           </div>
-          <div className="themed-scrollbar min-h-0 flex-1 overflow-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-card sticky top-0">
-                <tr className="border-border border-b">
-                  <th className="text-muted-foreground px-5 py-2.5 text-left font-medium">ชื่อสถานี</th>
-                  <th className="text-muted-foreground px-3 py-2.5 text-left font-medium">ประเภท</th>
-                  <th className="text-muted-foreground px-3 py-2.5 text-left font-medium">หน่วยงาน</th>
-                  <th className="text-muted-foreground px-3 py-2.5 text-right font-medium">คะแนน</th>
-                  <th className="text-muted-foreground px-5 py-2.5 text-left font-medium">สถานะ</th>
+          <div className="themed-scrollbar overflow-x-auto">
+            {/* table-fixed + colgroup lock every column to a fixed % width regardless of a
+                given page's content, and every row (including filler rows below) is h-14 — so
+                paging never reflows column widths or the card's height. */}
+            <table className="w-full table-fixed text-xs">
+              <colgroup>
+                <col className="w-[34%]" />
+                <col className="w-[14%]" />
+                <col className="w-[24%]" />
+                <col className="w-[10%]" />
+                <col className="w-[18%]" />
+              </colgroup>
+              <thead>
+                <tr className="border-border h-14 border-b">
+                  <th className="text-muted-foreground px-5 text-left font-medium">ชื่อสถานี</th>
+                  <th className="text-muted-foreground px-3 text-left font-medium">ประเภท</th>
+                  <th className="text-muted-foreground px-3 text-left font-medium">หน่วยงาน</th>
+                  <th className="text-muted-foreground px-3 text-right font-medium">คะแนน</th>
+                  <th className="text-muted-foreground px-5 text-left font-medium">สถานะ</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredStations.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="text-muted-foreground py-8 text-center">
+                  <tr className="h-14">
+                    <td colSpan={5} className="text-muted-foreground text-center">
                       ไม่พบสถานีตามเงื่อนไข
                     </td>
                   </tr>
@@ -437,19 +460,19 @@ export default function DashboardPage() {
                   pagedStations.map(station => (
                     <tr
                       key={station.id}
-                      className="border-border hover:bg-secondary/50 border-b transition-colors last:border-0"
+                      className="border-border hover:bg-secondary/50 h-14 border-b transition-colors last:border-0"
                     >
-                      <td className="px-5 py-3">
-                        <p className="text-foreground font-medium">{station.nameTh}</p>
-                        <p className="text-muted-foreground">{station.province}</p>
+                      <td className="truncate px-5">
+                        <p className="text-foreground truncate font-medium">{station.nameTh}</p>
+                        <p className="text-muted-foreground truncate">{station.province}</p>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="truncate px-3">
                         <TransportBadge type={getTransportLabel(station)} />
                       </td>
-                      <td className="px-3 py-3">
-                        <span className="text-foreground font-medium">{station.responsibleAgency}</span>
+                      <td className="truncate px-3">
+                        <span className="text-foreground truncate font-medium">{station.responsibleAgency}</span>
                       </td>
-                      <td className="px-3 py-3 text-right">
+                      <td className="px-3 text-right">
                         <span
                           className="font-bold"
                           style={{
@@ -463,38 +486,45 @@ export default function DashboardPage() {
                           {station.score}
                         </span>
                       </td>
-                      <td className="px-5 py-3">
+                      <td className="px-5">
                         <StatusBadge status={station.status} />
                       </td>
                     </tr>
                   ))
                 )}
+                {/* Blank filler rows — keep the body at exactly PAGE_SIZE row slots so the card
+                    never shrinks on a short last page (or an empty result set). */}
+                {Array.from({ length: Math.max(0, tableFillerCount - (filteredStations.length === 0 ? 1 : 0)) }).map((_, i) => (
+                  <tr key={`filler-${i}`} className="border-border h-14 border-b last:border-0" aria-hidden="true">
+                    <td colSpan={5} />
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-          {tablePageCount > 1 && (
-            <div className="border-border flex shrink-0 items-center justify-between border-t px-5 py-3">
-              <span className="text-muted-foreground text-xs">
-                {(tablePage - 1) * PAGE_SIZE + 1}–{Math.min(tablePage * PAGE_SIZE, filteredStations.length)} จาก {filteredStations.length}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setTablePage(p => p - 1)}
-                  disabled={tablePage === 1}
-                  className="border-border text-foreground rounded-lg border px-3 py-1 text-xs disabled:opacity-40"
-                >
-                  ← ก่อนหน้า
-                </button>
-                <button
-                  onClick={() => setTablePage(p => p + 1)}
-                  disabled={tablePage === tablePageCount}
-                  className="border-border text-foreground rounded-lg border px-3 py-1 text-xs disabled:opacity-40"
-                >
-                  ถัดไป →
-                </button>
-              </div>
+          <div className="border-border flex h-14 shrink-0 items-center justify-between border-t px-5">
+            <span className="text-muted-foreground text-xs">
+              {filteredStations.length === 0
+                ? '0 จาก 0'
+                : `${(tablePage - 1) * PAGE_SIZE + 1}–${Math.min(tablePage * PAGE_SIZE, filteredStations.length)} จาก ${filteredStations.length}`}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setTablePage(p => p - 1)}
+                disabled={tablePage === 1}
+                className="border-border text-foreground rounded-lg border px-3 py-1 text-xs disabled:opacity-40"
+              >
+                ← ก่อนหน้า
+              </button>
+              <button
+                onClick={() => setTablePage(p => p + 1)}
+                disabled={tablePage === tablePageCount}
+                className="border-border text-foreground rounded-lg border px-3 py-1 text-xs disabled:opacity-40"
+              >
+                ถัดไป →
+              </button>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
