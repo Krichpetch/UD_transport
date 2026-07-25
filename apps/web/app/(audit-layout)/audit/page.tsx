@@ -222,7 +222,11 @@ export default function AuditPage() {
     setCheckInMessage('')
     await saveYearBuilt()
 
-    if (PROXIMITY_BYPASS) {
+    // Preview never persists anything real (see the autosave/submit guards elsewhere on this
+    // page) and the admin previewing it is essentially never standing at the actual station —
+    // gating check-in on GPS proximity would just strand them on this screen with no way to see
+    // the form at all.
+    if (PROXIMITY_BYPASS || v2PreviewAllowed) {
       setLocationUnverifiedMessage('')
       setCheckInStatus('ok')
       setCheckedIn(true)
@@ -580,7 +584,7 @@ export default function AuditPage() {
               )
             })}
           </div>
-          {isV1 && (
+          {isV1 && !v2PreviewAllowed && (
             <>
               {/* Part C.7 — final thoughts, before the submit action */}
               <div className="border-t px-4 py-4">
@@ -614,7 +618,7 @@ export default function AuditPage() {
               </div>
             </>
           )}
-          {!isV1 && (
+          {(!isV1 || v2PreviewAllowed) && (
             <p className="px-4 py-4 text-center text-xs text-purple-600">
               {previewLabel} — ไม่สามารถส่งรายงานจริงได้ในขั้นตอนนี้
             </p>
