@@ -1,3 +1,10 @@
 .env
 .env.*
 !.env.example
+
+# Pre-delete safety dumps written by prisma/reset-stations.ts -- local insurance only.
+backups/
+
+# Import reconciliation CSVs written by StationsService.batchOtpImport -- run artifacts, not
+# source of truth (the station masterlist JSON is).
+import-reports/

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import * as path from 'path'
 import { ChecklistStatus, Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../audit/audit.service'
@@ -8,6 +9,9 @@ import { OtpRowDto } from './dto/otp-row.dto'
 import { computeScoreFromItems, scoreToStatus, hasReviewFlag } from '../checklists/scoring'
 import { computeFacilityMetrics, parseChecklistItems, isValidYearBuilt } from '@repo/types'
 import type { ParsedChecklistGroup, StoredChecklistNode } from '@repo/types'
+import { resolveStationMatch, type MasterlistStation } from './masterlist-match'
+import { applyOtpRowToStation } from './import-otp-row'
+import { writeReconciliationCsv, writePendingPayloads, type ReconciliationRow } from './import-reconciliation'
 
 // Prisma's Json columns want InputJsonValue; every call site here passes data that has already
 // been structurally validated (parseChecklistItems, or DTO-typed as object[]/plain JSON) — this
@@ -23,15 +27,14 @@ const LATEST_CHECKLIST_STATUSES = ['SUBMITTED', 'APPROVED', 'REJECTED'] as const
 // batchOtpImport: rows are prefetched/processed in fixed-size chunks (see method doc).
 const OTP_IMPORT_CHUNK_SIZE = 50
 
+// Station masterlist cutover, import hardening (Task B3) — where reconciliation CSVs land.
+// Gitignored: these are run artifacts, not source of truth (the masterlist JSON is).
+const IMPORT_REPORTS_DIR = path.resolve(__dirname, '..', '..', 'import-reports')
+
 export type OtpImportRowResult =
   | { id: string; nameTh: string }
   | { nameTh: string; index: number; error: string }
-
-// Same normalization the station dedupe guard (create()/batchOtpImport) matches on:
-// case/whitespace-insensitive (mode, nameTh, province) — agency is deliberately excluded.
-function otpStationKey(mode: string, nameTh: string, province: string): string {
-  return `${mode}|${nameTh.trim().toLowerCase()}|${province.trim().toLowerCase()}`
-}
+  | { nameTh: string; index: number; skipped: true; reason: 'REVIEW' | 'NOT_ON_MASTERLIST' }
 
 @Injectable()
 export class StationsService {
@@ -173,7 +176,7 @@ export class StationsService {
   async findNearby(lat: number, lng: number, limit = 20) {
     const rows = await this.prisma.$queryRaw<Array<{
       id: string; name: string; nameTh: string; mode: string; railSubtype: string | null
-      province: string; region: string; responsibleAgency: string; lat: number; lng: number
+      province: string | null; region: string | null; responsibleAgency: string; lat: number; lng: number
       coordStatus: string; score: number; status: string; lastInspected: Date | null
       urgentIssues: string[]; distanceM: number
     }>>`
@@ -405,41 +408,43 @@ export class StationsService {
     return rows.map(r => r.stationId)
   }
 
-  // Rows are processed in fixed-size chunks: each chunk gets ONE station.findMany +
-  // ONE checklist.findMany (instead of two findFirst reads per row), and each ROW's
-  // writes run inside their own $transaction — one bad row rolls back only itself and
-  // is reported individually, never poisoning the rest of the chunk/batch. Chunks (and
-  // rows within a chunk) run strictly in array order, so duplicate rows in one payload
-  // resolve deterministically: last row wins, matching the prior per-row-findFirst
-  // behavior exactly (see stationMap/checklistMap below, updated after every row).
+  // Station masterlist cutover, import hardening (Task B3): the masterlist is closed. This
+  // method may UPDATE a masterlist station's metadata/checklists but must NEVER insert a new
+  // Station row — every incoming row is resolved against the masterlist via resolveStationMatch
+  // (exact -> normalized -> fuzzy, scoped within mode). REVIEW/NOT_ON_MASTERLIST rows are
+  // skipped (never an error that aborts the run) and recorded in a reconciliation CSV a human
+  // reviews afterward (see import-reconciliation.ts, prisma/apply-import-review.ts).
+  //
+  // Rows are processed in fixed-size chunks: each chunk gets ONE station.findMany (every
+  // masterlist station of the modes present in this chunk — the resolveStationMatch candidate
+  // pool) + ONE checklist.findMany, and each ROW's writes run inside their own $transaction —
+  // one bad row rolls back only itself and is reported individually, never poisoning the rest
+  // of the chunk/batch.
   async batchOtpImport(rows: OtpRowDto[], adminId: string): Promise<OtpImportRowResult[]> {
     const results: OtpImportRowResult[] = new Array(rows.length)
+    const reconciliation: ReconciliationRow[] = []
+    const pendingPayloads: Array<{ index: number; row: OtpRowDto }> = []
 
     for (let chunkStart = 0; chunkStart < rows.length; chunkStart += OTP_IMPORT_CHUNK_SIZE) {
       const chunk = rows.slice(chunkStart, chunkStart + OTP_IMPORT_CHUNK_SIZE)
+      const modesInChunk = [...new Set(chunk.map(row => row.station.mode))]
 
-      // Same normalized-key dedupe guard as create(): agency alone must never fork a
-      // station into a duplicate row (see _find-duplicate-stations.cjs) — batched here
-      // as one OR-of-keys findMany instead of one findFirst per row.
-      const existingStations = await this.prisma.station.findMany({
-        where: {
-          OR: chunk.map(row => ({
-            mode:     row.station.mode,
-            nameTh:   { equals: row.station.nameTh.trim(),   mode: 'insensitive' as const },
-            province: { equals: row.station.province.trim(), mode: 'insensitive' as const },
-          })),
-        },
+      const masterlistStations = await this.prisma.station.findMany({
+        where: { mode: { in: modesInChunk } },
+        select: { id: true, mode: true, nameTh: true, line: true, responsibleAgency: true, lastInspected: true },
       })
-      const stationMap = new Map<string, (typeof existingStations)[number]>()
-      for (const s of existingStations) stationMap.set(otpStationKey(s.mode, s.nameTh, s.province), s)
+      const candidatesByMode = new Map<string, MasterlistStation[]>()
+      for (const s of masterlistStations) {
+        const arr = candidatesByMode.get(s.mode) ?? []
+        arr.push(s)
+        candidatesByMode.set(s.mode, arr)
+      }
+      const stationById = new Map(masterlistStations.map(s => [s.id, s]))
 
-      // One per (station, year) — same "latest APPROVED checklist for this year" concept
-      // the original per-row findFirst enforced, just prefetched for every station this
-      // chunk already knows about (brand-new stations have nothing to prefetch).
-      const existingStationIds = existingStations.map(s => s.id)
-      const existingChecklists = existingStationIds.length
+      const stationIds = masterlistStations.map(s => s.id)
+      const existingChecklists = stationIds.length
         ? await this.prisma.checklist.findMany({
-            where: { stationId: { in: existingStationIds }, status: 'APPROVED' },
+            where: { stationId: { in: stationIds }, status: 'APPROVED' },
           })
         : []
       const checklistMap = new Map<string, (typeof existingChecklists)[number]>()
@@ -451,8 +456,26 @@ export class StationsService {
       for (let i = 0; i < chunk.length; i++) {
         const row = chunk[i]!
         const rowIndex = chunkStart + i
+        const nameTh = row.station.nameTh.trim()
+        const match = resolveStationMatch(
+          { mode: row.station.mode, nameTh },
+          candidatesByMode.get(row.station.mode) ?? [],
+        )
+        reconciliation.push({
+          index: rowIndex, nameTh, mode: row.station.mode, line: '',
+          tier: match.tier, status: match.status,
+          matchedStationId: match.matchedStation?.id ?? null, score: match.score,
+        })
+
+        if (match.status === 'REVIEW' || match.status === 'NOT_ON_MASTERLIST') {
+          results[rowIndex] = { nameTh, index: rowIndex, skipped: true, reason: match.status }
+          pendingPayloads.push({ index: rowIndex, row })
+          continue
+        }
+
         try {
-          results[rowIndex] = await this.importOtpRow(row, adminId, stationMap, checklistMap)
+          const station = stationById.get(match.matchedStation!.id)!
+          results[rowIndex] = await this.importOtpRow(row, adminId, station, checklistMap)
         } catch (err) {
           results[rowIndex] = {
             nameTh: row.station.nameTh,
@@ -463,80 +486,43 @@ export class StationsService {
       }
     }
 
+    if (reconciliation.length > 0) {
+      writeReconciliationCsv('batch-otp', reconciliation, IMPORT_REPORTS_DIR)
+    }
+    if (pendingPayloads.length > 0) {
+      writePendingPayloads('batch-otp', pendingPayloads, IMPORT_REPORTS_DIR)
+    }
+
     return results
   }
 
-  // One row's writes (station upsert, checklist create/update, station score/status
-  // refresh) as a single transaction — mirrors the atomicity approve/rejectChecklist
-  // use above. stationMap/checklistMap are updated after the transaction commits so a
-  // LATER row in this same batch (this chunk or a later one) that targets the same
-  // station/year sees the fresh state without another DB read.
+  // One row's writes (checklist create/update, station metadata/score refresh) as a single
+  // transaction. `station` is an already-resolved masterlist row (see resolveStationMatch in
+  // batchOtpImport above) — this method never creates a Station.
   private async importOtpRow(
     row: OtpRowDto,
     adminId: string,
-    stationMap: Map<string, { id: string; nameTh: string; responsibleAgency: string; lastInspected: Date | null }>,
+    station: { id: string; nameTh: string; responsibleAgency: string; lastInspected: Date | null },
     checklistMap: Map<string, { id: string; stationId: string; submittedAt: Date | null }>,
   ): Promise<{ id: string; nameTh: string }> {
-    const nameTh   = row.station.nameTh.trim()
-    const province = row.station.province.trim()
-    const key       = otpStationKey(row.station.mode, nameTh, province)
     const auditDate = new Date(row.lastInspected)
-    // Re-derive score from items; never trust the client-computed row.score.
-    const importedScore  = computeScoreFromItems(row.items)
-    const importedStatus = scoreToStatus(importedScore)
+    const checklistKey = `${station.id}|${auditDate.getFullYear()}`
+    const existing = checklistMap.get(checklistKey)
 
-    const station = await this.prisma.$transaction(async (tx) => {
-      let station = stationMap.get(key)
-      if (station) {
-        // Prefer a real agency over a stale 'อื่นๆ' fallback if this row has one.
-        if (station.responsibleAgency === 'อื่นๆ' && row.station.responsibleAgency !== 'อื่นๆ') {
-          station = await tx.station.update({
-            where: { id: station.id },
-            data: { responsibleAgency: row.station.responsibleAgency },
-          })
-        }
-      } else {
-        station = await tx.station.create({
-          data: { ...row.station, nameTh, province, urgentIssues: [] },
-        })
-      }
-
-      const checklistKey = `${station.id}|${auditDate.getFullYear()}`
-      const existing = checklistMap.get(checklistKey)
-      if (existing) {
-        await tx.checklist.update({
-          where: { id: existing.id },
-          data:  { items: toJson(row.items), score: importedScore },
-        })
-      } else {
-        const created = await tx.checklist.create({
-          data: {
-            stationId:   station.id,
-            auditorId:   adminId,
-            items:       toJson(row.items),
-            score:       importedScore,
-            status:      'APPROVED',
-            submittedAt: auditDate,
-          },
-        })
-        checklistMap.set(checklistKey, created)
-      }
-
-      if (!station.lastInspected || auditDate > station.lastInspected) {
-        station = await tx.station.update({
-          where: { id: station.id },
-          data: { score: importedScore, status: importedStatus, lastInspected: auditDate },
-        })
-      }
-      return station
+    const result = await this.prisma.$transaction(async (tx) => {
+      return applyOtpRowToStation(tx, station, row, adminId, existing)
     })
 
-    stationMap.set(key, station)
+    if (!existing) {
+      // Keep the in-memory map current for any LATER row in this batch targeting the same
+      // (station, year) — mirrors the pre-cutover behavior for duplicate rows in one payload.
+      checklistMap.set(checklistKey, { id: 'pending', stationId: station.id, submittedAt: auditDate })
+    }
 
     await this.auditLog.log({
       userId: adminId, action: 'OTP_IMPORT', entityType: 'Station', entityId: station.id,
     })
-    return { id: station.id, nameTh: station.nameTh }
+    return result
   }
 
   // Export data source: one row per (station, calendar year) — the most recently
@@ -623,7 +609,7 @@ export class StationsService {
     // Only meaningful (and only populated) when subItem is set — the per-station names behind
     // the aggregate "has the item but isn't standard yet" count, for the dashboard's drill-down
     // list. Mirrors the old client-side fan-out's equivalent list exactly.
-    const failingStations: { id: string; nameTh: string; province: string }[] = []
+    const failingStations: { id: string; nameTh: string; province: string | null }[] = []
     let evaluatedStations = 0
     for (const cl of checklists) {
       // Malformed rows are skipped, not thrown — this aggregates across every historical
