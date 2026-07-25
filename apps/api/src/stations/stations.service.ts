@@ -7,7 +7,7 @@ import { CreateStationDto } from './dto/create-station.dto'
 import { UpdateStationDto } from './dto/update-station.dto'
 import { OtpRowDto } from './dto/otp-row.dto'
 import { computeScoreFromItems, scoreToStatus, hasReviewFlag } from '../checklists/scoring'
-import { computeFacilityMetrics, parseChecklistItems, isValidYearBuilt } from '@repo/types'
+import { computeFacilityMetrics, parseChecklistItems, isValidYearBuilt, deriveRegion, UNSPECIFIED_REGION } from '@repo/types'
 import type { ParsedChecklistGroup, StoredChecklistNode } from '@repo/types'
 import { resolveStationMatch, type MasterlistStation } from './masterlist-match'
 import { applyOtpRowToStation } from './import-otp-row'
@@ -67,7 +67,9 @@ export class StationsService {
 
     const where = {
       ...(filters?.mode              && { mode:              filters.mode }),
-      ...(filters?.region            && { region:            filters.region }),
+      ...(filters?.region            && {
+        region: filters.region === UNSPECIFIED_REGION ? null : filters.region,
+      }),
       ...(filters?.responsibleAgency && { responsibleAgency: filters.responsibleAgency }),
       ...(filters?.status            && { status:            filters.status }),
       ...(filters?.checklistStatus && {
@@ -132,8 +134,13 @@ export class StationsService {
         orderBy: { responsibleAgency: 'asc' },
       }),
     ])
+    // Stations with region === null (neither coords nor a recognisable province, see
+    // @repo/types#deriveRegion) surface as one "ไม่ระบุ" option rather than a blank one —
+    // findAll() translates that literal back to `region IS NULL` above.
+    const namedRegions = regions.map(r => r.region).filter((r): r is string => r != null)
+    const hasUnspecified = regions.some(r => r.region == null)
     return {
-      regions:  regions.map(r => r.region),
+      regions:  hasUnspecified ? [...namedRegions, UNSPECIFIED_REGION] : namedRegions,
       agencies: agencies.map(a => a.responsibleAgency),
     }
   }
@@ -230,8 +237,11 @@ export class StationsService {
       },
     })
     if (existing) return { station: existing, deduped: true }
+    // region is derived, not user input (Session E4) — callers normally omit it; lat/lng are
+    // always required here, so deriveRegion always has coordinates to work from.
+    const region = dto.region?.trim() || deriveRegion({ lat: dto.lat, lng: dto.lng, province })
     const station = await this.prisma.station.create({
-      data: { ...dto, nameTh, province, urgentIssues: [] },
+      data: { ...dto, nameTh, province, region, urgentIssues: [] },
     })
     return { station, deduped: false }
   }
@@ -245,6 +255,17 @@ export class StationsService {
     if (!before) throw new NotFoundException()
 
     const hasNewCoords = dto.lat !== undefined && dto.lng !== undefined
+    // region is derived, not user input (Session E4): recompute it whenever coords or province
+    // change, unless the caller explicitly supplies its own region (a deliberate override wins).
+    const region = dto.region !== undefined
+      ? dto.region.trim()
+      : (hasNewCoords || dto.province !== undefined)
+        ? deriveRegion({
+            lat:      hasNewCoords ? dto.lat : before.lat,
+            lng:      hasNewCoords ? dto.lng : before.lng,
+            province: dto.province !== undefined ? dto.province.trim() : before.province,
+          })
+        : undefined
     const after = await this.prisma.station.update({
       where: { id },
       data: {
@@ -252,7 +273,7 @@ export class StationsService {
         ...(dto.mode               !== undefined && { mode: dto.mode }),
         ...(dto.railSubtype        !== undefined && { railSubtype: dto.railSubtype || null }),
         ...(dto.province           !== undefined && { province: dto.province.trim() }),
-        ...(dto.region             !== undefined && { region: dto.region.trim() }),
+        ...(region                 !== undefined && { region }),
         ...(dto.responsibleAgency  !== undefined && { responsibleAgency: dto.responsibleAgency }),
         ...(hasNewCoords && {
           lat: dto.lat,
@@ -565,7 +586,9 @@ export class StationsService {
     const stationWhere = {
       ...(filters.mode              && { mode:              filters.mode }),
       ...(filters.railSubtype       && { railSubtype:       filters.railSubtype }),
-      ...(filters.region            && { region:            filters.region }),
+      ...(filters.region            && {
+        region: filters.region === UNSPECIFIED_REGION ? null : filters.region,
+      }),
       ...(filters.province          && { province:          filters.province }),
       ...(filters.responsibleAgency && { responsibleAgency: filters.responsibleAgency }),
     }

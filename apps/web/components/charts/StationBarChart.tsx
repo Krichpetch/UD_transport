@@ -13,9 +13,11 @@ import {
 
 type ChartRow = { type: string; ผ่าน: number; ต้องปรับปรุง: number; ไม่ผ่าน: number }
 
-export function StationBarChart({ data }: { data: ChartRow[] }) {
+// height defaults to filling a sized parent (dashboard's fixed-height card row) — pass a pixel
+// value instead only where the parent doesn't already establish a definite height.
+export function StationBarChart({ data, height = '100%' }: { data: ChartRow[]; height?: number | string }) {
   return (
-    <ResponsiveContainer width="100%" height={260}>
+    <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis

@@ -45,7 +45,9 @@ export interface CreateStationInput {
   mode: string
   railSubtype?: string
   province: string
-  region: string
+  // region is derived server-side from coordinates (province as fallback) — see
+  // StationsService.create. Omit it; only pass it to pin an explicit override.
+  region?: string
   responsibleAgency: string
   lat: number
   lng: number
@@ -57,7 +59,6 @@ export interface ParsedRow {
   mode: string
   railSubtype?: string
   province: string
-  region: string
   responsibleAgency: string
   lat: number
   lng: number
@@ -206,8 +207,16 @@ export interface OtpRowPayload {
   lastInspected: string
 }
 
+// Mirrors apps/api/src/stations/stations.service.ts#OtpImportRowResult — the masterlist cutover
+// (import hardening) skips rows it can't confidently match instead of erroring the whole batch,
+// so a row can come back skipped (REVIEW/NOT_ON_MASTERLIST) rather than created or hard-failed.
+export type OtpImportRowResult =
+  | { id: string; nameTh: string }
+  | { nameTh: string; index: number; error: string }
+  | { nameTh: string; index: number; skipped: true; reason: 'REVIEW' | 'NOT_ON_MASTERLIST' }
+
 export function batchOtpImport(rows: OtpRowPayload[]) {
-  return api.post<{ id: string; nameTh: string }[]>('/stations/batch-otp', { rows })
+  return api.post<OtpImportRowResult[]>('/stations/batch-otp', { rows })
 }
 
 // Slim projection for the auditor station picker — keeps payload tiny

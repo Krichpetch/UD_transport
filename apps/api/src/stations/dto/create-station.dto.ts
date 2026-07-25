@@ -7,7 +7,10 @@ export class CreateStationDto {
   @IsIn(TRANSPORT_MODES) mode: string
   @IsIn(RAIL_SUBTYPES) @IsOptional() railSubtype?: string
   @IsString() province: string
-  @IsString() region: string
+  // Region is a derived attribute (see @repo/types#deriveRegion), not user input — StationsService
+  // .create() computes it from lat/lng when omitted. Still acceptable explicitly for callers that
+  // legitimately need to pin it (e.g. a scripted import correcting a bad derivation).
+  @IsString() @IsOptional() region?: string
   @IsIn(RESPONSIBLE_AGENCIES) responsibleAgency: string
   @IsNumber() lat: number
   @IsNumber() lng: number
