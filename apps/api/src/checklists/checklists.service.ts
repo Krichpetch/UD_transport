@@ -190,18 +190,16 @@ export class ChecklistsService {
   // yearBuilt, since no stamp exists yet.
   //
   // `preview` (Part B.2, admin/dev-only — the controller only honors this for ADMIN callers)
-  // serves the mode's v2 DRAFT definition instead, for the gated v2-preview renderer. This is
-  // read-only rendering support ONLY — v2 is never ACTIVE, so no real checklist is ever created
-  // or submitted against it; saveDraft/submit always stamp/validate against the ACTIVE template.
-  async getTemplateForAudit(stationId: string, auditorId: string, preview?: boolean) {
+  // skips draft hydration for read-only rendering support ONLY — no real checklist is ever
+  // created or submitted against a preview; saveDraft/submit always stamp/validate against the
+  // ACTIVE template. `versionOverride` (admin station-list "preview" button, Session E4) lets the
+  // caller pin a specific template version (e.g. an un-activated v3 DRAFT) instead of whatever is
+  // currently ACTIVE — with no override, preview renders the ACTIVE template, same as a real audit.
+  async getTemplateForAudit(stationId: string, auditorId: string, preview?: boolean, versionOverride?: number) {
     const station = await this.stations.findOne(stationId)
-    // Preview always targets the station's resolved variant's v2 DRAFT (Session E3, Part A) — no
-    // fallback to 'standard' here: if the resolved variant has no v2 DRAFT yet (e.g. rail_metro's
-    // workbook hasn't been authored), preview degrades to the same "no template" response as any
-    // other missing template, rather than silently showing a different variant's form.
-    const template = preview
+    const template = versionOverride != null
       ? await this.prisma.checklistTemplate.findFirst({
-          where: { mode: station.mode, variantKey: resolveVariantKey(station.mode as TransportMode, station.railSubtype).variantKey, version: 2 },
+          where: { mode: station.mode, variantKey: resolveVariantKey(station.mode as TransportMode, station.railSubtype).variantKey, version: versionOverride },
         })
       : await this.getActiveTemplate(station.mode, station.railSubtype)
     if (!template) return { template: null, templateId: null, templateVersion: null, appliedYearBuilt: station.yearBuilt, appliedLawRefs: null, eraUnresolved: false, preview: !!preview }

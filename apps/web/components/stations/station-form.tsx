@@ -10,7 +10,6 @@ export interface StationFormValue {
   mode: TransportMode
   railSubtype?: string
   province: string
-  region: string
   responsibleAgency: string
   lat: number | null
   lng: number | null
@@ -19,7 +18,6 @@ export interface StationFormValue {
 interface StationFormPlaceholders {
   nameTh?: string
   province?: string
-  region?: string
   responsibleAgency?: string
   lat?: string
   lng?: string
@@ -32,9 +30,12 @@ interface StationFormBaseProps {
   placeholders?: StationFormPlaceholders
 }
 
-// Presentation-only: nameTh/mode/railSubtype/province/region/responsibleAgency, the 2-col
-// grid, the region/agency datalists, the rail-subtype conditional. No fetch calls, no save
+// Presentation-only: nameTh/mode/railSubtype/province/responsibleAgency, the 2-col
+// grid, the agency datalist, the rail-subtype conditional. No fetch calls, no save
 // logic, no checklist-seeding, no coordStatus logic — callers own all of that.
+//
+// region is NOT a field here (Session E4) — it's a derived attribute computed server-side from
+// coordinates (or province as a fallback) by StationsService.create/update, never user input.
 //
 // Coordinates (lat/lng) are a separate export below, NOT bundled into this component: the
 // create and edit flows place the lat/lng inputs in different positions relative to the map
@@ -42,9 +43,8 @@ interface StationFormBaseProps {
 // fusing them here would force a field-order change in one of the two call sites.
 export function StationForm({
   value, onChange, disabled, placeholders, hideNameTh,
-  regionOptions = [], agencyOptions = [],
-}: StationFormBaseProps & { regionOptions?: string[]; agencyOptions?: string[]; hideNameTh?: boolean }) {
-  const regionsListId = React.useId()
+  agencyOptions = [],
+}: StationFormBaseProps & { agencyOptions?: string[]; hideNameTh?: boolean }) {
   const agenciesListId = React.useId()
 
   return (
@@ -98,33 +98,16 @@ export function StationForm({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="text-foreground mb-1 block text-xs font-medium">จังหวัด *</label>
-          <input
-            className={INPUT_CLS}
-            value={value.province}
-            onChange={(e) => onChange({ province: e.target.value })}
-            placeholder={placeholders?.province}
-            disabled={disabled}
-            required
-          />
-        </div>
-        <div>
-          <label className="text-foreground mb-1 block text-xs font-medium">ภาค *</label>
-          <input
-            className={INPUT_CLS}
-            value={value.region}
-            list={regionsListId}
-            onChange={(e) => onChange({ region: e.target.value })}
-            placeholder={placeholders?.region}
-            disabled={disabled}
-            required
-          />
-          <datalist id={regionsListId}>
-            {regionOptions.map((r) => <option key={r} value={r} />)}
-          </datalist>
-        </div>
+      <div>
+        <label className="text-foreground mb-1 block text-xs font-medium">จังหวัด *</label>
+        <input
+          className={INPUT_CLS}
+          value={value.province}
+          onChange={(e) => onChange({ province: e.target.value })}
+          placeholder={placeholders?.province}
+          disabled={disabled}
+          required
+        />
       </div>
 
       <div>

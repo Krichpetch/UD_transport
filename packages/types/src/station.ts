@@ -24,7 +24,7 @@ export interface Station {
   mode: TransportMode
   railSubtype?: RailSubtype
   province: string
-  region: string
+  region: string | null
   responsibleAgency: string
   score: number
   status: StationStatus

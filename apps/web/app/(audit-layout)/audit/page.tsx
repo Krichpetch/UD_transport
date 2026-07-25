@@ -67,21 +67,28 @@ function ReturnedWorkSection({ items, onSelect }: { items: RejectedChecklistSumm
 export default function AuditPage() {
   const user = useAuthStore((s) => s.user)
   const searchParams = useSearchParams()
-  // Part B.2 — v2 preview is admin-only and gated behind an explicit query flag; the server
-  // additionally 403s a non-admin caller, so this client-side check is UX only, not the guard.
-  // Same flag name/value ("preview=v2") as the underlying API call (lib/api/checklists.ts) —
-  // deliberately kept identical end-to-end so there is only one spelling to remember or type.
-  const v2PreviewRequested = searchParams.get('preview') === 'v2'
-  const v2PreviewAllowed = v2PreviewRequested && user?.role === 'ADMIN'
-
-  const [selectedId, setSelectedId] = React.useState('')
+  // Part B.2 / Session E4 — preview is admin-only and gated behind an explicit query flag; the
+  // server additionally 403s a non-admin caller, so this client-side check is UX only, not the
+  // guard. Same flag name/value ("preview=1") as the underlying API call (lib/api/checklists.ts)
+  // — deliberately kept identical end-to-end so there is only one spelling to remember or type.
+  // `version=<n>` (the admin station-list "preview" button) pins a specific template version
+  // (e.g. an un-activated DRAFT) instead of whatever is currently ACTIVE; either param implies
+  // preview mode.
+  const versionParam = searchParams.get('version')
+  const previewVersion = versionParam != null && /^\d+$/.test(versionParam) ? Number(versionParam) : undefined
+  const previewRequested = searchParams.get('preview') === '1' || previewVersion != null
+  const v2PreviewAllowed = previewRequested && user?.role === 'ADMIN'
+  // Deep-link support for the admin station-list preview button (`/audit?preview=1&station=<id>`)
+  // — pre-selects the station so the admin never has to re-pick it via StationSearchPicker.
+  const stationParam = searchParams.get('station')
+  const [selectedId, setSelectedId] = React.useState(stationParam ?? '')
   const { data: station } = useStation(selectedId)
   // v2 preview never reads or writes a real draft (getTemplateForAudit skips the draft lookup
   // server-side too when previewing — see checklists.service.ts) — and the /draft endpoint is
   // AUDITOR-only, so an ADMIN previewing v2 would otherwise get a needless 403 on every station
   // pick. Passing '' disables the query via its existing `enabled: !!stationId` guard.
   const { data: draft, isLoading: draftLoading } = useMyDraft(v2PreviewAllowed ? '' : selectedId)
-  const { data: templateResp, isLoading: templateLoading } = useTemplateForAudit(selectedId, v2PreviewAllowed)
+  const { data: templateResp, isLoading: templateLoading } = useTemplateForAudit(selectedId, v2PreviewAllowed, previewVersion)
   const saveDraftMutation = useSaveDraft(selectedId)
   const submitMutation = useSubmitChecklist(selectedId)
   const updateYearBuiltMutation = useUpdateYearBuilt()
@@ -148,7 +155,7 @@ export default function AuditPage() {
   // refetch of the same data (Part D P0 fix #1: tab-switch reset).
   React.useEffect(() => {
     if (!station || draftLoading || templateLoading || !templateResp?.template) return
-    const key = `${station.id}:${v2PreviewAllowed}`
+    const key = `${station.id}:${v2PreviewAllowed}:${previewVersion ?? ''}`
     if (seededForRef.current === key) return
     seededForRef.current = key
     hydrate({
@@ -163,7 +170,7 @@ export default function AuditPage() {
     })
     setYearBuiltInput(station.yearBuilt != null ? String(station.yearBuilt) : '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [station, draftLoading, templateLoading, draft, templateResp, v2PreviewAllowed])
+  }, [station, draftLoading, templateLoading, draft, templateResp, v2PreviewAllowed, previewVersion])
 
   // Debounced autosave — fires AUTOSAVE_DEBOUNCE_MS after the last edit, once checked in and
   // dirty. Skipped entirely in v2 preview (v2 is not activated — nothing to persist for real).
@@ -195,6 +202,9 @@ export default function AuditPage() {
   const { answered, total } = templateDef ? countProgressForNodes(templateDef.groups.flatMap((g) => g.items), answers) : { answered: 0, total: 0 }
   const progress = total > 0 ? Math.round((answered / total) * 100) : 0
   const isV1 = templateDef?.schemaVersion === 1
+  const previewLabel = templateResp?.templateVersion != null
+    ? `โหมดตัวอย่าง — เทมเพลตเวอร์ชัน ${templateResp.templateVersion}`
+    : 'โหมดตัวอย่าง'
 
   async function saveYearBuilt(): Promise<void> {
     if (!station || v2PreviewAllowed) return
@@ -397,7 +407,7 @@ export default function AuditPage() {
         {v2PreviewAllowed && (
           <div className="flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs text-purple-700 shadow-sm">
             <FlaskConical size={14} className="shrink-0" />
-            <span>โหมดตัวอย่าง v2 (DRAFT) — สำหรับผู้ดูแลระบบเท่านั้น ไม่มีการบันทึกจริง</span>
+            <span>{previewLabel} — สำหรับผู้ดูแลระบบเท่านั้น ไม่มีการบันทึกจริง</span>
           </div>
         )}
 
@@ -606,7 +616,7 @@ export default function AuditPage() {
           )}
           {!isV1 && (
             <p className="px-4 py-4 text-center text-xs text-purple-600">
-              โหมดตัวอย่าง v2 — ไม่สามารถส่งรายงานจริงได้ในขั้นตอนนี้
+              {previewLabel} — ไม่สามารถส่งรายงานจริงได้ในขั้นตอนนี้
             </p>
           )}
         </div>

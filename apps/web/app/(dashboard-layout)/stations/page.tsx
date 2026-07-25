@@ -17,7 +17,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth.store'
 import type { TransportMode, StationStatus, ResponsibleAgency } from '@repo/types'
 import { TRANSPORT_MODE_AGENCIES, TRANSPORT_MODES, STATION_STATUSES } from '@repo/types'
-import type { StationRow, ParsedRow } from '@/lib/api/stations'
+import type { StationRow, ParsedRow, OtpImportRowResult } from '@/lib/api/stations'
 import { batchOtpImport } from '@/lib/api/stations'
 import { parseOtpRows, detectOtpFormat } from '@/lib/otp-import'
 import type { OtpParsedRow, OtpParseResult } from '@/lib/otp-import'
@@ -25,6 +25,7 @@ import { StatusBadge, ScoreBar } from '@/components/shared/badges'
 import { StationLocationPicker } from '@/components/maps/StationLocationPicker'
 import { FilterSelect } from '@/components/filters/filter-select'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { StationForm, StationCoordinateFields, type StationFormValue } from '@/components/stations/station-form'
 import { INPUT_CLS } from '@/lib/ui-classes'
 import {
@@ -41,6 +42,7 @@ import {
   ChevronDown,
   ChevronsUpDown,
   Pencil,
+  Eye,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -115,7 +117,6 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
     mode: station.mode,
     railSubtype: station.railSubtype,
     province: station.province,
-    region: station.region,
     responsibleAgency: station.responsibleAgency,
     lat: station.lat,
     lng: station.lng,
@@ -129,7 +130,7 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.nameTh || !form.mode || !form.province || !form.region || !form.responsibleAgency) {
+    if (!form.nameTh || !form.mode || !form.province || !form.responsibleAgency) {
       setError('กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน')
       return
     }
@@ -143,7 +144,8 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
           mode: form.mode,
           railSubtype: form.mode === 'ทางราง' ? form.railSubtype : undefined,
           province: form.province,
-          region: form.region,
+          // region is derived server-side from province/coords whenever either changes — see
+          // StationsService.update (Session E4). Omitted here deliberately.
           responsibleAgency: form.responsibleAgency,
           ...(form.lat != null && form.lng != null && { lat: form.lat, lng: form.lng }),
         },
@@ -168,7 +170,6 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
           <StationForm
             value={form}
             onChange={patch}
-            regionOptions={filterOptions?.regions ?? []}
             agencyOptions={filterOptions?.agencies ?? []}
           />
 
@@ -215,7 +216,6 @@ const REQUIRED_BULK_COLS = [
   'nameth',
   'mode',
   'province',
-  'region',
   'responsibleagency',
   'lat',
   'lng',
@@ -252,7 +252,7 @@ function parseRows(raw: Record<string, unknown>[]): { rows: ParsedRow[]; errors:
       mode: String(row['mode']),
       railSubtype: row['railsubtype'] ? String(row['railsubtype']) : undefined,
       province: String(row['province']),
-      region: String(row['region']),
+      // region is derived server-side (StationsService.create) — not read from the uploaded file.
       responsibleAgency: String(row['responsibleagency']),
       lat,
       lng,
@@ -270,6 +270,7 @@ export default function StationsPage() {
   // Filters — declared before useStations so they can be passed as params
   // `search` is the live input value (updates every keystroke, keeps focus/UI responsive);
   // `debouncedSearch` is what actually drives the query, ~300ms after typing stops.
+  const user = useAuthStore((s) => s.user)
   const [search, setSearch] = React.useState('')
   const [debouncedSearch, setDebouncedSearch] = React.useState('')
   const [typeFilter, setTypeFilter] = React.useState<TransportMode | ''>('')
@@ -336,7 +337,6 @@ export default function StationsPage() {
     name: '',
     mode: 'ทางบก',
     province: '',
-    region: '',
     responsibleAgency: '',
     lat: null,
     lng: null,
@@ -356,6 +356,10 @@ export default function StationsPage() {
     OtpParseResult['outOfTimeframe']
   >([])
   const [otpUnknownCodes, setOtpUnknownCodes] = React.useState<string[]>([])
+  // Import hardening (masterlist cutover) reconciliation report — shown after an OTP import
+  // finishes instead of closing the dialog silently, since a row can come back skipped
+  // (REVIEW/NOT_ON_MASTERLIST) rather than created.
+  const [importReport, setImportReport] = React.useState<OtpImportRowResult[] | null>(null)
   const fileRef = React.useRef<HTMLInputElement>(null)
 
   // Escape-to-close is now handled natively by Dialog (Radix) — no manual listener needed.
@@ -366,7 +370,7 @@ export default function StationsPage() {
 
   async function handleSingleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.nameTh || !form.mode || !form.province || !form.region || !form.responsibleAgency) {
+    if (!form.nameTh || !form.mode || !form.province || !form.responsibleAgency) {
       setFormError('กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน')
       return
     }
@@ -475,25 +479,35 @@ export default function StationsPage() {
     const otpTotal = otpRows.length
     const CHUNK = 50
     let done = 0
+    const allResults: OtpImportRowResult[] = []
     setBulkProgress(`กำลังนำเข้าข้อมูล OTP 0/${otpTotal}...`)
     try {
       for (let i = 0; i < otpTotal; i += CHUNK) {
-        await batchOtpImport(otpRows.slice(i, i + CHUNK))
+        const chunkResults = await batchOtpImport(otpRows.slice(i, i + CHUNK))
+        allResults.push(...chunkResults)
         done = Math.min(i + CHUNK, otpTotal)
         setBulkProgress(`กำลังนำเข้าข้อมูล OTP ${done}/${otpTotal}...`)
       }
       setBulkProgress('')
-      setOtpRows([])
-      setBulkErrors([])
-      setOtpStats(null)
-      setOtpOutOfTimeframe([])
-      setOtpUnknownCodes([])
-      if (fileRef.current) fileRef.current.value = ''
-      setSheetOpen(false)
+      // Reconciliation report replaces the form — rows the masterlist match couldn't confidently
+      // resolve (REVIEW/NOT_ON_MASTERLIST) were skipped, not created, so closing silently here
+      // would hide that from the admin. otpRows/fileRef are cleared only once they dismiss it.
+      setImportReport(allResults)
     } catch (err) {
       setBulkProgress('')
       setBulkErrors([(err as Error).message ?? 'เกิดข้อผิดพลาด'])
     }
+  }
+
+  function closeImportReport() {
+    setImportReport(null)
+    setOtpRows([])
+    setBulkErrors([])
+    setOtpStats(null)
+    setOtpOutOfTimeframe([])
+    setOtpUnknownCodes([])
+    if (fileRef.current) fileRef.current.value = ''
+    setSheetOpen(false)
   }
 
   async function handleExportAll() {
@@ -822,7 +836,7 @@ export default function StationsPage() {
                       </td>
                       <td className="px-3 py-3.5">
                         <p className="text-foreground text-xs">{station.province}</p>
-                        <p className="text-muted-foreground text-xs">{station.region}</p>
+                        <p className="text-muted-foreground text-xs">{station.region ?? 'ไม่ระบุ'}</p>
                       </td>
                       <td className="px-3 py-3.5">
                         <span className="text-foreground text-xs font-medium">
@@ -845,6 +859,22 @@ export default function StationsPage() {
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-end gap-2">
                           {hasPending && <ApproveButton stationId={station.id} />}
+                          {user?.role === 'ADMIN' && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Link
+                                  href={`/audit?preview=1&station=${station.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="border-border text-foreground hover:bg-secondary flex items-center rounded-lg border p-1.5 transition-colors"
+                                  aria-label="ดูตัวอย่างแบบประเมิน"
+                                >
+                                  <Eye size={12} />
+                                </Link>
+                              </TooltipTrigger>
+                              <TooltipContent>ดูตัวอย่างแบบประเมิน</TooltipContent>
+                            </Tooltip>
+                          )}
                           <button
                             onClick={() => setEditStation(station)}
                             className="border-border text-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors"
@@ -899,249 +929,381 @@ export default function StationsPage() {
         )}
       </div>
 
-      {/* Add Station Modal */}
-      <Dialog open={sheetOpen} onOpenChange={setSheetOpen}>
-        <DialogContent className="themed-scrollbar max-h-[90vh] max-w-xl overflow-y-auto">
-          <DialogTitle className="mb-6 text-lg">เพิ่มสถานี</DialogTitle>
+      {/* Add Station Modal — fixed header/footer, only the middle content region scrolls, so
+          action buttons are never pushed out of reach by a long OTP preview or reconciliation
+          report (Session E4, import modal sizing). */}
+      <Dialog
+        open={sheetOpen}
+        onOpenChange={(open) => {
+          setSheetOpen(open)
+          if (!open && importReport) closeImportReport()
+        }}
+      >
+        <DialogContent className="flex max-h-[85vh] w-full flex-col overflow-hidden p-0 sm:max-w-3xl">
+          <div className="border-border shrink-0 border-b px-6 py-4">
+            <DialogTitle className="text-lg">
+              {importReport ? 'ผลการนำเข้าข้อมูล OTP' : 'เพิ่มสถานี'}
+            </DialogTitle>
+          </div>
 
-            {/* Mode toggle */}
-            <div className="mb-6 flex gap-2">
-              <button
-                onClick={() => setSheetMode('single')}
-                className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-colors ${sheetMode === 'single' ? 'bg-primary text-primary-foreground border-transparent' : 'border-border text-muted-foreground hover:bg-secondary'}`}
-              >
-                เพิ่มสถานีใหม่
-              </button>
-              <button
-                onClick={() => setSheetMode('bulk')}
-                className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-colors ${sheetMode === 'bulk' ? 'bg-primary text-primary-foreground border-transparent' : 'border-border text-muted-foreground hover:bg-secondary'}`}
-              >
-                นำเข้าหลายสถานี
-              </button>
-            </div>
+          <div className="themed-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-4">
+            {importReport ? (
+              (() => {
+                const succeeded = importReport.filter((r) => 'id' in r)
+                const reviewRows = importReport.filter(
+                  (r): r is Extract<OtpImportRowResult, { skipped: true }> =>
+                    'skipped' in r && r.reason === 'REVIEW'
+                )
+                const notOnMasterlistRows = importReport.filter(
+                  (r): r is Extract<OtpImportRowResult, { skipped: true }> =>
+                    'skipped' in r && r.reason === 'NOT_ON_MASTERLIST'
+                )
+                const erroredRows = importReport.filter(
+                  (r): r is Extract<OtpImportRowResult, { error: string }> => 'error' in r
+                )
+                const flaggedRows = [...reviewRows, ...notOnMasterlistRows, ...erroredRows].sort(
+                  (a, b) => a.index - b.index
+                )
+                return (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700">
+                        สำเร็จ {succeeded.length}
+                      </span>
+                      {reviewRows.length > 0 && (
+                        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
+                          ต้องตรวจสอบ {reviewRows.length}
+                        </span>
+                      )}
+                      {notOnMasterlistRows.length > 0 && (
+                        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
+                          ไม่พบในบัญชีหลัก {notOnMasterlistRows.length}
+                        </span>
+                      )}
+                      {erroredRows.length > 0 && (
+                        <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">
+                          ข้อผิดพลาด {erroredRows.length}
+                        </span>
+                      )}
+                    </div>
 
-            {/* Single form */}
-            {sheetMode === 'single' && (
-              <form onSubmit={handleSingleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-foreground mb-1 block text-xs font-medium">
-                      ชื่อสถานี (ภาษาไทย) *
-                    </label>
-                    <input
-                      className={INPUT_CLS}
-                      value={form.nameTh}
-                      onChange={(e) => patchForm({ nameTh: e.target.value })}
-                      placeholder="สถานีรถไฟ..."
-                      required
-                    />
+                    {flaggedRows.length === 0 ? (
+                      <p className="text-muted-foreground text-sm">
+                        นำเข้าสำเร็จทั้งหมด ไม่มีรายการที่ต้องตรวจสอบ
+                      </p>
+                    ) : (
+                      <div className="themed-scrollbar border-border max-h-72 overflow-y-auto rounded-lg border">
+                        <table className="w-full text-xs">
+                          <thead className="bg-secondary/50 sticky top-0">
+                            <tr className="text-muted-foreground text-left">
+                              <th className="px-3 py-2 font-medium">#</th>
+                              <th className="px-3 py-2 font-medium">ชื่อสถานี</th>
+                              <th className="px-3 py-2 font-medium">ประเภท</th>
+                              <th className="px-3 py-2 font-medium">จังหวัด</th>
+                              <th className="px-3 py-2 font-medium">สถานะ</th>
+                              <th className="px-3 py-2 font-medium">รายละเอียด</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-border divide-y">
+                            {flaggedRows.map((r) => {
+                              const inputRow = otpRows[r.index]
+                              return (
+                                <tr key={r.index}>
+                                  <td className="text-muted-foreground px-3 py-2">{r.index + 1}</td>
+                                  <td className="text-foreground px-3 py-2">{r.nameTh}</td>
+                                  <td className="text-muted-foreground px-3 py-2">
+                                    {inputRow?.station.mode ?? '—'}
+                                  </td>
+                                  <td className="text-muted-foreground px-3 py-2">
+                                    {inputRow?.station.province ?? '—'}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {'skipped' in r ? (
+                                      <span
+                                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                          r.reason === 'REVIEW'
+                                            ? 'bg-amber-100 text-amber-700'
+                                            : 'bg-gray-100 text-gray-700'
+                                        }`}
+                                      >
+                                        {r.reason === 'REVIEW' ? 'ต้องตรวจสอบ' : 'ไม่พบในบัญชีหลัก'}
+                                      </span>
+                                    ) : (
+                                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700">
+                                        ข้อผิดพลาด
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="text-muted-foreground px-3 py-2">
+                                    {'skipped' in r
+                                      ? 'ตรวจสอบและจับคู่ในรายงานสำรอง (import-reports)'
+                                      : r.error}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="text-foreground mb-1 block text-xs font-medium">
-                      Station Name (EN)
-                    </label>
-                    <input
-                      className={INPUT_CLS}
-                      value={form.name}
-                      onChange={(e) => patchForm({ name: e.target.value })}
-                      placeholder="Railway Station..."
-                    />
-                  </div>
-                </div>
-
-                <StationForm
-                  value={form}
-                  onChange={patchForm}
-                  hideNameTh
-                  placeholders={{ province: 'กรุงเทพมหานคร', region: 'กลาง', responsibleAgency: 'รฟท.' }}
-                  regionOptions={filterOptions?.regions ?? []}
-                  agencyOptions={filterOptions?.agencies ?? []}
-                />
-
-                <StationCoordinateFields
-                  value={form}
-                  onChange={patchForm}
-                  placeholders={{ lat: '13.7563', lng: '100.5018' }}
-                />
-
-                {formError && <p className="text-destructive text-xs">{formError}</p>}
-
-                <div className="flex gap-3 pt-2">
+                )
+              })()
+            ) : (
+              <>
+                {/* Mode toggle */}
+                <div className="mb-6 flex gap-2">
                   <button
-                    type="submit"
-                    disabled={formSaving}
-                    className="bg-primary text-primary-foreground flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium disabled:opacity-60"
+                    onClick={() => setSheetMode('single')}
+                    className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-colors ${sheetMode === 'single' ? 'bg-primary text-primary-foreground border-transparent' : 'border-border text-muted-foreground hover:bg-secondary'}`}
                   >
-                    {formSaving ? <Loader2 size={14} className="animate-spin" /> : null}
-                    {formSaving ? 'กำลังบันทึก...' : 'บันทึกสถานี'}
+                    เพิ่มสถานีใหม่
                   </button>
                   <button
-                    type="button"
-                    onClick={() => setSheetOpen(false)}
-                    className="border-border rounded-lg border px-4 py-2 text-sm"
+                    onClick={() => setSheetMode('bulk')}
+                    className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-colors ${sheetMode === 'bulk' ? 'bg-primary text-primary-foreground border-transparent' : 'border-border text-muted-foreground hover:bg-secondary'}`}
                   >
-                    ยกเลิก
+                    นำเข้าหลายสถานี
                   </button>
                 </div>
-              </form>
-            )}
 
-            {/* Bulk import */}
-            {sheetMode === 'bulk' && (
-              <div className="space-y-4">
-                <p className="text-muted-foreground text-xs">
-                  รองรับไฟล์ .xlsx, .xls, .csv, .json · ระบบจะตรวจสอบรูปแบบไฟล์อัตโนมัติ (มาตรฐาน
-                  หรือ OTP)
-                </p>
+                {/* Single form */}
+                {sheetMode === 'single' && (
+                  <form id="add-station-form" onSubmit={handleSingleSubmit} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-foreground mb-1 block text-xs font-medium">
+                          ชื่อสถานี (ภาษาไทย) *
+                        </label>
+                        <input
+                          className={INPUT_CLS}
+                          value={form.nameTh}
+                          onChange={(e) => patchForm({ nameTh: e.target.value })}
+                          placeholder="สถานีรถไฟ..."
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-foreground mb-1 block text-xs font-medium">
+                          Station Name (EN)
+                        </label>
+                        <input
+                          className={INPUT_CLS}
+                          value={form.name}
+                          onChange={(e) => patchForm({ name: e.target.value })}
+                          placeholder="Railway Station..."
+                        />
+                      </div>
+                    </div>
 
-                <label className="border-border hover:bg-secondary flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-6 text-center transition-colors">
-                  <Upload size={20} className="text-muted-foreground" />
-                  <span className="text-muted-foreground text-sm">คลิกเพื่อเลือกไฟล์</span>
-                  {bulkFormat === 'otp' && (otpRows.length > 0 || bulkErrors.length > 0) && (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                      ตรวจพบรูปแบบ OTP
-                    </span>
-                  )}
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept=".xlsx,.xls,.csv,.json"
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
-                </label>
+                    <StationForm
+                      value={form}
+                      onChange={patchForm}
+                      hideNameTh
+                      placeholders={{ province: 'กรุงเทพมหานคร', responsibleAgency: 'รฟท.' }}
+                      agencyOptions={filterOptions?.agencies ?? []}
+                    />
 
-                {bulkErrors.length > 0 && (
-                  <div className="bg-destructive/5 rounded-lg p-3">
-                    <p className="text-destructive mb-1 text-xs font-medium">
-                      พบข้อผิดพลาด {bulkErrors.length} รายการ
+                    <StationCoordinateFields
+                      value={form}
+                      onChange={patchForm}
+                      placeholders={{ lat: '13.7563', lng: '100.5018' }}
+                    />
+
+                    {formError && <p className="text-destructive text-xs">{formError}</p>}
+                  </form>
+                )}
+
+                {/* Bulk import */}
+                {sheetMode === 'bulk' && (
+                  <div className="space-y-4">
+                    <p className="text-muted-foreground text-xs">
+                      รองรับไฟล์ .xlsx, .xls, .csv, .json · ระบบจะตรวจสอบรูปแบบไฟล์อัตโนมัติ (มาตรฐาน
+                      หรือ OTP)
                     </p>
-                    {bulkErrors.slice(0, 5).map((e, i) => (
-                      <p key={i} className="text-muted-foreground text-[10px]">
-                        {e}
-                      </p>
-                    ))}
-                    {bulkErrors.length > 5 && (
-                      <p className="text-muted-foreground text-[10px]">
-                        และอีก {bulkErrors.length - 5} รายการ
-                      </p>
+
+                    <label className="border-border hover:bg-secondary flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-6 text-center transition-colors">
+                      <Upload size={20} className="text-muted-foreground" />
+                      <span className="text-muted-foreground text-sm">คลิกเพื่อเลือกไฟล์</span>
+                      {bulkFormat === 'otp' && (otpRows.length > 0 || bulkErrors.length > 0) && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                          ตรวจพบรูปแบบ OTP
+                        </span>
+                      )}
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        accept=".xlsx,.xls,.csv,.json"
+                        className="hidden"
+                        onChange={handleFileChange}
+                      />
+                    </label>
+
+                    {bulkErrors.length > 0 && (
+                      <div className="bg-destructive/5 rounded-lg p-3">
+                        <p className="text-destructive mb-1 text-xs font-medium">
+                          พบข้อผิดพลาด {bulkErrors.length} รายการ
+                        </p>
+                        {bulkErrors.slice(0, 5).map((e, i) => (
+                          <p key={i} className="text-muted-foreground text-[10px]">
+                            {e}
+                          </p>
+                        ))}
+                        {bulkErrors.length > 5 && (
+                          <p className="text-muted-foreground text-[10px]">
+                            และอีก {bulkErrors.length - 5} รายการ
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {(() => {
+                      const previewRows =
+                        bulkFormat === 'otp'
+                          ? otpRows.map((r) => ({
+                              nameTh: r.station.nameTh,
+                              mode: r.station.mode,
+                              province: r.station.province,
+                            }))
+                          : bulkRows
+                      const count = previewRows.length
+                      if (count === 0) return null
+                      return (
+                        <div className="bg-secondary/50 space-y-3 rounded-lg p-3">
+                          <p className="text-foreground text-sm font-medium">
+                            พบ {count} สถานี พร้อมนำเข้า
+                          </p>
+                          <div className="themed-scrollbar max-h-40 space-y-1 overflow-y-auto">
+                            {previewRows.slice(0, 10).map((r, i) => (
+                              <p key={i} className="text-muted-foreground text-xs">
+                                · {r.nameTh} ({r.mode})
+                              </p>
+                            ))}
+                            {count > 10 && (
+                              <p className="text-muted-foreground text-xs">และอีก {count - 10} สถานี</p>
+                            )}
+                          </div>
+
+                          {/* Value-class stats — OTP only */}
+                          {bulkFormat === 'otp' && otpStats && (
+                            <div className="flex flex-wrap gap-1.5 border-t pt-2">
+                              <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">
+                                มี ได้มาตรฐาน {otpStats['มีได้มาตรฐาน']}
+                              </span>
+                              <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-medium text-yellow-700">
+                                มี ไม่ได้มาตรฐาน {otpStats['มีไม่ได้มาตรฐาน']}
+                              </span>
+                              {otpStats['มีไม่ระบุ'] > 0 && (
+                                <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-700">
+                                  มี ไม่ระบุมาตรฐาน ⚑ {otpStats['มีไม่ระบุ']}
+                                </span>
+                              )}
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700">
+                                ไม่มี {otpStats['ไม่มี']}
+                              </span>
+                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                                N/A {otpStats['na']}
+                              </span>
+                              {otpStats['other'] > 0 && (
+                                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-700">
+                                  ไม่รู้จัก {otpStats['other']}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Unknown codes */}
+                          {bulkFormat === 'otp' && otpUnknownCodes.length > 0 && (
+                            <p className="text-[10px] text-amber-600">
+                              ⚠ พบรหัสที่ไม่รู้จัก: {otpUnknownCodes.slice(0, 8).join(', ')}
+                              {otpUnknownCodes.length > 8
+                                ? ` และอีก ${otpUnknownCodes.length - 8} รหัส`
+                                : ''}
+                            </p>
+                          )}
+
+                          {/* Out-of-timeframe rows */}
+                          {bulkFormat === 'otp' && otpOutOfTimeframe.length > 0 && (
+                            <p className="text-[10px] text-red-600">
+                              ⚠ ปีนอกเหนือจากช่วงที่ยอมรับ: {otpOutOfTimeframe.length} แถว — ไม่นำเข้า
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })()}
+
+                    {bulkProgress && (
+                      <div className="flex items-center gap-2">
+                        <Loader2 size={14} className="text-muted-foreground animate-spin" />
+                        <span className="text-muted-foreground text-sm">{bulkProgress}</span>
+                      </div>
                     )}
                   </div>
                 )}
+              </>
+            )}
+          </div>
 
-                {(() => {
-                  const previewRows =
-                    bulkFormat === 'otp'
-                      ? otpRows.map((r) => ({
-                          nameTh: r.station.nameTh,
-                          mode: r.station.mode,
-                          province: r.station.province,
-                        }))
-                      : bulkRows
-                  const count = previewRows.length
-                  if (count === 0) return null
-                  return (
-                    <div className="bg-secondary/50 space-y-3 rounded-lg p-3">
-                      <p className="text-foreground text-sm font-medium">
-                        พบ {count} สถานี พร้อมนำเข้า
-                      </p>
-                      <div className="themed-scrollbar max-h-40 space-y-1 overflow-y-auto">
-                        {previewRows.slice(0, 10).map((r, i) => (
-                          <p key={i} className="text-muted-foreground text-xs">
-                            · {r.nameTh} ({r.mode})
-                          </p>
-                        ))}
-                        {count > 10 && (
-                          <p className="text-muted-foreground text-xs">และอีก {count - 10} สถานี</p>
-                        )}
-                      </div>
-
-                      {/* Value-class stats — OTP only */}
-                      {bulkFormat === 'otp' && otpStats && (
-                        <div className="flex flex-wrap gap-1.5 border-t pt-2">
-                          <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">
-                            มี ได้มาตรฐาน {otpStats['มีได้มาตรฐาน']}
-                          </span>
-                          <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-medium text-yellow-700">
-                            มี ไม่ได้มาตรฐาน {otpStats['มีไม่ได้มาตรฐาน']}
-                          </span>
-                          {otpStats['มีไม่ระบุ'] > 0 && (
-                            <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-700">
-                              มี ไม่ระบุมาตรฐาน ⚑ {otpStats['มีไม่ระบุ']}
-                            </span>
-                          )}
-                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700">
-                            ไม่มี {otpStats['ไม่มี']}
-                          </span>
-                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
-                            N/A {otpStats['na']}
-                          </span>
-                          {otpStats['other'] > 0 && (
-                            <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-700">
-                              ไม่รู้จัก {otpStats['other']}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Unknown codes */}
-                      {bulkFormat === 'otp' && otpUnknownCodes.length > 0 && (
-                        <p className="text-[10px] text-amber-600">
-                          ⚠ พบรหัสที่ไม่รู้จัก: {otpUnknownCodes.slice(0, 8).join(', ')}
-                          {otpUnknownCodes.length > 8
-                            ? ` และอีก ${otpUnknownCodes.length - 8} รหัส`
-                            : ''}
-                        </p>
-                      )}
-
-                      {/* Out-of-timeframe rows */}
-                      {bulkFormat === 'otp' && otpOutOfTimeframe.length > 0 && (
-                        <p className="text-[10px] text-red-600">
-                          ⚠ ปีนอกเหนือจากช่วงที่ยอมรับ: {otpOutOfTimeframe.length} แถว — ไม่นำเข้า
-                        </p>
-                      )}
-                    </div>
-                  )
-                })()}
-
-                {bulkProgress && (
-                  <div className="flex items-center gap-2">
-                    <Loader2 size={14} className="text-muted-foreground animate-spin" />
-                    <span className="text-muted-foreground text-sm">{bulkProgress}</span>
-                  </div>
-                )}
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={bulkFormat === 'otp' ? handleOtpImport : handleBulkImport}
-                    disabled={
-                      (bulkFormat === 'otp' ? otpRows.length : bulkRows.length) === 0 ||
-                      !!bulkProgress
-                    }
-                    className="bg-primary text-primary-foreground flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium disabled:opacity-50"
-                  >
-                    {bulkFormat === 'otp'
-                      ? `นำเข้าข้อมูล OTP${otpRows.length > 0 ? ` ${otpRows.length} สถานี` : ''}`
-                      : `สร้าง${bulkRows.length > 0 ? ` ${bulkRows.length} สถานี` : ''}`}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBulkRows([])
-                      setOtpRows([])
-                      setBulkErrors([])
-                      setOtpStats(null)
-                      setOtpOutOfTimeframe([])
-                      setOtpUnknownCodes([])
-                      if (fileRef.current) fileRef.current.value = ''
-                    }}
-                    className="border-border rounded-lg border px-3 py-2"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
+          <div className="border-border shrink-0 border-t px-6 py-4">
+            {importReport ? (
+              <button
+                type="button"
+                onClick={closeImportReport}
+                className="bg-primary text-primary-foreground w-full rounded-lg py-2 text-sm font-medium"
+              >
+                ปิด
+              </button>
+            ) : sheetMode === 'single' ? (
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  form="add-station-form"
+                  disabled={formSaving}
+                  className="bg-primary text-primary-foreground flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium disabled:opacity-60"
+                >
+                  {formSaving ? <Loader2 size={14} className="animate-spin" /> : null}
+                  {formSaving ? 'กำลังบันทึก...' : 'บันทึกสถานี'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSheetOpen(false)}
+                  className="border-border rounded-lg border px-4 py-2 text-sm"
+                >
+                  ยกเลิก
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-3">
+                <button
+                  onClick={bulkFormat === 'otp' ? handleOtpImport : handleBulkImport}
+                  disabled={
+                    (bulkFormat === 'otp' ? otpRows.length : bulkRows.length) === 0 ||
+                    !!bulkProgress
+                  }
+                  className="bg-primary text-primary-foreground flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium disabled:opacity-50"
+                >
+                  {bulkFormat === 'otp'
+                    ? `นำเข้าข้อมูล OTP${otpRows.length > 0 ? ` ${otpRows.length} สถานี` : ''}`
+                    : `สร้าง${bulkRows.length > 0 ? ` ${bulkRows.length} สถานี` : ''}`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBulkRows([])
+                    setOtpRows([])
+                    setBulkErrors([])
+                    setOtpStats(null)
+                    setOtpOutOfTimeframe([])
+                    setOtpUnknownCodes([])
+                    if (fileRef.current) fileRef.current.value = ''
+                  }}
+                  className="border-border rounded-lg border px-3 py-2"
+                >
+                  <X size={14} />
+                </button>
               </div>
             )}
+          </div>
         </DialogContent>
       </Dialog>
 

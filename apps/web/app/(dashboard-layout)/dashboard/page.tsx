@@ -5,7 +5,7 @@ import { getTransportLabel, CHECKLIST_CATEGORIES, checklistTemplates } from '@/l
 import { useStationSummary, useStationMetrics, useStationMapNodes } from '@/hooks/use-stations'
 import { StatusBadge, TransportBadge } from '@/components/shared/badges'
 import type { TransportMode, ChecklistSubItem, Station } from '@repo/types'
-import { TRANSPORT_MODES } from '@repo/types'
+import { TRANSPORT_MODES, UNSPECIFIED_REGION } from '@repo/types'
 import { StationBarChart } from '@/components/charts/StationBarChart'
 import { ThailandMap } from '@/components/maps/ThailandMap'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -33,6 +33,13 @@ function MetricRow({ label, value, pct }: { label: string; value: number; pct?: 
 // FILTER_SELECT_TRIGGER_CLS has drifted from this one (py-2/text-sm vs py-1.5/text-xs).
 const SELECT_TRIGGER_CLS = 'h-auto rounded-lg bg-background px-3 py-1.5 text-xs'
 
+// Shared fixed height for the chart/map/urgent-list/table cards below — Leaflet needs a sized
+// container to render into (a percentage-height chain collapses it), and giving every one of
+// these cards the same explicit height keeps them visually consistent regardless of how much
+// content each holds; each card's own body region scrolls internally past this height instead of
+// stretching the page.
+const DASHBOARD_CARD_H = 'h-[420px]'
+
 export default function DashboardPage() {
   const { data: summary } = useStationSummary()
   const { data: mapNodes } = useStationMapNodes()
@@ -52,14 +59,22 @@ export default function DashboardPage() {
   React.useEffect(() => { setSubItemFilter('') }, [categoryFilter, modeFilter])
   React.useEffect(() => { setTablePage(1) }, [modeFilter, regionFilter, provinceFilter, agencyFilter])
 
-  const REGIONS = React.useMemo(
-    () => [...new Set(stations.map(s => s.region))].sort(),
-    [stations],
+  // UNSPECIFIED_REGION represents region === null — stations with neither coordinates nor a
+  // recognisable province (see @repo/types#deriveRegion) — appended last so real regions sort
+  // first.
+  const matchesRegionFilter = React.useCallback(
+    (s: Station) =>
+      !regionFilter || (regionFilter === UNSPECIFIED_REGION ? s.region == null : s.region === regionFilter),
+    [regionFilter],
   )
+  const REGIONS = React.useMemo(() => {
+    const named = [...new Set(stations.map(s => s.region).filter((r): r is string => r != null))].sort()
+    return stations.some(s => s.region == null) ? [...named, UNSPECIFIED_REGION] : named
+  }, [stations])
   const PROVINCES = React.useMemo(() => {
-    const base = regionFilter ? stations.filter(s => s.region === regionFilter) : stations
+    const base = regionFilter ? stations.filter(matchesRegionFilter) : stations
     return [...new Set(base.map(s => s.province))].sort()
-  }, [stations, regionFilter])
+  }, [stations, regionFilter, matchesRegionFilter])
   const AGENCIES = React.useMemo(
     () => [...new Set(stations.map(s => s.responsibleAgency))].sort(),
     [stations],
@@ -90,7 +105,7 @@ export default function DashboardPage() {
 
   const filteredStations = stations.filter(s =>
     (!modeFilter      || s.mode === modeFilter) &&
-    (!regionFilter    || s.region === regionFilter) &&
+    matchesRegionFilter(s) &&
     (!provinceFilter  || s.province === provinceFilter) &&
     (!agencyFilter    || s.responsibleAgency === agencyFilter)
   )
@@ -315,18 +330,23 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Main content: Chart + Map */}
+      {/* Main content: Chart + Map — a shared fixed card height (DASHBOARD_CARD_H) keeps every
+          panel visually consistent (equal heights, aligned edges) regardless of how much content
+          each one holds; content past that height scrolls inside its own card instead of
+          stretching the page. */}
       <div className="grid gap-4 lg:grid-cols-5">
-        <div className="bg-card border-border rounded-xl border p-5 lg:col-span-3">
-          <div className="mb-4">
+        <div className={`bg-card border-border ${DASHBOARD_CARD_H} flex flex-col rounded-xl border p-5 lg:col-span-3`}>
+          <div className="mb-4 shrink-0">
             <h2 className="text-foreground text-sm font-semibold">สถานะสิ่งอำนวยความสะดวก แยกตามประเภทการขนส่ง</h2>
             <p className="text-muted-foreground text-xs">จำแนกตามสถานะการตรวจสอบล่าสุด</p>
           </div>
-          <StationBarChart data={chartData} />
+          <div className="min-h-0 flex-1">
+            <StationBarChart data={chartData} />
+          </div>
         </div>
 
-        <div className="bg-card border-border rounded-xl border p-5 lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
+        <div className={`bg-card border-border ${DASHBOARD_CARD_H} flex flex-col rounded-xl border p-5 lg:col-span-2`}>
+          <div className="mb-4 flex shrink-0 items-center justify-between">
             <div>
               <h2 className="text-foreground text-sm font-semibold">แผนที่สถานีทั่วประเทศ</h2>
               <p className="text-muted-foreground text-xs">แสดงสถานะตามพื้นที่</p>
@@ -340,7 +360,7 @@ export default function DashboardPage() {
               <Maximize2 size={14} />
             </button>
           </div>
-          <div className="h-[260px]">
+          <div className="min-h-0 flex-1">
             <ThailandMap stations={filteredStations} />
           </div>
         </div>
@@ -348,8 +368,8 @@ export default function DashboardPage() {
 
       {/* Urgent + Table */}
       <div className="grid gap-4 lg:grid-cols-5">
-        <div className="bg-card border-border rounded-xl border p-5 lg:col-span-2">
-          <div className="mb-4 flex items-center gap-2">
+        <div className={`bg-card border-border ${DASHBOARD_CARD_H} flex flex-col rounded-xl border p-5 lg:col-span-2`}>
+          <div className="mb-4 flex shrink-0 items-center gap-2">
             <AlertCircle size={14} className="text-[#f44336]" />
             <h2 className="text-foreground text-sm font-semibold">
               สถานีที่ต้องดำเนินการเร่งด่วน
@@ -359,7 +379,7 @@ export default function DashboardPage() {
           {urgentStations.length === 0 ? (
             <p className="text-muted-foreground text-xs">ไม่พบสถานีตามเงื่อนไข</p>
           ) : (
-            <div className="space-y-3">
+            <div className="themed-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
               {urgentStations.slice(0, 5).map(station => (
                 <div key={station.id} className="border-border rounded-lg border p-3">
                   <div className="mb-1.5 flex items-start justify-between gap-2">
@@ -385,8 +405,8 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="bg-card border-border rounded-xl border lg:col-span-3">
-          <div className="border-border flex items-center justify-between border-b px-5 py-4">
+        <div className={`bg-card border-border ${DASHBOARD_CARD_H} flex flex-col rounded-xl border lg:col-span-3`}>
+          <div className="border-border flex shrink-0 items-center justify-between border-b px-5 py-4">
             <h2 className="text-foreground text-sm font-semibold">
               รายการสถานี
               {hasFilters && <span className="ml-1 text-muted-foreground font-normal text-xs">({filteredStations.length})</span>}
@@ -395,9 +415,9 @@ export default function DashboardPage() {
               ดูทั้งหมด →
             </a>
           </div>
-          <div className="themed-scrollbar overflow-x-auto">
+          <div className="themed-scrollbar min-h-0 flex-1 overflow-auto">
             <table className="w-full text-xs">
-              <thead>
+              <thead className="bg-card sticky top-0">
                 <tr className="border-border border-b">
                   <th className="text-muted-foreground px-5 py-2.5 text-left font-medium">ชื่อสถานี</th>
                   <th className="text-muted-foreground px-3 py-2.5 text-left font-medium">ประเภท</th>
@@ -453,7 +473,7 @@ export default function DashboardPage() {
             </table>
           </div>
           {tablePageCount > 1 && (
-            <div className="border-border flex items-center justify-between border-t px-5 py-3">
+            <div className="border-border flex shrink-0 items-center justify-between border-t px-5 py-3">
               <span className="text-muted-foreground text-xs">
                 {(tablePage - 1) * PAGE_SIZE + 1}–{Math.min(tablePage * PAGE_SIZE, filteredStations.length)} จาก {filteredStations.length}
               </span>
