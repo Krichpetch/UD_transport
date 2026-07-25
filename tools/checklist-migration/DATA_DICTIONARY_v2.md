@@ -17,7 +17,7 @@ Four levels, three of them stored as nested `subItems`:
 | Criterion (ลักษณะ ระดับ 1) | `A1.1-1` | 1. กรณีทางลาดที่ความยาวไม่เกิน 2,500 มม. | `items[].subItems[]` |
 | Sub-criterion (ลักษณะ ระดับ 2) | `A1.1-1.1` | 1.1 มีทางลาดในบริเวณพื้นที่ต่างระดับ… | `subItems[].subItems[]` |
 
-- Criterion codes are `"{itemCode}-{n}"`, sub-criteria `"{itemCode}-{n.m}"` — globally unique within a template, stable across template versions of the same mode.
+- Criterion codes are `"{itemCode}-{n}"`, sub-criteria `"{itemCode}-{n.m}"` — globally unique within a template version. **From v3 onward, codes are stable only WITHIN a template version, not across versions** (see `checklist_migration_design.md` §3.4 — the old cross-version code-stability contract was revoked; cross-version identity is now `code_crosswalk_{mode}.json`'s job, not the codes').
 - Sub-criteria are optional: a criterion with no children is itself the answerable leaf.
 - The **item (A1.1) level is what the current system scores today** (one ผ่าน/พอใช้/ควรปรับปรุง per item). In v2 the auditor answers at the **leaf** level; the item-level grade becomes a rollup (rule to be fixed in Session E1 Part E and confirmed with สนข.).
 

@@ -88,7 +88,7 @@ def _fmt_num(v):
     return str(int(v)) if float(v).is_integer() else str(v)
 
 
-def _remark_disagreement(m, remarks_by_labelkey):
+def _remark_disagreement(m, remarks_by_code):
     """Compares each threshold in the 2564 remark against the new label's
     own numbers. Remark cells may hold more than one threshold, comma-
     separated (see parse_remark_numbers) — a leaf with two gte thresholds
@@ -97,7 +97,7 @@ def _remark_disagreement(m, remarks_by_labelkey):
     new = m.get("new")
     if not new:
         return None
-    remark = remarks_by_labelkey.get(new.get("labelKey"))
+    remark = remarks_by_code.get(new.get("code"))
     if not remark:
         return None
     r64_values = parse_remark_numbers(remark.get("2564"))
@@ -112,7 +112,7 @@ def _remark_disagreement(m, remarks_by_labelkey):
 
 
 def write_review_csv(mode, result, path, remarks=None):
-    remarks_by_labelkey = {r["labelKey"]: r for r in (remarks or []) if r.get("labelKey")}
+    remarks_by_code = {r["code"]: r for r in (remarks or []) if r.get("code")}
 
     rows = []
     for m in result.leaf_matches:
@@ -120,7 +120,7 @@ def write_review_csv(mode, result, path, remarks=None):
         if m["status"] == "REVIEW":
             reasons.append("fuzzy score in review band")
         reasons += _suspicious_signals(m)
-        disagreement = _remark_disagreement(m, remarks_by_labelkey)
+        disagreement = _remark_disagreement(m, remarks_by_code)
         if disagreement:
             reasons.append(disagreement)
         if not reasons:

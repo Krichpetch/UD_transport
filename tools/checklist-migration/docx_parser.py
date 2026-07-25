@@ -14,23 +14,65 @@ from pathlib import Path
 import docx
 from docx.oxml.ns import qn
 
-from normalize import (GROUP_CODE_RE, ITEM_CODE_RE, clean_ws, extract_numbers,
-                       label_key, literal_num_prefix, strip_group_note)
+from normalize import (GROUP_CODE_RE, ITEM_CODE_RE, SYMBOL_FONT_MARKERS,
+                       clean_ws, extract_numbers, label_key,
+                       literal_num_prefix, strip_group_note)
 
 NEUTRAL_FILLS = {"auto", "FFFFFF", None, "nil"}
 
 
 class Cell:
-    __slots__ = ("text", "c0", "span", "vmerge", "fill", "origin", "pad")
+    __slots__ = ("text", "c0", "span", "vmerge", "fill", "origin", "pad", "indent")
 
-    def __init__(self, text, c0, span, vmerge, fill):
+    def __init__(self, text, c0, span, vmerge, fill, indent=None):
         self.text, self.c0, self.span = text, c0, span
         self.vmerge, self.fill, self.origin = vmerge, fill, True
         self.pad = False
+        self.indent = indent
 
     @property
     def interval(self):
         return (self.c0, self.c0 + self.span)
+
+
+def _paragraph_indent(tc):
+    """Left indent (twips) of the cell's first paragraph, or None. Word
+    renders un-numbered sub-bullets (numPr auto-numbering with no literal
+    text) at a deeper w:ind/@w:left than their parent's own criterion text
+    — this is the only signal that survives into python-docx, since the
+    bullet glyph itself is drawn from numPr/numbering.xml, never present
+    in the run text. See split_edition_duplicates()'s caller for how this
+    is used to detect continuation rows."""
+    p = tc.find(qn("w:p"))
+    if p is None:
+        return None
+    pPr = p.find(qn("w:pPr"))
+    if pPr is None:
+        return None
+    ind = pPr.find(qn("w:ind"))
+    if ind is None:
+        return None
+    left = ind.get(qn("w:left"))
+    return int(left) if left is not None else None
+
+
+def _run_text(run):
+    """A run's text, translating known symbol-font glyphs (see
+    normalize.SYMBOL_FONT_MARKERS) — Word symbol fonts (Wingdings family)
+    remap plain ASCII code points to dingbat glyphs at render time, so
+    the stored <w:t> text is the underlying letter, never the rendered
+    checkmark/X. Only translated when a run's OWN font matches, since the
+    same letter under a normal font is just that letter."""
+    text = "".join(t.text or "" for t in run.findall(qn("w:t")))
+    rPr = run.find(qn("w:rPr"))
+    if rPr is not None:
+        rFonts = rPr.find(qn("w:rFonts"))
+        if rFonts is not None:
+            font = rFonts.get(qn("w:ascii")) or rFonts.get(qn("w:hAnsi"))
+            marker = SYMBOL_FONT_MARKERS.get((font, text))
+            if marker is not None:
+                return marker
+    return text
 
 
 def densify(table):
@@ -52,8 +94,21 @@ def densify(table):
                 shd = tcPr.find(qn("w:shd"))
                 if shd is not None:
                     fill = shd.get(qn("w:fill"))
-            text = clean_ws("".join(n.text or "" for n in tc.iter(qn("w:t"))))
-            row.append(Cell(text, c0, span, vmerge, fill))
+            # Join separate paragraphs with a space — concatenating a cell's
+            # <w:t> runs with no separator at all glues multi-line content
+            # together with no boundary (e.g. a remark cell listing several
+            # tier values, one per line, becomes an unparseable run-on
+            # string like "10-5051-100101..."). clean_ws() below collapses
+            # this to a single space, so it's a no-op for genuinely
+            # single-paragraph cells. Extraction is run-level (not a flat
+            # <w:t> scan across the whole paragraph) so each run's own
+            # font can be checked — a remark cell's check/X mark is a
+            # plain ASCII letter under a Wingdings-family font, remapped
+            # to a dingbat glyph only at render time (see _run_text).
+            paras = ["".join(_run_text(r) for r in p.findall(qn("w:r")))
+                     for p in tc.findall(qn("w:p"))]
+            text = clean_ws(" ".join(paras))
+            row.append(Cell(text, c0, span, vmerge, fill, _paragraph_indent(tc)))
             c0 += span
         if c0 < ncols:
             padc = Cell("", c0, ncols - c0, None, None)
@@ -67,6 +122,7 @@ def densify(table):
                     a0, a1 = above.interval
                     if a0 <= cell.c0 < a1:
                         cell.text, cell.fill, cell.origin = above.text, above.fill, False
+                        cell.indent = above.indent
                         break
     return rows, ncols
 
@@ -208,6 +264,7 @@ def parse_detail_table(rows, cols, st):
             if cell.origin and cell.text in ("2548", "2564"):
                 cols["y" + cell.text] = cell.interval
     open_tier = None
+    last_leaf_indent = None  # reset per item; see the merge check below
 
     for row in rows:
         if is_header_row(row):
@@ -248,6 +305,7 @@ def parse_detail_table(rows, cols, st):
                            "occurrence": st.item_occurrence[code]}
                 st.detail_items[code] = st.item["label"]
                 st.counters["item_starts"] += 1
+                last_leaf_indent = None
 
         # per-row subheader: inherited item-column text that is NOT an item code
         itext_all = btext(b_all, "item")
@@ -283,6 +341,53 @@ def parse_detail_table(rows, cols, st):
         open_tier = None
         crit_text = crit_cells[0].text
         num, rest = literal_num_prefix(crit_text)
+        cell_indent = crit_cells[0].indent
+
+        # A row with no literal number is a continuation of the PRECEDING
+        # leaf, not a new item, when either:
+        #   (a) it's typed with an explicit leading "-" (a literal dash
+        #       bullet in the cell text itself — the B1.2 water-doc case), or
+        #   (b) it sits at a DEEPER Word list indent than the most recent
+        #       real criterion: an auto-numbered sub-bullet (numPr) whose
+        #       glyph never reaches python-docx's text extraction (see
+        #       _paragraph_indent) — the B4.2-2 / A3.3-2 metro/rail case.
+        # Untreated, either collides with whatever ordinal container_pass()
+        # infers next (colliding with the "2" header, in both real cases).
+        # The old v2 template already folds this content into the
+        # PRECEDING leaf's own label as a "- ..." continuation line (see
+        # e.g. old B4.2-2.1) — mirrored here so new and old align the same
+        # way and no separate (unanswerable) leaf gets minted.
+        #
+        # MIN_NESTING_INDENT_DELTA guards (b) against false positives: two
+        # genuinely-independent same-level criteria can differ by a few
+        # stray twips (Word's own rounding, e.g. 400 vs 403 — seen in the
+        # A1.1-4/5/6 regression this threshold fixes) with no nesting
+        # intent at all. A real list-level step in this document family
+        # is on the order of 150-350 twips (e.g. 760 -> 927/1030 for
+        # B4.2/A3.3's genuine sub-bullets), so 100 comfortably separates
+        # rounding noise from an actual deeper indent level.
+        MIN_NESTING_INDENT_DELTA = 100
+        is_dash_bullet = crit_text.lstrip().startswith("-")
+        is_deeper_indent = (last_leaf_indent is not None and cell_indent is not None
+                            and cell_indent - last_leaf_indent >= MIN_NESTING_INDENT_DELTA)
+        if num is None and st.records and (is_dash_bullet or is_deeper_indent):
+            prev = st.records[-1]
+            sep = "" if is_dash_bullet else "- "
+            prev["labelRaw"] = f"{prev['labelRaw']}\n{sep}{crit_text}"
+            prev["labelKey"] = label_key(prev["labelRaw"])
+            prev["numbers"] = extract_numbers(prev["labelRaw"])
+            prev["star"] = crit_text.rstrip().endswith("*")
+            st.counters["rows_merged_as_continuation"] += 1
+            r48, r64 = btext(b, "y2548"), btext(b, "y2564")
+            if r48 or r64:
+                st.remarks.append({
+                    "_rec": prev,
+                    "item": st.item and st.item["code"],
+                    "criterion": crit_text[:80],
+                    "2548": r48 or None, "2564": r64 or None,
+                })
+            continue
+
         grayed_std, grayed_no = shaded(b_all, "std"), shaded(b_all, "nostd")
         if grayed_std != grayed_no:
             st.warnings.append(
@@ -305,15 +410,16 @@ def parse_detail_table(rows, cols, st):
         }
         st.records.append(rec)
         st.counters["leaves_raw"] += 1
+        last_leaf_indent = cell_indent
         if crit_text.rstrip().endswith("ดังนี้"):
             open_tier_candidate = True  # tier may follow; opened lazily above
 
         r48, r64 = btext(b, "y2548"), btext(b, "y2564")
         if r48 or r64:
             st.remarks.append({
+                "_rec": rec,
                 "item": st.item and st.item["code"],
                 "criterion": crit_text[:80],
-                "labelKey": rec["labelKey"],
                 "2548": r48 or None, "2564": r64 or None,
             })
 
@@ -393,35 +499,43 @@ def _rebase_num(num, old_top, new_top):
 
 
 def split_edition_duplicates(records):
-    """This DOCX interleaves TWO editions per item back to back — a base
-    (รถไฟ/train) edition and a second (รถไฟฟ้า/metro) edition — and both
-    frequently restart their own top-level numbering. container_pass()'s
-    lazy owner inference is correct for parent-finding within each
-    edition, but it means the second edition's un-numbered headers get
-    re-inferred to the SAME top-level num as the first edition's, so they
+    """Some items repeat their whole block later in the same document under
+    the same item code — either two literal editions back to back, or the
+    same item code re-started further down with no other numbering signal
+    (see container_pass()'s occurrence-scoped grouping). Either way,
+    container_pass()'s lazy owner inference is correct for parent-finding
+    within each occurrence, but un-numbered headers in the later occurrence
+    get re-inferred to the SAME top-level num as the earlier one's, so they
     collide onto one code (see container_pass's docstring).
 
     This splits them back apart, one item at a time, using document order
     (a header's whole subtree is always the contiguous run of records
     between it and the next top-level record — true regardless of nesting
     depth, since nested rows are always laid out immediately after their
-    parent): the first occurrence of a top-level code is the base edition
-    and is left alone; a later occurrence is either
-      - a byte-identical repeat of the same criterion in both editions
-        (dropped — one copy is enough), or
-      - a genuinely different criterion that only exists in the metro
-        edition (kept, but re-based onto a freshly minted top-level code
-        so it no longer collides with the base edition's).
+    parent): the first occurrence of a top-level code is left alone; a
+    later occurrence is either
+      - a byte-identical repeat of the same criterion (dropped — one copy
+        is enough), or
+      - a genuinely different criterion (kept, but re-based onto a freshly
+        minted top-level code so it no longer collides with the first
+        occurrence's).
 
-    Returns (records, metro_only_codes) — metro_only_codes are the newly
-    minted codes, ready to paste into subtype_scope.csv as metro_only.
+    Returns (records, rebased). `rebased` carries both the new minted code
+    AND the original pre-rebase code + header text for each entry, so a
+    reviewer can locate the exact spot in the source DOCX (search for
+    `label`, in the `item_code` section) and judge whether the repeat is
+    genuine content or a real error in the source document (wrong-edition
+    text pasted into the wrong item) that should be fixed at the source
+    instead of carried through the pipeline. Surfaced in
+    rebased_repeat_candidates.csv purely as a diagnostic — nothing
+    downstream reads that file back.
     """
     by_item = defaultdict(list)
     for r in records:
         by_item[(r["item"] or {}).get("code")].append(r)
 
     to_drop = set()
-    metro_only_codes = []
+    rebased = []
 
     for item_code, recs in by_item.items():
         if not item_code:
@@ -446,6 +560,8 @@ def split_edition_duplicates(records):
                 continue
 
             old_top = header["num"]
+            original_code = header["code"]
+            original_label = header["labelRaw"]
             new_top = str(next_top)
             next_top += 1
             for r in block:
@@ -454,9 +570,14 @@ def split_edition_duplicates(records):
                     r["code"] = f"{item_code}-{r['num']}"
                 if r.get("parent") and r["parent"].split(".")[0] == old_top:
                     r["parent"] = _rebase_num(r["parent"], old_top, new_top)
-            metro_only_codes.append(header["code"])
+            rebased.append({
+                "new_code": header["code"],
+                "original_code": original_code,
+                "item_code": item_code,
+                "label": original_label,
+            })
 
-    return [r for r in records if id(r) not in to_drop], metro_only_codes
+    return [r for r in records if id(r) not in to_drop], rebased
 
 
 def build_tree(records):
@@ -490,9 +611,29 @@ def main(path, outdir):
         st.counters[f"table_{ti}_rows"] = len(rows)
 
     container_pass(st.records)
-    st.records, metro_only_codes = split_edition_duplicates(st.records)
+    st.records, rebased = split_edition_duplicates(st.records)
     leaves = sum(1 for r in st.records if r["isLeaf"])
     containers = sum(1 for r in st.records if not r["isLeaf"])
+
+    # Resolve each remark's owning record NOW, after container_pass/
+    # split_edition_duplicates have finished mutating records in place
+    # (isLeaf flips, code rebases) — a direct object reference survives
+    # all of that, unlike the labelKey text-match this used to rely on,
+    # which silently dropped the remark whenever its text collided with
+    # another leaf's (common in this repetitive corpus) or its owning row
+    # turned out to be a container rather than a leaf (case-header rows
+    # like "กรณีทางลาดที่ความยาว..." routinely carry their own remark
+    # data despite becoming isLeaf=False). Entries whose record got
+    # dropped as a byte-identical duplicate are dropped here too.
+    live_ids = {id(r) for r in st.records}
+    resolved_remarks = []
+    for entry in st.remarks:
+        rec = entry.pop("_rec")
+        if id(rec) not in live_ids:
+            continue
+        entry["code"] = rec["code"]
+        resolved_remarks.append(entry)
+    st.remarks = resolved_remarks
 
     ov, dt = set(st.overview_items), set(st.detail_items)
     (outdir / "new_ir.json").write_text(
@@ -505,12 +646,13 @@ def main(path, outdir):
         json.dumps(st.remarks, ensure_ascii=False, indent=1),
         encoding="utf8", newline="\n")
 
-    if metro_only_codes:
-        with open(outdir / "metro_only_candidates.csv", "w", newline="",
+    if rebased:
+        with open(outdir / "rebased_repeat_candidates.csv", "w", newline="",
                   encoding="utf-8-sig") as f:
             w = csv.writer(f)
-            w.writerow(["code", "scope"])
-            w.writerows([c, "metro_only"] for c in metro_only_codes)
+            w.writerow(["item_code", "original_code", "new_code", "label"])
+            w.writerows([r["item_code"], r["original_code"], r["new_code"], r["label"]]
+                        for r in rebased)
 
     lines = ["# Parse report", "", f"Source: {path}", "", "## Counters", ""]
     lines += [f"- {k}: {v}" for k, v in sorted(st.counters.items())]
@@ -520,7 +662,7 @@ def main(path, outdir):
               f"- groups in detail: {sorted(st.groups_seen)}",
               f"- answerable leaves: {leaves}   containers: {containers}",
               f"- remark rows captured: {len(st.remarks)}",
-              f"- metro-only additions split out (see metro_only_candidates.csv): {len(metro_only_codes)}",
+              f"- repeated blocks rebased (see rebased_repeat_candidates.csv): {len(rebased)}",
               "",
               "## 2.1 vs 2.2 cross-check",
               f"- overview-only items: {sorted(ov - dt)}",

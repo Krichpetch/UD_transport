@@ -1,11 +1,23 @@
 """Stage 5 — merge matches.json + review decisions into
-template_{mode}_v3.json + remarks_{mode}.json + an era_overrides skeleton.
+template_{mode}_v3.json + remarks_{mode}.json + an era_overrides skeleton
++ code_crosswalk_{mode}.json.
 
-New document wins structure/order/text/answerType. Old JSON supplies
-accumulated metadata (measurements, note, facilityCode/lawRefs) for matched
-leaves and, per §3.4, matched leaves KEEP THEIR OLD CODE regardless of new
-position — that is the code-stability contract every downstream reference
-(remarks sidecar, era overrides, review CSVs) relies on.
+INVARIANT (T-INV, see tests/test_t_inv.py): the merged output's codes,
+positions, and record existence come ENTIRELY from the new document — a
+record's `code` is always its own new-document provisional code, exactly
+as docx_parser.py assigned it. The old JSON's only role is a metadata
+cache: it supplies `measurements[]` (verbatim when unchanged, including
+`confirmed: true`), `note`, `facilityCode`, and `lawRefs` for a leaf the
+aligner matched to an old one — it never influences a code, a position, an
+ordering, or which records appear. This revokes the old "code stability"
+contract (matched leaves used to keep their OLD code regardless of new
+position) — that contract bought answer continuity across template
+versions for free, but the app already gets that for free anyway (a
+Checklist is stamped to the template VERSION it was created under; old
+answers never migrate to a new template version), so freezing old
+numbering into new templates cost readability for no benefit. Cross-version
+identity, if ever needed for analytics, lives in code_crosswalk_{mode}.json
+instead — see build_crosswalk().
 """
 import csv
 import json
@@ -13,7 +25,8 @@ from pathlib import Path
 
 from aligner import _collect_groups, _collect_items, comparison_numbers
 from enrich_measurements import extract as extract_measurements
-from normalize import parse_remark_numbers
+from normalize import (ABSENT_MARKER, PRESENT_MARKER, extract_numbers,
+                       parse_remark_numbers)
 
 
 class UndecidedReviewRows(Exception):
@@ -98,7 +111,15 @@ def filter_new_records_by_subtype(new_records, scope_map, target_subtype):
 def load_review_decisions(csv_path):
     """dict (old_code, new_code) -> decision string ('accept' / 'reject' /
     'map_to:<code>'). Raises UndecidedReviewRows if any row's decision
-    column is blank — the merger must refuse to run in that case."""
+    column is blank — the merger must refuse to run in that case.
+
+    A row's new_code is fixed (it's the new document's own record — never
+    up for negotiation). The decision only ever controls METADATA
+    sourcing: accept uses the row's proposed old_code as the metadata
+    donor; reject means no donor (fresh extraction, as if genuinely
+    ADDED); map_to:<code> overrides which OLD leaf donates metadata — the
+    target is an OLD code, since the new leaf's own identity never
+    changes."""
     if not Path(csv_path).exists():
         return {}
     decisions = {}
@@ -118,11 +139,15 @@ def load_review_decisions(csv_path):
     return decisions
 
 
-def resolve_leaf_matches(leaf_matches, decisions, new_by_code):
+def resolve_leaf_matches(leaf_matches, decisions, old_by_code):
     """Apply human decisions: REVIEW-band pairs MUST have a decision
     (accept/reject/map_to:<code>); suspicious-signal rows on an otherwise
     auto-classified leaf only change behavior on 'reject' (split it) —
-    'accept' (or no CSV row at all) leaves the original classification."""
+    'accept' (or no CSV row at all) leaves the original classification.
+
+    The new leaf's code is never touched here (see module docstring) —
+    every branch only changes which OLD leaf (if any) donates metadata to
+    it. map_to's target is looked up in old_by_code, not new_by_code."""
     resolved = []
     for m in leaf_matches:
         key = (m["old_code"], m["new_code"])
@@ -144,13 +169,13 @@ def resolve_leaf_matches(leaf_matches, decisions, new_by_code):
             resolved += _split(m)
         elif dec.startswith("map_to:"):
             target_code = dec.split(":", 1)[1].strip()
-            target = new_by_code.get(target_code)
+            target = old_by_code.get(target_code)
             if target is None:
-                raise ValueError(f"map_to target {target_code!r} not found in new IR")
-            resolved.append({**m, "new_code": target_code, "new": target,
-                              "new_label": target.get("labelRaw"),
+                raise ValueError(f"map_to target {target_code!r} not found in old IR")
+            resolved.append({**m, "old_code": target_code, "old": target,
+                              "old_label": target.get("labelRaw"),
                               "status": "MODIFIED",
-                              "rationale": f"manually mapped to {target_code}"})
+                              "rationale": f"metadata mapped from {target_code}"})
         else:
             raise ValueError(f"unknown decision {dec!r} for {m['old_code']} -> {m['new_code']}")
     return resolved
@@ -165,123 +190,6 @@ def _split(m):
         out.append({**m, "old_code": None, "old": None, "old_label": None,
                      "status": "ADDED", "rationale": "rejected in review"})
     return out
-
-
-# --------------------------------------------------------------------------
-# code allocation for ADDED leaves/containers
-# --------------------------------------------------------------------------
-
-def _num_suffix(item_code, code):
-    return code[len(item_code) + 1:]
-
-
-def _max_major(codes, item_code):
-    best = 0
-    for c in codes:
-        n = _num_suffix(item_code, c)
-        if "." not in n:
-            try:
-                best = max(best, int(n))
-            except ValueError:
-                pass
-    return best
-
-
-def _max_minor(codes, item_code, prefix_suffix):
-    """Highest minor index already used directly under prefix_suffix — e.g.
-    prefix_suffix "2" matches old codes "…-2.1", "…-2.2"; prefix_suffix
-    "2.1" matches "…-2.1.1". Depth-agnostic so nesting beyond one level
-    (major.minor) reserves correctly too."""
-    best = 0
-    prefix = f"{prefix_suffix}."
-    for c in codes:
-        n = _num_suffix(item_code, c)
-        if n.startswith(prefix):
-            first_seg = n[len(prefix):].split(".", 1)[0]
-            try:
-                best = max(best, int(first_seg))
-            except ValueError:
-                pass
-    return best
-
-
-def _assign_codes_for_item(item_code, item_new_records, final_code_of, old_item_codes):
-    """Mutates final_code_of (new_code -> final_code) in place so every
-    record in this item ends up with a real, unique final code.
-
-    Matched leaves already carry their retained old code (set by merge()
-    before this runs) and are left untouched. Everything else — containers
-    (which never go through leaf alignment, so they have no entry yet) and
-    genuinely new/ADDED leaves — gets resolved here, walked in depth order
-    (shallowest first) so a child can always see its parent's already-
-    resolved final code, however many levels deep the nesting goes. Retired
-    (REMOVED) old codes are never reused because old_item_codes includes
-    them in `claimed`.
-
-    A container keeps its own new-document position as-is UNLESS that code
-    is already claimed by something else in this item — typically a
-    matched leaf that retained an old code from a position the document
-    has since reorganised around. Only then is the container reminted,
-    exactly like a genuinely new record would be; its descendants then
-    naturally inherit the corrected prefix since they're resolved after
-    their parent in the depth-ordered walk.
-    """
-    claimed = set(old_item_codes)
-    for r in item_new_records:
-        fc = final_code_of.get(r["code"])
-        if fc is not None:
-            claimed.add(fc)
-
-    reserved_majors = set()
-    for c in old_item_codes:
-        n = _num_suffix(item_code, c)
-        if "." not in n:
-            try:
-                reserved_majors.add(int(n))
-            except ValueError:
-                pass
-    next_major = _max_major(old_item_codes, item_code) + 1
-    minor_counters = {}
-    by_num = {r["num"]: r for r in item_new_records}
-
-    def mint_top():
-        nonlocal next_major
-        while next_major in reserved_majors or f"{item_code}-{next_major}" in claimed:
-            next_major += 1
-        code = f"{item_code}-{next_major}"
-        reserved_majors.add(next_major)
-        next_major += 1
-        return code
-
-    def mint_under(parent_final):
-        suffix = _num_suffix(item_code, parent_final)
-        n = minor_counters.get(suffix, _max_minor(old_item_codes, item_code, suffix) + 1)
-        code = f"{parent_final}.{n}"
-        while code in claimed:
-            n += 1
-            code = f"{parent_final}.{n}"
-        minor_counters[suffix] = n + 1
-        return code
-
-    for r in sorted(item_new_records, key=lambda rec: rec["num"].count(".")):
-        new_code = r["code"]
-        if final_code_of.get(new_code) is not None:
-            continue  # matched leaf — keeps its retained old code
-
-        parent = r.get("parent")
-        if parent is None:
-            final = new_code if not r["isLeaf"] and new_code not in claimed else mint_top()
-        else:
-            parent_record = by_num.get(parent)
-            parent_final = final_code_of.get(parent_record["code"]) if parent_record else None
-            if parent_final is None:
-                continue  # orphaned (parent filtered out elsewhere) — stays unresolved
-            own_suffix = r["num"].rsplit(".", 1)[-1]
-            natural = f"{parent_final}.{own_suffix}"
-            final = natural if not r["isLeaf"] and natural not in claimed else mint_under(parent_final)
-
-        final_code_of[new_code] = final
-        claimed.add(final)
 
 
 # --------------------------------------------------------------------------
@@ -329,10 +237,15 @@ def _leaf_meta_out(old_rec, new_rec, mode, review_rows):
 # tree building
 # --------------------------------------------------------------------------
 
-def _build_subitems(item_code, item_new_records, final_code_of, old_by_code,
+def _build_subitems(item_new_records, metadata_source_of, old_by_code,
                      mode, review_rows):
+    """A record's code is always its own (new-document) code — see the
+    module docstring's invariant. metadata_source_of (new_code -> old_code,
+    populated only for leaves the aligner matched) is consulted purely to
+    find which old leaf's measurements/note/facilityCode/lawRefs to carry
+    onto it; a container or an unmatched (ADDED) leaf simply has no entry,
+    same as absent."""
     top = [r for r in item_new_records if r.get("parent") is None]
-    by_num = {r["num"]: r for r in top}
     children = {}
     for r in item_new_records:
         p = r.get("parent")
@@ -340,10 +253,10 @@ def _build_subitems(item_code, item_new_records, final_code_of, old_by_code,
             children.setdefault(p, []).append(r)
 
     def build_node(rec):
-        final_code = final_code_of[rec["code"]]
-        old_rec = old_by_code.get(final_code) if final_code in old_by_code else None
-        node = {"code": final_code, "num": rec["num"],
-                "labelTh": rec["labelRaw"]}
+        code = rec["code"]
+        old_code = metadata_source_of.get(code)
+        old_rec = old_by_code.get(old_code) if old_code else None
+        node = {"code": code, "num": rec["num"], "labelTh": rec["labelRaw"]}
         kids = children.get(rec["num"], [])
         if kids:
             node["subItems"] = [build_node(k) for k in kids]
@@ -372,29 +285,128 @@ def _numeric_or_list(value):
     return values[0] if len(values) == 1 else values
 
 
-def build_remarks_and_era(remarks_raw, new_by_labelkey, final_code_of):
+def _resolve_era_pair(v48, v64, label_numbers):
+    """Reads a remark's 2548/2564 cells as either ONE thousands-grouped
+    number each, or as parallel comma-separated value lists — genuinely
+    ambiguous from the text alone: "2,500" (one value, the real A2.2-1
+    case) and "50,120" (two values, e.g. a wall-gap gte and a height gte)
+    have the identical shape, a comma followed by exactly 3 digits.
+
+    The label only ever states ONE era's number (that's the nature of an
+    era override — the other era's value necessarily differs), so at most
+    one side can be corroborated directly against label_numbers. Once
+    either side confirms the thousands reading, apply it to BOTH sides —
+    same field, same units, no reason the other era would suddenly switch
+    to a different cell shape."""
+    thousands48, thousands64 = extract_numbers(str(v48) if v48 else ""), extract_numbers(str(v64) if v64 else "")
+    confirmed = (
+        (len(thousands48) == 1 and label_numbers and thousands48[0] in label_numbers)
+        or (len(thousands64) == 1 and label_numbers and thousands64[0] in label_numbers)
+    )
+    if confirmed and len(thousands48) == 1 and len(thousands64) == 1:
+        return thousands48[0], thousands64[0]
+    return _numeric_or_list(v48), _numeric_or_list(v64)
+
+
+def _existence_pair(v48, v64):
+    """A remark cell pair of PRESENT_MARKER/ABSENT_MARKER (see
+    docx_parser.py's Wingdings check/X-mark translation) means the whole
+    criterion existed under one law era but not the other — an EXISTENCE
+    override, not a threshold-VALUE one (MHT_2548/MHT_2564 are for
+    numbers that changed; this is for whether the requirement applies at
+    all). Only fires when the two sides actually disagree — both marked
+    present (or both absent) isn't an era difference worth flagging."""
+    markers = {PRESENT_MARKER: True, ABSENT_MARKER: False}
+    if v48 in markers and v64 in markers and markers[v48] != markers[v64]:
+        return markers[v48], markers[v64]
+    return None, None
+
+
+def build_remarks_and_era(remarks_raw, new_by_code):
+    """Matches by the exact Stage-1 `code` each remark's owning record was
+    stamped with (see docx_parser.py's remarks resolution, right after
+    split_edition_duplicates) rather than by re-deriving a text key here —
+    text collides constantly in this repetitive corpus (a handful of
+    near-identical criteria recur under a dozen items), and a text-keyed
+    dict can only remember one owner per key, silently losing every
+    remark but the last-processed one for every collided item. Matching
+    by code also picks up remarks whose row became a container (isLeaf
+    False) rather than a leaf — those routinely carry their own remark
+    data too (case-header rows like "กรณีทางลาดที่ความยาว...") and were
+    previously invisible since the old labelkey dict was leaf-only.
+
+    No re-keying step: a record's Stage-1 code IS its final code (see the
+    module docstring's invariant), so remarks_raw's own `code` field is
+    already the right key."""
     remarks_out = {}
     era_candidates = {}
     for r in remarks_raw:
-        new_rec = new_by_labelkey.get(r.get("labelKey"))
+        code = r.get("code")
+        new_rec = new_by_code.get(code)
         if new_rec is None:
             continue
-        final_code = final_code_of.get(new_rec["code"])
-        if final_code is None:
-            continue
-        remarks_out[final_code] = {
+        remarks_out[code] = {
             "2548": r.get("2548"),
             "2564": r.get("2564"),
             "labelSnippet": r.get("criterion"),
         }
-        n48, n64 = _numeric_or_list(r.get("2548")), _numeric_or_list(r.get("2564"))
-        if n48 is not None and n64 is not None and n48 != n64:
-            era_candidates[final_code] = {
+        exists48, exists64 = _existence_pair(r.get("2548"), r.get("2564"))
+        n48, n64 = _resolve_era_pair(r.get("2548"), r.get("2564"), new_rec.get("numbers"))
+        if exists48 is not None:
+            era_candidates[code] = {
+                "labelHint": r.get("criterion"),
+                "exists_2548": exists48, "exists_2564": exists64,
+                "confirmed": False,
+            }
+        elif n48 is not None and n64 is not None and n48 != n64:
+            era_candidates[code] = {
                 "labelHint": r.get("criterion"),
                 "MHT_2548": n48, "MHT_2564": n64,
                 "confirmed": False,
             }
+        elif n48 is None and n64 is None:
+            # Neither side reduced to a single value or a clean parallel
+            # list — e.g. A1.1's parking-spot quota, a multi-bracket
+            # capacity table ("10-50 51-100 101 ... " vs "<25 26-50
+            # 151..."), not a plain threshold. Rather than silently
+            # dropping a genuine era difference just because its shape
+            # doesn't fit MHT_2548/MHT_2564 as scalars, surface the raw
+            # text so a human can encode it properly — needsManualReview
+            # signals the STRUCTURE needs a person, not just a confirm.
+            raw48, raw64 = r.get("2548"), r.get("2564")
+            if (raw48 and raw64 and raw48 != raw64
+                    and extract_numbers(raw48) and extract_numbers(raw64)):
+                era_candidates[code] = {
+                    "labelHint": r.get("criterion"),
+                    "MHT_2548": raw48, "MHT_2564": raw64,
+                    "confirmed": False,
+                    "needsManualReview": True,
+                }
     return remarks_out, era_candidates
+
+
+# --------------------------------------------------------------------------
+# code crosswalk (cross-version identity, kept OUT of the codes themselves)
+# --------------------------------------------------------------------------
+
+def build_crosswalk(leaf_matches):
+    """Array of {oldCode, newCode, classification, score} covering every
+    leaf the aligner considered: matched pairs, REMOVED old leaves
+    (newCode: null), and ADDED new leaves (oldCode: null). This is the
+    durable record of cross-version identity now that codes themselves
+    never carry it (see module docstring) — any future analytics that
+    needs to follow a criterion's answer history across template versions
+    reads this file, not the codes.
+
+    Deterministic ordering for idempotency: sorted by newCode, entries with
+    no newCode (REMOVED) sorted last by oldCode."""
+    rows = [
+        {"oldCode": m["old_code"], "newCode": m["new_code"],
+         "classification": m["status"], "score": m["score"]}
+        for m in leaf_matches
+    ]
+    rows.sort(key=lambda r: (r["newCode"] is None, r["newCode"] or "", r["oldCode"] or ""))
+    return rows
 
 
 # --------------------------------------------------------------------------
@@ -406,37 +418,17 @@ def merge(mode_key, old_definition, old_records, new_records, leaf_matches,
     old_by_code = {r["code"]: r for r in old_records if r.get("code")}
     new_by_code = {r["code"]: r for r in new_records if r.get("code")}
 
-    final_code_of = {}
+    # metadata_source_of: new_code -> old_code, for leaves the aligner
+    # matched to an old one. This is consulted ONLY to decide which old
+    # leaf donates measurements/note/facilityCode/lawRefs (_leaf_meta_out,
+    # via _build_subitems) — it never touches a code, a position, or which
+    # records appear (see module docstring's invariant). An ADDED leaf
+    # (new_code set, old_code absent) simply gets no entry, same as a
+    # container, which never goes through leaf alignment at all.
+    metadata_source_of = {}
     for m in leaf_matches:
         if m["new_code"] and m["old_code"]:
-            final_code_of[m["new_code"]] = m["old_code"]
-        elif m["new_code"] and not m["old_code"]:
-            final_code_of[m["new_code"]] = None  # ADDED — minted below
-
-    # Containers never go through leaf-level alignment (aligner.align()
-    # only produces leaf_matches for isLeaf=True records) — structure is
-    # the new document's alone to own, so a container normally keeps its
-    # own new-doc code. The exception (collision with a matched leaf's
-    # retained old code) is resolved per-item in _assign_codes_for_item,
-    # below, since detecting it requires seeing the whole item's records.
-
-    # Resolve every item's codes exactly once, across ALL of its records —
-    # an item occasionally spans more than one group (split_edition_
-    # duplicates() rebases a repeated block onto a fresh top-level code but
-    # leaves its original group tag alone), and minting "next free" codes
-    # per (group, item) pair instead of per item would let two group-scoped
-    # passes over the same item independently pick the same numbers.
-    item_codes_seen = []
-    for r in new_records:
-        it = r.get("item")
-        if it and it["code"] not in item_codes_seen:
-            item_codes_seen.append(it["code"])
-    for item_code in item_codes_seen:
-        item_records = [r for r in new_records
-                         if r.get("item") and r["item"]["code"] == item_code]
-        old_item_codes = [r["code"] for r in old_records
-                           if r.get("item") and r["item"]["code"] == item_code]
-        _assign_codes_for_item(item_code, item_records, final_code_of, old_item_codes)
+            metadata_source_of[m["new_code"]] = m["old_code"]
 
     review_rows = []
     groups_out = []
@@ -447,7 +439,7 @@ def merge(mode_key, old_definition, old_records, new_records, leaf_matches,
         for it in _collect_items(new_records, g["code"]):
             item_records = [r for r in g_records
                              if r.get("item") and r["item"]["code"] == it["code"]]
-            subitems = _build_subitems(it["code"], item_records, final_code_of,
+            subitems = _build_subitems(item_records, metadata_source_of,
                                         old_by_code, mode_key, review_rows)
             items_out.append({"code": it["code"], "labelTh": it["label"],
                                "subItems": subitems})
@@ -467,15 +459,14 @@ def merge(mode_key, old_definition, old_records, new_records, leaf_matches,
 
     remarks_out, era_candidates = {}, {}
     if remarks_raw:
-        new_by_labelkey = {r["labelKey"]: r for r in new_records if r.get("isLeaf")}
-        remarks_out, era_candidates = build_remarks_and_era(
-            remarks_raw, new_by_labelkey, final_code_of)
+        remarks_out, era_candidates = build_remarks_and_era(remarks_raw, new_by_code)
 
     return {
         "definition": definition,
         "remarks": remarks_out,
         "era_overrides_candidates": era_candidates,
         "threshold_review_rows": review_rows,
+        "code_crosswalk": build_crosswalk(leaf_matches),
     }
 
 
@@ -495,9 +486,9 @@ def run(mode_key, outdir):
     new_records = filter_new_records_by_subtype(
         new_records, scope_map, infer_target_subtype(mode_key))
 
-    new_by_code = {r["code"]: r for r in new_records if r.get("code")}
+    old_by_code = {r["code"]: r for r in old_records if r.get("code")}
 
-    leaf_matches = resolve_leaf_matches(matches["leaf_matches"], decisions, new_by_code)
+    leaf_matches = resolve_leaf_matches(matches["leaf_matches"], decisions, old_by_code)
 
     old_definition = json.loads(
         Path(matches.get("_old_template_path", "")).read_text(encoding="utf-8")) \
@@ -515,6 +506,7 @@ def run(mode_key, outdir):
     _write_json(outdir / f"remarks_{mode_key}.json", result["remarks"])
     _write_json(outdir / f"era_overrides_{mode_key}_candidates.json",
                 result["era_overrides_candidates"])
+    _write_json(outdir / f"code_crosswalk_{mode_key}.json", result["code_crosswalk"])
 
     if result["threshold_review_rows"]:
         with open(outdir / f"threshold_review_{mode_key}_v3.csv", "w",

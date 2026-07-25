@@ -59,9 +59,9 @@ def test_split_drops_byte_identical_second_edition():
         leaf("กรณี A", None), leaf("ข้อ 1", "1.1"), leaf("ข้อ 2", "1.2"),
         leaf("กรณี A", None), leaf("ข้อ 1", "1.1"), leaf("ข้อ 2", "1.2"),
     ]
-    out, metro_only = _run(recs)
+    out, rebased = _run(recs)
     assert len(out) == 3
-    assert metro_only == []
+    assert rebased == []
     assert [r["labelRaw"] for r in out] == ["กรณี A", "ข้อ 1", "ข้อ 2"]
 
 
@@ -74,7 +74,7 @@ def test_split_rebases_different_second_edition_onto_a_fresh_code():
         leaf("มีทางลาด", "1.1"),
         leaf("ความกว้างทางลาด", "1.2"),
     ]
-    out, metro_only = _run(recs)
+    out, rebased = _run(recs)
     assert len(out) == 6  # nothing dropped — both editions kept
     codes = [r["code"] for r in out]
     assert len(set(codes)) == 6  # all unique now
@@ -82,7 +82,9 @@ def test_split_rebases_different_second_edition_onto_a_fresh_code():
     ramp_header = next(r for r in out if r["labelRaw"] == "กรณีทางลาด")
     ramp_child = next(r for r in out if r["labelRaw"] == "มีทางลาด")
     assert ramp_header["code"] != "A1.3-1"  # rebased off the collision
-    assert metro_only == [ramp_header["code"]]
+    assert [r["new_code"] for r in rebased] == [ramp_header["code"]]
+    assert rebased[0]["original_code"] == "A1.3-1"
+    assert rebased[0]["label"] == "กรณีทางลาด"
     assert ramp_child["parent"] == ramp_header["num"]
     assert ramp_child["code"] == f"A1.3-{ramp_header['num']}.1"
 
@@ -96,7 +98,7 @@ def test_split_rebases_three_level_second_edition():
         leaf("nested header", "1.1"),
         leaf("nested child", "1.1.1"),
     ]
-    out, metro_only = _run(recs)
+    out, rebased = _run(recs)
     case_b = next(r for r in out if r["labelRaw"] == "case B")
     nested_header = next(r for r in out if r["labelRaw"] == "nested header")
     nested_child = next(r for r in out if r["labelRaw"] == "nested child")
@@ -104,14 +106,16 @@ def test_split_rebases_three_level_second_edition():
     assert nested_header["num"] == f"{case_b['num']}.1"
     assert nested_child["parent"] == nested_header["num"]
     assert nested_child["num"] == f"{case_b['num']}.1.1"
-    assert metro_only == [case_b["code"]]
+    assert [r["new_code"] for r in rebased] == [case_b["code"]]
+    assert rebased[0]["original_code"] == "A1.3-1"
+    assert rebased[0]["label"] == "case B"
 
 
 def test_split_is_noop_when_no_top_level_code_repeats():
     recs = [leaf("only one", None), leaf("sub", "1.1")]
-    out, metro_only = _run(recs)
+    out, rebased = _run(recs)
     assert len(out) == 2
-    assert metro_only == []
+    assert rebased == []
 
 
 def _occ_item(n):
@@ -144,9 +148,9 @@ def test_occurrence_reset_lets_ordinal_collide_on_purely_positional_repeats():
     ]
     container_pass(recs)
     assert [r["num"] for r in recs] == ["1", "2", "1", "2"]
-    out, metro_only = split_edition_duplicates(recs)
+    out, rebased = split_edition_duplicates(recs)
     assert len(out) == 2
-    assert metro_only == []
+    assert rebased == []
 
 
 def test_occurrence_reset_rebases_genuinely_different_repeat_content():
@@ -156,8 +160,10 @@ def test_occurrence_reset_rebases_genuinely_different_repeat_content():
         leaf_occ("criterion A, elevator-specific wording", occ2),
     ]
     container_pass(recs)
-    out, metro_only = split_edition_duplicates(recs)
+    out, rebased = split_edition_duplicates(recs)
     assert len(out) == 2
     codes = [r["code"] for r in out]
     assert len(set(codes)) == 2
-    assert metro_only == [out[1]["code"]]
+    assert [r["new_code"] for r in rebased] == [out[1]["code"]]
+    assert rebased[0]["original_code"] == "A2.5-1"
+    assert rebased[0]["label"] == "criterion A, elevator-specific wording"

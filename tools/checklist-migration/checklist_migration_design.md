@@ -157,9 +157,19 @@ Thresholds: **≥ 0.92 → auto `MODIFIED`**; **0.70–0.92 → `REVIEW` queue**
 
 Operationally these differ in exactly one way: whether old metadata is carried forward. So the rule is pragmatic, not philosophical: a pairing that clears the fuzzy threshold under assignment constraints is an edit; everything else is remove+add; the 0.70–0.92 band is the human's call via the review queue. Do not build extra machinery to "detect intent" — the review CSV *is* that machinery, and the same accept/reject workflow you already run for `threshold_review.csv` applies unchanged.
 
-### 3.4 Code stability
+### 3.4 Code identity — REVOKED, replaced by the crosswalk model
 
-The data dictionary guarantees codes are "stable across template versions of the same mode" — the aligner is what makes that true. Matched leaves keep their old `code` regardless of new position or numbering. `ADDED` leaves mint the next free suffix under their item (`A1.1-7`, or `-7.1` for new sub-criteria). Codes of `REMOVED` leaves are retired and never reused. This keeps every downstream reference — remarks sidecar, era overrides, review CSVs, any future answer-level analytics — stable across revisions.
+**This section previously specified a "code stability" contract (matched leaves keep their old code regardless of new position, ADDED leaves mint the next free suffix, REMOVED codes retire and never get reused). That contract is revoked as of the merger redesign that introduced `code_crosswalk_{mode}.json`.**
+
+**The invariant now (verified by `tests/test_t_inv.py`, T-INV):** the merged output's codes, positions, and record existence come ENTIRELY from the new document. A record's `code` is always its own new-document provisional code, exactly as `docx_parser.py` assigned it — never remapped, never minted, never retired. If you parsed the new DOCX from scratch with no old JSON at all, the resulting tree would be byte-identical (modulo metadata) to the merged output.
+
+The old JSON's ONLY role is a metadata cache: for a leaf the aligner matches to an old one, it supplies `measurements[]` (verbatim when unchanged, including `confirmed: true`), `note`, `facilityCode`, and `lawRefs` — so a revision doesn't force re-deriving and re-reviewing everything from raw text. It never influences a code, a position, an ordering, or which records exist.
+
+**Why the old contract was revoked:** it bought answer continuity across template versions "for free," but the app already gets that for free anyway — a `Checklist` is stamped to the template *version* it was created under, and old answers never migrate to a new template version (see `apps/api`'s stamping behavior). Freezing old numbering into new templates therefore cost readability (a leaf could display an old code like `B4.1-3` while visually living under new item `A3.1`) for a benefit the system didn't need.
+
+**Cross-version identity now lives in `code_crosswalk_{mode}.json`** instead of in the codes themselves: an array of `{oldCode, newCode, classification, score}` covering every leaf the aligner considered — matched pairs, `REMOVED` old codes (`newCode: null`), and `ADDED` new codes (`oldCode: null`). Deterministically ordered (by `newCode`, nulls last by `oldCode`) for idempotency. Any future cross-version answer analytics reads this file, not the codes.
+
+Review-CSV decisions (`accept`/`reject`/`map_to:<code>`) now route ONLY metadata, never identity: `accept` uses the row's proposed old code as the metadata donor for the (fixed) new code; `reject` means no donor (fresh extraction, as if genuinely `ADDED`); `map_to:<code>` overrides which OLD leaf donates metadata — **the target is an old code**, since the new leaf's own code never changes.
 
 ### 3.5 On embeddings: recommended *not* in v1
 
@@ -173,23 +183,23 @@ Emit per mode:
 
 **`migration_report_{mode}.md`** — headline counts (unchanged / modified / moved / added / removed / review), the group-level and item-level alignment table, then every non-UNCHANGED leaf with old text, new text, score, and classification rationale. This doubles as the evidence artifact for สนข. sign-off on what changed between form versions — worth more to the handoff than the code itself.
 
-**`migration_review_{mode}.csv`** — one row per REVIEW-band pairing and per suspicious signal (asymmetric graying, remark-vs-label numeric disagreement, positional-only numbering on a MODIFIED leaf), with a `decision` column (`accept` / `reject` / `map_to:<code>`). This file is an *input* to Stage 5: the merger refuses to run while undecided rows remain. Same human-in-the-loop contract as your threshold review.
+**`migration_review_{mode}.csv`** — one row per REVIEW-band pairing and per suspicious signal (asymmetric graying, remark-vs-label numeric disagreement, positional-only numbering on a MODIFIED leaf), with a `decision` column (`accept` / `reject` / `map_to:<code>`). This file is an *input* to Stage 5: the merger refuses to run while undecided rows remain. Same human-in-the-loop contract as your threshold review. **Since the §3.4 redesign, every row's `new_code` is fixed (it's the new document's own record) — the decision only ever controls which old leaf (if any) donates metadata to it.** `map_to:<code>`'s target is an OLD code, not a new one.
 
 ---
 
 ## 5. Stage 5 — merge and emit
 
-The **new document is the source of truth for structure, ordering, text, and answerType**; the **old JSON is the source of truth for accumulated metadata**. For each new-IR leaf:
+The **new document is the source of truth for structure, ordering, text, answerType, AND code** (see §3.4 — this is the full invariant now, not just structure/text); the **old JSON is the source of truth for accumulated metadata only**. For each new-IR leaf:
 
 | Situation | Rule |
 |---|---|
-| Matched, numbers unchanged | Carry `measurements[]` verbatim, **including `confirmed: true`** — review work survives the migration |
+| Matched, numbers unchanged | Carry `measurements[]` verbatim, **including `confirmed: true`** — review work survives the migration. Code is the leaf's own new-document code, always. |
 | Matched, numbers changed | Re-run threshold extraction on the new text; reset `confirmed: false`; add the row to the threshold-review CSV with the old value alongside for comparison |
-| Matched | Carry `note`, `facilityCode`/`lawRefs` tags, old `code` |
-| Added | Fresh extraction, fresh code, `confirmed: false` |
-| Removed | Absent from output; listed in report; code retired |
+| Matched | Carry `note`, `facilityCode`/`lawRefs` tags. Code is the leaf's own new-document code, always — the old code is recorded in the crosswalk, never written into the code field. |
+| Added | Fresh extraction, `confirmed: false`. Code is simply its own new-document position — nothing to mint. |
+| Removed | Absent from output; listed in report and in the crosswalk (`newCode: null`); nothing to retire, since no future code will ever be checked against it. |
 
-Output: `template_{mode}_v3.json` (`schemaVersion` unchanged, `version: 3`, `status: DRAFT`, `provisional: true`, `source` pointing at the DOCX filename), plus `remarks_{mode}.json`, plus the era-override skeleton for numeric remark pairs. Per the existing seeding contract, v3 lands as DRAFT and nothing touches checklists stamped to earlier templates.
+Output: `template_{mode}_v3.json` (`schemaVersion` unchanged, `version: 3`, `status: DRAFT`, `provisional: true`, `source` pointing at the DOCX filename), plus `remarks_{mode}.json`, the era-override skeleton for numeric remark pairs, and `code_crosswalk_{mode}.json` (§3.4 — the durable cross-version identity record, now that codes themselves don't carry it). Per the existing seeding contract, v3 lands as DRAFT and nothing touches checklists stamped to earlier templates.
 
 **Idempotency requirement:** running the pipeline twice on the same inputs and the same review decisions must produce byte-identical output (stable sort keys, no timestamps inside the JSON). This is what makes the pipeline safely re-runnable when สนข. sends the *next* correction of the same document — you re-run, and the diff of the diff shows only their new edits.
 

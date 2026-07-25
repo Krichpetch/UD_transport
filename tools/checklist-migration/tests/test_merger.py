@@ -6,7 +6,7 @@ import pytest
 from merger import (UndecidedReviewRows, filter_new_records_by_subtype,
                      infer_target_subtype, load_review_decisions,
                      load_subtype_scope, merge, resolve_leaf_matches, run)
-from normalize import label_key
+from normalize import ABSENT_MARKER, PRESENT_MARKER, extract_numbers, label_key
 
 A1 = {"code": "A1", "label": "ที่จอดรถ"}
 A11 = {"code": "A1.1", "label": "ที่จอดรถสำหรับคนพิการ"}
@@ -82,12 +82,16 @@ def test_resolve_review_reject_splits_into_removed_and_added():
     assert statuses == {"REMOVED", "ADDED"}
 
 
-def test_resolve_review_map_to_remaps_new_code():
-    target = new_leaf("A1.1-7", "7", "รายการที่ถูกต้อง")
+def test_resolve_review_map_to_remaps_metadata_source_not_new_code():
+    """map_to's target is an OLD code — the new leaf's own code never
+    changes (see module docstring's invariant); only which old leaf
+    donates metadata is redirected."""
+    target = old_leaf("A1.1-7", "7", "เนื้อหาที่ถูกต้อง")
     m = match("A1.1-2", "A1.1-2", status="REVIEW", score=0.8)
     resolved = resolve_leaf_matches(
         [m], {("A1.1-2", "A1.1-2"): "map_to:A1.1-7"}, {"A1.1-7": target})
-    assert resolved[0]["new_code"] == "A1.1-7"
+    assert resolved[0]["new_code"] == "A1.1-2"
+    assert resolved[0]["old_code"] == "A1.1-7"
     assert resolved[0]["status"] == "MODIFIED"
 
 
@@ -143,16 +147,42 @@ def test_matched_leaf_numbers_changed_reextracts_and_logs_review_row():
     assert result["threshold_review_rows"][0][1] == "A1.1-4"
 
 
-def test_matched_leaf_keeps_old_code_not_new_positional_code():
+def test_matched_leaf_keeps_its_own_new_code_even_when_renumbered():
+    """T-INV at unit scale: a leaf that moved position in the new document
+    (renumbered from old code A1.1-4 to new code A1.1-9) keeps its OWN new
+    code in the output — the old code is never written into a code field,
+    only used to source metadata (see test below for metadata carryover
+    proof). This is the exact scenario the revoked code-stability contract
+    used to invert."""
     old = [old_leaf("A1.1-4", "4", "ข้อความ")]
     new = [new_leaf("A1.1-9", "9", "ข้อความ")]  # renumbered in the new doc
     matches = [match("A1.1-4", "A1.1-9", "MOVED_WITHIN")]
     result = merge("rail", OLD_DEF, old, new, matches, "doc.docx")
     leaf = result["definition"]["groups"][0]["items"][0]["subItems"][0]
-    assert leaf["code"] == "A1.1-4"
+    assert leaf["code"] == "A1.1-9"
 
 
-def test_added_leaf_mints_next_free_code_and_gets_fresh_extraction():
+def test_matched_leaf_carries_old_metadata_despite_renumbering():
+    """The old leaf's metadata (measurements incl. confirmed:true) still
+    flows onto the new leaf even though the code itself doesn't move —
+    metadata sourcing and code identity are fully decoupled now."""
+    old = [old_leaf("A1.1-4", "4", "กว้างไม่น้อยกว่า 2400 มม",
+                     measurements=[{"key": "m1", "operator": "gte", "value": 240.0,
+                                     "unit": "cm", "confirmed": True}])]
+    new = [new_leaf("A1.1-9", "9", "กว้างไม่น้อยกว่า 2400 มม")]
+    matches = [match("A1.1-4", "A1.1-9", "MOVED_WITHIN")]
+    result = merge("rail", OLD_DEF, old, new, matches, "doc.docx")
+    leaf = result["definition"]["groups"][0]["items"][0]["subItems"][0]
+    assert leaf["code"] == "A1.1-9"
+    assert leaf["measurements"][0]["confirmed"] is True
+    assert leaf["measurements"][0]["value"] == 240.0
+
+
+def test_added_leaf_carries_its_natural_new_code_and_gets_fresh_extraction():
+    """No minting: an ADDED leaf already has a perfectly good code — its
+    own new-document position — so it keeps exactly that, whatever number
+    it happens to be, instead of being renumbered to "next free after the
+    old siblings" (the revoked behavior)."""
     old = [old_leaf("A1.1-1", "1", "ข้อความเดิม"),
            old_leaf("A1.1-2", "2", "ข้อความเดิมสอง")]
     new = [new_leaf("A1.1-1", "1", "ข้อความเดิม"),
@@ -163,9 +193,9 @@ def test_added_leaf_mints_next_free_code_and_gets_fresh_extraction():
                match(None, "A1.1-9", "ADDED", None)]
     result = merge("rail", OLD_DEF, old, new, matches, "doc.docx")
     codes = {s["code"] for s in result["definition"]["groups"][0]["items"][0]["subItems"]}
-    assert codes == {"A1.1-1", "A1.1-2", "A1.1-3"}
+    assert codes == {"A1.1-1", "A1.1-2", "A1.1-9"}
     added = next(s for s in result["definition"]["groups"][0]["items"][0]["subItems"]
-                 if s["code"] == "A1.1-3")
+                 if s["code"] == "A1.1-9")
     assert added["measurements"][0]["value"] == 10.0
     assert added["measurements"][0]["confirmed"] is False
 
@@ -209,7 +239,7 @@ def test_era_override_candidate_emitted_when_2548_ne_2564():
     new = [new_leaf("A1.3-1", "1", "จุดสัมผัสสูงไม่เกิน 200 มิลลิเมตร")]
     matches = [match("A1.3-1", "A1.3-1", "UNCHANGED")]
     remarks_raw = [{"item": "A1.3", "criterion": "จุดสัมผัสสูงไม่เกิน 200 มิลลิเมตร",
-                    "labelKey": new[0]["labelKey"],
+                    "code": new[0]["code"],
                     "2548": "200", "2564": "150"}]
     result = merge("rail", OLD_DEF, old, new, matches, "doc.docx", remarks_raw=remarks_raw)
     assert result["remarks"]["A1.3-1"]["2548"] == "200"
@@ -226,18 +256,152 @@ def test_era_override_candidate_handles_multivalue_remark():
     new = [new_leaf("A2.3-3.7", "1", "ห่างจากผนังไม่น้อยกว่า 50 มม สูงไม่น้อยกว่า 100 มม")]
     matches = [match("A2.3-3.7", "A2.3-3.7", "UNCHANGED")]
     remarks_raw = [{"item": "A2.3", "criterion": "ราวจับ",
-                    "labelKey": new[0]["labelKey"],
+                    "code": new[0]["code"],
                     "2548": "50,120", "2564": "50,100"}]
     result = merge("rail", OLD_DEF, old, new, matches, "doc.docx", remarks_raw=remarks_raw)
     assert result["era_overrides_candidates"]["A2.3-3.7"]["MHT_2548"] == [50.0, 120.0]
     assert result["era_overrides_candidates"]["A2.3-3.7"]["MHT_2564"] == [50.0, 100.0]
 
 
-def test_added_leaf_three_levels_deep_gets_minted_not_left_null():
-    """merger.py's code minting used to only handle two levels (item-major
-    and major.minor); a leaf ADDED three levels deep under a container
-    nested inside another container was silently left with
-    final_code_of[...] == None forever (the real-data B1.1-2.1 bug)."""
+def test_era_override_multivalue_remark_stays_a_list_even_with_label_numbers_present():
+    """"50,120" and "2,500" have the identical shape (comma + exactly 3
+    digits) — the disambiguation must not just default to "single value
+    whenever the label has numbers at all"; it only flips to single-value
+    when the THOUSANDS reading specifically reproduces a label number.
+    Here the label's numbers are [50.0, 120.0] (matching the multi-value
+    reading, not the thousands one — extract_numbers("50,120") is
+    [50120.0], which isn't in the label), so this must stay a list."""
+    label = "ห่างจากผนังไม่น้อยกว่า 50 มม สูงไม่น้อยกว่า 120 มม"
+    new_rec = new_leaf("A2.3-3.7", "1", label)
+    new_rec["numbers"] = extract_numbers(label)
+    old = [old_leaf("A2.3-3.7", "1", label)]
+    matches = [match("A2.3-3.7", "A2.3-3.7", "UNCHANGED")]
+    remarks_raw = [{"item": "A2.3", "criterion": "ราวจับ", "code": "A2.3-3.7",
+                    "2548": "50,120", "2564": "40,100"}]
+    result = merge("rail", OLD_DEF, old, [new_rec], matches, "doc.docx", remarks_raw=remarks_raw)
+    assert result["era_overrides_candidates"]["A2.3-3.7"]["MHT_2548"] == [50.0, 120.0]
+    assert result["era_overrides_candidates"]["A2.3-3.7"]["MHT_2564"] == [40.0, 100.0]
+
+
+def test_era_override_surfaces_raw_text_for_a_multi_bracket_table():
+    """A1.1's real-data bug: a parking-spot quota table has FOUR brackets
+    per era ("10-50 51-100 101 (2 ที่จอด)" vs "<25 26-50 151 (6 ที่จอด)")
+    — neither a single value nor a clean parallel list, so it never
+    reduces to MHT_2548/MHT_2564 as scalars. It must still surface in
+    era_overrides_candidates (flagged needsManualReview) rather than
+    silently vanishing just because the shape doesn't fit; remarks_out
+    keeps the exact same raw text either way."""
+    label = "กำหนดให้มีที่จอดรถสำหรับคนพิการ ดังนี้"
+    new_rec = new_leaf("A1.1-1", "1", label)
+    remarks_raw = [{"item": "A1.1", "criterion": label, "code": "A1.1-1",
+                    "2548": "10-50 51-100 101 (2 ที่จอด)",
+                    "2564": "<25 26-50 151 (6 ที่จอด)"}]
+    result = merge("rail", OLD_DEF, [], [new_rec], [], "doc.docx", remarks_raw=remarks_raw)
+    candidate = result["era_overrides_candidates"]["A1.1-1"]
+    assert candidate["MHT_2548"] == "10-50 51-100 101 (2 ที่จอด)"
+    assert candidate["MHT_2564"] == "<25 26-50 151 (6 ที่จอด)"
+    assert candidate["needsManualReview"] is True
+
+
+def test_era_override_skips_non_numeric_free_text_remarks():
+    """Free-text ข้อเสนอแนะ notes that merely differ between years must
+    stay annotations only (remarks_out), never surface as an era-override
+    candidate — the raw-text fallback above only fires when BOTH sides
+    contain actual numbers, not for prose that happens to differ."""
+    label = "หมายเหตุทั่วไป"
+    new_rec = new_leaf("A1.1-1", "1", label)
+    remarks_raw = [{"item": "A1.1", "criterion": label, "code": "A1.1-1",
+                    "2548": "ควรปรับปรุง", "2564": "ปรับปรุงแล้ว"}]
+    result = merge("rail", OLD_DEF, [], [new_rec], [], "doc.docx", remarks_raw=remarks_raw)
+    assert "A1.1-1" not in result["era_overrides_candidates"]
+    assert result["remarks"]["A1.1-1"]["2548"] == "ควรปรับปรุง"
+
+
+def test_era_override_existence_pair_when_criterion_only_applies_in_one_era():
+    """B6.2 real-data bug: a remark cell pair reading PRESENT_MARKER/
+    ABSENT_MARKER (docx_parser.py translates Wingdings 2 check/X glyphs
+    to these — see test_densify.py) means the whole criterion only
+    applies under one law era, not the other. This is a different kind
+    of override than a changed threshold VALUE, so it must surface with
+    exists_2548/exists_2564 booleans, not MHT_2548/MHT_2564 numbers —
+    and it must NOT also fall into the numeric or raw-text-fallback
+    paths, since neither marker contains any digits at all."""
+    label = "มีพื้นที่ที่จัดไว้สำหรับเป็นพื้นที่พักรอการช่วยเหลือ"
+    new_rec = new_leaf("A1.1-1", "1", label)
+    remarks_raw = [{"item": "A1.1", "criterion": label, "code": "A1.1-1",
+                    "2548": ABSENT_MARKER, "2564": PRESENT_MARKER}]
+    result = merge("rail", OLD_DEF, [], [new_rec], [], "doc.docx", remarks_raw=remarks_raw)
+    candidate = result["era_overrides_candidates"]["A1.1-1"]
+    assert candidate["exists_2548"] is False
+    assert candidate["exists_2564"] is True
+    assert "MHT_2548" not in candidate
+    assert "needsManualReview" not in candidate
+
+
+def test_era_override_existence_pair_skipped_when_both_sides_agree():
+    """Both eras marking the criterion present (or both absent) isn't an
+    era difference worth flagging."""
+    label = "มีพื้นที่ที่จัดไว้สำหรับเป็นพื้นที่พักรอการช่วยเหลือ"
+    new_rec = new_leaf("A1.1-1", "1", label)
+    remarks_raw = [{"item": "A1.1", "criterion": label, "code": "A1.1-1",
+                    "2548": PRESENT_MARKER, "2564": PRESENT_MARKER}]
+    result = merge("rail", OLD_DEF, [], [new_rec], [], "doc.docx", remarks_raw=remarks_raw)
+    assert "A1.1-1" not in result["era_overrides_candidates"]
+
+
+def test_era_override_matches_by_code_even_when_labelraw_collides():
+    """Two leaves under different items with byte-identical criterion text
+    (extremely common in this corpus — a handful of near-identical
+    tactile-warning-surface criteria recur under a dozen items) each carry
+    their OWN remark with their OWN 2548/2564 values. Matching used to key
+    remarks by a re-derived text label, which can only remember one owner
+    per text — the real bug this fix addresses (A1.3-1 and A2.2-1.5's
+    remarks were silently lost to whichever collided leaf happened to be
+    processed last). Matching by the unique `code` field instead means
+    both leaves keep their own remark independently."""
+    shared_text = "ให้มีการติดตั้งที่พื้นบริเวณที่มีระดับต่างกันเกิน 200 มิลลิเมตร"
+    old = [old_leaf("A1.3-1", "1", shared_text), old_leaf("B7.3-1", "1", shared_text)]
+    new = [new_leaf("A1.3-1", "1", shared_text), new_leaf("B7.3-1", "1", shared_text)]
+    matches = [match("A1.3-1", "A1.3-1", "UNCHANGED"), match("B7.3-1", "B7.3-1", "UNCHANGED")]
+    remarks_raw = [
+        {"item": "A1.3", "criterion": shared_text, "code": "A1.3-1", "2548": "200", "2564": "150"},
+        {"item": "B7.3", "criterion": shared_text, "code": "B7.3-1", "2548": "300", "2564": "250"},
+    ]
+    result = merge("rail", OLD_DEF, old, new, matches, "doc.docx", remarks_raw=remarks_raw)
+    assert result["era_overrides_candidates"]["A1.3-1"]["MHT_2548"] == 200.0
+    assert result["era_overrides_candidates"]["A1.3-1"]["MHT_2564"] == 150.0
+    assert result["era_overrides_candidates"]["B7.3-1"]["MHT_2548"] == 300.0
+    assert result["era_overrides_candidates"]["B7.3-1"]["MHT_2564"] == 250.0
+
+
+def test_era_override_surfaces_for_a_container_not_just_leaves():
+    """A "case" header row (e.g. "กรณีทางลาดที่ความยาวไม่เกิน 2,500
+    มิลลิเมตร") routinely carries its own remark data despite becoming a
+    container (isLeaf False) once container_pass sees dot-numbered
+    children under it — containers never go through leaf alignment, so
+    matching remarks against leaves only (the old new_by_labelkey dict)
+    silently dropped these. Matching against every record by code picks
+    them up too."""
+    header_text = "กรณีทางลาดที่ความยาวไม่เกิน 2,500 มิลลิเมตร"
+    container = new_leaf("A2.2-1", "1", header_text)
+    container["isLeaf"] = False
+    container["numbers"] = extract_numbers(header_text)
+    child = new_leaf("A2.2-1.1", "1.1", "มีทางลาด", parent="1")
+    new = [container, child]
+    remarks_raw = [{"item": "A2.2", "criterion": header_text, "code": "A2.2-1",
+                     "2548": "2,500", "2564": "1,800"}]
+    result = merge("rail", OLD_DEF, [], new, [], "doc.docx", remarks_raw=remarks_raw)
+    assert result["era_overrides_candidates"]["A2.2-1"]["MHT_2548"] == 2500.0
+    assert result["era_overrides_candidates"]["A2.2-1"]["MHT_2564"] == 1800.0
+
+
+def test_added_leaf_three_levels_deep_keeps_its_own_code():
+    """No minting means no depth limit to worry about either: a leaf ADDED
+    three levels deep under a container nested inside another container
+    just keeps its own new-document code directly, at any depth (the old
+    minting-based approach used to only handle two levels and silently
+    left deeper leaves with a null code — moot now, there's nothing to
+    mint)."""
     top = new_leaf("A1.1-2", "2", "container top")
     top["isLeaf"] = False
     mid = new_leaf("A1.1-2.1", "2.1", "container mid", parent="2")
@@ -248,31 +412,63 @@ def test_added_leaf_three_levels_deep_gets_minted_not_left_null():
     result = merge("rail", OLD_DEF, [], new, matches, "doc.docx")
     container = result["definition"]["groups"][0]["items"][0]["subItems"][0]
     grandchild = container["subItems"][0]["subItems"][0]
-    assert grandchild["code"] is not None
     assert grandchild["code"] == "A1.1-2.1.1"
 
 
-def test_container_reminted_when_it_collides_with_matched_leaf_retained_code():
-    """A3.2-1 real-data bug: a leaf's retained OLD code coincidentally
-    equals a container's fresh NEW-position code once the document has
-    been reorganised (new content inserted ahead of the leaf's old spot)."""
-    old = [old_leaf("A1.1-1", "1", "signage requirement")]
-    container = new_leaf("A1.1-1", "1", "staircase (new content)")
-    container["isLeaf"] = False
-    child = new_leaf("A1.1-1.1", "1.1", "staircase surface", parent="1")
-    signage = new_leaf("A1.1-4", "4", "signage requirement")  # moved to position 4
-    new = [container, child, signage]
-    matches = [match("A1.1-1", "A1.1-4", "MOVED_WITHIN"),
-               match(None, "A1.1-1.1", "ADDED", None)]
+def test_removed_old_code_appears_in_crosswalk_with_null_new_code():
+    old = [old_leaf("A1.1-1", "1", "ข้อความเดิม"),
+           old_leaf("A1.1-2", "2", "ข้อความที่จะถูกลบ")]
+    new = [new_leaf("A1.1-1", "1", "ข้อความเดิม")]
+    matches = [match("A1.1-1", "A1.1-1", "UNCHANGED"),
+               match("A1.1-2", None, "REMOVED", None)]
     result = merge("rail", OLD_DEF, old, new, matches, "doc.docx")
-    subitems = result["definition"]["groups"][0]["items"][0]["subItems"]
-    codes = [s["code"] for s in subitems]
-    assert len(codes) == len(set(codes))
-    signage_final = next(s for s in subitems if s.get("answerType"))
-    container_final = next(s for s in subitems if "subItems" in s)
-    assert signage_final["code"] == "A1.1-1"
-    assert container_final["code"] != "A1.1-1"
-    assert container_final["subItems"][0]["code"] == f"{container_final['code']}.1"
+    row = next(r for r in result["code_crosswalk"] if r["oldCode"] == "A1.1-2")
+    assert row["newCode"] is None
+    assert row["classification"] == "REMOVED"
+
+
+def test_moved_across_leaf_gets_new_code_old_metadata_and_a_crosswalk_row():
+    """The one scenario that most directly replaced the revoked contract:
+    a leaf that moved to a structurally unrelated item still gets ITS OWN
+    new code (not the old one), still carries the old leaf's metadata, and
+    the old<->new relationship survives as a crosswalk row instead of
+    being baked into the code."""
+    old = [old_leaf("B4.1-3", "3", "ขนาดของห้องลิฟต์",
+                     measurements=[{"key": "m1", "operator": "gte", "value": 110.0,
+                                     "unit": "cm", "confirmed": True}])]
+    A12 = {"code": "A1.2", "label": "ลิฟต์"}
+    moved = new_leaf("A1.2-3", "3", "ขนาดของห้องลิฟต์")
+    moved["item"] = A12
+    matches = [match("B4.1-3", "A1.2-3", "MOVED_ACROSS", score=0.97)]
+    result = merge("rail", OLD_DEF, old, [moved], matches, "doc.docx")
+
+    leaf = result["definition"]["groups"][0]["items"][0]["subItems"][0]
+    assert leaf["code"] == "A1.2-3"
+    assert leaf["measurements"][0]["confirmed"] is True
+    assert leaf["measurements"][0]["value"] == 110.0
+
+    row = next(r for r in result["code_crosswalk"] if r["newCode"] == "A1.2-3")
+    assert row["oldCode"] == "B4.1-3"
+    assert row["classification"] == "MOVED_ACROSS"
+    assert row["score"] == 0.97
+
+
+def test_crosswalk_is_deterministically_ordered():
+    """Idempotency: re-running merge() on the same inputs must produce the
+    same crosswalk array, byte-for-byte — sorted by newCode, REMOVED rows
+    (no newCode) sorted last by oldCode."""
+    old = [old_leaf("A1.1-9", "9", "ถูกลบ"),
+           old_leaf("A1.1-1", "1", "เดิม")]
+    new = [new_leaf("A1.1-5", "5", "ใหม่"), new_leaf("A1.1-1", "1", "เดิม")]
+    matches = [match(None, "A1.1-5", "ADDED", None),
+               match("A1.1-1", "A1.1-1", "UNCHANGED"),
+               match("A1.1-9", None, "REMOVED", None)]
+    r1 = merge("rail", OLD_DEF, old, new, matches, "doc.docx")
+    r2 = merge("rail", OLD_DEF, old, new, matches, "doc.docx")
+    assert r1["code_crosswalk"] == r2["code_crosswalk"]
+    new_codes = [r["newCode"] for r in r1["code_crosswalk"]]
+    assert new_codes == sorted(new_codes, key=lambda c: (c is None, c or ""))
+    assert new_codes[-1] is None  # the REMOVED row (no newCode) sorts last
 
 
 # --------------------------------------------------------------------------

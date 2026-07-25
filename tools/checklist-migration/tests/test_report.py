@@ -66,10 +66,9 @@ def test_review_csv_flags_positional_numbering_on_modified_leaf(tmp_path):
 
 def test_review_csv_flags_remark_vs_label_numeric_disagreement(tmp_path):
     new_rec = leaf("A1.3-1", "จุดสัมผัสสูงไม่เกิน200มม", numbers=[200.0])
-    new_rec["labelKey"] = "จุดสัมผัสสูงไม่เกิน200มม"
     m = make_match(leaf("A1.3-1", "เดิม"), new_rec, "UNCHANGED", 1.0, "exact")
     result = AlignResult(leaf_matches=[m])
-    remarks = [{"labelKey": "จุดสัมผัสสูงไม่เกิน200มม", "2548": "200", "2564": "150"}]
+    remarks = [{"code": "A1.3-1", "2548": "200", "2564": "150"}]
     rows = write_review_csv("rail", result, tmp_path / "review.csv", remarks=remarks)
     assert len(rows) == 1
     assert "disagree" in rows[0][4]
@@ -80,20 +79,18 @@ def test_review_csv_multivalue_remark_matching_both_label_numbers_is_not_flagged
     comma-separated remark like "50,120" — each value must be checked
     individually against the label's numbers, not parsed as one number."""
     new_rec = leaf("A2.3-3.7", "ห่างจากผนังไม่น้อยกว่า50มม สูงไม่น้อยกว่า120มม", numbers=[50.0, 120.0])
-    new_rec["labelKey"] = "ห่างจากผนังไม่น้อยกว่า50มม สูงไม่น้อยกว่า120มม"
     m = make_match(leaf("A2.3-3.7", "เดิม"), new_rec, "UNCHANGED", 1.0, "exact")
     result = AlignResult(leaf_matches=[m])
-    remarks = [{"labelKey": new_rec["labelKey"], "2548": "50,120", "2564": "50,120"}]
+    remarks = [{"code": "A2.3-3.7", "2548": "50,120", "2564": "50,120"}]
     rows = write_review_csv("rail", result, tmp_path / "review.csv", remarks=remarks)
     assert rows == []
 
 
 def test_review_csv_multivalue_remark_flags_only_the_mismatched_value(tmp_path):
     new_rec = leaf("A2.3-3.7", "ห่างจากผนังไม่น้อยกว่า50มม สูงไม่น้อยกว่า120มม", numbers=[50.0, 120.0])
-    new_rec["labelKey"] = "ห่างจากผนังไม่น้อยกว่า50มม สูงไม่น้อยกว่า120มม"
     m = make_match(leaf("A2.3-3.7", "เดิม"), new_rec, "UNCHANGED", 1.0, "exact")
     result = AlignResult(leaf_matches=[m])
-    remarks = [{"labelKey": new_rec["labelKey"], "2548": "40,120", "2564": "40,120"}]
+    remarks = [{"code": "A2.3-3.7", "2548": "40,120", "2564": "40,120"}]
     rows = write_review_csv("rail", result, tmp_path / "review.csv", remarks=remarks)
     assert len(rows) == 1
     assert "40" in rows[0][4]

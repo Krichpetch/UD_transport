@@ -8,6 +8,27 @@ import unicodedata
 
 THAI_DIGITS = str.maketrans("๐๑๒๓๔๕๖๗๘๙", "0123456789")
 
+# Presence/absence vocabulary for remark cells that use a check/X mark
+# instead of a number — the whole criterion existed under one law era but
+# not the other (an EXISTENCE era-override, distinct from a threshold-
+# VALUE one). Shared between docx_parser.py (which writes these markers
+# when it detects a known symbol-font run) and merger.py (which reads
+# them back to build the era-override candidate).
+PRESENT_MARKER = "มี"
+ABSENT_MARKER = "ไม่มี"
+
+# (font ascii/hAnsi name, raw <w:t> text) -> marker. Word symbol fonts
+# (Wingdings family) remap plain ASCII code points to dingbat glyphs at
+# render time — python-docx only ever sees the underlying letter, never
+# the rendered checkmark/X, so the run's font must be consulted to know
+# what a bare "O" or "P" actually means. Confirmed against real data:
+# Wingdings 2 code point 0x4F ('O') renders as a heavy X (absent), 0x50
+# ('P') as a heavy check mark (present).
+SYMBOL_FONT_MARKERS = {
+    ("Wingdings 2", "O"): ABSENT_MARKER,
+    ("Wingdings 2", "P"): PRESENT_MARKER,
+}
+
 # Numbering prefixes like "1. ", "2.1 ", "2.2.1 ", "(2.3) ", "๓."
 NUM_PREFIX_RE = re.compile(r"^\s*\(?\d+(?:\.\d+)*\)?[\.\s]\s*")
 # Item code prefixes like "(A1.1)"
