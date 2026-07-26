@@ -67,7 +67,10 @@ export interface ResetPrismaClient {
   auditLog: {
     count(args?: unknown): Promise<number>
   }
-  $transaction<T>(fn: (tx: ResetPrismaClient) => Promise<T>): Promise<T>
+  $transaction<T>(
+    fn: (tx: ResetPrismaClient) => Promise<T>,
+    options?: { timeout?: number; maxWait?: number },
+  ): Promise<T>
 }
 
 export async function getResetSummary(prisma: ResetPrismaClient): Promise<ResetSummary> {
@@ -167,7 +170,12 @@ export async function resetAndSeed(
       deletedStations: deletedStations.count,
       seeded,
     }
-  })
+  // Prisma's interactive-transaction default (5s timeout / 2s maxWait) is sized for local-network
+  // round trips. This loop does one upsert per masterlist row (800+) inside a single transaction,
+  // so against a remote DB (e.g. Railway's public proxy) it needs real headroom or it aborts
+  // partway with a "Transaction not found" error once the DB-side timeout closes the transaction
+  // out from under the client.
+  }, { timeout: 120_000, maxWait: 10_000 })
 }
 
 const BACKUP_DIR = path.resolve(__dirname, '..', 'backups')
