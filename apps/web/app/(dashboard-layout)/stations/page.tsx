@@ -863,11 +863,12 @@ export default function StationsPage() {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Link
-                                  // version=2 pins this to the v2 e-form (nested sub-items,
-                                  // item-level pager) — that's the one actually worth previewing;
-                                  // the ACTIVE template (v1, flat, no sub-items) is already fully
+                                  // version=3 pins this to the latest checklist-migration-pipeline
+                                  // template (nested sub-items, item-level pager) — the most
+                                  // up-to-date draft, and the one actually worth previewing; the
+                                  // ACTIVE template (v1, flat, no sub-items) is already fully
                                   // visible read-only via the "Checklist" button next to this one.
-                                  href={`/audit?preview=1&version=2&station=${station.id}`}
+                                  href={`/audit?preview=1&version=3&station=${station.id}`}
                                   className="border-border text-foreground hover:bg-secondary flex items-center rounded-lg border p-1.5 transition-colors"
                                   aria-label="ดูตัวอย่างแบบประเมิน"
                                 >

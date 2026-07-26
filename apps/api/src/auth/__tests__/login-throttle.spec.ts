@@ -30,6 +30,7 @@ describe('POST /auth/login — rate limiting', () => {
     process.env.DATABASE_URL     ??= 'postgresql://fake:fake@localhost:5432/fake'
     process.env.MINIO_ACCESS_KEY ??= 'fake-access-key'
     process.env.MINIO_SECRET_KEY ??= 'fake-secret-key'
+    process.env.MINIO_PUBLIC_ENDPOINT ??= 'http://localhost:9000'
     process.env.FRONTEND_URL     ??= 'http://localhost:3000'
 
     const moduleRef = await Test.createTestingModule({

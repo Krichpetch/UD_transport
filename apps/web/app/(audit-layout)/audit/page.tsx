@@ -518,7 +518,7 @@ export default function AuditPage() {
       {v2PreviewAllowed && (
         <div className="flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs text-purple-700 shadow-sm">
           <FlaskConical size={14} className="shrink-0" />
-          <span>โหมดตัวอย่าง v2 (DRAFT) — สำหรับผู้ดูแลระบบเท่านั้น ไม่มีการบันทึกจริง</span>
+          <span>{previewLabel} (DRAFT) — สำหรับผู้ดูแลระบบเท่านั้น ไม่มีการบันทึกจริง</span>
         </div>
       )}
 

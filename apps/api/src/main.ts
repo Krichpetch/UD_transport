@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import 'reflect-metadata'
 import { json } from 'express'
 import { NestFactory } from '@nestjs/core'
