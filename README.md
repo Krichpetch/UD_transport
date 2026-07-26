@@ -318,14 +318,20 @@ script differs between environments — investigate before calling the sync done
 Side-by-side counts (template rows by mode/variantKey/version, station count, region
 distribution) — remote vs. local, from steps 3/5/6/7's output.
 
-Then hit the deployed API directly:
+Every route in this API is `@UseGuards(JwtAuthGuard)`-protected — there is no public
+`/health` or public template route (by design, see root `CLAUDE.md`'s role-guard rule), so an
+anonymous curl only proves the process is up (`curl -s <api-url>/anything` returning a NestJS
+`{"statusCode":404,...}` JSON body, not a connection error, confirms that much). The only
+unguarded route is `POST /auth/login`, so a real scripted check needs real credentials:
 ```bash
-curl -s https://<api-service>.up.railway.app/health
+TOKEN=$(curl -s -X POST https://<api-service>.up.railway.app/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"<admin-username>","password":"<admin-password>"}' | jq -r .accessToken)
 curl -s https://<api-service>.up.railway.app/stations?limit=1 -H "Authorization: Bearer $TOKEN"
-curl -s "https://<api-service>.up.railway.app/checklists/template?mode=ทางบก&version=1"
 ```
-Then in the browser: log in on the deployed web URL, load the station list (region +
-coordStatus columns should be populated, not blank), and open a checklist preview.
+Simplest and most reliable: log in on the deployed web URL as a real user, load the station
+list (region + coordStatus columns should be populated, not blank — this is what the region
+backfill in step 7 fixes), and open a checklist preview.
 
 ### 9. If you redeploy the API after seeding instead of before
 
