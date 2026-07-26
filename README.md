@@ -148,3 +148,187 @@ covers the parts that aren't obvious from the var names alone.
    board demo won't be at a physical station. This is a staging-only setting:
    `validate-env.ts` refuses to boot if `PROXIMITY_BYPASS=true` is ever combined with
    `APP_ENV=production`, so the same misconfiguration can't reach the production environment.
+
+## Syncing Railway's DB to local dev state
+
+Use this whenever local dev has moved ahead of the deployed DB (new Station columns, new
+ChecklistTemplate rows, a masterlist reseed, a backfill script) and Railway needs to catch up.
+**Always re-run the reproducible scripts below — never `pg_dump`/restore over Railway**, except
+for the pre-flight safety backup in step 2. Restoring a dump would also clobber any
+Railway-only rows (pilot user accounts, real submitted checklists) that don't exist locally.
+
+None of these scripts take a `--env-file` flag; they read `DATABASE_URL` straight from
+`process.env`, exactly like the existing `pnpm --filter api db:push` pattern in step 6 above.
+The steps below just make sure that variable is always set *explicitly and visibly*, right
+before each command, from a file that never leaves your machine.
+
+### 0. One-time setup
+
+Get the Postgres service's **public** connection string from the Railway dashboard (Postgres
+service → "Connect" tab → public/proxy URL, *not* the `*.railway.internal` one — your laptop
+isn't on Railway's private network). Save it to `apps/api/.env.railway`:
+
+```
+DATABASE_URL=postgresql://postgres:<password>@<something>.proxy.rlwy.net:<port>/railway
+```
+
+This filename matches the `.env.*` pattern in `apps/api/.gitignore`, so it's never committed.
+Never copy this value into `apps/api/.env` — that's the file every local `pnpm dev` / `prisma`
+command reads by default, and a Railway URL sitting there is exactly how a casual local command
+ends up hitting the pilot database by accident.
+
+### 1. Target confirmation (repeat before every step below)
+
+PowerShell:
+```powershell
+$env:DATABASE_URL = (Select-String '^DATABASE_URL=' apps\api\.env.railway).Line.Split('=',2)[1]
+$u = [uri]$env:DATABASE_URL
+Write-Host "TARGET -> host: $($u.Host)   db: $($u.AbsolutePath.TrimStart('/'))"
+```
+
+Bash / Git Bash:
+```bash
+export DATABASE_URL=$(grep '^DATABASE_URL=' apps/api/.env.railway | cut -d= -f2-)
+echo "TARGET -> $DATABASE_URL" | sed -E 's#(://[^:]+:)[^@]+@#\1***@#'
+```
+
+Read the printed host out loud before running anything below. If it doesn't say your Railway
+Postgres host, stop and fix `.env.railway` first.
+
+### 2. Backup first (Docker pg_dump, no local Postgres install needed)
+
+```powershell
+$stamp = Get-Date -Format yyyyMMdd-HHmmss
+New-Item -ItemType Directory -Force apps\api\backups | Out-Null
+docker run --rm postgis/postgis:16-3.4 pg_dump "$env:DATABASE_URL" --no-owner --no-privileges `
+  | Out-File -Encoding utf8 "apps\api\backups\railway-pre-sync-$stamp.sql"
+```
+
+```bash
+stamp=$(date +%Y%m%d-%H%M%S)
+mkdir -p apps/api/backups
+docker run --rm postgis/postgis:16-3.4 pg_dump "$DATABASE_URL" --no-owner --no-privileges \
+  > "apps/api/backups/railway-pre-sync-$stamp.sql"
+```
+
+`apps/api/backups/` is already gitignored. Verify before proceeding:
+```powershell
+(Get-Item "apps\api\backups\railway-pre-sync-$stamp.sql").Length   # must be > 0
+Select-String -Path "apps\api\backups\railway-pre-sync-$stamp.sql" -Pattern 'CREATE TABLE' | Select-Object -First 3
+```
+If the file is empty or has no `CREATE TABLE` lines, stop — something's wrong with the
+connection string or Docker's outbound network, not with the target DB. Don't proceed to step 3
+without a verified-good backup file.
+
+### 3. Quick inventory read (before touching anything)
+
+```bash
+docker run --rm postgis/postgis:16-3.4 psql "$DATABASE_URL" -c "
+  select 'users' t, count(*) from \"User\"
+  union all select 'stations', count(*) from \"Station\"
+  union all select 'checklists', count(*) from \"Checklist\";"
+docker run --rm postgis/postgis:16-3.4 psql "$DATABASE_URL" -c "
+  select mode, \"variantKey\", version, status, count(*) from \"ChecklistTemplate\"
+  group by 1,2,3,4 order by 1,2,3;"
+```
+(If `ChecklistTemplate`/`User` don't exist yet, that's expected on a DB that predates this
+schema — it just means step 4 hasn't run yet.)
+
+### 4. Schema sync — `prisma db push`
+
+```bash
+cd apps/api
+DATABASE_URL="$RAILWAY_URL_FROM_STEP_1" pnpm exec prisma db push
+```
+Read prisma's output carefully. The Station fields added since the last deploy (`line`,
+`stationType`, `coordSource`, `coordStatus`, `region`, `yearBuilt`) are all nullable or have a
+Prisma-level `@default`, so this push is expected to be additive-only with **no** destructive
+warning. If prisma reports it would drop a column/table or lose data anyway, stop and confirm
+with the user before adding `--accept-data-loss` — do not pass that flag reflexively.
+
+Confirm PostGIS is available (required for `/stations/nearby` and the checklist proximity
+gate):
+```bash
+docker run --rm postgis/postgis:16-3.4 psql "$DATABASE_URL" -c "select postgis_version();"
+```
+If that errors (extension not installed / not supported by the provider's Postgres image),
+stop — the Railway Postgres service needs to be on a PostGIS-capable image (`postgis/postgis`,
+same as `docker-compose.yml`), not stock Postgres. See the "Deploying to Railway" section above.
+
+Then apply the manual PostGIS migration (geography column + index — lives outside Prisma's
+schema tracking on purpose, see `apps/api/prisma/migrations_manual/`):
+```bash
+DATABASE_URL="$RAILWAY_URL" pnpm --filter api db:manual-migrations
+```
+This is idempotent — safe to re-run.
+
+Check for new required env vars before moving on: `apps/api/src/config/validate-env.ts`
+currently requires `JWT_SECRET`, `DATABASE_URL`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`,
+`MINIO_PUBLIC_ENDPOINT`, `FRONTEND_URL` — nothing new was added alongside the Station schema
+changes, so no new Railway service variables are needed for this sync specifically. If a future
+sync does add a new required env, add it as a Railway service variable *before* redeploying the
+API, or the API will refuse to boot (`validateEnv()` throws).
+
+**Redeploy the API now**, before seeding. The Railway API's already-running instance was built
+against the old Prisma Client and doesn't know about the new Station columns — the sooner it's
+redeployed against the new schema, the shorter the window where the deployed app is mismatched
+with its own DB. The seed/reset/backfill scripts below run from your laptop with your local
+(already up to date) Prisma Client, so they can run before or after the redeploy; the deployed
+API itself just shouldn't sit mismatched any longer than necessary.
+
+### 5. Seed templates
+
+```bash
+DATABASE_URL="$RAILWAY_URL" pnpm --filter api exec ts-node prisma/seed-templates.ts
+```
+Idempotent (upserts by `(mode, variantKey, version)`). Re-run the inventory query from step 3
+afterward and confirm template row counts match your local dev DB's counts for the same query.
+
+### 6. Station masterlist reset + reseed
+
+Run **without** `--force` first — this prints the full inventory (station count, checklist
+counts by status, AuditLog rows) and refuses to proceed if any `SUBMITTED`/`APPROVED`
+checklists exist, since the reset deletes all Station rows and Checklist has no cascade delete
+(checklists must be deleted first, in the same transaction):
+```bash
+DATABASE_URL="$RAILWAY_URL" pnpm --filter api exec ts-node prisma/reset-stations.ts --confirm
+```
+- If it completes (no protected checklists found): 823 stations seeded, done — skip to step 7.
+- If it refuses because protected checklists exist: **stop and report the exact counts to the
+  user before doing anything else.** Real pilot inspection data may exist on Railway that
+  doesn't exist locally — this is government inspection data (see root `CLAUDE.md`), not
+  disposable fixtures. Only re-run with `--force` once the user has explicitly confirmed they
+  want those checklists (and their stations) deleted. The script writes its own timestamped
+  JSON backup of stations+checklists to `apps/api/backups/` immediately before deleting,
+  regardless — but that's a safety net, not a substitute for asking first.
+
+### 7. Region backfill
+
+```bash
+DATABASE_URL="$RAILWAY_URL" pnpm --filter api exec ts-node prisma/backfill-region.ts
+```
+Compare the per-region counts it prints against the local run's output — same input data
+(`stations_master_v2.json`) and same `deriveRegion()` algorithm, so the distribution must match
+exactly (as of the 2026-07-26 local run: กลาง 371, ตะวันออกเฉียงเหนือ 141, ใต้ 141, เหนือ 88,
+ตะวันออก 46, ตะวันตก 34, 2 remain "ไม่ระบุ"). A mismatch means something about the input data or
+script differs between environments — investigate before calling the sync done.
+
+### 8. Verify
+
+Side-by-side counts (template rows by mode/variantKey/version, station count, region
+distribution) — remote vs. local, from steps 3/5/6/7's output.
+
+Then hit the deployed API directly:
+```bash
+curl -s https://<api-service>.up.railway.app/health
+curl -s https://<api-service>.up.railway.app/stations?limit=1 -H "Authorization: Bearer $TOKEN"
+curl -s "https://<api-service>.up.railway.app/checklists/template?mode=ทางบก&version=1"
+```
+Then in the browser: log in on the deployed web URL, load the station list (region +
+coordStatus columns should be populated, not blank), and open a checklist preview.
+
+### 9. If you redeploy the API after seeding instead of before
+
+Fine either way per step 4's note — just don't leave it mismatched long. Trigger the redeploy
+from the Railway dashboard (or `git push` if the service auto-deploys from a branch) and re-run
+the step 8 curl checks against the freshly deployed instance afterward.
