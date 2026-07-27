@@ -38,8 +38,8 @@ Backend will live in `apps/api` (NestJS, Prisma, PostgreSQL) — not yet built.
 - `app/(audit-layout)/` — auditor mobile views, max-w-sm gradient shell, no sidebar
 
 ## Role-based routing (login page)
-- EXECUTIVE → /dashboard
-- ADMIN → /dashboard
+- EXECUTIVE → /dashboard (read-only home; no mutating controls anywhere in their nav/pages)
+- ADMIN → /admin/overview (operational home — see Part B of W2-S1)
 - AUDITOR → /audit
 
 ---

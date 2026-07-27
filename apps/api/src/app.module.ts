@@ -9,6 +9,7 @@ import { AuditModule } from './audit/audit.module'
 import { MinioModule } from './minio/minio.module'
 import { UploadsModule } from './uploads/uploads.module'
 import { UsersModule } from './users/users.module'
+import { AdminModule } from './admin/admin.module'
 import { UserAwareThrottlerGuard } from './common/throttler.guard'
 
 @Module({
@@ -24,6 +25,7 @@ import { UserAwareThrottlerGuard } from './common/throttler.guard'
     MinioModule,
     UploadsModule,
     UsersModule,
+    AdminModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: UserAwareThrottlerGuard }],
 })

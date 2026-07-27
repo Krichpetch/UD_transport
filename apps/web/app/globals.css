@@ -301,3 +301,20 @@ a {
 .themed-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: color-mix(in oklch, var(--muted-foreground) 60%, transparent);
 }
+
+/* ==========================================
+   Numeric input spinners (Part G.3, W2-S1)
+   One global rule for every input[type=number] app-wide (measured cm
+   inputs, year-built, tiered inputs, limits) instead of per-component
+   overrides. inputMode is untouched so mobile keyboards stay numeric.
+   ========================================== */
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}

@@ -19,10 +19,22 @@ export class ChecklistsController {
     return this.checklists.findLatest(stationId)
   }
 
+  // page/limit are optional — omitted (the resubmission marker, the stations-list approve
+  // button's flag check), this returns the full unpaginated array exactly as before. Passed
+  // (the admin station-detail History tab), it returns a { data, total, page, totalPages }
+  // envelope instead, same shape StationsService.findAll already uses for the stations list.
   @Get('history')
-  findAll(@Param('stationId') stationId: string, @Req() req: AuthRequest) {
+  findAll(
+    @Param('stationId') stationId: string,
+    @Query('page') page: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Req() req: AuthRequest,
+  ) {
     if (req.user.role !== 'ADMIN' && req.user.role !== 'AUDITOR' && req.user.role !== 'EXECUTIVE') throw new ForbiddenException()
-    return this.checklists.findAll(stationId)
+    if (page === undefined && limit === undefined) return this.checklists.findAll(stationId)
+    const pageNum = page ? Math.max(1, parseInt(page, 10) || 1) : 1
+    const limitNum = limit ? Math.min(Math.max(1, parseInt(limit, 10) || 20), 100) : 20
+    return this.checklists.findAllPaginated(stationId, pageNum, limitNum)
   }
 
   @Get('draft')

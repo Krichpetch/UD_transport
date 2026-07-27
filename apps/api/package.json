@@ -17,7 +17,9 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:manual-migrations": "node prisma/apply-manual-migrations.cjs",
+    "db:drift-check": "node prisma/db-drift-check.cjs",
     "db:seed": "ts-node prisma/seed.ts",
+    "reimport:legacy-checklists": "ts-node prisma/reimport-legacy-checklists.ts",
     "postinstall": "prisma generate",
     "test": "jest",
     "test:watch": "jest --watch"

@@ -1,0 +1,71 @@
+[
+  {
+    "sourceId": "legacy-001",
+    "station": {
+      "nameTh": "สถานีทดสอบเอ",
+      "mode": "ทางบก",
+      "responsibleAgency": "ขบ.",
+      "province": "กรุงเทพมหานคร"
+    },
+    "auditorUsername": "auditor1",
+    "items": [
+      {
+        "groupId": "A",
+        "groupName": "A",
+        "items": [
+          { "id": "A1", "labelTh": "x", "value": "มี", "meetsStandard": true, "cabinetPriority": false, "note": "", "photos": [], "flagged": false, "reviewFlag": false },
+          { "id": "A2", "labelTh": "y", "value": "มี", "meetsStandard": false, "cabinetPriority": false, "note": "", "photos": [], "flagged": false, "reviewFlag": false },
+          { "id": "A3", "labelTh": "z", "value": "ไม่มี", "meetsStandard": false, "cabinetPriority": false, "note": "", "photos": [], "flagged": false, "reviewFlag": false },
+          { "id": "A4", "labelTh": "w", "value": "N/A", "meetsStandard": false, "cabinetPriority": false, "note": "", "photos": [], "flagged": false, "reviewFlag": false }
+        ]
+      }
+    ],
+    "status": "APPROVED",
+    "submittedAt": "2024-01-15T00:00:00.000Z",
+    "createdAt": "2024-01-15T00:00:00.000Z",
+    "reviewedAt": "2024-01-16T00:00:00.000Z",
+    "reviewNotes": null
+  },
+  {
+    "sourceId": "legacy-002",
+    "station": {
+      "nameTh": "สถานีทดสอบบี",
+      "mode": "ทางบก",
+      "responsibleAgency": "ขบ.",
+      "province": "กรุงเทพมหานคร"
+    },
+    "auditorUsername": "auditor1",
+    "items": [],
+    "status": "APPROVED",
+    "submittedAt": "2024-02-01T00:00:00.000Z",
+    "createdAt": "2024-02-01T00:00:00.000Z"
+  },
+  {
+    "sourceId": "legacy-003",
+    "station": {
+      "nameTh": "สถานีที่ไม่มีอยู่จริง",
+      "mode": "ทางเรือ",
+      "responsibleAgency": "จท.",
+      "province": "กรุงเทพมหานคร"
+    },
+    "auditorUsername": "auditor1",
+    "items": [],
+    "status": "APPROVED",
+    "submittedAt": "2024-03-01T00:00:00.000Z",
+    "createdAt": "2024-03-01T00:00:00.000Z"
+  },
+  {
+    "sourceId": "legacy-004",
+    "station": {
+      "nameTh": "สถานีทดสอบซี",
+      "mode": "ทางบก",
+      "responsibleAgency": "ขบ.",
+      "province": "กรุงเทพมหานคร"
+    },
+    "auditorUsername": "ghost_user",
+    "items": [],
+    "status": "APPROVED",
+    "submittedAt": "2024-04-01T00:00:00.000Z",
+    "createdAt": "2024-04-01T00:00:00.000Z"
+  }
+]

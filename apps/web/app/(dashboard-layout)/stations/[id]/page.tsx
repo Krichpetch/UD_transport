@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { getChecklistTemplate } from '@/lib/constants'
 import { useStation } from '@/hooks/use-stations'
-import { useChecklist, useChecklistHistory } from '@/hooks/use-checklists'
+import { useChecklist, useChecklistHistory, useChecklistHistoryPaginated } from '@/hooks/use-checklists'
 import { useApproveChecklist, useRejectChecklist, useSetItemFlag } from '@/hooks/use-stations'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ChecklistGroup, ChecklistSubItem } from '@repo/types'
@@ -18,9 +18,12 @@ import {
   Loader2,
   FileSpreadsheet,
   RotateCcw,
+  StickyNote,
 } from 'lucide-react'
 import { ChecklistPhotoGallery } from '@/components/checklist/ChecklistPhotoGallery'
 import { useAuthStore } from '@/stores/auth.store'
+import { RequireRole } from '@/components/auth/require-role'
+import { countReviewFlags } from '@/lib/checklist-review-flags'
 import Link from 'next/link'
 
 // ─── Resubmission marker (Session E3, Part B.4) ────────────────
@@ -108,7 +111,7 @@ function ChecklistRow({ item, onToggleFlag, flagPending }: {
             )}
           </div>
           {item.note && (
-            <p className="mt-1 text-xs text-muted-foreground italic bg-secondary/60 rounded px-2 py-1">
+            <p className="mt-1 border-l-2 border-blue-300 bg-blue-50/60 rounded-r px-2 py-1 text-xs italic text-muted-foreground">
               📝 {item.note}
             </p>
           )}
@@ -181,8 +184,147 @@ function ChecklistRow({ item, onToggleFlag, flagPending }: {
   )
 }
 
+// ─── Checklist status badge (Checklist.status, distinct domain from Station's StatusBadge) ───
+function ChecklistStatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    DRAFT: 'bg-gray-100 text-gray-500',
+    SUBMITTED: 'bg-amber-100 text-amber-700',
+    APPROVED: 'bg-green-100 text-green-700',
+    REJECTED: 'bg-red-100 text-red-700',
+  }
+  const label: Record<string, string> = {
+    DRAFT: 'แบบร่าง',
+    SUBMITTED: 'รอการอนุมัติ',
+    APPROVED: 'อนุมัติแล้ว',
+    REJECTED: 'ถูกปฏิเสธ',
+  }
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${map[status] ?? 'bg-secondary text-muted-foreground'}`}>
+      {label[status] ?? status}
+    </span>
+  )
+}
+
+// ─── History tab (Part E, W2-S1) — every checklist for this station, any status, newest
+// first. Read-only; no schema changes. The current/latest checklist row links back to the
+// Checklist tab (already open on it); older rows expand inline (same click-to-expand pattern
+// as ResubmissionMarker above) since there's no dedicated per-checklist route in this app. ───
+function HistoryTab({ stationId, onViewCurrent }: { stationId: string; onViewCurrent: () => void }) {
+  const [page, setPage] = React.useState(1)
+  const LIMIT = 10
+  const { data: current } = useChecklist(stationId)
+  const { data, isLoading } = useChecklistHistoryPaginated(stationId, page, LIMIT)
+  const [expandedId, setExpandedId] = React.useState<string | null>(null)
+
+  return (
+    <div className="bg-card border-border overflow-hidden rounded-xl border">
+      {isLoading ? (
+        <p className="text-muted-foreground p-8 text-center text-sm">กำลังโหลด…</p>
+      ) : !data || data.data.length === 0 ? (
+        <p className="text-muted-foreground p-8 text-center text-sm">ไม่มีประวัติการตรวจสอบ</p>
+      ) : (
+        <>
+          <div className="themed-scrollbar overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-border bg-secondary/30 border-b">
+                  <th className="text-muted-foreground px-4 py-2.5 text-left font-medium uppercase tracking-wide">ผู้ตรวจ</th>
+                  <th className="text-muted-foreground px-3 py-2.5 text-left font-medium uppercase tracking-wide">สถานะ</th>
+                  <th className="text-muted-foreground px-3 py-2.5 text-right font-medium uppercase tracking-wide">คะแนน</th>
+                  <th className="text-muted-foreground px-3 py-2.5 text-left font-medium uppercase tracking-wide">ส่งเมื่อ</th>
+                  <th className="text-muted-foreground px-3 py-2.5 text-left font-medium uppercase tracking-wide">พิจารณาเมื่อ</th>
+                  <th className="text-muted-foreground px-4 py-2.5 text-left font-medium uppercase tracking-wide">แบบฟอร์ม</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.data.map((cl) => {
+                  const isCurrent = cl.id === current?.id
+                  const isExpanded = expandedId === cl.id
+                  return (
+                    <React.Fragment key={cl.id}>
+                      <tr
+                        className="border-border hover:bg-secondary/30 cursor-pointer border-b transition-colors last:border-0"
+                        onClick={() => (isCurrent ? onViewCurrent() : setExpandedId(isExpanded ? null : cl.id))}
+                        title={isCurrent ? 'ดูในแท็บรายการตรวจสอบ' : undefined}
+                      >
+                        <td className="px-4 py-3">
+                          {cl.auditorUsername ?? '—'}
+                          {isCurrent && (
+                            <span className="ml-1.5 rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-medium text-blue-700">
+                              ล่าสุด
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3"><ChecklistStatusBadge status={cl.status} /></td>
+                        <td className="px-3 py-3 text-right font-semibold">{cl.score ?? '—'}</td>
+                        <td className="px-3 py-3 text-muted-foreground">
+                          {cl.submittedAt ? new Date(cl.submittedAt).toLocaleString('th-TH') : '—'}
+                        </td>
+                        <td className="px-3 py-3 text-muted-foreground">
+                          {cl.reviewedAt ? new Date(cl.reviewedAt).toLocaleString('th-TH') : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {cl.templateVersion ? `v${cl.templateVersion}` : '—'}
+                          {cl.template?.variantKey ? ` · ${cl.template.variantKey}` : ''}
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="border-border bg-secondary/20 border-b last:border-0">
+                          <td colSpan={6} className="px-4 py-3 text-muted-foreground">
+                            {cl.reviewNotes && <p className="mb-1">หมายเหตุ: {cl.reviewNotes}</p>}
+                            <p>สร้างเมื่อ: {new Date(cl.createdAt).toLocaleString('th-TH')}</p>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          {data.totalPages > 1 && (
+            <div className="border-border flex items-center justify-between border-t px-4 py-3">
+              <span className="text-muted-foreground text-xs">หน้า {data.page} / {data.totalPages}</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPage((p) => p - 1)}
+                  disabled={page === 1}
+                  className="border-border rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:opacity-40"
+                >
+                  ก่อนหน้า
+                </button>
+                <button
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={page >= data.totalPages}
+                  className="border-border rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:opacity-40"
+                >
+                  ถัดไป
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────
+// Mutating controls (approve/reject/flag) live on this page — ADMIN-only, same inner-guard
+// pattern as users/page.tsx (redirects EXECUTIVE straight back to /dashboard).
 export default function StationChecklistPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  return (
+    <RequireRole roles={['ADMIN']}>
+      <StationChecklistPageContent params={params} />
+    </RequireRole>
+  )
+}
+
+function StationChecklistPageContent({
   params,
 }: {
   params: Promise<{ id: string }>
@@ -197,10 +339,12 @@ export default function StationChecklistPage({
 
   const [groups, setGroups] = React.useState<ChecklistGroup[]>([])
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({})
+  const [showNotesOnly, setShowNotesOnly] = React.useState(false)
   const [excelExporting, setExcelExporting] = React.useState(false)
   const [flaggingId, setFlaggingId] = React.useState<string | null>(null)
   const [rejectOpen, setRejectOpen] = React.useState(false)
   const [rejectNotes, setRejectNotes] = React.useState('')
+  const [pageTab, setPageTab] = React.useState<'checklist' | 'history'>('checklist')
 
   React.useEffect(() => {
     if (!station) return
@@ -261,7 +405,7 @@ export default function StationChecklistPage({
   const facility  = computeFacilityMetrics(groups)
   const maiMiCount    = histogram.none
   const naCount       = histogram.na
-  const flaggedCount  = allItems.filter(i => i.reviewFlag).length
+  const flaggedCount  = countReviewFlags(groups)
 
   // 6 metrics per CLAUDE.md
   const pctSuccess       = Math.round(facility.pctSuccess)
@@ -322,18 +466,56 @@ export default function StationChecklistPage({
         </div>
       </div>
 
+      {/* ── Tabs ── */}
+      <div className="flex items-center gap-1.5 border-b border-border">
+        {(
+          [
+            { value: 'checklist', label: 'รายการตรวจสอบ' },
+            { value: 'history', label: 'ประวัติการตรวจสอบ' },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.value}
+            onClick={() => setPageTab(tab.value)}
+            className={`border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+              pageTab === tab.value
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {pageTab === 'history' && <HistoryTab stationId={id} onViewCurrent={() => setPageTab('checklist')} />}
+
       {/* ── Body: table + sidebar ── */}
+      {pageTab === 'checklist' && (
       <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
 
         {/* ── Left: checklist table ── */}
         <div className="space-y-4">
-          <div>
-            <h2 className="text-foreground font-semibold">
-              รายการตรวจสอบสิ่งอำนวยความสะดวก ({station.mode})
-            </h2>
-            <p className="text-muted-foreground text-xs mt-0.5">
-              ตามพจนานุกรมข้อมูล OTP (อัปเดต 17 เม.ย. 2566)
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h2 className="text-foreground font-semibold">
+                รายการตรวจสอบสิ่งอำนวยความสะดวก ({station.mode})
+              </h2>
+              <p className="text-muted-foreground text-xs mt-0.5">
+                ตามพจนานุกรมข้อมูล OTP (อัปเดต 17 เม.ย. 2566)
+              </p>
+            </div>
+            <button
+              onClick={() => setShowNotesOnly((v) => !v)}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                showNotesOnly
+                  ? 'border-transparent bg-primary text-primary-foreground'
+                  : 'border-border text-muted-foreground hover:bg-secondary'
+              }`}
+            >
+              <StickyNote size={12} />
+              แสดงเฉพาะรายการที่มีบันทึก
+            </button>
           </div>
 
           {checklist && (checklist.auditorUsername || checklist.submittedAt) && (
@@ -356,6 +538,8 @@ export default function StationChecklistPage({
           {groups.map(group => {
             const isOpen = openGroups[group.groupId] ?? true
             const groupAnswered = group.items.filter(i => i.value !== null).length
+            const visibleItems = showNotesOnly ? group.items.filter(i => !!i.note) : group.items
+            if (showNotesOnly && visibleItems.length === 0) return null
             return (
               <div key={group.groupId} className="bg-card border-border overflow-hidden rounded-xl border">
                 {/* Group header */}
@@ -398,7 +582,7 @@ export default function StationChecklistPage({
                     </div>
 
                     {/* Rows */}
-                    {group.items.map(item => (
+                    {visibleItems.map(item => (
                       <ChecklistRow
                         key={item.id}
                         item={item}
@@ -442,10 +626,7 @@ export default function StationChecklistPage({
                 <div className="flex gap-2">
                   <button
                     onClick={() =>
-                      approveMutation.mutate(
-                        { stationId: id, checklistId: checklist.id },
-                        { onSuccess: () => qc.invalidateQueries({ queryKey: ['checklist', id] }) }
-                      )
+                      approveMutation.mutate({ stationId: id, checklistId: checklist.id })
                     }
                     disabled={approveMutation.isPending || flaggedCount > 0}
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60"
@@ -551,6 +732,7 @@ export default function StationChecklistPage({
           </div>
         </div>
       </div>
+      )}
     </div>
   )
 }

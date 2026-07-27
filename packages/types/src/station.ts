@@ -25,6 +25,9 @@ export interface Station {
   railSubtype?: RailSubtype
   province: string
   region: string | null
+  // Station masterlist cutover — สาย/เส้นทาง the station sits on (e.g. a metro line). Empty
+  // string (never null) when the source had none; part of the (mode, nameTh, line) identity key.
+  line?: string
   responsibleAgency: string
   score: number
   status: StationStatus

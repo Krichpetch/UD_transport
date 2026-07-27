@@ -25,9 +25,11 @@ import { StatusBadge, ScoreBar } from '@/components/shared/badges'
 import { StationLocationPicker } from '@/components/maps/StationLocationPicker'
 import { FilterSelect } from '@/components/filters/filter-select'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { StationForm, StationCoordinateFields, type StationFormValue } from '@/components/stations/station-form'
 import { INPUT_CLS } from '@/lib/ui-classes'
+import { RequireRole } from '@/components/auth/require-role'
+import { countReviewFlags } from '@/lib/checklist-review-flags'
 import {
   Search,
   Filter,
@@ -43,6 +45,7 @@ import {
   ChevronsUpDown,
   Pencil,
   Eye,
+  MoreVertical,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -63,15 +66,12 @@ function ApproveButton({ stationId }: { stationId: string }) {
       })
       const submitted = history.find((c) => c.status === 'SUBMITTED')
       if (submitted) {
-        const flaggedCount = submitted.items
-          .flatMap((g) => g.items)
-          .filter((i) => i.reviewFlag).length
+        const flaggedCount = countReviewFlags(submitted.items)
         if (flaggedCount > 0) {
           setError(`มีรายการพบปัญหา (${flaggedCount}) — กรุณาตรวจสอบในหน้ารายละเอียด`)
           return
         }
         await approveMutation.mutateAsync({ stationId, checklistId: submitted.id })
-        void qc.invalidateQueries({ queryKey: ['stations'] })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการอนุมัติ')
@@ -266,11 +266,20 @@ const PAGE_SIZE = 20
 type SortableCol = 'nameTh' | 'province' | 'responsibleAgency' | 'score' | 'status' | 'lastInspected'
 
 // ---- Page ----
+// Mutating controls (approve/reject/edit/import) live on this page — ADMIN-only, same
+// inner-guard pattern as users/page.tsx (redirects EXECUTIVE straight back to /dashboard).
 export default function StationsPage() {
+  return (
+    <RequireRole roles={['ADMIN']}>
+      <StationsPageContent />
+    </RequireRole>
+  )
+}
+
+function StationsPageContent() {
   // Filters — declared before useStations so they can be passed as params
   // `search` is the live input value (updates every keystroke, keeps focus/UI responsive);
   // `debouncedSearch` is what actually drives the query, ~300ms after typing stops.
-  const user = useAuthStore((s) => s.user)
   const [search, setSearch] = React.useState('')
   const [debouncedSearch, setDebouncedSearch] = React.useState('')
   const [typeFilter, setTypeFilter] = React.useState<TransportMode | ''>('')
@@ -807,7 +816,13 @@ export default function StationsPage() {
                         <div className="flex items-center gap-2">
                           <div className="min-w-0">
                             <p className="text-foreground truncate font-medium">{station.nameTh}</p>
-                            <p className="text-muted-foreground truncate text-xs">{station.name}</p>
+                            {/* No English station name source exists in this project's masterlist
+                                (tools/Merged_Station_Coordinates_V2.xlsx has Thai columns only) —
+                                line · province stands in per Part G.1 (W2-S1) rather than
+                                duplicating nameTh or inventing a transliteration. */}
+                            <p className="text-muted-foreground truncate text-xs">
+                              {station.line || '—'} · {station.province ?? 'ไม่ระบุ'}
+                            </p>
                           </div>
                           {hasPending && (
                             <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
@@ -859,39 +874,36 @@ export default function StationsPage() {
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-end gap-2">
                           {hasPending && <ApproveButton stationId={station.id} />}
-                          {user?.role === 'ADMIN' && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Link
-                                  // version=3 pins this to the latest checklist-migration-pipeline
-                                  // template (nested sub-items, item-level pager) — the most
-                                  // up-to-date draft, and the one actually worth previewing; the
-                                  // ACTIVE template (v1, flat, no sub-items) is already fully
-                                  // visible read-only via the "Checklist" button next to this one.
-                                  href={`/audit?preview=1&version=3&station=${station.id}`}
-                                  className="border-border text-foreground hover:bg-secondary flex items-center rounded-lg border p-1.5 transition-colors"
-                                  aria-label="ดูตัวอย่างแบบประเมิน"
-                                >
-                                  <Eye size={12} />
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                className="border-border text-foreground hover:bg-secondary flex items-center rounded-lg border p-1.5 transition-colors"
+                                aria-label="ดำเนินการเพิ่มเติม"
+                              >
+                                <MoreVertical size={14} />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                {/* version=3 pins this to the latest checklist-migration-pipeline
+                                    template (nested sub-items, item-level pager) — the most
+                                    up-to-date draft, and the one actually worth previewing; the
+                                    ACTIVE template (v1, flat, no sub-items) is already fully
+                                    visible read-only via the "Checklist" item below. */}
+                                <Link href={`/audit?preview=1&version=3&station=${station.id}`}>
+                                  <Eye size={12} /> ดูตัวอย่างแบบประเมิน
                                 </Link>
-                              </TooltipTrigger>
-                              <TooltipContent>ดูตัวอย่างแบบประเมิน</TooltipContent>
-                            </Tooltip>
-                          )}
-                          <button
-                            onClick={() => setEditStation(station)}
-                            className="border-border text-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors"
-                          >
-                            <Pencil size={12} />
-                            แก้ไข
-                          </button>
-                          <Link
-                            href={`/stations/${station.id}`}
-                            className="border-border text-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors"
-                          >
-                            <ClipboardList size={12} />
-                            Checklist
-                          </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => setEditStation(station)}>
+                                <Pencil size={12} /> แก้ไข
+                              </DropdownMenuItem>
+                              <DropdownMenuItem asChild>
+                                <Link href={`/stations/${station.id}`}>
+                                  <ClipboardList size={12} /> Checklist
+                                </Link>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </td>
                     </tr>

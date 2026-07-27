@@ -63,6 +63,11 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  // Part G.2 (W2-S1) — responsible agency this user belongs to (values from
+  // RESPONSIBLE_AGENCIES, @repo/types). Nullable: existing users have none until an admin sets
+  // it. Agency-scoped data filtering is deliberately out of scope for now.
+  agency       String?
+
   checklists Checklist[]
 }
 

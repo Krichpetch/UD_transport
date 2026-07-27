@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getLatestChecklist,
   getChecklistHistory,
+  getChecklistHistoryPaginated,
   getMyDraft,
   getTemplateForAudit,
   saveDraft,
@@ -49,6 +50,15 @@ export function useChecklistHistory(stationId: string) {
   return useQuery({
     queryKey: ['checklist', stationId, 'history'],
     queryFn:  () => getChecklistHistory(stationId),
+    enabled:  !!stationId,
+  })
+}
+
+// Part E (W2-S1) — paginated variant for the admin station-detail History tab.
+export function useChecklistHistoryPaginated(stationId: string, page: number, limit: number) {
+  return useQuery({
+    queryKey: ['checklist', stationId, 'history', 'paginated', page, limit],
+    queryFn:  () => getChecklistHistoryPaginated(stationId, page, limit),
     enabled:  !!stationId,
   })
 }

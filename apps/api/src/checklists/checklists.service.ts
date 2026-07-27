@@ -86,6 +86,30 @@ export class ChecklistsService {
     return Promise.all(rows.map(async (cl) => ({ ...cl, items: await this.refreshPhotoUrls(cl.items) })))
   }
 
+  // Part E (W2-S1) — paginated variant for the admin station-detail History tab. A separate
+  // method from findAll() above on purpose: findAll's existing callers (the resubmission
+  // marker, the stations-list approve button's flag check) need to scan the FULL history for a
+  // specific row, not a page of it — paginating that endpoint's default behavior would silently
+  // break those lookups once a station accumulates enough checklists. Same envelope shape
+  // StationsService.findAll already returns for the stations list.
+  async findAllPaginated(stationId: string, page: number, limit: number) {
+    const [total, rows] = await Promise.all([
+      this.prisma.checklist.count({ where: { stationId } }),
+      this.prisma.checklist.findMany({
+        where: { stationId },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          auditor: { select: { id: true, username: true } },
+          template: { select: { variantKey: true } },
+        },
+      }),
+    ])
+    const data = await Promise.all(rows.map(async (cl) => ({ ...cl, items: await this.refreshPhotoUrls(cl.items) })))
+    return { data, total, page, totalPages: Math.max(1, Math.ceil(total / limit)) }
+  }
+
   // Session E3, Part C.4 — every photo read path re-presigns the GET URL fresh rather than
   // trusting the `url` baked into the stored ChecklistPhoto at upload time. Root cause of the
   // "revisit preview" bug: MinioService.getPresignedUrl expires in 1 hour by default, and that

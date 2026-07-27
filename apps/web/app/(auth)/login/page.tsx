@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/auth.store'
 
 const ROLE_DESTINATIONS: Record<string, string> = {
   EXECUTIVE: '/dashboard',
-  ADMIN: '/dashboard',
+  ADMIN: '/admin/overview',
   AUDITOR: '/audit',
 }
 

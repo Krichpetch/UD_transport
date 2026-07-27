@@ -26,6 +26,15 @@ export interface ChecklistRecord {
   // Session E3, Part B.4 — set when this checklist is a resubmission fixing a rejection; the id
   // of the REJECTED checklist it responds to, or null for an ordinary (non-resubmission) submit.
   respondsToChecklistId?: string | null
+  templateVersion?: number | null
+  template?: { variantKey: string } | null
+}
+
+export interface PaginatedChecklistHistory {
+  data: ChecklistRecord[]
+  total: number
+  page: number
+  totalPages: number
 }
 
 // Session E3, Part B.1 — "งานที่ถูกตีกลับ" on the auditor home.
@@ -70,6 +79,15 @@ export function getTemplateForAudit(stationId: string, opts?: { preview?: boolea
 
 export function getChecklistHistory(stationId: string) {
   return api.get<ChecklistRecord[]>(`/stations/${stationId}/checklist/history`)
+}
+
+// Part E (W2-S1) — admin station-detail History tab. Passing page/limit switches the same
+// endpoint to a paginated envelope (see ChecklistsController.findAll) rather than the full
+// unpaginated array getChecklistHistory above returns.
+export function getChecklistHistoryPaginated(stationId: string, page: number, limit: number) {
+  return api.get<PaginatedChecklistHistory>(
+    `/stations/${stationId}/checklist/history?page=${page}&limit=${limit}`,
+  )
 }
 
 // `items` is deliberately `unknown[]` rather than `ChecklistGroup[]` — v2 nested trees don't fit

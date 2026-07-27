@@ -5,8 +5,8 @@ import { useAuthStore } from '@/stores/auth.store'
 import { RequireRole } from '@/components/auth/require-role'
 import { useUsers, useCreateUser, useUpdateUser, useSetUserActive } from '@/hooks/use-users'
 import type { UserRecord, CreatedUserRecord } from '@/lib/api/users'
-import type { UserRole } from '@repo/types'
-import { USER_ROLES } from '@repo/types'
+import type { UserRole, ResponsibleAgency } from '@repo/types'
+import { USER_ROLES, RESPONSIBLE_AGENCIES } from '@repo/types'
 import { INPUT_CLS, SELECT_CLS } from '@/lib/ui-classes'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { UserPlus, Loader2, Pencil, Ban, CheckCircle2, Copy, Check } from 'lucide-react'
@@ -92,9 +92,10 @@ interface UserFormState {
   email: string
   role: UserRole
   password: string
+  agency: ResponsibleAgency | ''
 }
 
-const EMPTY_FORM: UserFormState = { username: '', email: '', role: 'AUDITOR', password: '' }
+const EMPTY_FORM: UserFormState = { username: '', email: '', role: 'AUDITOR', password: '', agency: '' }
 
 function UserFormModal({
   mode,
@@ -110,7 +111,9 @@ function UserFormModal({
   const createUser = useCreateUser()
   const updateUser = useUpdateUser()
   const [form, setForm] = React.useState<UserFormState>(
-    initial ? { username: initial.username, email: initial.email, role: initial.role, password: '' } : EMPTY_FORM,
+    initial
+      ? { username: initial.username, email: initial.email, role: initial.role, password: '', agency: initial.agency ?? '' }
+      : EMPTY_FORM,
   )
   const [error, setError] = React.useState('')
   const [saving, setSaving] = React.useState(false)
@@ -138,12 +141,13 @@ function UserFormModal({
           email: form.email,
           role: form.role,
           password: form.password || undefined,
+          agency: form.agency || undefined,
         })
         onCreated(user)
       } else if (initial) {
         await updateUser.mutateAsync({
           id: initial.id,
-          data: { username: form.username, email: form.email, role: form.role },
+          data: { username: form.username, email: form.email, role: form.role, agency: form.agency || undefined },
         })
         onClose()
       }
@@ -187,6 +191,21 @@ function UserFormModal({
               {USER_ROLES.map((r) => (
                 <option key={r} value={r}>
                   {ROLE_LABEL[r]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-foreground mb-1 block text-xs font-medium">หน่วยงานรับผิดชอบ</label>
+            <select
+              className={SELECT_CLS}
+              value={form.agency}
+              onChange={(e) => patch({ agency: e.target.value as ResponsibleAgency | '' })}
+            >
+              <option value="">ไม่ระบุ</option>
+              {RESPONSIBLE_AGENCIES.map((a) => (
+                <option key={a} value={a}>
+                  {a}
                 </option>
               ))}
             </select>
@@ -294,6 +313,9 @@ function UsersPageContent() {
                     บทบาท
                   </th>
                   <th className="text-muted-foreground px-3 py-3 text-left text-xs font-medium tracking-wide uppercase">
+                    หน่วยงาน
+                  </th>
+                  <th className="text-muted-foreground px-3 py-3 text-left text-xs font-medium tracking-wide uppercase">
                     สถานะ
                   </th>
                   <th className="text-muted-foreground px-5 py-3 text-right text-xs font-medium tracking-wide uppercase">
@@ -304,7 +326,7 @@ function UsersPageContent() {
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-muted-foreground py-12 text-center text-sm">
+                    <td colSpan={6} className="text-muted-foreground py-12 text-center text-sm">
                       ไม่พบผู้ใช้งาน
                     </td>
                   </tr>
@@ -316,6 +338,7 @@ function UsersPageContent() {
                       <td className="px-3 py-3.5">
                         <RoleBadge role={u.role} />
                       </td>
+                      <td className="text-muted-foreground px-3 py-3.5">{u.agency ?? '—'}</td>
                       <td className="px-3 py-3.5">
                         <ActiveBadge isActive={u.isActive} />
                       </td>

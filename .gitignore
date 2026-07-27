@@ -30,6 +30,12 @@ tools/checklist-migration/**/__pycache__
 tools/checklist-migration/input/
 tools/checklist-migration/output/
 
+# Historical checklist reimport tool (Part F, W2-S1): the real pre-cutover export (1,394
+# checklists, real สนข. inspection data) is dropped here directly, never committed — same
+# confidentiality rule as the checklist-migration tool above. Code + the synthetic fixture in
+# apps/api/src/admin/reimport/__fixtures__/ are the only committed artifacts.
+apps/api/docs/legacy-export/
+
 # Vercel
 .vercel
 

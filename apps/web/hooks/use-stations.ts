@@ -124,14 +124,19 @@ export function usePendingReviews() {
   })
 }
 
+// Single source of truth for cache invalidation after an approve — both the stations-list
+// approve button and the station-detail approve button call this same hook and rely solely on
+// its own onSuccess (neither call site should bolt on extra invalidateQueries calls).
 export function useApproveChecklist() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ stationId, checklistId }: { stationId: string; checklistId: string }) =>
       approveChecklist(stationId, checklistId),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       void qc.invalidateQueries({ queryKey: ['stations'] })
       void qc.invalidateQueries({ queryKey: ['stations', 'pending-reviews'] })
+      void qc.invalidateQueries({ queryKey: ['checklist', vars.stationId] })
+      void qc.invalidateQueries({ queryKey: ['checklist', vars.stationId, 'history'] })
     },
   })
 }

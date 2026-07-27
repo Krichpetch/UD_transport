@@ -1,5 +1,5 @@
 import { api } from '@/lib/api'
-import type { UserRole } from '@repo/types'
+import type { UserRole, ResponsibleAgency } from '@repo/types'
 
 export interface UserRecord {
   id: string
@@ -7,6 +7,7 @@ export interface UserRecord {
   email: string
   role: UserRole
   isActive: boolean
+  agency: ResponsibleAgency | null
   createdAt: string
   updatedAt: string
 }
@@ -22,12 +23,14 @@ export interface CreateUserInput {
   email: string
   role?: UserRole
   password?: string
+  agency?: ResponsibleAgency
 }
 
 export interface UpdateUserInput {
   username?: string
   email?: string
   role?: UserRole
+  agency?: ResponsibleAgency
 }
 
 export function getUsers() {

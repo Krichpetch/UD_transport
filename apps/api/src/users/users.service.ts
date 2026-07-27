@@ -9,7 +9,7 @@ import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateUserDto } from './dto/update-user.dto'
 
 const USER_LIST_SELECT = {
-  id: true, username: true, email: true, role: true, isActive: true,
+  id: true, username: true, email: true, role: true, isActive: true, agency: true,
   createdAt: true, updatedAt: true,
 } satisfies Prisma.UserSelect
 
@@ -44,6 +44,7 @@ export class UsersService {
           username: dto.username.trim(),
           email: dto.email.trim(),
           role: (dto.role as 'ADMIN' | 'AUDITOR' | 'EXECUTIVE') ?? 'AUDITOR',
+          agency: dto.agency,
           passwordHash,
         },
         select: USER_LIST_SELECT,
@@ -80,6 +81,7 @@ export class UsersService {
           ...(dto.username !== undefined && { username: dto.username.trim() }),
           ...(dto.email    !== undefined && { email: dto.email.trim() }),
           ...(dto.role      !== undefined && { role: dto.role as 'ADMIN' | 'AUDITOR' | 'EXECUTIVE' }),
+          ...(dto.agency    !== undefined && { agency: dto.agency }),
         },
         select: USER_LIST_SELECT,
       })

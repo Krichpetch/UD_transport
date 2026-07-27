@@ -35,15 +35,31 @@ plain `postgres` image (`CREATE EXTENSION postgis` will error: extension not ava
    `DATABASE_URL` must match the `db` service above. MinIO itself isn't in `docker-compose.yml`
    yet — run it separately (`docker run ... minio/minio`) and point the two `MINIO_*` keys at it.
 
-4. **Sync the schema, then apply PostGIS** (two separate steps — this project uses
-   `prisma db push`, not `prisma migrate`; the PostGIS extension and geography index live outside
-   Prisma's schema tracking on purpose, see `apps/api/prisma/migrations_manual/`):
+4. **Apply migrations, then PostGIS** (two separate steps — the PostGIS extension and geography
+   index live outside Prisma's schema tracking on purpose, see
+   `apps/api/prisma/migrations_manual/`; everything else is a real tracked migration as of
+   2026-07-27 — see the callout below):
    ```bash
-   pnpm --filter api db:push
+   pnpm --filter api exec prisma migrate deploy
    pnpm --filter api db:manual-migrations
    ```
    `db:manual-migrations` runs every `.sql` file in `apps/api/prisma/migrations_manual/` — it's
    idempotent, safe to re-run any time (e.g. after pulling a new manual migration file).
+
+   **`prisma db push` is no longer the intended day-to-day workflow.** Until 2026-07-27, several
+   real schema changes (the masterlist-cutover columns, two partial unique indexes) were only
+   ever applied via `db push` and never captured in a migration file — which meant a fresh
+   `prisma migrate reset` silently came back on an *older* schema than `schema.prisma`, breaking
+   `reset-stations.ts` and every other script the moment they touched a missing column. All of
+   that is now captured as real migrations. If you change `schema.prisma` going forward, run
+   `prisma migrate dev --name <description>` (not `db push`) so the change gets its own migration
+   file — then verify nothing has silently drifted with:
+   ```bash
+   pnpm --filter api db:drift-check
+   ```
+   (compares the live DB against `prisma/migrations/` and exits non-zero on any gap; see that
+   script's own header comment for exactly what it does and why it needs a scratch
+   `<database>_shadow` database to exist).
 
 5. **Run everything:**
    ```bash
@@ -56,6 +72,47 @@ plain `postgres` image (`CREATE EXTENSION postgis` will error: extension not ava
 
 **Verify it worked:** log in, then hit `GET /stations/nearby?lat=13.7563&lng=100.5018&limit=5` —
 if PostGIS isn't set up correctly this 500s instead of returning nearby stations.
+
+## Resetting / reseeding your local dev database
+
+Use this whenever your local DB needs to go back to a known-good state — after
+`prisma migrate reset`, after a schema change that isn't additive-safe, or just when local data
+has gotten into a weird state. **`prisma migrate reset` only recreates the schema — it does
+NOT reseed any content.** There is no `prisma.seed` entry configured in `apps/api/package.json`
+(and no `prisma.config.ts`), so Prisma has nothing to auto-run after a reset; every step below
+must be run by hand, **in this order**, from `apps/api/`:
+
+```bash
+npx prisma migrate reset --force              # drops + recreates the DB, applies all migrations
+                                               # (irreversible — see the warning below)
+npx ts-node prisma/seed.ts                    # 3 baseline accounts: admin / auditor1 / executive
+                                               # (password123). No stations — see note below.
+npx ts-node prisma/reset-stations.ts --confirm # 823-row station masterlist (stations_master_v2.json)
+npx ts-node prisma/seed-templates.ts          # LawReference + v1 ACTIVE / v2 DRAFT ChecklistTemplate rows
+npx ts-node prisma/backfill-region.ts         # derives Station.region (coords -> nearest province,
+                                               # falling back to province-string match) — the
+                                               # masterlist JSON stores region: null by design
+pnpm run db:drift-check                        # confirms the result matches migration history
+```
+
+**`prisma migrate reset --force` destroys all data in the target database and must never be run
+against a production or shared database** — only ever a disposable local dev DB. Double-check
+`DATABASE_URL` in `apps/api/.env` points at `localhost` before running it.
+
+Why 4 separate content-seeding scripts instead of one: `seed.ts` only ever seeded users (its
+old station-seeding block referenced a pre-cutover unique key and was removed after it started
+failing to even compile); `reset-stations.ts` is the sole source of truth for station identity
+data and deliberately does not compute derived fields; `seed-templates.ts` and
+`backfill-region.ts` are separate one-time/idempotent passes for exactly the two things
+`reset-stations.ts` intentionally leaves for later. All four (after `seed.ts`) are idempotent —
+safe to re-run individually if you only need to fix one of them.
+
+If you only lost stations/templates/region (not users), you can skip `seed.ts`/`migrate reset`
+and just re-run whichever of the later scripts you need — they're all idempotent.
+
+See "Syncing Railway's DB to local dev state" below for the equivalent sequence against a
+deployed environment (same four content scripts, different safety considerations since Railway
+may hold real inspection data that doesn't exist locally).
 
 ## Deploying the API
 
