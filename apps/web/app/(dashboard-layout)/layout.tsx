@@ -25,9 +25,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <TooltipProvider>
         <SidebarProvider style={{ '--sidebar-width-icon': '4rem' } as React.CSSProperties}>
           <AppSidebar />
-          <div className="flex min-h-screen w-full flex-col">
+          <div className="flex min-h-screen w-full min-w-0 flex-col">
             <AppNavbar />
-            <main className="flex-1 p-6">
+            {/* min-w-0 — without it, a flex child that doesn't shrink (e.g. an unbroken row of
+                text/badges somewhere in `children`) forces this whole column wider than the
+                viewport, which cascades up into the sidebar+main flex row and scrolls the ENTIRE
+                page horizontally rather than just the offending element. */}
+            <main className="min-w-0 flex-1 p-6">
               {children}
             </main>
           </div>

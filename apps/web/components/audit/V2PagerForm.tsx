@@ -5,6 +5,7 @@ import type { TemplateNode } from '@repo/types'
 import { useAuditFormStore } from '@/stores/audit-form.store'
 import { computeContainerStatus, collectLeafCodes } from '@/lib/audit-form'
 import { LeafAnswerRow } from '@/components/audit/LeafAnswerRow'
+import { NodeReferenceImages } from '@/components/audit/NodeReferenceImages'
 
 // E-form redesign (Session E2 follow-up) — replaces the earlier accordion-of-groups with an
 // item-level pager matching the v1 pager's pattern one level deeper: (A1) ที่จอดรถ paginates to
@@ -67,6 +68,10 @@ function ContainerNode({ node, breadcrumb, disabled }: { node: TemplateNode; bre
   return (
     <div className={disabled ? 'pointer-events-none opacity-40' : ''}>
       <p className="px-4 pt-2.5 text-xs font-semibold text-gray-600">{node.num ? `${node.num}. ` : ''}{node.labelTh}</p>
+      {/* Reference images (W2-S3a Part D) — after the category name, before the มี/ไม่มี/
+          ไม่เกี่ยวข้อง choices. This is the common case: most admin-attached images live at this
+          AX.X container level, not drilled down into individual sub-criteria. */}
+      <NodeReferenceImages node={node} className="px-4 pb-2" />
       <div className="flex gap-2 px-4 pb-2.5 pt-1.5">
         <button
           onClick={selectPresent}

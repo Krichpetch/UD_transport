@@ -1,9 +1,10 @@
 /**
  * Regression test — GET /uploads/presign must only mint presigned URLs for
- * objects under checklist-photos/. Without this, any authenticated user
- * could request a presigned URL for an arbitrary key anywhere in the
- * bucket. '../' and URL-encoded traversal must not be able to escape the
- * prefix check.
+ * objects under checklist-photos/ or template-images/ (W2-S3a Part D added
+ * the second prefix for admin-attached template reference images). Without
+ * this, any authenticated user could request a presigned URL for an
+ * arbitrary key anywhere in the bucket. '../' and URL-encoded traversal
+ * must not be able to escape the prefix check, for either prefix.
  */
 
 import { CanActivate, ExecutionContext, INestApplication } from '@nestjs/common'
@@ -71,5 +72,23 @@ describe('GET /uploads/presign — key prefix guard', () => {
     request(app.getHttpServer())
       .get('/uploads/presign')
       .query({ key: 'secret.jpg' })
+      .expect(400))
+
+  it('allows a key under template-images/ (200)', () =>
+    request(app.getHttpServer())
+      .get('/uploads/presign')
+      .query({ key: 'template-images/def456.jpg' })
+      .expect(200))
+
+  it('rejects ../ traversal that escapes template-images/ (400)', () =>
+    request(app.getHttpServer())
+      .get('/uploads/presign')
+      .query({ key: 'template-images/../secret.jpg' })
+      .expect(400))
+
+  it('rejects URL-encoded traversal that escapes template-images/ (400)', () =>
+    request(app.getHttpServer())
+      .get('/uploads/presign')
+      .query({ key: 'template-images/%2e%2e/secret.jpg' })
       .expect(400))
 })

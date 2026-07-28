@@ -1,12 +1,14 @@
 'use client'
 
 import * as React from 'react'
-import { CheckSquare, Square, StickyNote, Ruler } from 'lucide-react'
+import { CheckCircle2, CheckSquare, Square, StickyNote, Ruler } from 'lucide-react'
 import type { TemplateNode, ChecklistValue, ChecklistPhoto } from '@repo/types'
 import { deriveMeasuredStandard, ratioLengthKey, ratioHeightKey } from '@repo/types'
+import { isLeafAnswered } from '@/lib/audit-form'
 import { useAuditFormStore } from '@/stores/audit-form.store'
 import { PhotoPicker } from '@/components/audit/PhotoPicker'
 import { ThresholdModalTrigger } from '@/components/audit/ThresholdModal'
+import { NodeReferenceImages } from '@/components/audit/NodeReferenceImages'
 import { ChecklistPhotoGallery } from '@/components/checklist/ChecklistPhotoGallery'
 import { useDeleteChecklistPhoto } from '@/hooks/use-checklists'
 
@@ -90,10 +92,21 @@ export function LeafAnswerRow({ node, disabled = false, breadcrumb }: {
   }
 
   const rowDisabledCls = disabled ? 'opacity-40 pointer-events-none' : ''
+  const answered = isLeafAnswered(node, answer)
 
   return (
     <div className={`px-4 py-3.5 ${rowDisabledCls}`}>
       <div className="mb-2.5 flex items-start gap-2">
+        {/* Verified/unverified indicator — a filled green check once this leaf has a definite
+            answer (same isLeafAnswered rule the progress header/navigator use), an empty ring
+            otherwise, so completion status is visible per-row, not just per-page. */}
+        <span className="mt-0.5 shrink-0" title={answered ? 'ตอบแล้ว' : 'ยังไม่ได้ตอบ'}>
+          {answered ? (
+            <CheckCircle2 size={16} className="text-green-600" />
+          ) : (
+            <span className="border-border block size-4 rounded-full border-2" />
+          )}
+        </span>
         <span className="text-muted-foreground bg-secondary mt-0.5 shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px]">
           {node.code}{node.num ? ` (${node.num})` : ''}
         </span>
@@ -112,6 +125,11 @@ export function LeafAnswerRow({ node, disabled = false, breadcrumb }: {
           </div>
         </div>
       </div>
+
+      {/* Reference images (W2-S3a Part D) — after the label/category, before the answer controls,
+          per the "images at the AX.X level should appear on the form, not just in the info modal"
+          decision. Most leaves have no imageKeys, in which case this renders nothing. */}
+      <NodeReferenceImages node={node} className="mb-2.5" />
 
       {node.answerType === 'choice' && (
         <ChoiceControl node={node} value={answer.value} meetsStandard={answer.meetsStandard} setAnswer={setAnswer} />

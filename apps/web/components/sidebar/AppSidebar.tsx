@@ -13,7 +13,7 @@ import {
   SidebarGroupLabel,
   SidebarGroupContent,
 } from '@/components/ui/sidebar'
-import { LayoutDashboard, Building2, Settings, LogOut, User, Users, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Building2, Settings, LogOut, User, Users, ClipboardCheck, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
@@ -30,10 +30,11 @@ const ROLE_LABEL: Record<string, string> = {
 // mutating controls (approve/reject/edit/import), so they're ADMIN-only here; EXECUTIVE keeps
 // the read-only /dashboard as their home instead of the admin operational overview.
 const NAV_ITEMS: { labelTh: string; icon: LucideIcon; href: string; roles: UserRole[] }[] = [
-  { labelTh: 'ภาพรวม',        icon: LayoutDashboard, href: '/admin/overview', roles: ['ADMIN'] },
-  { labelTh: 'ภาพรวม',        icon: LayoutDashboard, href: '/dashboard',      roles: ['EXECUTIVE'] },
-  { labelTh: 'จัดการสถานี',    icon: Building2,       href: '/stations',       roles: ['ADMIN'] },
-  { labelTh: 'จัดการผู้ใช้งาน', icon: Users,           href: '/users',          roles: ['ADMIN'] },
+  { labelTh: 'ภาพรวม',        icon: LayoutDashboard, href: '/admin/overview',  roles: ['ADMIN'] },
+  { labelTh: 'ภาพรวม',        icon: LayoutDashboard, href: '/dashboard',       roles: ['EXECUTIVE'] },
+  { labelTh: 'จัดการสถานี',    icon: Building2,       href: '/stations',        roles: ['ADMIN'] },
+  { labelTh: 'จัดการแบบประเมิน', icon: ClipboardCheck,  href: '/admin/templates', roles: ['ADMIN'] },
+  { labelTh: 'จัดการผู้ใช้งาน', icon: Users,           href: '/users',           roles: ['ADMIN'] },
   { labelTh: 'ตั้งค่าระบบ',     icon: Settings,        href: '/settings',       roles: ['ADMIN', 'EXECUTIVE'] },
 ]
 

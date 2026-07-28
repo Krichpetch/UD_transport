@@ -22,7 +22,11 @@ interface AuthRequest extends Request {
 }
 
 const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
-const PRESIGN_KEY_PREFIX = 'checklist-photos/'
+// W2-S3a Part D added 'template-images/' (admin template reference photos, see
+// admin/templates/templates.service.ts) alongside the original auditor evidence-photo prefix —
+// widened to an allowlist array here rather than loosening the check to any single broader rule,
+// so a third future prefix is one more array entry, not a rewrite of the guard's logic.
+const PRESIGN_KEY_PREFIXES = ['checklist-photos/', 'template-images/']
 
 @Controller('uploads')
 @UseGuards(JwtAuthGuard)
@@ -44,7 +48,7 @@ export class UploadsController {
     return { id: key, url, filename: file.originalname, uploadedAt: new Date().toISOString() }
   }
 
-  // Restricted to checklist-photos/ so an authenticated user can't mint a presigned
+  // Restricted to PRESIGN_KEY_PREFIXES so an authenticated user can't mint a presigned
   // URL for an arbitrary object elsewhere in the bucket. Decode + posix.normalize
   // before checking the prefix so '../' and its URL-encoded form can't escape it.
   @Get('presign')
@@ -58,7 +62,7 @@ export class UploadsController {
       throw new BadRequestException('Invalid key')
     }
     const normalized = posix.normalize(decoded)
-    if (!normalized.startsWith(PRESIGN_KEY_PREFIX) || normalized.includes('..')) {
+    if (!PRESIGN_KEY_PREFIXES.some((prefix) => normalized.startsWith(prefix)) || normalized.includes('..')) {
       throw new BadRequestException('Invalid key')
     }
 

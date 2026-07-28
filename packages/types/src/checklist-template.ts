@@ -111,6 +111,13 @@ export interface TemplateNode {
   cabinetResolution?: boolean // one of the 5 มติ ครม. priority items
   beyondLaw?: boolean         // project-added item, not required by any กฎกระทรวง
 
+  // Admin-attached reference images (W2-S3a, Part D) — MinIO keys under template-images/, shown
+  // in the auditor's คู่มือการตรวจประเมิน modal. Optional at every level (like lawRefs above), not
+  // leaf-only: a container criterion can carry its own illustrative photo even if its children are
+  // the answerable leaves. Cap (e.g. 3 per node) is enforced by the admin editor/upload endpoint,
+  // not this shape check.
+  imageKeys?: string[]
+
   subItems?: TemplateNode[]
 }
 
@@ -324,6 +331,12 @@ function parseNode(raw: unknown, path: string): TemplateNode {
   if (Array.isArray(o.lawRefs)) node.lawRefs = o.lawRefs as string[]
   if (typeof o.cabinetResolution === 'boolean') node.cabinetResolution = o.cabinetResolution
   if (typeof o.beyondLaw === 'boolean') node.beyondLaw = o.beyondLaw
+  if (o.imageKeys !== undefined) {
+    if (!Array.isArray(o.imageKeys) || o.imageKeys.some((k) => typeof k !== 'string')) {
+      fail(`${path}.imageKeys`, 'must be a string array')
+    }
+    node.imageKeys = o.imageKeys as string[]
+  }
 
   return node
 }
@@ -386,4 +399,21 @@ export function walkTemplateLeaves(def: ChecklistTemplateDefinition): TemplateNo
     for (const item of g.items) visit(item)
   }
   return leaves
+}
+
+// Depth-first index of EVERY node in the tree, keyed by `code` — unlike walkTemplateLeaves, this
+// includes containers (criteria/sub-criteria with no answerType of their own), since codes are
+// unique across the whole template version (DATA_DICTIONARY_v2.md §1), not just among leaves.
+// Used by the admin template editor (W2-S3a) to locate a specific node for an in-place edit —
+// mirrors era-overrides.ts's internal indexLeavesByCode but generalized to any node.
+export function indexTemplateNodesByCode(def: ChecklistTemplateDefinition): Map<string, TemplateNode> {
+  const index = new Map<string, TemplateNode>()
+  const visit = (node: TemplateNode) => {
+    index.set(node.code, node)
+    if (node.subItems) for (const child of node.subItems) visit(child)
+  }
+  for (const g of def.groups) {
+    for (const item of g.items) visit(item)
+  }
+  return index
 }

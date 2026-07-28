@@ -14,6 +14,7 @@ import {
 import { StationSearchPicker } from '@/components/audit/StationSearchPicker'
 import { LeafAnswerRow } from '@/components/audit/LeafAnswerRow'
 import { V2ItemPage } from '@/components/audit/V2PagerForm'
+import { PageNavigatorTrigger, type NavigatorPage } from '@/components/audit/PageNavigator'
 import { useAuthStore } from '@/stores/auth.store'
 import { useAuditFormStore } from '@/stores/audit-form.store'
 import { buildStoredGroups, countProgressForNodes, groupDisplayName } from '@/lib/audit-form'
@@ -511,6 +512,25 @@ export default function AuditPage() {
   const totalPages = isV1 ? groups.length : v2Pages.length
   const isSummaryPage = currentPage === totalPages
 
+  // Navigator (jump-to) — one entry per page, v1 = group-level, v2 = item-level, matching each
+  // pager's own granularity. Progress figures reuse the exact same countProgressForNodes tally
+  // the header/summary page already use, so the navigator can never disagree with them.
+  const navPages: NavigatorPage[] = isV1
+    ? groups.map((g) => {
+        const p = countProgressForNodes(g.items, answers)
+        return { code: g.code, label: groupDisplayName(g), answered: p.answered, total: p.total }
+      })
+    : v2Pages.map(({ group, item }) => {
+        const p = countProgressForNodes([item], answers)
+        return {
+          code: item.code,
+          label: item.num ? `${item.num}. ${item.labelTh}` : item.labelTh,
+          sublabel: groupDisplayName(group),
+          answered: p.answered,
+          total: p.total,
+        }
+      })
+
   return (
     <div className="space-y-4">
       {stationPicker}
@@ -540,13 +560,16 @@ export default function AuditPage() {
         <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
           <div className="h-full rounded-full bg-accent transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
-        <div className="mt-2 flex items-center gap-3">
-          {resumedFromDraft && (
-            <p className="text-[10px] text-muted-foreground">↩ ดำเนินการต่อจากร่างที่บันทึกไว้</p>
-          )}
-          {saveStatus === 'saving' && <p className="text-[10px] text-muted-foreground">กำลังบันทึก…</p>}
-          {saveStatus === 'saved' && <p className="text-[10px] text-accent">✓ บันทึกอัตโนมัติแล้ว</p>}
-          {saveStatus === 'error' && <p className="text-[10px] text-red-500">บันทึกอัตโนมัติไม่สำเร็จ</p>}
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {resumedFromDraft && (
+              <p className="text-[10px] text-muted-foreground">↩ ดำเนินการต่อจากร่างที่บันทึกไว้</p>
+            )}
+            {saveStatus === 'saving' && <p className="text-[10px] text-muted-foreground">กำลังบันทึก…</p>}
+            {saveStatus === 'saved' && <p className="text-[10px] text-accent">✓ บันทึกอัตโนมัติแล้ว</p>}
+            {saveStatus === 'error' && <p className="text-[10px] text-red-500">บันทึกอัตโนมัติไม่สำเร็จ</p>}
+          </div>
+          <PageNavigatorTrigger pages={navPages} currentPage={currentPage} onJump={setCurrentPage} />
         </div>
         {locationUnverifiedMessage && (
           <p className="mt-2 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[10px] text-amber-700">
