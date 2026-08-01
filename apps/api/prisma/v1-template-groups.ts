@@ -19,7 +19,7 @@ export interface V1GroupSource {
   items: { code: string; labelTh: string }[]
 }
 
-export const V1_TEMPLATE_GROUPS: Record<'ทางบก' | 'ทางราง' | 'ทางเรือ' | 'ทางอากาศ', V1GroupSource[]> = {
+export const V1_TEMPLATE_GROUPS: Record<'ทางบก' | 'ทางราง' | 'ทางน้ำ' | 'ทางอากาศ', V1GroupSource[]> = {
   ทางบก: [
     { code: 'A1', labelTh: 'ที่จอดรถ', items: [
       { code: 'A1.1', labelTh: 'ที่จอดรถสำหรับคนพิการ' },
@@ -204,7 +204,7 @@ export const V1_TEMPLATE_GROUPS: Record<'ทางบก' | 'ทางราง'
     ] },
   ],
 
-  ทางเรือ: [
+  ทางน้ำ: [
     { code: 'A1', labelTh: 'ที่จอดรถ', items: [
       { code: 'A1.1', labelTh: 'ที่จอดรถสำหรับคนพิการ' },
       { code: 'A1.2', labelTh: 'ป้ายแสดงอุปกรณ์หรือสิ่งอำนวยความสะดวกสำหรับคนพิการ' },

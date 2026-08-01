@@ -351,7 +351,7 @@ function parseGroup(raw: unknown, path: string): ChecklistTemplateGroupDef {
   return { code, labelTh, items }
 }
 
-const VALID_MODES: readonly string[] = ['ทางบก', 'ทางราง', 'ทางเรือ', 'ทางอากาศ']
+const VALID_MODES: readonly string[] = ['ทางบก', 'ทางราง', 'ทางน้ำ', 'ทางอากาศ']
 
 // Runtime validator for a ChecklistTemplate.definition JSON blob. Accepts both the v1 parity
 // shape (schemaVersion 1, flat items, answerType 'choice') and the v2 shape loaded verbatim from

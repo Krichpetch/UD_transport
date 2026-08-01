@@ -4,7 +4,7 @@
     "station": {
       "nameTh": "สถานีทดสอบเอ",
       "mode": "ทางบก",
-      "responsibleAgency": "ขบ.",
+      "responsibleAgency": "กรมการขนส่งทางบก (ขบ.)",
       "province": "กรุงเทพมหานคร"
     },
     "auditorUsername": "auditor1",
@@ -31,7 +31,7 @@
     "station": {
       "nameTh": "สถานีทดสอบบี",
       "mode": "ทางบก",
-      "responsibleAgency": "ขบ.",
+      "responsibleAgency": "กรมการขนส่งทางบก (ขบ.)",
       "province": "กรุงเทพมหานคร"
     },
     "auditorUsername": "auditor1",
@@ -44,8 +44,8 @@
     "sourceId": "legacy-003",
     "station": {
       "nameTh": "สถานีที่ไม่มีอยู่จริง",
-      "mode": "ทางเรือ",
-      "responsibleAgency": "จท.",
+      "mode": "ทางน้ำ",
+      "responsibleAgency": "กรมเจ้าท่า (จท.)",
       "province": "กรุงเทพมหานคร"
     },
     "auditorUsername": "auditor1",
@@ -59,7 +59,7 @@
     "station": {
       "nameTh": "สถานีทดสอบซี",
       "mode": "ทางบก",
-      "responsibleAgency": "ขบ.",
+      "responsibleAgency": "กรมการขนส่งทางบก (ขบ.)",
       "province": "กรุงเทพมหานคร"
     },
     "auditorUsername": "ghost_user",

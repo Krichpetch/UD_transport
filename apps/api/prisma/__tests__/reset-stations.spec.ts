@@ -31,7 +31,7 @@ function makeStation(overrides: Partial<StationRecord> = {}): StationRecord {
     railSubtype: null,
     province: 'ทดสอบ',
     region: null,
-    responsibleAgency: 'ขบ.',
+    responsibleAgency: 'กรมการขนส่งทางบก (ขบ.)',
     lat: 13.75,
     lng: 100.5,
     coordSource: 'NATIVE',

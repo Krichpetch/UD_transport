@@ -12,12 +12,43 @@ import type { ParsedChecklistGroup, StoredChecklistNode } from '@repo/types'
 import { resolveStationMatch, type MasterlistStation } from './masterlist-match'
 import { applyOtpRowToStation } from './import-otp-row'
 import { writeReconciliationCsv, writePendingPayloads, type ReconciliationRow } from './import-reconciliation'
+import { normalizeKey } from '../common/text-normalize'
 
 // Prisma's Json columns want InputJsonValue; every call site here passes data that has already
 // been structurally validated (parseChecklistItems, or DTO-typed as object[]/plain JSON) — this
 // is a single named bridge for the TS/Prisma interop gap, never a blind cast of unvalidated input.
 function toJson(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue
+}
+
+// AND-combines id sets from independent filters (e.g. search + subItem) that each narrow
+// findAll() by station id — spreading two `{ id: {...} }` where-entries into one object would
+// silently let the later one overwrite the former instead of intersecting them.
+function intersectIdSets(sets: string[][]): string[] {
+  return sets.reduce((acc, ids) => {
+    const idSet = new Set(ids)
+    return acc.filter((id) => idSet.has(id))
+  })
+}
+
+// Recurses into subItems (v2 nested trees) as well as flat v1 leaves, same as
+// StationsService.setItemFlag's traversal — the target item could be at any depth.
+function findItemInGroups(groups: ParsedChecklistGroup[], itemId: string): StoredChecklistNode | undefined {
+  const search = (nodes: StoredChecklistNode[]): StoredChecklistNode | undefined => {
+    for (const node of nodes) {
+      if (node.id === itemId) return node
+      if (node.subItems) {
+        const found = search(node.subItems)
+        if (found) return found
+      }
+    }
+    return undefined
+  }
+  for (const g of groups) {
+    const found = search(g.items ?? [])
+    if (found) return found
+  }
+  return undefined
 }
 
 // Same "latest checklist" selection ChecklistsService.findLatest() uses for a single station —
@@ -45,11 +76,14 @@ export class StationsService {
 
   async findAll(filters?: {
     mode?: string
+    railSubtype?: string
     region?: string
+    province?: string
     responsibleAgency?: string
     status?: string
     checklistStatus?: string
     search?: string
+    subItem?: string
     page?: number
     limit?: number
     sortBy?: string
@@ -65,23 +99,40 @@ export class StationsService {
       ? { lastInspected: { sort: dir, nulls: 'last' as const } }
       : { [col]: dir }
 
-    const where = {
+    // The scalar (non-checklist-derived) station filters — reused as the scoping query for the
+    // subItem filter below, so "which stations does the item filter search within" always
+    // matches "which stations does the rest of this filter bar narrow to".
+    const scopeWhere = {
       ...(filters?.mode              && { mode:              filters.mode }),
+      ...(filters?.railSubtype       && { railSubtype:       filters.railSubtype }),
       ...(filters?.region            && {
         region: filters.region === UNSPECIFIED_REGION ? null : filters.region,
       }),
+      ...(filters?.province          && { province:          filters.province }),
       ...(filters?.responsibleAgency && { responsibleAgency: filters.responsibleAgency }),
       ...(filters?.status            && { status:            filters.status }),
+    }
+
+    // Both resolved BEFORE the main where clause since each needs its own query. Station
+    // identity is (mode, nameTh, line) post-masterlist-cutover, so `line` must be searchable
+    // alongside nameTh/name/province, and Thai text needs whitespace/digit/punctuation
+    // normalization (spacing varies a lot across source files) to match a plain Prisma
+    // `contains` would miss. The subItem filter mirrors computeMetrics()'s per-station item
+    // lookup (see findItemInGroups) rather than duplicating that traversal.
+    const searchIds  = filters?.search  ? await this.searchStationIds(filters.search)                 : null
+    const subItemIds = filters?.subItem ? await this.stationIdsWithAnsweredItem(filters.subItem, scopeWhere) : null
+    // Both filters narrow by station id independently — intersect rather than spreading two
+    // `{ id: ... }` entries into one object, which would silently let the second overwrite
+    // the first instead of combining them with AND.
+    const idFilterSets = [searchIds, subItemIds].filter((s): s is string[] => s !== null)
+    const combinedIds  = idFilterSets.length === 0 ? null : intersectIdSets(idFilterSets)
+
+    const where = {
+      ...scopeWhere,
       ...(filters?.checklistStatus && {
         checklists: { some: { status: filters.checklistStatus as ChecklistStatus } },
       }),
-      ...(filters?.search && {
-        OR: [
-          { nameTh:   { contains: filters.search, mode: 'insensitive' as const } },
-          { name:     { contains: filters.search, mode: 'insensitive' as const } },
-          { province: { contains: filters.search, mode: 'insensitive' as const } },
-        ],
-      }),
+      ...(combinedIds !== null && { id: { in: combinedIds } }),
     }
     // reviewChecklist join: filtered to an impossible id when no checklistStatus is
     // requested, so ordinary listing always gets an empty array (no behavior change),
@@ -121,8 +172,68 @@ export class StationsService {
     return { data, total, page, totalPages: Math.ceil(total / limit) }
   }
 
+  // Server-side search for findAll() — reuses the same normalizeKey() the masterlist import's
+  // fuzzy matching uses (see masterlist-match.ts) rather than a second ad-hoc normalization, so
+  // "what counts as the same text" stays defined in exactly one place. Matches nameTh, the
+  // (optional, manually-entered) English `name`, line, and province, all whitespace/digit/
+  // punctuation-normalized and case-insensitive — a plain Prisma `contains` catches none of that
+  // and silently drops line entirely, which is the actual station-identity component the
+  // masterlist cutover added ((mode, nameTh, line), not (mode, nameTh)).
+  private async searchStationIds(search: string): Promise<string[]> {
+    const key = normalizeKey(search)
+    if (!key) return []
+    // Escape ILIKE wildcards that could be present in user input so they're matched literally.
+    const escaped = key.replace(/[!%_]/g, (c) => `!${c}`)
+    const pattern = `%${escaped}%`
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM "Station"
+      WHERE regexp_replace("nameTh", '\s+', '', 'g') ILIKE ${pattern} ESCAPE '!'
+         OR regexp_replace("name", '\s+', '', 'g') ILIKE ${pattern} ESCAPE '!'
+         OR regexp_replace("line", '\s+', '', 'g') ILIKE ${pattern} ESCAPE '!'
+         OR regexp_replace(COALESCE("province", ''), '\s+', '', 'g') ILIKE ${pattern} ESCAPE '!'
+    `
+    return rows.map((r) => r.id)
+  }
+
+  // findAll()'s checklist-item filter — station ids whose LATEST checklist (same
+  // SUBMITTED/APPROVED/REJECTED convention as computeMetrics) has the given item ANSWERED
+  // (value 'มี' or 'ไม่มี' — excludes null/unanswered and 'N/A', per CLAUDE.md's scoring
+  // convention). Shares the group traversal (findItemInGroups) with computeMetrics rather
+  // than a second copy; only the "what counts as a match" condition differs (computeMetrics
+  // wants the item present at all, this wants it actually answered).
+  //
+  // 2 queries total regardless of how many stations match `scopeWhere` — same bounded shape
+  // as computeMetrics, not a per-station fan-out.
+  private async stationIdsWithAnsweredItem(
+    subItem: string,
+    scopeWhere: Prisma.StationWhereInput,
+  ): Promise<string[]> {
+    const stations = await this.prisma.station.findMany({ where: scopeWhere, select: { id: true } })
+    if (stations.length === 0) return []
+
+    const checklists = await this.prisma.checklist.findMany({
+      where: { stationId: { in: stations.map((s) => s.id) }, status: { in: [...LATEST_CHECKLIST_STATUSES] } },
+      select: { stationId: true, items: true },
+      distinct: ['stationId'],
+      orderBy: [{ stationId: 'asc' }, { submittedAt: 'desc' }],
+    })
+
+    const matched: string[] = []
+    for (const cl of checklists) {
+      let groups: ParsedChecklistGroup[]
+      try {
+        groups = parseChecklistItems(cl.items)
+      } catch {
+        continue
+      }
+      const found = findItemInGroups(groups, subItem)
+      if (found && (found.value === 'มี' || found.value === 'ไม่มี')) matched.push(cl.stationId)
+    }
+    return matched
+  }
+
   async getFilterOptions() {
-    const [regions, agencies] = await Promise.all([
+    const [regions, agencies, provinces] = await Promise.all([
       this.prisma.station.findMany({
         select: { region: true },
         distinct: ['region'],
@@ -133,6 +244,14 @@ export class StationsService {
         distinct: ['responsibleAgency'],
         orderBy: { responsibleAgency: 'asc' },
       }),
+      // IN_SCOPE only — the admin province filter shouldn't offer provinces that only exist
+      // among OUT_OF_SCOPE rows.
+      this.prisma.station.findMany({
+        where: { scope: 'IN_SCOPE' },
+        select: { province: true },
+        distinct: ['province'],
+        orderBy: { province: 'asc' },
+      }),
     ])
     // Stations with region === null (neither coords nor a recognisable province, see
     // @repo/types#deriveRegion) surface as one "ไม่ระบุ" option rather than a blank one —
@@ -140,8 +259,9 @@ export class StationsService {
     const namedRegions = regions.map(r => r.region).filter((r): r is string => r != null)
     const hasUnspecified = regions.some(r => r.region == null)
     return {
-      regions:  hasUnspecified ? [...namedRegions, UNSPECIFIED_REGION] : namedRegions,
-      agencies: agencies.map(a => a.responsibleAgency),
+      regions:   hasUnspecified ? [...namedRegions, UNSPECIFIED_REGION] : namedRegions,
+      agencies:  agencies.map(a => a.responsibleAgency),
+      provinces: provinces.map(p => p.province).filter((p): p is string => p != null),
     }
   }
 
@@ -223,7 +343,7 @@ export class StationsService {
 
   // Dedupe guard: match on normalized (nameTh, mode, province) — case/whitespace
   // insensitive — regardless of responsibleAgency, since agency parsing drift
-  // (e.g. an 'อื่นๆ' fallback) is what let same-station duplicates slip past the
+  // (e.g. an OTHER_AGENCY fallback) is what let same-station duplicates slip past the
   // DB's exact-string unique constraint. Returns the existing row instead of
   // creating a new one when found; caller decides whether to log a CREATE audit.
   async create(dto: CreateStationDto) {
@@ -646,11 +766,7 @@ export class StationsService {
       }
 
       if (filters.subItem) {
-        let found: StoredChecklistNode | undefined
-        for (const g of groups) {
-          found = g.items?.find(it => it.id === filters.subItem)
-          if (found) break
-        }
+        const found = findItemInGroups(groups, filters.subItem)
         if (found) {
           collected.push(found)
           evaluatedStations++

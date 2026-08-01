@@ -4,11 +4,14 @@ import type { ChecklistRecord } from './checklists'
 
 export interface StationFilters {
   mode?: TransportMode | ''
+  railSubtype?: string
   region?: string
+  province?: string
   agency?: string
   status?: StationStatus | ''
   checklistStatus?: 'SUBMITTED' | 'REJECTED' | 'APPROVED' | ''
   search?: string
+  subItem?: string
   page?: number
   limit?: number
   sortBy?: string
@@ -37,6 +40,7 @@ export interface PaginatedStations {
 export interface StationFilterOptions {
   regions: string[]
   agencies: string[]
+  provinces: string[]
 }
 
 export interface CreateStationInput {
@@ -66,12 +70,15 @@ export interface ParsedRow {
 
 export function getStations(filters?: StationFilters) {
   const params = new URLSearchParams()
-  if (filters?.mode)   params.set('mode',   filters.mode)
-  if (filters?.region) params.set('region', filters.region)
-  if (filters?.agency) params.set('agency', filters.agency)
+  if (filters?.mode)        params.set('mode',        filters.mode)
+  if (filters?.railSubtype) params.set('railSubtype', filters.railSubtype)
+  if (filters?.region)      params.set('region',      filters.region)
+  if (filters?.province)    params.set('province',    filters.province)
+  if (filters?.agency)      params.set('agency',      filters.agency)
   if (filters?.status) params.set('status', filters.status)
   if (filters?.checklistStatus) params.set('checklistStatus', filters.checklistStatus)
-  if (filters?.search) params.set('search', filters.search)
+  if (filters?.search)  params.set('search',  filters.search)
+  if (filters?.subItem) params.set('subItem', filters.subItem)
   if (filters?.page)      params.set('page',      String(filters.page))
   if (filters?.limit)     params.set('limit',     String(filters.limit))
   if (filters?.sortBy)    params.set('sortBy',    filters.sortBy)

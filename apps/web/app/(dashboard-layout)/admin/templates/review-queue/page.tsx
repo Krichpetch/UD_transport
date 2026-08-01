@@ -7,8 +7,7 @@ import { RequireRole } from '@/components/auth/require-role'
 import { useReviewQueue } from '@/hooks/use-templates-admin'
 import { TransportBadge } from '@/components/shared/badges'
 import { SELECT_CLS, ALL_VALUE } from '@/lib/ui-classes'
-
-const MODES = ['ทางบก', 'ทางราง', 'ทางเรือ', 'ทางอากาศ']
+import { TRANSPORT_MODES } from '@repo/types'
 
 export default function ReviewQueuePage() {
   return (
@@ -40,7 +39,7 @@ function ReviewQueueContent() {
 
       <select className={`${SELECT_CLS} w-48`} value={mode} onChange={(e) => setMode(e.target.value)}>
         <option value={ALL_VALUE}>ทุกประเภทการขนส่ง</option>
-        {MODES.map((m) => (
+        {TRANSPORT_MODES.map((m) => (
           <option key={m} value={m}>
             {m}
           </option>
@@ -104,7 +103,7 @@ function ReviewQueueContent() {
                 {data.rows.length === 0 && (
                   <tr>
                     <td colSpan={6} className="text-muted-foreground px-3 py-8 text-center">
-                      ไม่มีเกณฑ์รอตรวจสอบ
+                      เกณฑ์ทั้งหมดยืนยันแล้ว ✓
                     </td>
                   </tr>
                 )}

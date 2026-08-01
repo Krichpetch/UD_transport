@@ -5,6 +5,7 @@
 // id via resolveStationMatch() BEFORE calling this. Extracted out of StationsService so both
 // callers share one write path instead of two copies drifting apart.
 import { computeScoreFromItems, scoreToStatus } from '../checklists/scoring'
+import { OTHER_AGENCY } from '@repo/types'
 
 export interface ImportableChecklistRow {
   items: object[]
@@ -39,7 +40,7 @@ function toJson(value: unknown) {
  * Applies one row's checklist data to an already-resolved station: creates or updates the
  * (station, year) checklist, re-derives score/status from items (never trusts a client-supplied
  * score), and refreshes the station's cached score/status/lastInspected only if this row is the
- * most recent inspection seen so far. Prefers a real agency over a stale 'อื่นๆ' fallback.
+ * most recent inspection seen so far. Prefers a real agency over a stale OTHER_AGENCY fallback.
  */
 export async function applyOtpRowToStation(
   tx: ImportOtpTxClient,
@@ -54,8 +55,8 @@ export async function applyOtpRowToStation(
 
   if (
     row.responsibleAgency &&
-    station.responsibleAgency === 'อื่นๆ' &&
-    row.responsibleAgency !== 'อื่นๆ'
+    station.responsibleAgency === OTHER_AGENCY &&
+    row.responsibleAgency !== OTHER_AGENCY
   ) {
     await tx.station.update({
       where: { id: station.id },

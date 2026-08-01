@@ -13,7 +13,7 @@ export const STATION_TYPES: StationTypeConfig[] = [
   { label: 'สถานีขนส่งผู้โดยสาร', mode: 'ทางบก' },
   { label: 'สถานีรถไฟ',           mode: 'ทางราง', railSubtype: 'รถไฟ' },
   { label: 'สถานีรถไฟฟ้า',        mode: 'ทางราง', railSubtype: 'รถไฟฟ้า' },
-  { label: 'ท่าเรือโดยสาร',        mode: 'ทางเรือ' },
+  { label: 'ท่าเรือโดยสาร',        mode: 'ทางน้ำ' },
   { label: 'ท่าอากาศยาน',          mode: 'ทางอากาศ' },
 ]
 

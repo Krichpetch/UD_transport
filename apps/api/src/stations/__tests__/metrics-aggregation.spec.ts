@@ -159,11 +159,11 @@ describe('StationsService.computeMetrics', () => {
     stationFindMany.mockResolvedValue([])
 
     await service.computeMetrics({
-      mode: 'ทางราง', railSubtype: 'รถไฟฟ้า', region: 'กลาง', province: 'กรุงเทพมหานคร', responsibleAgency: 'รฟม.',
+      mode: 'ทางราง', railSubtype: 'รถไฟฟ้า', region: 'กลาง', province: 'กรุงเทพมหานคร', responsibleAgency: 'การรถไฟฟ้าขนส่งมวลชนแห่งประเทศไทย (รฟม.)',
     })
 
     expect(stationFindMany.mock.calls[0][0].where).toEqual({
-      mode: 'ทางราง', railSubtype: 'รถไฟฟ้า', region: 'กลาง', province: 'กรุงเทพมหานคร', responsibleAgency: 'รฟม.',
+      mode: 'ทางราง', railSubtype: 'รถไฟฟ้า', region: 'กลาง', province: 'กรุงเทพมหานคร', responsibleAgency: 'การรถไฟฟ้าขนส่งมวลชนแห่งประเทศไทย (รฟม.)',
     })
   })
 

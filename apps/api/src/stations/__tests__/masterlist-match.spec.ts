@@ -82,10 +82,10 @@ describe('resolveStationMatch — tier 3 (fuzzy)', () => {
 describe('resolveStationMatch — ท่าช้าง cross-mode case (no cross-mode bleed)', () => {
   it('matches the pier and the rail station independently, never crossing modes', () => {
     const masterlist = [
-      station({ id: 'pier', mode: 'ทางเรือ', nameTh: 'ท่าช้าง' }),
+      station({ id: 'pier', mode: 'ทางน้ำ', nameTh: 'ท่าช้าง' }),
       station({ id: 'rail', mode: 'ทางราง', nameTh: 'ท่าช้าง' }),
     ]
-    const pierResult = resolveStationMatch({ mode: 'ทางเรือ', nameTh: 'ท่าช้าง' }, masterlist)
+    const pierResult = resolveStationMatch({ mode: 'ทางน้ำ', nameTh: 'ท่าช้าง' }, masterlist)
     const railResult = resolveStationMatch({ mode: 'ทางราง', nameTh: 'ท่าช้าง' }, masterlist)
     expect(pierResult.matchedStation?.id).toBe('pier')
     expect(railResult.matchedStation?.id).toBe('rail')
@@ -93,7 +93,7 @@ describe('resolveStationMatch — ท่าช้าง cross-mode case (no cros
 
   it('an air-mode row with the same name matches neither and goes to REVIEW/NOT_ON_MASTERLIST, never the pier or rail row', () => {
     const masterlist = [
-      station({ id: 'pier', mode: 'ทางเรือ', nameTh: 'ท่าช้าง' }),
+      station({ id: 'pier', mode: 'ทางน้ำ', nameTh: 'ท่าช้าง' }),
       station({ id: 'rail', mode: 'ทางราง', nameTh: 'ท่าช้าง' }),
     ]
     const result = resolveStationMatch({ mode: 'ทางอากาศ', nameTh: 'ท่าช้าง' }, masterlist)

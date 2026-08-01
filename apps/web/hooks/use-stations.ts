@@ -24,11 +24,14 @@ import {
 export function useStations(filters?: StationFilters) {
   const f = {
     mode:            filters?.mode            || undefined,
+    railSubtype:     filters?.railSubtype     || undefined,
     region:          filters?.region          || undefined,
+    province:        filters?.province        || undefined,
     agency:          filters?.agency          || undefined,
     status:          filters?.status          || undefined,
     checklistStatus: filters?.checklistStatus || undefined,
     search:          filters?.search          || undefined,
+    subItem:         filters?.subItem         || undefined,
     page:            filters?.page            ?? 1,
     limit:           filters?.limit,
     sortBy:          filters?.sortBy,

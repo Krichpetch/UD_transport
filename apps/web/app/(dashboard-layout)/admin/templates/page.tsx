@@ -48,6 +48,12 @@ function TemplatesAdminContent() {
   }
 
   const groups = groupByModeVariant(data)
+  // Total unconfirmed measurements across every template — the "how do I approve?" entry
+  // point (Part E.3.a) needs this count up front, not buried a click away in the queue page.
+  const unconfirmedTotal = data.reduce(
+    (sum, row) => sum + (row.summary.measurementCount - row.summary.confirmedCount),
+    0,
+  )
 
   return (
     <div className="space-y-6">
@@ -58,13 +64,23 @@ function TemplatesAdminContent() {
             แก้ไขเกณฑ์ตัวเลข ข้อยกเว้นตามยุคกฎหมาย รูปภาพประกอบ และคำอธิบายของแบบประเมินแต่ละเวอร์ชัน
           </p>
         </div>
-        <Link
-          href="/admin/templates/review-queue"
-          className="border-border bg-card hover:bg-secondary/60 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
-        >
-          <ListChecks size={14} />
-          คิวรอตรวจสอบเกณฑ์
-        </Link>
+        {unconfirmedTotal > 0 ? (
+          <Link
+            href="/admin/templates/review-queue"
+            className="bg-primary text-primary-foreground inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+          >
+            <ListChecks size={15} />
+            ยืนยันเกณฑ์ ({unconfirmedTotal} รายการรอ)
+          </Link>
+        ) : (
+          <Link
+            href="/admin/templates/review-queue"
+            className="border-border bg-card hover:bg-secondary/60 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
+          >
+            <ListChecks size={14} />
+            คิวรอตรวจสอบเกณฑ์
+          </Link>
+        )}
       </div>
 
       <div className="space-y-6">

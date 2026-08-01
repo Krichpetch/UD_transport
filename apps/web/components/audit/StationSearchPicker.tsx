@@ -15,7 +15,7 @@ const MODE_TABS: ModeTab[] = [
   { label: 'ทั้งหมด',   value: '' },
   { label: 'ทางบก',    value: 'ทางบก' },
   { label: 'ทางราง',   value: 'ทางราง' },
-  { label: 'ทางเรือ',  value: 'ทางเรือ' },
+  { label: 'ทางน้ำ',   value: 'ทางน้ำ' },
   { label: 'ทางอากาศ', value: 'ทางอากาศ' },
 ]
 
@@ -24,7 +24,7 @@ function ModeIcon({ mode, railSubtype, size = 14 }: {
 }) {
   const cls = 'shrink-0'
   if (mode === 'ทางอากาศ') return <Plane      size={size} className={cls} />
-  if (mode === 'ทางเรือ')  return <Ship       size={size} className={cls} />
+  if (mode === 'ทางน้ำ')   return <Ship       size={size} className={cls} />
   if (mode === 'ทางราง')   return railSubtype === 'รถไฟฟ้า'
     ? <TrainFront size={size} className={cls} />
     : <Train      size={size} className={cls} />
@@ -274,7 +274,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
                   >
                     {modeTab.value === 'ทางบก'    && <Bus       size={11} />}
                     {modeTab.value === 'ทางราง'   && <Train     size={11} />}
-                    {modeTab.value === 'ทางเรือ'  && <Ship      size={11} />}
+                    {modeTab.value === 'ทางน้ำ'   && <Ship      size={11} />}
                     {modeTab.value === 'ทางอากาศ' && <Plane     size={11} />}
                     {modeTab.label}
                   </button>

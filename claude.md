@@ -48,12 +48,12 @@ Backend will live in `apps/api` (NestJS, Prisma, PostgreSQL) — not yet built.
 
 ### Transport taxonomy
 ```ts
-type TransportMode = 'ทางบก' | 'ทางราง' | 'ทางเรือ' | 'ทางอากาศ'
+type TransportMode = 'ทางบก' | 'ทางราง' | 'ทางน้ำ' | 'ทางอากาศ'
 type RailSubtype   = 'รถไฟฟ้า' | 'รถไฟ'  // only when mode === 'ทางราง'
 ```
 The 5 station types for filtering are:
 สถานีขนส่งผู้โดยสาร (ทางบก), สถานีรถไฟ (ทางราง/รถไฟ),
-สถานีรถไฟฟ้า (ทางราง/รถไฟฟ้า), ท่าเรือโดยสาร (ทางเรือ), ท่าอากาศยาน (ทางอากาศ)
+สถานีรถไฟฟ้า (ทางราง/รถไฟฟ้า), ท่าเรือโดยสาร (ทางน้ำ), ท่าอากาศยาน (ทางอากาศ)
 
 ### ChecklistValue — 4 states, not 3
 ```ts

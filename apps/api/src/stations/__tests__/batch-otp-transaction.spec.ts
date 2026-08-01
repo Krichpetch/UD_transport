@@ -30,7 +30,7 @@ function makeRow(nameTh: string, opts?: { lastInspected?: string; province?: str
       mode: opts?.mode ?? 'ทางบก',
       province: opts?.province ?? 'กรุงเทพมหานคร',
       region: 'กลาง',
-      responsibleAgency: 'ขบ.',
+      responsibleAgency: 'กรมการขนส่งทางบก (ขบ.)',
       lat: 13.75,
       lng: 100.5,
     },
@@ -44,7 +44,7 @@ function makeRow(nameTh: string, opts?: { lastInspected?: string; province?: str
 function masterlistStation(id: string, nameTh: string, overrides: Partial<{ mode: string; line: string; responsibleAgency: string; lastInspected: Date | null }> = {}) {
   return {
     id, nameTh, mode: overrides.mode ?? 'ทางบก', line: overrides.line ?? '',
-    responsibleAgency: overrides.responsibleAgency ?? 'ขบ.', lastInspected: overrides.lastInspected ?? null,
+    responsibleAgency: overrides.responsibleAgency ?? 'กรมการขนส่งทางบก (ขบ.)', lastInspected: overrides.lastInspected ?? null,
   }
 }
 
@@ -77,7 +77,7 @@ describe('StationsService.batchOtpImport — masterlist-only, never inserts', ()
     jest.clearAllMocks()
     stationFindMany.mockResolvedValue([])
     checklistFindMany.mockResolvedValue([])
-    txStationUpdate.mockResolvedValue({ responsibleAgency: 'ขบ.' })
+    txStationUpdate.mockResolvedValue({ responsibleAgency: 'กรมการขนส่งทางบก (ขบ.)' })
 
     const moduleRef = await Test.createTestingModule({
       providers: [

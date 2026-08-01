@@ -37,7 +37,7 @@ import { V1_TEMPLATE_GROUPS } from './v1-template-groups'
 
 const prisma = new PrismaClient()
 
-const MODES = ['ทางบก', 'ทางราง', 'ทางเรือ', 'ทางอากาศ'] as const
+const MODES = ['ทางบก', 'ทางราง', 'ทางน้ำ', 'ทางอากาศ'] as const
 type Mode = typeof MODES[number]
 
 // Session E3, Part A — per-mode v2 DRAFT variant(s). Every mode but rail has exactly one variant
@@ -54,7 +54,7 @@ const V2_VARIANTS: Record<Mode, VariantFiles[]> = {
     { variantKey: RAIL_TRAIN_VARIANT_KEY, file: 'template_rail_v2.json', overridesFile: 'era_overrides_rail.json' },
     { variantKey: RAIL_METRO_VARIANT_KEY, file: 'template_rail_rail_metro_v2.json', overridesFile: 'era_overrides_rail_rail_metro.json' },
   ],
-  ทางเรือ:  [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_water_v2.json', overridesFile: 'era_overrides_water.json' }],
+  ทางน้ำ:   [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_water_v2.json', overridesFile: 'era_overrides_water.json' }],
   ทางอากาศ: [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_air_v2.json',   overridesFile: 'era_overrides_air.json' }],
 }
 
@@ -69,7 +69,7 @@ const V3_VARIANTS: Record<Mode, VariantFiles[]> = {
     { variantKey: RAIL_TRAIN_VARIANT_KEY, file: 'template_rail_rail_train_v3.json' },
     { variantKey: RAIL_METRO_VARIANT_KEY, file: 'template_rail_rail_metro_v3.json' },
   ],
-  ทางเรือ:  [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_water_v3.json' }],
+  ทางน้ำ:   [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_water_v3.json' }],
   ทางอากาศ: [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_air_v3.json' }],
 }
 
@@ -184,13 +184,9 @@ async function main() {
         continue
       }
       const raw = JSON.parse(fs.readFileSync(rawPath, 'utf-8'))
-      // Data-quality fix, not a restructure: template_water_v2.json's `mode` field says "ทางน้ำ" —
-      // the source workbook's own term — instead of this project's canonical TransportMode
-      // "ทางเรือ" (CLAUDE.md taxonomy). Every group/item code and label is untouched; only this one
-      // top-level field is normalized before validation so it maps to the right ChecklistTemplate
-      // row. Flagged here rather than loosened in the shared validator, which should stay strict
-      // about canonical TransportMode values for every other caller.
-      if (raw.mode === 'ทางน้ำ') raw.mode = 'ทางเรือ'
+      // template_water_v2.json's `mode` field already says "ทางน้ำ", the source workbook's own
+      // term, which is also this project's canonical TransportMode value — no fixup needed here
+      // (there used to be one, when the canonical value was "ทางเรือ").
       let v2def = parseTemplateDefinition(raw) // throws loudly on any mismatch — v2 files are loaded verbatim, never coerced
 
       if (variant.overridesFile) {
@@ -211,8 +207,7 @@ async function main() {
     }
 
     // v3 DRAFT(s) — candidates from the checklist-migration pipeline. Mirrors the v2 loop
-    // exactly except: no era-override application (see V3_VARIANTS comment above), and the
-    // water mode-string fix is applied here rather than in the source file.
+    // exactly except: no era-override application (see V3_VARIANTS comment above).
     for (const variant of V3_VARIANTS[mode]) {
       const rawPath = path.join(TEMPLATE_JSON_DIR, variant.file)
       if (!fs.existsSync(rawPath)) {
@@ -220,7 +215,6 @@ async function main() {
         continue
       }
       const raw = JSON.parse(fs.readFileSync(rawPath, 'utf-8'))
-      if (raw.mode === 'ทางน้ำ') raw.mode = 'ทางเรือ'
       const v3def = parseTemplateDefinition(raw) // throws loudly on any mismatch — v3 files are loaded verbatim, never coerced
 
       const v3stats = tagLeaves(v3def)

@@ -164,7 +164,7 @@ describe('presence-only leaves — excluded from standards, counted toward จ�
 describe('measured presence_standard leaves — template-driven auto-grading', () => {
   const templateDef: ChecklistTemplateDefinition = {
     schemaVersion: 2,
-    mode: 'ทางเรือ',
+    mode: 'ทางน้ำ',
     groups: [{
       code: 'A1', labelTh: 'test group', items: [
         {

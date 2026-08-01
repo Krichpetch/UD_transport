@@ -1,4 +1,5 @@
 import type { ChecklistGroup, ChecklistValue, TransportMode } from '@repo/types'
+import { OTHER_AGENCY } from '@repo/types'
 import { checklistTemplates, PROVINCE_REGION, PROVINCE_COORDS, OTP_AGENCY_MAP, OTP_MODE_MAP } from './constants'
 import { canonicalProvince } from './thai-geography'
 
@@ -148,7 +149,7 @@ export function parseOtpRows(raw: Record<string, unknown>[]): OtpParseResult {
     const lat = isNaN(fileLat) ? centroid[0] : fileLat
     const lng = isNaN(fileLng) ? centroid[1] : fileLng
 
-    const responsibleAgency = OTP_AGENCY_MAP[agencyCol] ?? 'อื่นๆ'
+    const responsibleAgency = OTP_AGENCY_MAP[agencyCol] ?? OTHER_AGENCY
 
     // Build checklist groups from template, filling values from OTP columns
     const template = checklistTemplates[modeInfo.mode as TransportMode]

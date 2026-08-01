@@ -25,7 +25,7 @@ const V1_TEMPLATE: ChecklistTemplateDefinition = {
 
 const V2_TEMPLATE: ChecklistTemplateDefinition = {
   schemaVersion: 2,
-  mode: 'ทางเรือ',
+  mode: 'ทางน้ำ',
   groups: [{ code: 'A1', labelTh: 'test', items: [
     { code: 'A1.1', labelTh: 'ramp', subItems: [
       { code: 'A1.1-1', labelTh: 'width', answerType: 'presence_standard', measurements: [{ key: 'm1', operator: 'gte', value: 90, unit: 'cm', autoGrade: true }] },
@@ -97,7 +97,7 @@ describe('ChecklistsService — Part C item validation (via saveDraft)', () => {
   })
 
   it('accepts a synthetic v2 nested+measured payload matching a v2 (with subItems) template', async () => {
-    findOne.mockResolvedValue({ id: 's2', mode: 'ทางเรือ' })
+    findOne.mockResolvedValue({ id: 's2', mode: 'ทางน้ำ' })
     templateFindFirst.mockResolvedValue({ id: 't2', version: 2, definition: V2_TEMPLATE })
 
     const items = [{ groupId: 'A1', groupName: 'test', items: [
@@ -110,7 +110,7 @@ describe('ChecklistsService — Part C item validation (via saveDraft)', () => {
   })
 
   it('rejects a v2 payload whose leaf has an invalid answerType', async () => {
-    findOne.mockResolvedValue({ id: 's2', mode: 'ทางเรือ' })
+    findOne.mockResolvedValue({ id: 's2', mode: 'ทางน้ำ' })
     templateFindFirst.mockResolvedValue({ id: 't2', version: 2, definition: V2_TEMPLATE })
 
     const items = [{ groupId: 'A1', groupName: 'test', items: [

@@ -29,13 +29,6 @@ from typing import Any
 import pandas as pd
 from pyproj import Transformer
 
-# Same data-quality fix seed-templates.ts already applies to checklist templates: the source
-# workbook's own term for water transport is "ทางน้ำ", not this project's canonical
-# TransportMode "ทางเรือ" (CLAUDE.md taxonomy).
-def normalize_mode(raw: str) -> str:
-    return "ทางเรือ" if raw == "ทางน้ำ" else raw
-
-
 # ครม.-taxonomy station types (CLAUDE.md) map onto the raw ประเภทสถานี values in this workbook.
 # "สถานี" / "สถานีชุมทาง" are the RFT's generic/junction terms for a รถไฟ (train, not metro) stop.
 RAIL_SUBTYPE_BY_STATION_TYPE = {
@@ -131,7 +124,7 @@ def resolve_coords(row: pd.Series) -> dict[str, Any]:
 
 
 def build_station_record(row: pd.Series) -> tuple[dict[str, Any], dict[str, Any] | None]:
-    mode = normalize_mode(row["ประเภทการเดินทาง"])
+    mode = row["ประเภทการเดินทาง"]
     name = row["ชื่อสถานี"]
     line = row.get("สาย/เส้นทาง")
     line = "" if pd.isna(line) else str(line).strip()

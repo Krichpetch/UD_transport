@@ -37,7 +37,7 @@ function makeRow(i: number) {
       mode: 'ทางบก',
       province: 'กรุงเทพมหานคร',
       region: 'กลาง',
-      responsibleAgency: 'ขบ.',
+      responsibleAgency: 'กรมการขนส่งทางบก (ขบ.)',
       lat: 13.75,
       lng: 100.5,
     },

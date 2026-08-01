@@ -1,6 +1,6 @@
 'use client'
 
-import type { StationStatus } from '@repo/types'
+import type { StationStatus, TransportMode, RailSubtype } from '@repo/types'
 
 export function StatusBadge({ status }: { status: StationStatus }) {
   const map: Record<StationStatus, string> = {
@@ -16,10 +16,12 @@ export function StatusBadge({ status }: { status: StationStatus }) {
 }
 
 export function TransportBadge({ type }: { type: string }) {
-  const map: Record<string, string> = {
+  // Keyed against @repo/types' TransportMode/RailSubtype so the map can't silently drift
+  // from the canonical mode values again (it did once, for ทางเรือ vs ทางน้ำ).
+  const map: Record<TransportMode | RailSubtype, string> = {
     'ทางบก':    'bg-blue-50 text-blue-700',
     'ทางราง':   'bg-purple-50 text-purple-700',
-    'ทางเรือ':  'bg-cyan-50 text-cyan-700',
+    'ทางน้ำ':   'bg-cyan-50 text-cyan-700',
     'ทางอากาศ': 'bg-orange-50 text-orange-700',
     'รถไฟ':     'bg-purple-50 text-purple-700',
     'รถไฟฟ้า':  'bg-indigo-50 text-indigo-700',

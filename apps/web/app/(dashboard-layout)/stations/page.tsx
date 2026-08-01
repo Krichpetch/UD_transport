@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import * as XLSX from 'xlsx'
-import { getTransportLabel, getChecklistTemplate } from '@/lib/constants'
+import { getTransportLabel, getChecklistTemplate, checklistTemplates, CHECKLIST_CATEGORIES } from '@/lib/constants'
 import {
   useStations,
   useCreateStation,
@@ -15,8 +15,8 @@ import { getChecklistHistory } from '@/lib/api/checklists'
 import { saveDraft } from '@/lib/api/checklists'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth.store'
-import type { TransportMode, StationStatus, ResponsibleAgency } from '@repo/types'
-import { TRANSPORT_MODE_AGENCIES, TRANSPORT_MODES, STATION_STATUSES } from '@repo/types'
+import type { TransportMode, StationStatus, ResponsibleAgency, ChecklistSubItem } from '@repo/types'
+import { TRANSPORT_MODE_AGENCIES, TRANSPORT_MODES, STATION_STATUSES, RAIL_SUBTYPES } from '@repo/types'
 import type { StationRow, ParsedRow, OtpImportRowResult } from '@/lib/api/stations'
 import { batchOtpImport } from '@/lib/api/stations'
 import { parseOtpRows, detectOtpFormat } from '@/lib/otp-import'
@@ -27,7 +27,7 @@ import { FilterSelect } from '@/components/filters/filter-select'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { StationForm, StationCoordinateFields, type StationFormValue } from '@/components/stations/station-form'
-import { INPUT_CLS } from '@/lib/ui-classes'
+import { INPUT_CLS, DIALOG_HEADER_CLS, DIALOG_TITLE_CLS } from '@/lib/ui-classes'
 import { RequireRole } from '@/components/auth/require-role'
 import { countReviewFlags } from '@/lib/checklist-review-flags'
 import {
@@ -164,7 +164,7 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
         className="themed-scrollbar max-h-[90vh] max-w-2xl overflow-y-auto"
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
-        <DialogTitle className="mb-6 text-lg">แก้ไขสถานี</DialogTitle>
+        <DialogTitle className={`mb-6 ${DIALOG_TITLE_CLS}`}>แก้ไขสถานี</DialogTitle>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <StationForm
@@ -283,9 +283,13 @@ function StationsPageContent() {
   const [search, setSearch] = React.useState('')
   const [debouncedSearch, setDebouncedSearch] = React.useState('')
   const [typeFilter, setTypeFilter] = React.useState<TransportMode | ''>('')
+  const [railSubtypeFilter, setRailSubtypeFilter] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<StationStatus | ''>('')
   const [agencyFilter, setAgencyFilter] = React.useState('')
   const [regionFilter, setRegionFilter] = React.useState('')
+  const [provinceFilter, setProvinceFilter] = React.useState('')
+  const [categoryFilter, setCategoryFilter] = React.useState<'A' | 'B' | 'C' | ''>('')
+  const [subItemFilter, setSubItemFilter] = React.useState('')
   const [approvalTab, setApprovalTab] = React.useState<'' | 'SUBMITTED' | 'REJECTED'>('')
   const [page, setPage] = React.useState(1)
   const [sortBy, setSortBy] = React.useState<SortableCol>('nameTh')
@@ -300,6 +304,24 @@ function StationsPageContent() {
     return () => clearTimeout(t)
   }, [search])
 
+  // Rail subtype only makes sense under ทางราง; the item picker is scoped to a single mode's
+  // template — both clear when the mode they depend on changes out from under them.
+  React.useEffect(() => { setRailSubtypeFilter('') }, [typeFilter])
+  React.useEffect(() => { setSubItemFilter('') }, [categoryFilter, typeFilter])
+
+  // Item-code picker (Part C.3) — grouped by the selected mode's template structure, same
+  // category -> sub-item two-step as the executive dashboard's filter bar (dashboard/page.tsx),
+  // reusing the same checklistTemplates source rather than a second copy.
+  const subItemOptions = React.useMemo(() => {
+    if (!categoryFilter) return []
+    const template = checklistTemplates[(typeFilter || 'ทางบก') as TransportMode] ?? []
+    const items: ChecklistSubItem[] = []
+    for (const group of template) {
+      if (group.groupId.startsWith(categoryFilter)) items.push(...group.items)
+    }
+    return items
+  }, [categoryFilter, typeFilter])
+
   const {
     data: stationsPage,
     isLoading,
@@ -307,11 +329,14 @@ function StationsPageContent() {
     error,
   } = useStations({
     mode:            typeFilter || undefined,
+    railSubtype:     railSubtypeFilter || undefined,
     status:          statusFilter || undefined,
     checklistStatus: approvalTab || undefined,
     agency:          agencyFilter || undefined,
     region:          regionFilter || undefined,
+    province:        provinceFilter || undefined,
     search:          debouncedSearch || undefined,
+    subItem:         subItemFilter || undefined,
     page,
     limit:     PAGE_SIZE,
     sortBy,
@@ -553,7 +578,10 @@ function StationsPageContent() {
       </div>
     )
 
-  const hasFilters = !!(search || typeFilter || statusFilter || agencyFilter || regionFilter)
+  const hasFilters = !!(
+    search || typeFilter || railSubtypeFilter || statusFilter || agencyFilter ||
+    regionFilter || provinceFilter || categoryFilter || subItemFilter
+  )
 
   function handleSort(col: SortableCol) {
     if (sortBy === col) {
@@ -574,9 +602,13 @@ function StationsPageContent() {
     setSearch('')
     setDebouncedSearch('')
     setTypeFilter('')
+    setRailSubtypeFilter('')
     setStatusFilter('')
     setAgencyFilter('')
     setRegionFilter('')
+    setProvinceFilter('')
+    setCategoryFilter('')
+    setSubItemFilter('')
     setPage(1)
   }
 
@@ -667,7 +699,7 @@ function StationsPageContent() {
             />
             <input
               type="text"
-              placeholder="ค้นหาสถานี จังหวัด..."
+              placeholder="ค้นหาสถานี สาย จังหวัด..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="border-input bg-background placeholder:text-muted-foreground focus:ring-ring w-full rounded-lg border py-2 pr-3 pl-8 text-sm focus:ring-1 focus:outline-none"
@@ -694,6 +726,18 @@ function StationsPageContent() {
               triggerClassName={FILTER_SELECT_TRIGGER_CLS}
             />
           </div>
+          {typeFilter === 'ทางราง' && (
+            <FilterSelect
+              value={railSubtypeFilter}
+              onChange={(v) => {
+                setRailSubtypeFilter(v)
+                setPage(1)
+              }}
+              options={RAIL_SUBTYPES.map((r) => ({ value: r, label: r }))}
+              allLabel="ทุกประเภทย่อย"
+              triggerClassName={FILTER_SELECT_TRIGGER_CLS}
+            />
+          )}
           <FilterSelect
             value={statusFilter}
             onChange={(v) => {
@@ -715,6 +759,16 @@ function StationsPageContent() {
             triggerClassName={FILTER_SELECT_TRIGGER_CLS}
           />
           <FilterSelect
+            value={provinceFilter}
+            onChange={(v) => {
+              setProvinceFilter(v)
+              setPage(1)
+            }}
+            options={(filterOptions?.provinces ?? []).map((p) => ({ value: p, label: p }))}
+            allLabel="ทุกจังหวัด"
+            triggerClassName={FILTER_SELECT_TRIGGER_CLS}
+          />
+          <FilterSelect
             value={agencyFilter}
             onChange={(next) => {
               setAgencyFilter(next)
@@ -732,6 +786,31 @@ function StationsPageContent() {
             allLabel="ทุกหน่วยงาน"
             triggerClassName={FILTER_SELECT_TRIGGER_CLS}
           />
+          <FilterSelect
+            value={categoryFilter}
+            onChange={(v) => {
+              setCategoryFilter(v as 'A' | 'B' | 'C' | '')
+              setPage(1)
+            }}
+            options={CHECKLIST_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
+            allLabel="ทุกหมวดรายการ"
+            triggerClassName={FILTER_SELECT_TRIGGER_CLS}
+          />
+          {categoryFilter && subItemOptions.length > 0 && (
+            <FilterSelect
+              value={subItemFilter}
+              onChange={(v) => {
+                setSubItemFilter(v)
+                setPage(1)
+              }}
+              options={subItemOptions.map((si) => ({
+                value: si.id,
+                label: `${si.id} ${si.labelTh}${si.cabinetPriority ? ' ★' : ''}`,
+              }))}
+              allLabel="รายการย่อย"
+              triggerClassName={FILTER_SELECT_TRIGGER_CLS}
+            />
+          )}
           {hasFilters && (
             <button
               onClick={clearFilters}
@@ -955,8 +1034,8 @@ function StationsPageContent() {
         }}
       >
         <DialogContent className="flex max-h-[85vh] w-full flex-col overflow-hidden p-0 sm:max-w-3xl">
-          <div className="border-border shrink-0 border-b px-6 py-4">
-            <DialogTitle className="text-lg">
+          <div className={DIALOG_HEADER_CLS}>
+            <DialogTitle className={DIALOG_TITLE_CLS}>
               {importReport ? 'ผลการนำเข้าข้อมูล OTP' : 'เพิ่มสถานี'}
             </DialogTitle>
           </div>
@@ -1115,7 +1194,7 @@ function StationsPageContent() {
                       value={form}
                       onChange={patchForm}
                       hideNameTh
-                      placeholders={{ province: 'กรุงเทพมหานคร', responsibleAgency: 'รฟท.' }}
+                      placeholders={{ province: 'กรุงเทพมหานคร', responsibleAgency: 'การรถไฟแห่งประเทศไทย (รฟท.)' }}
                       agencyOptions={filterOptions?.agencies ?? []}
                     />
 

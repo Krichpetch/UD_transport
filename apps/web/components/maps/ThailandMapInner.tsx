@@ -27,7 +27,7 @@ const STATUS_COLORS: Record<StationStatus, string> = {
 const MODE_ICONS: Record<TransportMode, LucideIcon> = {
   'ทางบก':    BusFront,
   'ทางราง':   TrainFront,
-  'ทางเรือ':  Ship,
+  'ทางน้ำ':   Ship,
   'ทางอากาศ': Plane,
 }
 

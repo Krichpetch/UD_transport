@@ -1,4 +1,5 @@
 import { applyOtpRowToStation, type ResolvedStation, type ImportOtpTxClient } from '../import-otp-row'
+import { OTHER_AGENCY } from '@repo/types'
 
 function makeTx(overrides: Partial<{ agencyUpdateResult: { responsibleAgency: string } }> = {}): {
   tx: ImportOtpTxClient
@@ -6,14 +7,14 @@ function makeTx(overrides: Partial<{ agencyUpdateResult: { responsibleAgency: st
   checklistCreate: jest.Mock
   checklistUpdate: jest.Mock
 } {
-  const stationUpdate = jest.fn().mockResolvedValue(overrides.agencyUpdateResult ?? { responsibleAgency: 'ขบ.' })
+  const stationUpdate = jest.fn().mockResolvedValue(overrides.agencyUpdateResult ?? { responsibleAgency: 'กรมการขนส่งทางบก (ขบ.)' })
   const checklistCreate = jest.fn().mockResolvedValue({ id: 'cl-new' })
   const checklistUpdate = jest.fn().mockResolvedValue({})
   return { tx: { station: { update: stationUpdate }, checklist: { create: checklistCreate, update: checklistUpdate } }, stationUpdate, checklistCreate, checklistUpdate }
 }
 
 function makeStation(overrides: Partial<ResolvedStation> = {}): ResolvedStation {
-  return { id: 'st1', nameTh: 'สถานีทดสอบ', responsibleAgency: 'ขบ.', lastInspected: null, ...overrides }
+  return { id: 'st1', nameTh: 'สถานีทดสอบ', responsibleAgency: 'กรมการขนส่งทางบก (ขบ.)', lastInspected: null, ...overrides }
 }
 
 describe('applyOtpRowToStation', () => {
@@ -71,22 +72,22 @@ describe('applyOtpRowToStation', () => {
     expect(stationUpdate).not.toHaveBeenCalled()
   })
 
-  it('prefers a real agency over a stale อื่นๆ fallback', async () => {
-    const { tx, stationUpdate } = makeTx({ agencyUpdateResult: { responsibleAgency: 'ขบ.' } })
+  it('prefers a real agency over a stale OTHER_AGENCY fallback', async () => {
+    const { tx, stationUpdate } = makeTx({ agencyUpdateResult: { responsibleAgency: 'กรมการขนส่งทางบก (ขบ.)' } })
     await applyOtpRowToStation(
-      tx, makeStation({ responsibleAgency: 'อื่นๆ' }),
-      { items: [], score: 80, lastInspected: '2026-01-01', responsibleAgency: 'ขบ.' }, 'admin-1', undefined,
+      tx, makeStation({ responsibleAgency: OTHER_AGENCY }),
+      { items: [], score: 80, lastInspected: '2026-01-01', responsibleAgency: 'กรมการขนส่งทางบก (ขบ.)' }, 'admin-1', undefined,
     )
     expect(stationUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { responsibleAgency: 'ขบ.' } }),
+      expect.objectContaining({ data: { responsibleAgency: 'กรมการขนส่งทางบก (ขบ.)' } }),
     )
   })
 
-  it('does not touch agency when the incoming row is also อื่นๆ', async () => {
+  it('does not touch agency when the incoming row is also OTHER_AGENCY', async () => {
     const { tx, stationUpdate } = makeTx()
     await applyOtpRowToStation(
-      tx, makeStation({ responsibleAgency: 'อื่นๆ', lastInspected: new Date('2027-01-01') }),
-      { items: [], score: 80, lastInspected: '2020-01-01', responsibleAgency: 'อื่นๆ' }, 'admin-1', undefined,
+      tx, makeStation({ responsibleAgency: OTHER_AGENCY, lastInspected: new Date('2027-01-01') }),
+      { items: [], score: 80, lastInspected: '2020-01-01', responsibleAgency: OTHER_AGENCY }, 'admin-1', undefined,
     )
     expect(stationUpdate).not.toHaveBeenCalled()
   })

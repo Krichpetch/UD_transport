@@ -75,7 +75,7 @@ model Station {
   id                String    @id @default(cuid())
   name              String
   nameTh            String
-  mode              String    // 'ทางบก' | 'ทางราง' | 'ทางเรือ' | 'ทางอากาศ'
+  mode              String    // 'ทางบก' | 'ทางราง' | 'ทางน้ำ' | 'ทางอากาศ'
   railSubtype       String?   // 'รถไฟฟ้า' | 'รถไฟ' (rail only)
   // Station masterlist cutover — line/route the station sits on (สาย/เส้นทาง), e.g. a metro
   // line. Empty string (never null) when the source row had none: identity is (mode, nameTh,

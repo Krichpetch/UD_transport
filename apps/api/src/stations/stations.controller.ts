@@ -90,11 +90,14 @@ export class StationsController {
   findAll(
     @Req() req: AuthRequest,
     @Query('mode')            mode?: string,
+    @Query('railSubtype')     railSubtype?: string,
     @Query('region')          region?: string,
+    @Query('province')        province?: string,
     @Query('agency')          responsibleAgency?: string,
     @Query('status')          status?: string,
     @Query('checklistStatus') checklistStatus?: string,
     @Query('search')          search?: string,
+    @Query('subItem')         subItem?: string,
     @Query('page')            page?: string,
     @Query('limit')           limit?: string,
     @Query('sortBy')          sortBy?: string,
@@ -104,7 +107,7 @@ export class StationsController {
     // The approval-state queue (SUBMITTED/REJECTED/APPROVED checklists) is an admin review tool.
     if (checklistStatus && req.user.role !== 'ADMIN') throw new ForbiddenException()
     return this.stations.findAll({
-      mode, region, responsibleAgency, status, checklistStatus, search,
+      mode, railSubtype, region, province, responsibleAgency, status, checklistStatus, search, subItem,
       page:      page      ? parseInt(page,  10) : 1,
       limit:     limit     ? parseInt(limit, 10) : 20,
       sortBy,

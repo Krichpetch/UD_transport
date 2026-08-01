@@ -13,7 +13,6 @@ from convert_masterlist import (
     convert,
     derive_rail_subtype,
     in_thailand_bbox,
-    normalize_mode,
     repair_comma_float,
     utm47n_to_wgs84,
 )
@@ -43,15 +42,6 @@ def make_row(**overrides) -> pd.Series:
     }
     base.update(overrides)
     return pd.Series(base)
-
-
-class TestModeNormalization:
-    def test_water_mode_string_normalized(self):
-        assert normalize_mode("ทางน้ำ") == "ทางเรือ"
-
-    def test_other_modes_passthrough(self):
-        for m in ["ทางบก", "ทางราง", "ทางอากาศ"]:
-            assert normalize_mode(m) == m
 
 
 class TestRailSubtypeDerivation:
@@ -158,10 +148,10 @@ class TestResolveCoordsViaBuildRecord:
 
 
 class TestFieldMapping:
-    def test_water_mode_normalized_in_output_record(self):
+    def test_water_mode_kept_as_canonical_value(self):
         row = make_row(ประเภทการเดินทาง="ทางน้ำ", ประเภทสถานี="ท่าเรือโดยสาร")
         record, _ = build_station_record(row)
-        assert record["mode"] == "ทางเรือ"
+        assert record["mode"] == "ทางน้ำ"
 
     def test_null_line_becomes_empty_string(self):
         row = make_row(**{"สาย/เส้นทาง": None})
@@ -199,13 +189,13 @@ class TestDuplicateNameDifferentLineOrMode:
     def test_same_name_different_mode_produces_two_stations_no_cross_mode_bleed(self):
         # ท่าช้าง: a pier AND a rail station sharing a name.
         df = pd.DataFrame([
-            make_row(ลำดับ=1, ประเภทการเดินทาง="ทางเรือ", ประเภทสถานี="ท่าเรือโดยสาร", ชื่อสถานี="ท่าช้าง"),
+            make_row(ลำดับ=1, ประเภทการเดินทาง="ทางน้ำ", ประเภทสถานี="ท่าเรือโดยสาร", ชื่อสถานี="ท่าช้าง"),
             make_row(ลำดับ=2, ประเภทการเดินทาง="ทางราง", ประเภทสถานี="สถานี", ชื่อสถานี="ท่าช้าง"),
         ])
         records, anomalies = convert(df)
         assert len(records) == 2
         modes = {r["mode"] for r in records}
-        assert modes == {"ทางเรือ", "ทางราง"}
+        assert modes == {"ทางน้ำ", "ทางราง"}
 
     def test_true_identity_collision_raises(self):
         df = pd.DataFrame([

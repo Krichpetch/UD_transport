@@ -3,7 +3,7 @@ import type { OtpRowDto } from '../../src/stations/dto/otp-row.dto'
 
 function makeRow(nameTh: string): OtpRowDto {
   return {
-    station: { nameTh, name: nameTh, mode: 'ทางบก', province: 'กรุงเทพมหานคร', region: 'กลาง', responsibleAgency: 'ขบ.', lat: 13.75, lng: 100.5 },
+    station: { nameTh, name: nameTh, mode: 'ทางบก', province: 'กรุงเทพมหานคร', region: 'กลาง', responsibleAgency: 'กรมการขนส่งทางบก (ขบ.)', lat: 13.75, lng: 100.5 },
     items: [], score: 80, status: 'ผ่านมาตรฐาน', lastInspected: '2026-01-01',
   } as unknown as OtpRowDto
 }
@@ -11,12 +11,12 @@ function makeRow(nameTh: string): OtpRowDto {
 function makeClient(overrides: Partial<{ station: Record<string, unknown> | null }> = {}) {
   const stationFindUnique = jest.fn().mockResolvedValue(
     overrides.station === undefined
-      ? { id: 'st1', nameTh: 'สถานี A', responsibleAgency: 'ขบ.', lastInspected: null }
+      ? { id: 'st1', nameTh: 'สถานี A', responsibleAgency: 'กรมการขนส่งทางบก (ขบ.)', lastInspected: null }
       : overrides.station,
   )
   const checklistFindFirst = jest.fn().mockResolvedValue(null)
   const checklistCreate = jest.fn().mockResolvedValue({ id: 'cl-new' })
-  const stationUpdate = jest.fn().mockResolvedValue({ responsibleAgency: 'ขบ.' })
+  const stationUpdate = jest.fn().mockResolvedValue({ responsibleAgency: 'กรมการขนส่งทางบก (ขบ.)' })
   const client: ApplyReviewClient = {
     station: { findUnique: stationFindUnique },
     checklist: { findFirst: checklistFindFirst },

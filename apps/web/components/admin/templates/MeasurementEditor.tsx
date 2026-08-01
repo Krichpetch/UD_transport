@@ -322,7 +322,7 @@ export function MeasurementEditor({
                 disabled={confirmMeasurement.isPending}
                 className="border-border rounded-lg border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
               >
-                ยืนยันโดยไม่แก้ไขค่า
+                ยืนยันเกณฑ์นี้
               </button>
             )}
             {editMeasurement.isError && <span className="text-[11px] text-red-500">{(editMeasurement.error as Error).message}</span>}

@@ -1,4 +1,4 @@
-export const TRANSPORT_MODES = ['ทางบก', 'ทางราง', 'ทางเรือ', 'ทางอากาศ'] as const
+export const TRANSPORT_MODES = ['ทางบก', 'ทางราง', 'ทางน้ำ', 'ทางอากาศ'] as const
 export type TransportMode = typeof TRANSPORT_MODES[number]
 
 export const RAIL_SUBTYPES = ['รถไฟ', 'รถไฟฟ้า'] as const

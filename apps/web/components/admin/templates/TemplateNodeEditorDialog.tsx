@@ -3,6 +3,7 @@
 import * as React from 'react'
 import type { TemplateNode } from '@repo/types'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { DIALOG_HEADER_CLS, DIALOG_TITLE_CLS } from '@/lib/ui-classes'
 import { MeasurementEditor } from './MeasurementEditor'
 import { TemplateNodeImages } from './TemplateNodeImages'
 import { GuidanceEditor } from './GuidanceEditor'
@@ -40,9 +41,9 @@ export function TemplateNodeEditorDialog({
       <DialogContent className="flex max-h-[85vh] w-full flex-col overflow-hidden p-0 sm:max-w-2xl">
         {node && (
           <>
-            <div className="border-border shrink-0 border-b px-6 py-4">
-              {breadcrumb.length > 0 && <p className="text-muted-foreground text-[10px]">{breadcrumb.join(' › ')}</p>}
-              <DialogTitle className="flex items-center gap-2 text-sm">
+            <div className={DIALOG_HEADER_CLS}>
+              {breadcrumb.length > 0 && <p className="text-muted-foreground mb-1 text-[10px]">{breadcrumb.join(' › ')}</p>}
+              <DialogTitle className={`flex items-center gap-2 ${DIALOG_TITLE_CLS}`}>
                 <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 font-mono text-xs">{node.code}</span>
                 {node.labelTh}
               </DialogTitle>
@@ -50,13 +51,13 @@ export function TemplateNodeEditorDialog({
 
             <div className="themed-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4">
               {retired && (
-                <div className="bg-secondary text-muted-foreground rounded-lg p-2.5 text-xs">
+                <div className="bg-secondary text-muted-foreground rounded-lg p-2.5 text-sm">
                   แบบประเมินนี้เลิกใช้แล้ว — ดูได้อย่างเดียว ไม่สามารถแก้ไขได้
                 </div>
               )}
 
               {!node.answerType && (
-                <div className="bg-secondary/60 text-muted-foreground rounded-lg p-2.5 text-xs">
+                <div className="bg-secondary/60 text-muted-foreground rounded-lg p-2.5 text-sm">
                   รายการนี้เป็นหมวดหมู่ (ไม่มีคำตอบของตัวเอง) — แนบได้เฉพาะรูปภาพประกอบเท่านั้น
                 </div>
               )}
@@ -73,10 +74,10 @@ export function TemplateNodeEditorDialog({
 
               {(node.measurements ?? []).length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-foreground text-xs font-semibold">เกณฑ์ตัวเลข</p>
+                  <p className="text-foreground text-sm font-semibold">เกณฑ์ตัวเลข</p>
 
                   {templateStatus === 'ACTIVE' && !activeAckd && (
-                    <div className="space-y-2 rounded-lg bg-[#ffc107]/10 p-3 text-xs text-[#8a6d00]">
+                    <div className="space-y-2 rounded-lg bg-[#ffc107]/10 p-3 text-sm text-[#8a6d00]">
                       <p className="font-semibold">แบบประเมินนี้ &ldquo;ใช้งานอยู่&rdquo; — จะมีผลเมื่อคำนวณคะแนนใหม่</p>
                       <p>
                         มีรายการตรวจสอบที่ผูกกับแบบประเมินนี้อยู่ {stampedChecklistCount.toLocaleString()} รายการ
