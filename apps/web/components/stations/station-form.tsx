@@ -2,8 +2,13 @@
 
 import * as React from 'react'
 import type { TransportMode } from '@repo/types'
-import { TRANSPORT_MODES, RAIL_SUBTYPES } from '@repo/types'
+import { TRANSPORT_MODES, RAIL_SUBTYPES, PROVINCE_REGION } from '@repo/types'
 import { INPUT_CLS, SELECT_CLS } from '@/lib/ui-classes'
+
+// The 77 Thai provinces — same canonical source StationsService.create/update's region
+// derivation uses server-side (@repo/types#deriveRegion), so the picker never offers a
+// province spelling that would fail to resolve to a region.
+const PROVINCE_OPTIONS = Object.keys(PROVINCE_REGION)
 
 export interface StationFormValue {
   nameTh: string
@@ -46,6 +51,7 @@ export function StationForm({
   agencyOptions = [],
 }: StationFormBaseProps & { agencyOptions?: string[]; hideNameTh?: boolean }) {
   const agenciesListId = React.useId()
+  const provincesListId = React.useId()
 
   return (
     <>
@@ -103,11 +109,15 @@ export function StationForm({
         <input
           className={INPUT_CLS}
           value={value.province}
+          list={provincesListId}
           onChange={(e) => onChange({ province: e.target.value })}
           placeholder={placeholders?.province}
           disabled={disabled}
           required
         />
+        <datalist id={provincesListId}>
+          {PROVINCE_OPTIONS.map((p) => <option key={p} value={p} />)}
+        </datalist>
       </div>
 
       <div>

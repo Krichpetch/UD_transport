@@ -29,6 +29,11 @@ export const LEGACY_AGENCY_MAP: Record<string, string> = {
   'จท.':   'กรมเจ้าท่า (จท.)',
   'ทย.':   'กรมท่าอากาศยาน (ทย.)',
   'ทอท.':  'บริษัท ท่าอากาศยานไทย จำกัด (มหาชน) (ทอท.)',
+  // BEM's actual legal name, as it appears in the masterlist source (821-row seed data) — a
+  // confident match to the "private rail operator" bucket, unlike the other masterlist-sourced
+  // operator names (BTS, Northern/Eastern Bangkok Monorail, Asia Era One) which were reviewed
+  // and confirmed to fall to OTHER_AGENCY instead (2026-08-01).
+  'บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (มหาชน)': 'ผู้ให้บริการรถไฟฟ้า (เช่น BEM)',
   'อื่นๆ': OTHER_AGENCY,
 }
 

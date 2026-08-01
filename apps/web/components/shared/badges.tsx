@@ -27,7 +27,7 @@ export function TransportBadge({ type }: { type: string }) {
     'รถไฟฟ้า':  'bg-indigo-50 text-indigo-700',
   }
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${map[type] ?? 'bg-secondary text-muted-foreground'}`}>
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${map[type as TransportMode | RailSubtype] ?? 'bg-secondary text-muted-foreground'}`}>
       {type}
     </span>
   )

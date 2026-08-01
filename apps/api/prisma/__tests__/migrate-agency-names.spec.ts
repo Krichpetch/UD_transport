@@ -44,10 +44,17 @@ describe('LEGACY_AGENCY_MAP', () => {
     }
   })
 
-  it('covers exactly the 11 old bare abbreviations, position-for-position with the old list', () => {
+  it('covers the 11 old bare abbreviations plus BEM\'s full legal name from the masterlist', () => {
     expect(Object.keys(LEGACY_AGENCY_MAP).sort()).toEqual(
-      ['ขบ.', 'ขสมก.', 'บขส.', 'รฟท.', 'รฟม.', 'รฟฟท.', 'BEM', 'จท.', 'ทย.', 'ทอท.', 'อื่นๆ'].sort(),
+      [
+        'ขบ.', 'ขสมก.', 'บขส.', 'รฟท.', 'รฟม.', 'รฟฟท.', 'BEM', 'จท.', 'ทย.', 'ทอท.', 'อื่นๆ',
+        'บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (มหาชน)',
+      ].sort(),
     )
+  })
+
+  it('maps BEM\'s masterlist legal name to the private-operator bucket, not OTHER_AGENCY', () => {
+    expect(LEGACY_AGENCY_MAP['บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (มหาชน)']).toBe('ผู้ให้บริการรถไฟฟ้า (เช่น BEM)')
   })
 })
 

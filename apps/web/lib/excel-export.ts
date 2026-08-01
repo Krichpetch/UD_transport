@@ -143,7 +143,7 @@ export function buildTypeMatrixSheet(
   // ── Data rows — sorted by province, nameTh, then auditYear ─────────────────
   const sorted = [...rows].sort(
     (a, b) =>
-      a.station.province.localeCompare(b.station.province, 'th') ||
+      (a.station.province ?? '').localeCompare(b.station.province ?? '', 'th') ||
       a.station.nameTh.localeCompare(b.station.nameTh, 'th') ||
       a.auditYear - b.auditYear,
   )

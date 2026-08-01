@@ -116,7 +116,7 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
     nameTh: station.nameTh,
     mode: station.mode,
     railSubtype: station.railSubtype,
-    province: station.province,
+    province: station.province ?? '',
     responsibleAgency: station.responsibleAgency,
     lat: station.lat,
     lng: station.lng,

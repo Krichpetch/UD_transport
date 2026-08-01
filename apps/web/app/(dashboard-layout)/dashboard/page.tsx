@@ -82,7 +82,7 @@ export default function DashboardPage() {
   }, [stations])
   const PROVINCES = React.useMemo(() => {
     const base = regionFilter ? stations.filter(matchesRegionFilter) : stations
-    return [...new Set(base.map(s => s.province))].sort()
+    return [...new Set(base.map(s => s.province).filter((p): p is string => p != null))].sort()
   }, [stations, regionFilter, matchesRegionFilter])
   const AGENCIES = React.useMemo(
     () => [...new Set(stations.map(s => s.responsibleAgency))].sort(),

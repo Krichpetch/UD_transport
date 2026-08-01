@@ -354,7 +354,16 @@ export const checklistTemplates: ChecklistTemplate = {
 }
 
 export function getChecklistTemplate(mode: TransportMode): ChecklistGroup[] {
-  return checklistTemplates[mode].map((group) => ({
+  // `mode` is a live Station.mode value from the DB, not a compile-time-checked literal — a row
+  // stamped with a mode string that predates a rename (e.g. the ทางเรือ -> ทางน้ำ migration, if
+  // it hasn't been applied to that row's DB yet) has no entry here. Fail soft (empty template)
+  // instead of crashing the whole station page on a data/migration timing gap.
+  const template = checklistTemplates[mode]
+  if (!template) {
+    console.warn(`getChecklistTemplate: no template for mode ${JSON.stringify(mode)} — DB row may predate a mode rename migration`)
+    return []
+  }
+  return template.map((group) => ({
     ...group,
     items: group.items.map((item) => ({
       ...item,

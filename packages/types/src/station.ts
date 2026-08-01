@@ -46,7 +46,11 @@ export interface Station {
   nameTh: string
   mode: TransportMode
   railSubtype?: RailSubtype
-  province: string
+  // Nullable: the masterlist has no province for ~447 rail rows (schema.prisma's own comment
+  // on this column) — never fabricate one. Was mistyped as non-nullable `string` here, which is
+  // how AppNavbar's `.includes()` crash and excel-export's `.localeCompare()` crash both slipped
+  // past the compiler; fixed at the type so every unsafe access gets caught, not just these two.
+  province: string | null
   region: string | null
   // Station masterlist cutover — สาย/เส้นทาง the station sits on (e.g. a metro line). Empty
   // string (never null) when the source had none; part of the (mode, nameTh, line) identity key.

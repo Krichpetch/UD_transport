@@ -44,7 +44,7 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
       .filter(s =>
         s.nameTh.includes(q) ||
         s.name.toLowerCase().includes(q) ||
-        s.province.includes(q)
+        (s.province?.includes(q) ?? false)
       )
       .slice(0, 8)
   }, [stations, searchQuery])

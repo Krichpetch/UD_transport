@@ -35,7 +35,7 @@ function ModeIcon({ mode, railSubtype, size = 14 }: {
 
 interface SelectedStation {
   nameTh: string
-  province: string
+  province: string | null
   mode: TransportMode
   railSubtype?: RailSubtype
 }
