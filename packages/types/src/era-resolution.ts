@@ -237,6 +237,52 @@ export function filterApplicableItems(
   return { ...def, groups }
 }
 
+// Session F1, Part C — MARKS applicability instead of deleting (closes the A2 gap left open by
+// filterApplicableItems above, per the same isItemApplicable rule). The template-for-audit
+// endpoint uses this now, not filterApplicableItems: the client stays "dumb" and admin/debug views
+// can still see the full structure, with the era-gated items simply flagged, not removed. Scope is
+// v2/v3 templates only — callers gate by schemaVersion (see checklists.service.ts), never called
+// here, since this function has no template-version awareness of its own (mirrors
+// filterApplicableItems, which is likewise version-agnostic and simply a no-op on v1's untagged
+// nodes).
+//
+// Cascade: an answerable (own answerType) node whose own applicability fails forces every
+// descendant leaf to `applicable: false` too, regardless of the descendant's own lawRefs — the
+// same "dropped wholesale" semantics filterApplicableItems already has, just marked instead of
+// removed (a criterion that doesn't apply makes its finer sub-criteria moot too). Pure containers
+// (no own answerType) never carry `applicable` themselves — lawRefs/facilityCode are only ever
+// tagged on leaves (see seed-templates.ts#tagLeaves) — but still propagate a forced-inapplicable
+// cascade down to their children.
+function markNode(
+  node: TemplateNode,
+  yearBuilt: number | null | undefined,
+  registry: readonly EraLawRef[],
+  forcedInapplicable: boolean,
+): TemplateNode {
+  const ownApplicable = node.answerType
+    ? (!forcedInapplicable && isItemApplicable(node, yearBuilt, registry))
+    : undefined
+  const childForced = forcedInapplicable || ownApplicable === false
+  const subItems = node.subItems?.map((c) => markNode(c, yearBuilt, registry, childForced))
+  return {
+    ...node,
+    ...(node.answerType ? { applicable: ownApplicable } : {}),
+    ...(subItems ? { subItems } : {}),
+  }
+}
+
+export function markApplicability(
+  def: ChecklistTemplateDefinition,
+  yearBuilt: number | null | undefined,
+  registry: readonly EraLawRef[] = LAW_REFERENCE_SEED,
+): ChecklistTemplateDefinition {
+  const groups: ChecklistTemplateGroupDef[] = def.groups.map((g) => ({
+    ...g,
+    items: g.items.map((item) => markNode(item, yearBuilt, registry, false)),
+  }))
+  return { ...def, groups }
+}
+
 // Station.yearBuilt sanity range (Buddhist year) — 2400 is well before any UD-transport
 // infrastructure in Thailand; current+1 allows for stations under construction/imminent opening.
 export const YEAR_BUILT_MIN = 2400
@@ -247,4 +293,53 @@ export function yearBuiltMax(now: Date = new Date()): number {
 
 export function isValidYearBuilt(yearBuilt: number, now: Date = new Date()): boolean {
   return Number.isInteger(yearBuilt) && yearBuilt >= YEAR_BUILT_MIN && yearBuilt <= yearBuiltMax(now)
+}
+
+// Session F1 follow-up — derives the actual era BRACKETS from the real law registry, so an admin
+// picking a "test build year" for preview redaction can choose a bracket by name (e.g. "ก่อน พ.ศ.
+// 2548" / "2548–2554") instead of guessing a raw year and hoping it lands on the right side of an
+// undocumented boundary. Each bracket's `representativeYear` is the value actually sent to
+// getTemplateForAudit's yearBuiltOverride — the EARLIEST year in the bracket (so "2548–2554"
+// resolves as "just barely in force," the most conservative reading of that era, not
+// "practically the next era's boundary"). PROJECT (the สนข. superset, never era-gated) and any
+// row missing a real buddhistYear are excluded — they don't mark a redaction boundary at all.
+export interface EraYearBracket {
+  label: string             // e.g. "ก่อน พ.ศ. 2548" or "พ.ศ. 2548–2554"
+  representativeYear: number // the value to send as yearBuiltOverride for this bracket
+}
+
+// Structural subset (code/buddhistYear/effectiveYear + a real-vs-PROJECT flag), same looseness
+// rationale as EraLawRef above — deliberately NOT LawReferenceSeed's closed `code` union, so a
+// synthetic test registry or future DB-backed registry can supply this without satisfying the
+// full seed shape (nameTh/ministry aren't needed here at all).
+export interface EraBracketLawRef extends EraLawRef {
+  code: string
+}
+
+export function eraYearBrackets(
+  registry: readonly EraBracketLawRef[] = LAW_REFERENCE_SEED,
+  now: Date = new Date(),
+): EraYearBracket[] {
+  const years = [...new Set(
+    registry.filter((l) => l.code !== 'PROJECT').map((l) => l.effectiveYear ?? l.buddhistYear),
+  )].sort((a, b) => a - b)
+
+  if (years.length === 0) return []
+
+  const brackets: EraYearBracket[] = [
+    { label: `ก่อน พ.ศ. ${years[0]}`, representativeYear: YEAR_BUILT_MIN },
+  ]
+  for (let i = 0; i < years.length; i++) {
+    const start = years[i]!
+    const end = years[i + 1] // undefined for the last (open-ended) bracket
+    brackets.push({
+      label: end !== undefined ? `พ.ศ. ${start}–${end - 1}` : `พ.ศ. ${start} เป็นต้นไป`,
+      representativeYear: start,
+    })
+  }
+  // Clamp the very last bracket's representative year to the valid range in case `now` has
+  // somehow moved earlier than the newest law's year (never realistic, but keeps this function
+  // total rather than emitting a year isValidYearBuilt would reject).
+  const max = yearBuiltMax(now)
+  return brackets.map((b) => ({ ...b, representativeYear: Math.min(b.representativeYear, max) }))
 }

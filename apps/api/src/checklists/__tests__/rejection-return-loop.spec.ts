@@ -81,7 +81,7 @@ describe('ChecklistsService.submit — Part B.3 resubmit-after-rejection linkage
 
   beforeEach(async () => {
     jest.clearAllMocks()
-    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', railSubtype: null, coordStatus: 'APPROXIMATE', yearBuilt: null })
+    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', railSubtype: null, coordStatus: 'APPROXIMATE', yearBuilt: 2560 })
     checklistCreate.mockResolvedValue({ id: 'new-cl' })
 
     const moduleRef = await Test.createTestingModule({

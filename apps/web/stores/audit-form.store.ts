@@ -43,6 +43,11 @@ interface AuditFormState {
   dirty: boolean            // true once an edit has happened since the last successful save
   saveStatus: SaveStatus
   checklistId: string | null
+  // Session F1, Part A.5 — parks a leaf's pre-cascade answer while an ancestor container/hybrid
+  // node is ไม่มี/ไม่เกี่ยวข้อง, keyed by leaf code. Ephemeral (session-only, never persisted to the
+  // server or restored on cold reload — a convenience for toggling within one sitting, not
+  // permanent data): reset() and hydrate() both clear it.
+  containerStash: Record<string, AuditAnswer>
 
   hydrate: (params: HydrateParams) => void
   // Session E3, Part C.3 — called once the first autosave creates a draft row (or on hydrate,
@@ -53,6 +58,16 @@ interface AuditFormState {
   // container-level ไม่มี/มี cascade in V2PagerForm's ContainerNode). A single set() call, not N
   // sequential setAnswer() calls, so it's one re-render and one `dirty` flip, not N of each.
   setAnswersBulk: (patch: Record<string, Partial<AuditAnswer>>) => void
+  // Session F1, Part A.3/A.4/A.5 — same bulk update as setAnswersBulk, but ALSO stashes each
+  // code's CURRENT answer first (only if not already stashed — a ไม่มี→ไม่เกี่ยวข้อง or
+  // ไม่เกี่ยวข้อง→ไม่มี transition must never overwrite the original manual stash with an
+  // already-cascaded value). Used for every ไม่มี/ไม่เกี่ยวข้อง cascade (container-level and
+  // hybrid-leaf-level).
+  stashAndCascade: (patchByCode: Record<string, Partial<AuditAnswer>>) => void
+  // Part A.5 — restores every code's pre-cascade answer (deleting it from the stash), or resets
+  // to the blank default when nothing was ever stashed for that code (it was already blank before
+  // the cascade). Used when a container/hybrid leaf toggles back to มี, or off entirely.
+  restoreStash: (codes: string[]) => void
   setFinalThoughts: (text: string) => void
   setSaveStatus: (status: SaveStatus) => void
   markSaved: () => void
@@ -73,6 +88,7 @@ export const useAuditFormStore = create<AuditFormState>((set) => ({
   dirty: false,
   saveStatus: 'idle',
   checklistId: null,
+  containerStash: {},
 
   hydrate: ({ stationId, templateDef, storedItems, finalThoughts, yearBuilt, eraUnresolved, resumedFromDraft, checklistId }) => set({
     stationId,
@@ -86,6 +102,7 @@ export const useAuditFormStore = create<AuditFormState>((set) => ({
     dirty: false,
     saveStatus: 'idle',
     checklistId: checklistId ?? null,
+    containerStash: {},
   }),
 
   setChecklistId: (id) => set({ checklistId: id }),
@@ -101,6 +118,31 @@ export const useAuditFormStore = create<AuditFormState>((set) => ({
       answers[code] = { ...(answers[code] ?? defaultAnswer()), ...p }
     }
     return { answers, dirty: true }
+  }),
+
+  stashAndCascade: (patchByCode) => set((state) => {
+    const answers = { ...state.answers }
+    const stash = { ...state.containerStash }
+    for (const [code, patch] of Object.entries(patchByCode)) {
+      const current = answers[code] ?? defaultAnswer()
+      if (!(code in stash)) stash[code] = current
+      answers[code] = { ...current, ...patch }
+    }
+    return { answers, containerStash: stash, dirty: true }
+  }),
+
+  restoreStash: (codes) => set((state) => {
+    const answers = { ...state.answers }
+    const stash = { ...state.containerStash }
+    for (const code of codes) {
+      if (code in stash) {
+        answers[code] = stash[code]!
+        delete stash[code]
+      } else {
+        answers[code] = defaultAnswer()
+      }
+    }
+    return { answers, containerStash: stash, dirty: true }
   }),
 
   setFinalThoughts: (text) => set({ finalThoughts: text, dirty: true }),
@@ -121,5 +163,6 @@ export const useAuditFormStore = create<AuditFormState>((set) => ({
     dirty: false,
     saveStatus: 'idle',
     checklistId: null,
+    containerStash: {},
   }),
 }))

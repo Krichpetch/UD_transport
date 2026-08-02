@@ -69,10 +69,13 @@ export interface TemplateForAudit {
 // `preview: true` requests read-only rendering (no draft hydration/autosave) of the station's
 // ACTIVE template — server-gated to ADMIN (Part B.2); a non-admin caller gets a 403. `version`
 // pins a specific template version instead (e.g. an un-activated DRAFT), also ADMIN-only.
-export function getTemplateForAudit(stationId: string, opts?: { preview?: boolean; version?: number }) {
+// `yearBuilt` (Session F1 follow-up) substitutes any build year for era resolution/redaction —
+// preview-only (the server rejects it without `preview`/`version`), never persists anything.
+export function getTemplateForAudit(stationId: string, opts?: { preview?: boolean; version?: number; yearBuilt?: number }) {
   const params = new URLSearchParams()
   if (opts?.version != null) params.set('version', String(opts.version))
   else if (opts?.preview) params.set('preview', '1')
+  if (opts?.yearBuilt != null) params.set('yearBuilt', String(opts.yearBuilt))
   const qs = params.toString()
   return api.get<TemplateForAudit>(`/stations/${stationId}/checklist/template${qs ? `?${qs}` : ''}`)
 }
@@ -125,4 +128,43 @@ export function getMyRejectedCount() {
 
 export function getMyRejectedChecklists() {
   return api.get<RejectedChecklistSummary[]>('/checklists/rejected')
+}
+
+// Session F1, Part E — "งานของฉัน" (my work): every checklist belonging to the logged-in
+// auditor, auditor-scoped server-side by the JWT (never a client-suppliable filter).
+export type MyChecklistStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED'
+
+export interface MyChecklistRow {
+  id: string
+  stationId: string
+  status: MyChecklistStatus
+  createdAt: string
+  updatedAt: string
+  submittedAt: string | null
+  reviewedAt: string | null
+  reviewNotes: string | null
+  score: number | null
+  station: { nameTh: string; line?: string; mode: string; railSubtype: string | null; province: string | null }
+  // Only populated for status === 'DRAFT' — server-computed from stored items, no template fetch.
+  progress: { answered: number; total: number } | null
+}
+
+export interface PaginatedMyChecklists {
+  data: MyChecklistRow[]
+  total: number
+  page: number
+  totalPages: number
+}
+
+export function getMyChecklists(page: number, limit: number, status?: MyChecklistStatus) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) })
+  if (status) params.set('status', status)
+  return api.get<PaginatedMyChecklists>(`/checklists/mine?${params.toString()}`)
+}
+
+// Session F1, Part E.2 — read-only detail for a SUBMITTED/APPROVED row on the my-work list.
+export function getMyChecklistDetail(id: string) {
+  return api.get<ChecklistRecord & { station: { nameTh: string; line?: string; mode: string; railSubtype: string | null; province: string | null } }>(
+    `/checklists/mine/${id}`,
+  )
 }

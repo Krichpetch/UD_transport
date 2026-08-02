@@ -23,7 +23,7 @@ describe('ChecklistsService — AuditLog on write paths', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks()
-    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', coordStatus: 'APPROXIMATE' })
+    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', coordStatus: 'APPROXIMATE', yearBuilt: 2560 })
     const moduleRef = await Test.createTestingModule({
       providers: [
         ChecklistsService,

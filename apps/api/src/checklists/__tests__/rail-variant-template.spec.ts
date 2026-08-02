@@ -55,7 +55,7 @@ describe('ChecklistsService — rail subtype variant template selection', () => 
   const emptyItems: unknown[] = []
 
   it('metro-subtype station queries variantKey rail_metro before falling back to standard', async () => {
-    findOne.mockResolvedValue({ id: 's1', mode: 'ทางราง', railSubtype: 'รถไฟฟ้า' })
+    findOne.mockResolvedValue({ id: 's1', mode: 'ทางราง', railSubtype: 'รถไฟฟ้า', yearBuilt: 2560 })
     templateFindFirst
       .mockResolvedValueOnce(null) // no ACTIVE rail_metro row yet
       .mockResolvedValueOnce({ id: 't-std', version: 1, definition: STANDARD_TEMPLATE }) // fallback
@@ -68,7 +68,7 @@ describe('ChecklistsService — rail subtype variant template selection', () => 
   })
 
   it('train-subtype station queries variantKey rail_train before falling back to standard', async () => {
-    findOne.mockResolvedValue({ id: 's2', mode: 'ทางราง', railSubtype: 'รถไฟ' })
+    findOne.mockResolvedValue({ id: 's2', mode: 'ทางราง', railSubtype: 'รถไฟ', yearBuilt: 2560 })
     templateFindFirst
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ id: 't-std', version: 1, definition: STANDARD_TEMPLATE })
@@ -80,7 +80,7 @@ describe('ChecklistsService — rail subtype variant template selection', () => 
   })
 
   it('a mode !== rail station is untouched — resolves straight to standard, one lookup', async () => {
-    findOne.mockResolvedValue({ id: 's3', mode: 'ทางบก', railSubtype: null })
+    findOne.mockResolvedValue({ id: 's3', mode: 'ทางบก', railSubtype: null, yearBuilt: 2560 })
     templateFindFirst.mockResolvedValueOnce({ id: 't-std', version: 1, definition: STANDARD_TEMPLATE })
 
     await service.saveDraft('s3', 'u1', emptyItems)
@@ -90,7 +90,7 @@ describe('ChecklistsService — rail subtype variant template selection', () => 
   })
 
   it('unknown/null rail subtype hits the declared default (rail_train) rather than throwing', async () => {
-    findOne.mockResolvedValue({ id: 's4', mode: 'ทางราง', railSubtype: null })
+    findOne.mockResolvedValue({ id: 's4', mode: 'ทางราง', railSubtype: null, yearBuilt: 2560 })
     templateFindFirst
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ id: 't-std', version: 1, definition: STANDARD_TEMPLATE })
@@ -100,7 +100,7 @@ describe('ChecklistsService — rail subtype variant template selection', () => 
   })
 
   it('v1 path unaffected: with only a standard ACTIVE row seeded (today\'s real DB state), a rail station of either subtype ends up on the v1 anchor via fallback', async () => {
-    findOne.mockResolvedValue({ id: 's5', mode: 'ทางราง', railSubtype: 'รถไฟฟ้า' })
+    findOne.mockResolvedValue({ id: 's5', mode: 'ทางราง', railSubtype: 'รถไฟฟ้า', yearBuilt: 2560 })
     templateFindFirst
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ id: 't-std', version: 1, definition: STANDARD_TEMPLATE })

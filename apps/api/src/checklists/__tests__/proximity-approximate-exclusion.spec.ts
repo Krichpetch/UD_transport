@@ -45,7 +45,7 @@ describe('ChecklistsService.submit — Part E.1 APPROXIMATE/PENDING proximity ex
   it.each(['APPROXIMATE', 'PENDING', 'INVALID'] as const)(
     'coordStatus=%s never hard-blocks submit, even with no GPS at all',
     async (coordStatus) => {
-      findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', railSubtype: null, coordStatus, yearBuilt: null })
+      findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', railSubtype: null, coordStatus, yearBuilt: 2560 })
 
       await expect(service.submit('s1', 'u1', [], undefined, undefined)).resolves.toBeDefined()
 
@@ -57,7 +57,7 @@ describe('ChecklistsService.submit — Part E.1 APPROXIMATE/PENDING proximity ex
   )
 
   it('coordStatus=OK still enforces the gate (GPS required)', async () => {
-    findOne.mockResolvedValue({ id: 's2', mode: 'ทางบก', railSubtype: null, coordStatus: 'OK', yearBuilt: null })
+    findOne.mockResolvedValue({ id: 's2', mode: 'ทางบก', railSubtype: null, coordStatus: 'OK', yearBuilt: 2560 })
     await expect(service.submit('s2', 'u1', [], undefined, undefined)).rejects.toMatchObject({
       response: { code: 'LOCATION_REQUIRED' },
     })

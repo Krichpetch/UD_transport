@@ -10,10 +10,13 @@ import {
   parseChecklistItems,
   ChecklistItemsParseError,
   resolveTemplateEras,
-  filterApplicableItems,
+  markApplicability,
   resolveVariantKey,
   STANDARD_VARIANT_KEY,
+  walkTemplateLeaves,
+  computeStoredProgress,
   type ChecklistTemplateDefinition,
+  type TemplateNode,
   type ParsedChecklistGroup,
   type StoredChecklistNode,
   type TransportMode,
@@ -198,12 +201,34 @@ export class ChecklistsService {
     if (!templateDef) {
       return { resolvedDef: undefined, appliedYearBuilt: yearBuilt, appliedLawRefs: null as Record<string, string> | null }
     }
-    const { resolved, appliedLawRefs } = resolveTemplateEras(templateDef, yearBuilt)
+    // Part C — item redaction marked BEFORE value resolution, same ordering/schemaVersion gate as
+    // getTemplateForAudit, so submit's score/persisted-flags and the audit-time template the
+    // auditor actually saw always agree on which leaves applied.
+    const marked = templateDef.schemaVersion === 1 ? templateDef : markApplicability(templateDef, yearBuilt)
+    const { resolved, appliedLawRefs } = resolveTemplateEras(marked, yearBuilt)
     return {
       resolvedDef: resolved,
       appliedYearBuilt: yearBuilt,
       appliedLawRefs: Object.keys(appliedLawRefs).length > 0 ? appliedLawRefs : null,
     }
+  }
+
+  // Part C.4/C.5 — bakes each leaf's applicable:false (already resolved onto resolvedDef by
+  // resolveEraStamp above, keyed by code) onto the matching STORED node once, at submit time,
+  // using the checklist's own frozen appliedYearBuilt/resolvedDef. Frozen forever after: scoring
+  // never needs a template lookup again to know whether a stored leaf counts (see
+  // StoredChecklistNode.applicable's doc) — this is also what makes cross-checklist aggregation
+  // (dashboards summing many checklists' items) correct without threading yearBuilt through every
+  // scoring call site.
+  private applyRedactionFlags(groups: ParsedChecklistGroup[], resolvedDef: ChecklistTemplateDefinition): ParsedChecklistGroup[] {
+    const leafIndex = new Map<string, TemplateNode>()
+    for (const leaf of walkTemplateLeaves(resolvedDef)) leafIndex.set(leaf.code, leaf)
+    const tagNode = (n: StoredChecklistNode): StoredChecklistNode => ({
+      ...n,
+      ...(leafIndex.get(n.id)?.applicable === false ? { applicable: false } : {}),
+      ...(n.subItems ? { subItems: n.subItems.map(tagNode) } : {}),
+    })
+    return groups.map((g) => ({ ...g, items: g.items.map(tagNode) }))
   }
 
   // Part A.6 — GET template-for-audit: returns the mode's ACTIVE template with every byLaw value
@@ -219,7 +244,11 @@ export class ChecklistsService {
   // ACTIVE template. `versionOverride` (admin station-list "preview" button, Session E4) lets the
   // caller pin a specific template version (e.g. an un-activated v3 DRAFT) instead of whatever is
   // currently ACTIVE — with no override, preview renders the ACTIVE template, same as a real audit.
-  async getTemplateForAudit(stationId: string, auditorId: string, preview?: boolean, versionOverride?: number) {
+  // `yearBuiltOverride` (Session F1 follow-up) — ADMIN preview-only (controller rejects it outside
+  // `preview` mode): lets the admin pick any build year to see era redaction/value resolution
+  // react live, WITHOUT touching the real station's yearBuilt or writing anything anywhere — this
+  // is purely a resolution-input substitution for one read, never persisted.
+  async getTemplateForAudit(stationId: string, auditorId: string, preview?: boolean, versionOverride?: number, yearBuiltOverride?: number) {
     const station = await this.stations.findOne(stationId)
     const template = versionOverride != null
       ? await this.prisma.checklistTemplate.findFirst({
@@ -229,14 +258,16 @@ export class ChecklistsService {
     if (!template) return { template: null, templateId: null, templateVersion: null, appliedYearBuilt: station.yearBuilt, appliedLawRefs: null, eraUnresolved: false, preview: !!preview }
 
     const draft = preview ? null : await this.prisma.checklist.findFirst({ where: { stationId, auditorId, status: 'DRAFT' } })
-    const yearBuilt = draft?.appliedYearBuilt ?? station.yearBuilt ?? null
+    const yearBuilt = preview && yearBuiltOverride != null ? yearBuiltOverride : (draft?.appliedYearBuilt ?? station.yearBuilt ?? null)
     const templateDef = template.definition as unknown as ChecklistTemplateDefinition
-    // Item redaction (Session E2 follow-up) BEFORE value resolution: a criterion the build year
-    // predates is removed from the tree entirely (product decision — "hide the item", see
-    // @repo/types#filterApplicableItems), so appliedLawRefs below only ever names laws actually
-    // relevant to what the auditor can see.
-    const filtered = filterApplicableItems(templateDef, yearBuilt)
-    const { resolved, appliedLawRefs, eraUnresolved } = resolveTemplateEras(filtered, yearBuilt)
+    // Item redaction (Session F1, Part C) BEFORE value resolution: a criterion the build year
+    // predates is flagged applicable:false rather than removed (see @repo/types#markApplicability —
+    // supersedes the older delete-based filterApplicableItems for THIS endpoint; the client stays
+    // dumb and renders the flagged items as a collapsed footer note, never an answerable row).
+    // Scope is v2/v3 templates only (Part C.2) — v1 live forms render full and unfiltered, gated
+    // here by schemaVersion rather than relying on v1 templates simply never carrying lawRefs tags.
+    const marked = templateDef.schemaVersion === 1 ? templateDef : markApplicability(templateDef, yearBuilt)
+    const { resolved, appliedLawRefs, eraUnresolved } = resolveTemplateEras(marked, yearBuilt)
 
     return {
       template: resolved,
@@ -254,7 +285,7 @@ export class ChecklistsService {
   // A thrown ChecklistItemsParseError becomes a 400 naming the offending path/code; `templateDef`
   // is omitted when no ACTIVE template was found, in which case only shape (not code identity)
   // is checked — same graceful-degradation as getActiveTemplate above.
-  private validateItemsPayload(items: unknown, templateDef?: ChecklistTemplateDefinition): void {
+  private validateItemsPayload(items: unknown, templateDef?: ChecklistTemplateDefinition): ParsedChecklistGroup[] {
     const json = JSON.stringify(items ?? null)
     if (Buffer.byteLength(json, 'utf-8') > MAX_ITEMS_JSON_BYTES) {
       throw new BadRequestException({ code: 'ITEMS_TOO_LARGE', message: 'ข้อมูลรายการตรวจสอบมีขนาดใหญ่เกินไป' })
@@ -272,6 +303,7 @@ export class ChecklistsService {
       throw err
     }
     this.assertPhotoLimits(groups)
+    return groups
   }
 
   // Session E3, Part C.1 — server-side enforcement of the 5-photos-per-item cap. The upload UI
@@ -293,6 +325,22 @@ export class ChecklistsService {
     for (const g of groups) visit(g.items)
   }
 
+  // Session F1, Part B.2 — server-side guarantee behind the auditor's client-side confirm-to-start
+  // lock (Part B.1): a checklist is never CREATED (fresh DRAFT or a direct SUBMITTED with no prior
+  // draft) without a resolvable build year, since that year is what era resolution (Part C) and
+  // era-value resolution (Session E2) both key off — an unstamped checklist would resolve
+  // provisionally forever with no way to correct it after the fact (stamps are frozen, never
+  // recomputed). Never checked when reusing an EXISTING draft/stamp — that checklist was already
+  // created under this same gate, so its stamp is guaranteed non-null already.
+  private assertYearBuiltPresent(yearBuilt: number | null | undefined): void {
+    if (yearBuilt == null) {
+      throw new BadRequestException({
+        code: 'YEAR_BUILT_REQUIRED',
+        message: 'ต้องระบุปีที่ก่อสร้างของสถานีก่อนเริ่มบันทึกการตรวจสอบ',
+      })
+    }
+  }
+
   // Part D — one DRAFT per (stationId, auditorId), enforced by a partial unique index (see
   // migrations/*_checklist_draft_submit_uniqueness — Prisma's schema DSL can't declare a
   // WHERE-scoped unique constraint, so it isn't visible to `.upsert()`). This does a plain
@@ -307,6 +355,7 @@ export class ChecklistsService {
     const existing = await this.prisma.checklist.findFirst({
       where: { stationId, auditorId, status: 'DRAFT' },
     })
+    if (!existing) this.assertYearBuiltPresent(station.yearBuilt)
 
     let checklist
     if (existing) {
@@ -383,7 +432,7 @@ export class ChecklistsService {
     const station = await this.stations.findOne(stationId)
     const template = await this.getActiveTemplate(station.mode, station.railSubtype)
     const templateDef = template?.definition as ChecklistTemplateDefinition | undefined
-    this.validateItemsPayload(items, templateDef)
+    const parsedGroups = this.validateItemsPayload(items, templateDef)
 
     // Reuse the auditor's in-progress DRAFT's era stamp when one exists — that's the resolution
     // the auditor was actually answering against (via GET template-for-audit) while filling the
@@ -391,10 +440,22 @@ export class ChecklistsService {
     // Either way this is the ONE resolution used for both the stamp and the auto-graded score
     // below — never two separate passes that could disagree (Part A.6/A.7).
     const existingDraft = await this.prisma.checklist.findFirst({ where: { stationId, auditorId, status: 'DRAFT' } })
+    // Part B.2 — same gate as saveDraft, checked against whichever stamp this submit will
+    // actually use (the existing draft's frozen stamp, or the station's current year when
+    // submitting fresh with no prior draft).
+    this.assertYearBuiltPresent(existingDraft?.appliedYearBuilt ?? station.yearBuilt)
     const { resolvedDef, appliedYearBuilt, appliedLawRefs } = this.resolveEraStamp(
       templateDef,
       existingDraft?.appliedYearBuilt ?? station.yearBuilt,
     )
+
+    // Part C.4/C.5 — bake redaction flags onto the STORED items ONCE here, using this checklist's
+    // own frozen stamp, never trusting whatever (if anything) the client already set. Persisted
+    // this way (not just used transiently for scoring) so a later admin/dashboard read never needs
+    // to re-resolve era/law data to know which leaves counted — see applyRedactionFlags's doc.
+    const taggedGroups = resolvedDef && resolvedDef.schemaVersion !== 1
+      ? this.applyRedactionFlags(parsedGroups, resolvedDef)
+      : parsedGroups
 
     const bypassAllowed = isProximityBypassActive()
 
@@ -426,8 +487,10 @@ export class ChecklistsService {
 
     // Re-derive score server-side; never trust the client-supplied value. Passing the ERA-
     // RESOLVED template def (not the raw ACTIVE one) lets measured presence_standard leaves
-    // auto-grade against the correct era's thresholds, including tiered byLaw criteria.
-    const score = computeScoreFromItems(items, resolvedDef)
+    // auto-grade against the correct era's thresholds, including tiered byLaw criteria. Scored
+    // against taggedGroups (redaction flags baked in, Part C.4) so an era-redacted leaf is
+    // excluded from every denominator even if it somehow carries a stray answer value.
+    const score = computeScoreFromItems(taggedGroups, resolvedDef)
 
     let checklist
     try {
@@ -435,7 +498,7 @@ export class ChecklistsService {
         data: {
           stationId,
           auditorId,
-          items: toJson(items),
+          items: toJson(taggedGroups),
           appliedYearBuilt,
           appliedLawRefs: appliedLawRefs === null ? Prisma.JsonNull : toJson(appliedLawRefs),
           score,
@@ -516,6 +579,52 @@ export class ChecklistsService {
     })
     const before = log?.before as { checklistId?: string } | null
     return before?.checklistId ?? null
+  }
+
+  // Session F1, Part E — "งานของฉัน" (my work): every checklist belonging to this auditor, newest
+  // first, optionally filtered by status. ONE paginated endpoint per Part E.3 — auditor-scoped by
+  // construction (`where.auditorId` is always the JWT-authenticated caller's own id, never a
+  // caller-supplied value — an auditor can never query another auditor's rows through this
+  // method, structurally, not just by convention). Bounded (page/limit), never returns the raw
+  // `items` blob (list view only needs a DRAFT's progress, computed via computeStoredProgress —
+  // no template fan-out, see that function's doc — everything else just needs status/dates).
+  async findMyChecklists(auditorId: string, page: number, limit: number, status?: ChecklistStatus) {
+    const where = { auditorId, ...(status ? { status } : {}) }
+    const [total, rows] = await Promise.all([
+      this.prisma.checklist.count({ where }),
+      this.prisma.checklist.findMany({
+        where,
+        orderBy: [{ updatedAt: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true, stationId: true, status: true,
+          createdAt: true, updatedAt: true, submittedAt: true, reviewedAt: true, reviewNotes: true,
+          score: true, items: true,
+          station: { select: { nameTh: true, line: true, mode: true, railSubtype: true, province: true } },
+        },
+      }),
+    ])
+    const data = rows.map(({ items, ...row }) => ({
+      ...row,
+      // Progress is only meaningful for a DRAFT still being filled — SUBMITTED/APPROVED/REJECTED
+      // rows are complete records, not in-progress work.
+      progress: row.status === 'DRAFT' ? computeStoredProgress(items) : null,
+    }))
+    return { data, total, page, totalPages: Math.max(1, Math.ceil(total / limit)) }
+  }
+
+  // Session F1, Part E.2 — "ทำต่อ"/read-only detail behind the my-work list. Ownership scoped in
+  // the SAME query as the existence check (BOLA-safe — a checklist that isn't this auditor's 404s
+  // exactly like one that doesn't exist, never a 403 confirming it exists under someone else).
+  // Photo URLs re-presigned fresh, same convention as every other read path (see refreshPhotoUrls).
+  async findMyChecklistDetail(auditorId: string, id: string) {
+    const cl = await this.prisma.checklist.findFirst({
+      where: { id, auditorId },
+      include: { station: { select: { nameTh: true, line: true, mode: true, railSubtype: true, province: true } } },
+    })
+    if (!cl) throw new NotFoundException()
+    return { ...cl, items: await this.refreshPhotoUrls(cl.items) }
   }
 
   // Session E3, Part B.1 — "งานที่ถูกตีกลับ" (returned work) on the auditor home. A REJECTED

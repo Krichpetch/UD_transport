@@ -13,6 +13,7 @@ import {
   tierRequiredFor,
   passesTiered,
   deriveMeasuredStandard,
+  eraYearBrackets,
   type ChecklistTemplateDefinition,
   type EraLawRef,
 } from '@repo/types'
@@ -146,6 +147,78 @@ describe('resolveTemplateEras — A1.1-1 parking-tier example (rail, MHT_2548 vs
     expect(deriveMeasuredStandard(leaf2550.measurements, { basis: 30, provided: 0 })).toBe(false)
   })
 })
+
+describe('eraYearBrackets — Session F1 follow-up admin preview year-select', () => {
+  const now = new Date('2026-07-21')
+
+  it('derives one bracket before the earliest law, one per law, the last open-ended', () => {
+    const brackets = eraYearBrackets(REGISTRY, now) // REGISTRY = [MHT_2548, MHT_2564]
+    expect(brackets).toEqual([
+      { label: 'ก่อน พ.ศ. 2548', representativeYear: YEAR_BUILT_MIN },
+      { label: 'พ.ศ. 2548–2563', representativeYear: 2548 },
+      { label: 'พ.ศ. 2564 เป็นต้นไป', representativeYear: 2564 },
+    ])
+  })
+
+  it('every bracket boundary actually resolves to the law that bracket names, round-tripped through resolveEra', () => {
+    const brackets = eraYearBrackets(REGISTRY, now)
+    // "ก่อน พ.ศ. 2548" -> resolveEra flags eraUnresolved (predates every law), applies the oldest
+    expect(resolveEra(brackets[0]!.representativeYear, ['MHT_2548', 'MHT_2564'], REGISTRY)).toEqual({ lawCode: 'MHT_2548', eraUnresolved: true })
+    // "พ.ศ. 2548–2563" -> resolves cleanly to MHT_2548
+    expect(resolveEra(brackets[1]!.representativeYear, ['MHT_2548', 'MHT_2564'], REGISTRY)).toEqual({ lawCode: 'MHT_2548', eraUnresolved: false })
+    // "พ.ศ. 2564 เป็นต้นไป" -> resolves cleanly to MHT_2564
+    expect(resolveEra(brackets[2]!.representativeYear, ['MHT_2548', 'MHT_2564'], REGISTRY)).toEqual({ lawCode: 'MHT_2564', eraUnresolved: false })
+  })
+
+  it('excludes PROJECT from bracket boundaries — it never marks an era boundary', () => {
+    const withProject: EraLawRef[] = [
+      { code: 'MHT_2548', buddhistYear: 2548, effectiveYear: null },
+      { code: 'PROJECT', buddhistYear: 2566, effectiveYear: null },
+    ]
+    const brackets = eraYearBrackets(withProject, now)
+    expect(brackets).toEqual([
+      { label: 'ก่อน พ.ศ. 2548', representativeYear: YEAR_BUILT_MIN },
+      { label: 'พ.ศ. 2548 เป็นต้นไป', representativeYear: 2548 },
+    ])
+  })
+
+  it('deduplicates two laws sharing the same effective year into one boundary', () => {
+    const sameYear: EraLawRef[] = [
+      { code: 'A', buddhistYear: 2555, effectiveYear: null },
+      { code: 'B', buddhistYear: 2555, effectiveYear: null },
+    ]
+    const brackets = eraYearBrackets(sameYear, now)
+    expect(brackets).toHaveLength(2) // "before 2555" + "2555 onward" — not 3
+  })
+
+  it('prefers effectiveYear over buddhistYear for the boundary, same as resolveEra', () => {
+    const withEffective: EraLawRef[] = [
+      { code: 'A', buddhistYear: 2500, effectiveYear: 2560 },
+    ]
+    const brackets = eraYearBrackets(withEffective, now)
+    expect(brackets[1]).toEqual({ label: 'พ.ศ. 2560 เป็นต้นไป', representativeYear: 2560 })
+  })
+
+  it('returns an empty array when every entry is PROJECT-only (no real boundary at all)', () => {
+    const onlyProject: EraLawRef[] = [
+      { code: 'PROJECT', buddhistYear: 2566, effectiveYear: null },
+    ]
+    expect(eraYearBrackets(onlyProject, now)).toEqual([])
+  })
+
+  it('every representativeYear is itself a valid yearBuilt', () => {
+    for (const b of eraYearBrackets(LAW_REFERENCE_SEED_FOR_TEST, now)) {
+      expect(isValidYearBuilt(b.representativeYear, now)).toBe(true)
+    }
+  })
+})
+
+const LAW_REFERENCE_SEED_FOR_TEST: EraLawRef[] = [
+  { code: 'MHT_2548', buddhistYear: 2548, effectiveYear: null },
+  { code: 'PSD_2555', buddhistYear: 2555, effectiveYear: null },
+  { code: 'MOT_2556', buddhistYear: 2556, effectiveYear: null },
+  { code: 'MHT_2564', buddhistYear: 2564, effectiveYear: null },
+]
 
 describe('tierRequiredFor / passesTiered — boundary + increment arithmetic', () => {
   const tiers = [

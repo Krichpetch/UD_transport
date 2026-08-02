@@ -111,6 +111,15 @@ export interface TemplateNode {
   cabinetResolution?: boolean // one of the 5 มติ ครม. priority items
   beyondLaw?: boolean         // project-added item, not required by any กฎกระทรวง
 
+  // Session F1, Part C — item-level era redaction. Set ONLY by era-resolution.ts#markApplicability
+  // (never by parseTemplateDefinition/seed data) on answerType-bearing nodes: false means this
+  // station's frozen build-year stamp predates every law requiring the item — it still exists in
+  // the tree (client stays dumb, admin/debug views see the full structure) but is not answerable
+  // and excluded from every scoring denominator. Absent/true = applicable (every template not run
+  // through markApplicability — v1, or any v2/v3 template read outside the audit-template
+  // endpoint — is simply never marked, which is the correct "don't redact" default).
+  applicable?: boolean
+
   // Admin-attached reference images (W2-S3a, Part D) — MinIO keys under template-images/, shown
   // in the auditor's คู่มือการตรวจประเมิน modal. Optional at every level (like lawRefs above), not
   // leaf-only: a container criterion can carry its own illustrative photo even if its children are

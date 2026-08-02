@@ -7,6 +7,7 @@ import {
   useStations,
   useCreateStation,
   useUpdateStation,
+  useUpdateYearBuilt,
   usePendingReviews,
   useApproveChecklist,
   useStationFilterOptions,
@@ -16,7 +17,7 @@ import { saveDraft } from '@/lib/api/checklists'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth.store'
 import type { TransportMode, StationStatus, ResponsibleAgency, ChecklistSubItem } from '@repo/types'
-import { TRANSPORT_MODE_AGENCIES, TRANSPORT_MODES, STATION_STATUSES, RAIL_SUBTYPES } from '@repo/types'
+import { TRANSPORT_MODE_AGENCIES, TRANSPORT_MODES, STATION_STATUSES, RAIL_SUBTYPES, YEAR_BUILT_MIN, yearBuiltMax } from '@repo/types'
 import type { StationRow, ParsedRow, OtpImportRowResult } from '@/lib/api/stations'
 import { batchOtpImport } from '@/lib/api/stations'
 import { parseOtpRows, detectOtpFormat } from '@/lib/otp-import'
@@ -111,6 +112,12 @@ interface SingleStationFormState extends StationFormValue {
 
 function EditStationModal({ station, onClose }: { station: StationRow; onClose: () => void }) {
   const updateStation = useUpdateStation()
+  // Session F1, Part B.3 — yearBuilt is written through the SAME audit-logged endpoint the
+  // auditor's confirm-to-start uses (StationsService.updateYearBuilt), not folded into the
+  // general station update — that endpoint already owns its own range validation + AuditLog
+  // old/new entry (see hooks/use-stations.ts). Both writes hit the same audit-logged path either
+  // way (Part B.4's reconcile requirement).
+  const updateYearBuilt = useUpdateYearBuilt()
   const { data: filterOptions } = useStationFilterOptions()
   const [form, setForm] = React.useState<StationFormValue>({
     nameTh: station.nameTh,
@@ -121,6 +128,7 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
     lat: station.lat,
     lng: station.lng,
   })
+  const [yearBuiltInput, setYearBuiltInput] = React.useState(station.yearBuilt != null ? String(station.yearBuilt) : '')
   const [error, setError] = React.useState('')
   const [saving, setSaving] = React.useState(false)
 
@@ -133,6 +141,17 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
     if (!form.nameTh || !form.mode || !form.province || !form.responsibleAgency) {
       setError('กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน')
       return
+    }
+    // Part B.3 — same range validation as the auditor's confirm-to-start capture (empty is
+    // allowed here — leaves yearBuilt untouched — but a NON-empty value must be in range).
+    let yearBuilt: number | undefined
+    if (yearBuiltInput !== '') {
+      const n = Number(yearBuiltInput)
+      if (Number.isNaN(n) || n < YEAR_BUILT_MIN || n > yearBuiltMax()) {
+        setError(`ปีที่ก่อสร้างต้องอยู่ระหว่าง พ.ศ. ${YEAR_BUILT_MIN}–${yearBuiltMax()}`)
+        return
+      }
+      yearBuilt = n
     }
     setError('')
     setSaving(true)
@@ -150,6 +169,9 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
           ...(form.lat != null && form.lng != null && { lat: form.lat, lng: form.lng }),
         },
       })
+      if (yearBuilt !== undefined && yearBuilt !== station.yearBuilt) {
+        await updateYearBuilt.mutateAsync({ id: station.id, yearBuilt })
+      }
       onClose()
     } catch (err) {
       setError((err as Error).message ?? 'เกิดข้อผิดพลาด')
@@ -190,6 +212,24 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
           <p className="text-muted-foreground text-[11px]">
             การแก้ไขพิกัดด้วยตนเองจะทำเครื่องหมายตำแหน่งนี้เป็น &quot;ยืนยันแล้ว&quot; (coordStatus: OK)
           </p>
+
+          {/* Session F1, Part B.3 — admin-editable yearBuilt. Frozen checklist stamps never
+              recompute retroactively; this only affects the NEXT checklist created for this
+              station (era resolution — see @repo/types#resolveTemplateEras). */}
+          <div>
+            <label className="text-foreground mb-1 block text-xs font-medium">ปีที่ก่อสร้าง (พ.ศ.)</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              className={INPUT_CLS}
+              value={yearBuiltInput}
+              onChange={(e) => setYearBuiltInput(e.target.value)}
+              placeholder="เช่น 2555"
+            />
+            <p className="text-muted-foreground mt-1 text-[11px]">
+              มีผลกับการตรวจครั้งถัดไปเท่านั้น — ไม่กระทบรายงานการตรวจที่มีอยู่แล้ว
+            </p>
+          </div>
 
           {error && <p className="text-destructive text-xs">{error}</p>}
 
@@ -927,6 +967,11 @@ function StationsPageContent() {
                         <span className="text-foreground text-xs">
                           {getTransportLabel(station)}
                         </span>
+                        {/* Session F1, Part B.3 — yearBuilt shown as a detail on the admin list
+                            (no spare column in the fixed 8-col layout — see colgroup above). */}
+                        <p className="text-muted-foreground text-xs">
+                          พ.ศ. {station.yearBuilt ?? 'ไม่ระบุ'}
+                        </p>
                       </td>
                       <td className="px-3 py-3.5">
                         <p className="text-foreground text-xs">{station.province}</p>

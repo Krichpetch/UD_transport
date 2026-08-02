@@ -105,7 +105,9 @@ export function countProgressForNodes(nodes: TemplateNode[], answers: AnswerMap)
   let total = 0
   let answered = 0
   const visit = (node: TemplateNode) => {
-    if (node.answerType) {
+    // Part C.5 — era-redacted leaves are excluded from the checklist's applicable item set
+    // entirely (not merely N/A'd); they never enter the progress denominator, same as scoring.
+    if (node.answerType && node.applicable !== false) {
       total++
       if (isLeafAnswered(node, answers[node.code])) answered++
     }
@@ -113,6 +115,30 @@ export function countProgressForNodes(nodes: TemplateNode[], answers: AnswerMap)
   }
   nodes.forEach(visit)
   return { answered, total }
+}
+
+// Part C.3 — every answerable descendant leaf below `node` (node itself included, if it is one)
+// that the frozen era stamp marked non-applicable. Used to render the collapsed per-group footer
+// note ("รายการที่ไม่เข้าข่ายตามกฎหมายที่ใช้บังคับ (N รายการ)") — auditors never answer these, so
+// they're listed read-only, never as a normal answerable row.
+export function collectRedactedLeaves(nodes: TemplateNode[]): TemplateNode[] {
+  const out: TemplateNode[] = []
+  const visit = (node: TemplateNode) => {
+    if (node.answerType && node.applicable === false) out.push(node)
+    node.subItems?.forEach(visit)
+  }
+  nodes.forEach(visit)
+  return out
+}
+
+// True when `node` (leaf or container) has nothing answerable left after redaction — a leaf whose
+// own applicable is false, or a pure container whose every descendant leaf is redacted. Used to
+// skip whole v2 pager pages / child rows for a fully non-applicable item, per Part C.3 ("auditors
+// cannot answer them" — they must not even see an empty answerable row for one).
+export function isNodeFullyRedacted(node: TemplateNode): boolean {
+  if (node.answerType) return node.applicable === false
+  if (!node.subItems || node.subItems.length === 0) return false
+  return node.subItems.every(isNodeFullyRedacted)
 }
 
 // One node of the wire payload — matches @repo/types#StoredChecklistNode, built from the
@@ -131,6 +157,7 @@ interface BuiltNode {
   photos: ChecklistPhoto[]
   flagged?: boolean
   reviewFlag: boolean
+  applicable?: boolean
   subItems?: BuiltNode[]
 }
 
@@ -142,6 +169,10 @@ function buildNode(node: TemplateNode, answers: AnswerMap): BuiltNode {
     note: a.note,
     photos: a.photos,
     reviewFlag: a.reviewFlag,
+    // Session F1, Part C.4 — carried through from the (already era-marked) template so the
+    // in-progress live score preview excludes redacted leaves too, matching what the server will
+    // authoritatively bake in at submit time (ChecklistsService#applyRedactionFlags).
+    ...(node.applicable === false ? { applicable: false as const } : {}),
   }
 
   if (node.answerType) {
@@ -245,6 +276,34 @@ export function collectLeafCodes(node: TemplateNode): string[] {
   node.subItems?.forEach(visit)
   return codes
 }
+
+// Session F1, Part A — same traversal as collectLeafCodes, but returns the actual node refs (not
+// just codes) so a cascade can build an answerType-aware patch per leaf (ไม่มี means something
+// different for a 'choice' leaf than for 'presence'/'presence_standard' — see absentPatchFor).
+export function collectLeaves(node: TemplateNode): TemplateNode[] {
+  const leaves: TemplateNode[] = []
+  const visit = (n: TemplateNode) => {
+    if (n.answerType) leaves.push(n)
+    n.subItems?.forEach(visit)
+  }
+  node.subItems?.forEach(visit)
+  return leaves
+}
+
+// Session F1, Part A.3 — a parent's ไม่มี cascades a REAL ไม่มี answer onto every descendant leaf
+// (not N/A): the facility is missing, so its sub-standards genuinely fail การจัดให้มีฯ and must
+// count in that denominator, not be excluded from it. Answer-type-aware since "ไม่มี" means a
+// different stored shape per leaf kind. Measured values are always cleared.
+export function absentPatchFor(node: TemplateNode): Partial<AuditAnswer> {
+  return node.answerType === 'choice'
+    ? { value: 'ไม่มี', meetsStandard: false, flagged: false }
+    : { present: false, value: null, meetsStandard: false, values: {} }
+}
+
+// Part A.4 — ไม่เกี่ยวข้อง cascades the universal N/A marker (unchanged from the E2-era behavior,
+// same shape regardless of answerType) — this is the "whole subtree excluded from every
+// denominator" case, distinct from A.3's "counts as absent" case.
+export const NA_CASCADE_PATCH: Partial<AuditAnswer> = { value: 'N/A', present: null, meetsStandard: false, values: {} }
 
 export function buildStoredGroups(def: ChecklistTemplateDefinition, answers: AnswerMap) {
   return def.groups.map((g) => ({

@@ -41,6 +41,10 @@ interface StoredItem {
   values?: Record<string, number>
   subItems?: StoredItem[]
   id?: string
+  // Session F1, Part C.4 — baked in once at submit time (frozen forever, see
+  // StoredChecklistNode.applicable's doc); false excludes this leaf from every bucket below,
+  // exactly like N/A, tracked separately (ValueHistogram.redacted) for visibility.
+  applicable?: boolean
 }
 
 interface StoredGroup {
@@ -177,6 +181,7 @@ export function computeScoreFromItems(items: unknown, templateDef?: ChecklistTem
     // ไม่เกี่ยวข้อง because a sibling mutually-exclusive criterion applies instead). Excluded from
     // every bucket, exactly like v1's N/A always was.
     if (it.value === 'N/A') continue
+    if (it.applicable === false) continue // Part C.4 — era-redacted, excluded like N/A
     const kind: TemplateAnswerKind = it.answerType ?? (it.value !== undefined ? 'choice' : it.present !== undefined ? 'presence' : 'choice')
     if (kind === 'presence') continue // never eligible for standards — จัดให้มีฯ only, see module doc
     if (kind === 'presence_standard') {
@@ -199,6 +204,32 @@ export function computeScoreFromItems(items: unknown, templateDef?: ChecklistTem
     if (it.value === 'มี' && it.meetsStandard === true) standard++
   }
   return eligible > 0 ? Math.round((standard / eligible) * 100) : 0
+}
+
+// Session F1, Part E.1 — server-side "answered/total" progress for a DRAFT, computed from the
+// STORED items JSON alone, never a template fan-out (the auditor history list endpoint must stay
+// a cheap, bounded query across potentially many drafts — fetching/resolving each one's template
+// would defeat that). "Answered" mirrors lib/audit-form.ts#isLeafAnswered exactly (N/A counts,
+// a definite choice/present value counts) so the auditor's own in-progress % never disagrees with
+// this list's number. Era-redacted leaves (applicable === false) are excluded from both, same as
+// scoring — they're not part of this checklist's answerable set at all.
+export function computeStoredProgress(items: unknown): { answered: number; total: number } {
+  if (!Array.isArray(items)) return { answered: 0, total: 0 }
+  const groups = items as StoredGroup[]
+  let total = 0
+  let answered = 0
+  for (const g of groups) {
+    const leaves = Array.isArray(g?.items) ? flattenLeaves(g.items) : []
+    for (const it of leaves) {
+      if (it.applicable === false) continue
+      total++
+      if (it.value === 'N/A') { answered++; continue }
+      const kind: TemplateAnswerKind = it.answerType ?? (it.value !== undefined ? 'choice' : it.present !== undefined ? 'presence' : 'choice')
+      if (kind === 'choice') { if (it.value !== null && it.value !== undefined) answered++; continue }
+      if (it.present !== null && it.present !== undefined) answered++
+    }
+  }
+  return { answered, total }
 }
 
 // Admin review gate — checked before approval, never mixed into the score formula above.
@@ -224,6 +255,8 @@ export interface ValueHistogram {
   na:                  number  // N/A — universal marker, any answerType (Session E2 follow-up:
                                 // some v2 criteria are mutually-exclusive alternatives, e.g. three
                                 // ramp-length bands where only one applies; the other two are N/A)
+  redacted:            number  // Part C.4 — era-redacted (applicable === false); excluded from
+                                // every metric exactly like N/A, tracked separately for visibility
   nullOrOther:         number  // null (unanswered / OTHER that slipped through)
   total:               number  // every leaf visited, of every answerType
   // v2 pure-'presence' leaves (มี/ไม่มี only — no ได้มาตรฐาน concept). Deliberately kept OUT of
@@ -272,7 +305,7 @@ export function computeFacilityMetrics(items: unknown, templateDef?: ChecklistTe
 export function buildHistogram(items: unknown, templateDef?: ChecklistTemplateDefinition): ValueHistogram {
   const h: ValueHistogram = {
     hasStandard: 0, hasSubstandard: 0, standardUnspecified: 0,
-    none: 0, na: 0, nullOrOther: 0, total: 0,
+    none: 0, na: 0, redacted: 0, nullOrOther: 0, total: 0,
     presenceHas: 0, presenceNone: 0, presenceUnanswered: 0,
   }
   if (!Array.isArray(items)) return h
@@ -283,6 +316,9 @@ export function buildHistogram(items: unknown, templateDef?: ChecklistTemplateDe
     const leaves = Array.isArray(g?.items) ? flattenLeaves(g.items) : []
     for (const it of leaves) {
       h.total++
+      // Part C.4 — era-redacted, a structural fact independent of any auditor answer; checked
+      // before N/A since a redacted leaf is never even presented for the auditor to answer.
+      if (it.applicable === false) { h.redacted++; continue }
       // Universal not-applicable marker — see the matching comment in computeScoreFromItems.
       if (it.value === 'N/A') { h.na++; continue }
       const kind: TemplateAnswerKind = it.answerType ?? (it.value !== undefined ? 'choice' : it.present !== undefined ? 'presence' : 'choice')

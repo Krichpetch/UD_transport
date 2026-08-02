@@ -4,63 +4,157 @@ import * as React from 'react'
 import { useSearchParams } from 'next/navigation'
 import { getStationTypeLabel } from '@/lib/constants'
 import { useStation } from '@/hooks/use-stations'
-import { useSaveDraft, useSubmitChecklist, useMyDraft, useTemplateForAudit, useMyRejectedChecklists } from '@/hooks/use-checklists'
+import { useSaveDraft, useSubmitChecklist, useMyDraft, useTemplateForAudit } from '@/hooks/use-checklists'
 import { useUpdateYearBuilt } from '@/hooks/use-stations'
 import { computeScoreFromItems, buildHistogram, scoreToStatus } from '@repo/types'
 import {
   MapPin, Save, Send, Clock, User as UserIcon,
-  AlertTriangle, Loader2, X, FlaskConical, RotateCcw,
+  AlertTriangle, Loader2, X, FlaskConical, ChevronDown, ClipboardList,
 } from 'lucide-react'
+import Link from 'next/link'
 import { StationSearchPicker } from '@/components/audit/StationSearchPicker'
 import { LeafAnswerRow } from '@/components/audit/LeafAnswerRow'
 import { V2ItemPage } from '@/components/audit/V2PagerForm'
 import { PageNavigatorTrigger, type NavigatorPage } from '@/components/audit/PageNavigator'
 import { useAuthStore } from '@/stores/auth.store'
 import { useAuditFormStore } from '@/stores/audit-form.store'
-import { buildStoredGroups, countProgressForNodes, groupDisplayName } from '@/lib/audit-form'
+import { buildStoredGroups, countProgressForNodes, groupDisplayName, collectRedactedLeaves, isNodeFullyRedacted } from '@/lib/audit-form'
 import { ApiError } from '@/lib/api'
 import { getCurrentPosition, haversineMeters, PROXIMITY_BYPASS } from '@/lib/geolocation'
 import type { SubmitGps } from '@/lib/geolocation'
-import type { ChecklistRecord, RejectedChecklistSummary } from '@/lib/api/checklists'
-import { YEAR_BUILT_MIN, yearBuiltMax } from '@repo/types'
+import type { ChecklistRecord } from '@/lib/api/checklists'
+import { YEAR_BUILT_MIN, yearBuiltMax, eraYearBrackets, type TemplateNode, type ChecklistTemplateGroupDef } from '@repo/types'
 
 const PROXIMITY_RADIUS_M = 1000
 const AUTOSAVE_DEBOUNCE_MS = 4000
 const FINAL_THOUGHTS_MAX = 4000
 
-// Session E3, Part B.1 — "งานที่ถูกตีกลับ" section on the auditor home. Selecting an entry jumps
-// straight into that station's audit flow, which hydrates from the seeded draft (carrying the
-// rejected answers forward) and shows the admin's notes pinned at the top of the confirm-to-start
-// screen (see the rejectionNote banner further down this file).
-function ReturnedWorkSection({ items, onSelect }: { items: RejectedChecklistSummary[]; onSelect: (stationId: string) => void }) {
+// Session F1, Part E — a compact link banner, superseding the old inline "งานที่ถูกตีกลับ" list
+// (E3, Part B.1) on the auditor home: /audit/my-work now covers the full picture (all statuses),
+// so this just points there instead of duplicating the same rejected-work data in a second place.
+function MyWorkLink() {
   return (
-    <div className="overflow-hidden rounded-xl border border-red-200 bg-white shadow-sm">
-      <div className="flex items-center gap-2 border-b border-red-100 bg-red-50 px-4 py-2.5">
-        <RotateCcw size={13} className="text-red-600" />
-        <p className="text-xs font-semibold text-red-700">งานที่ถูกตีกลับ ({items.length})</p>
+    <Link
+      href="/audit/my-work"
+      className="flex items-center justify-between gap-2 rounded-xl border border-border bg-white px-4 py-3 shadow-sm transition-colors hover:bg-secondary/60"
+    >
+      <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <ClipboardList size={15} className="text-accent" /> งานของฉัน
+      </span>
+      <span className="text-xs text-muted-foreground">ดูทั้งหมด →</span>
+    </Link>
+  )
+}
+
+// Session F1 follow-up — admin preview-only build-ERA picker: a free-text year box made it too
+// easy to type a year that lands in the wrong bracket without realizing it (the four real
+// กฎกระทรวง boundaries — 2548/2555/2556/2564 — aren't obvious numbers to remember). This selects
+// by NAMED era bracket instead (eraYearBrackets, derived once from the real law registry, never
+// hand-maintained here), so the admin picks "ก่อน พ.ศ. 2548" or "พ.ศ. 2564 เป็นต้นไป" directly and
+// sees exactly which items redact for that era — the underlying mechanism (yearBuiltOverride to
+// getTemplateForAudit) is unchanged, this only changes how the admin supplies the year.
+const ERA_BRACKETS = eraYearBrackets()
+
+function PreviewYearControl({ value, onChange, appliedYearBuilt }: {
+  value: number | undefined
+  onChange: (v: number) => void
+  appliedYearBuilt: number | null
+}) {
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs text-purple-700 shadow-sm">
+      <FlaskConical size={14} className="shrink-0" />
+      <label className="flex flex-1 items-center gap-2">
+        <span className="shrink-0">ยุคกฎหมาย (ทดสอบ):</span>
+        <select
+          value={value ?? ''}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="flex-1 rounded-lg border border-purple-200 bg-white px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-purple-300"
+        >
+          {ERA_BRACKETS.map((b) => (
+            <option key={b.representativeYear} value={b.representativeYear}>{b.label}</option>
+          ))}
+        </select>
+      </label>
+      {appliedYearBuilt != null && (
+        <span className="shrink-0 text-[10px] text-purple-600">ใช้จริง: พ.ศ. {appliedYearBuilt}</span>
+      )}
+    </div>
+  )
+}
+
+// Session F1 follow-up — an always-visible redaction summary for the admin preview, next to the
+// year picker itself. Without this, the ONLY place a redacted item ever showed up was
+// RedactedFooter on the summary page (the LAST page of the pager) — real, but easy to miss
+// entirely if an admin is just paging through item screens without reaching the end, which is
+// exactly the case that prompted this. Same data as RedactedFooter (collectRedactedLeaves), just
+// surfaced immediately whenever the year picker changes, not gated behind reaching the summary.
+function PreviewRedactionSummary({ groups }: { groups: ChecklistTemplateGroupDef[] }) {
+  const [open, setOpen] = React.useState(false)
+  const byGroup = groups
+    .map((g) => ({ group: g, redacted: collectRedactedLeaves(g.items) }))
+    .filter((g) => g.redacted.length > 0)
+  const total = byGroup.reduce((sum, g) => sum + g.redacted.length, 0)
+
+  if (total === 0) {
+    return (
+      <div className="rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-[11px] text-purple-700 shadow-sm">
+        ไม่มีรายการที่ถูกซ่อนสำหรับปีที่เลือกนี้ — ทุกรายการเข้าข่ายตามกฎหมาย
       </div>
-      <div className="divide-y divide-border">
-        {items.map((r) => (
-          <button
-            key={r.id}
-            onClick={() => onSelect(r.stationId)}
-            className="flex w-full flex-col items-start gap-0.5 px-4 py-3 text-left transition-colors hover:bg-secondary/60"
-          >
-            <div className="flex w-full items-center justify-between gap-2">
-              <span className="text-sm font-medium text-foreground">{r.station.nameTh}</span>
-              {r.reviewedAt && (
-                <span className="shrink-0 text-[10px] text-muted-foreground">
-                  {new Date(r.reviewedAt).toLocaleDateString('th-TH')}
-                </span>
-              )}
+    )
+  }
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-purple-200 bg-purple-50 shadow-sm">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between px-3 py-2 text-[11px] font-semibold text-purple-700"
+      >
+        <span>รายการที่ถูกซ่อนตามปีที่เลือก ({total} รายการ)</span>
+        <ChevronDown size={12} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="divide-y divide-purple-100 border-t border-purple-100">
+          {byGroup.map(({ group, redacted }) => (
+            <div key={group.code} className="px-3 py-2">
+              <p className="text-[10px] font-semibold text-purple-600">{group.labelTh} ({redacted.length})</p>
+              <ul className="mt-1 space-y-0.5">
+                {redacted.map((it) => (
+                  <li key={it.code} className="text-[11px] text-purple-700">
+                    <span className="font-mono">{it.code}</span> {it.labelTh}
+                  </li>
+                ))}
+              </ul>
             </div>
-            <span className="text-[10px] text-muted-foreground">{r.station.province}</span>
-            {r.reviewNotes && (
-              <p className="mt-0.5 line-clamp-2 text-xs text-red-600">{r.reviewNotes}</p>
-            )}
-          </button>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Session F1, Part C.3 — collapsed, read-only footer note for a group's era-redacted items
+// ("รายการที่ไม่เข้าข่ายตามกฎหมายที่ใช้บังคับ (N รายการ)"). Expandable to see which items, never
+// answerable from here — this is the ONLY place a redacted leaf is ever shown to the auditor.
+function RedactedFooter({ items }: { items: TemplateNode[] }) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <div className="border-t border-border bg-secondary/30 px-4 py-2">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between text-[11px] text-muted-foreground"
+      >
+        <span>รายการที่ไม่เข้าข่ายตามกฎหมายที่ใช้บังคับ ({items.length} รายการ)</span>
+        <ChevronDown size={12} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <ul className="mt-1.5 space-y-1">
+          {items.map((it) => (
+            <li key={it.code} className="text-[11px] text-muted-foreground">
+              <span className="font-mono">{it.code}</span> {it.labelTh}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
@@ -84,19 +178,31 @@ export default function AuditPage() {
   const stationParam = searchParams.get('station')
   const [selectedId, setSelectedId] = React.useState(stationParam ?? '')
   const { data: station } = useStation(selectedId)
+  // Session F1 follow-up — admin preview-only build-ERA override, so an admin can pick a named
+  // era bracket (see ERA_BRACKETS/PreviewYearControl above) and see era redaction/value resolution
+  // react live, without touching the real station's yearBuilt. Seeded to whichever bracket the
+  // station's own real yearBuilt falls into (see the seed effect below), never persisted anywhere.
+  const [previewYearBuiltOverrideRaw, setPreviewYearBuiltOverrideRaw] = React.useState<number | undefined>(undefined)
+  const previewYearSeededForRef = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    if (!v2PreviewAllowed || !station || previewYearSeededForRef.current === station.id) return
+    previewYearSeededForRef.current = station.id
+    // Same "latest bracket whose year <= yearBuilt" rule resolveEra itself uses — picks the
+    // bracket the station's real year would actually resolve into, not just the nearest one.
+    const yb = station.yearBuilt
+    const matched = yb != null ? [...ERA_BRACKETS].reverse().find((b) => b.representativeYear <= yb) : undefined
+    setPreviewYearBuiltOverrideRaw((matched ?? ERA_BRACKETS[ERA_BRACKETS.length - 1])?.representativeYear)
+  }, [v2PreviewAllowed, station])
+  const previewYearBuiltOverride = v2PreviewAllowed ? previewYearBuiltOverrideRaw : undefined
   // v2 preview never reads or writes a real draft (getTemplateForAudit skips the draft lookup
   // server-side too when previewing — see checklists.service.ts) — and the /draft endpoint is
   // AUDITOR-only, so an ADMIN previewing v2 would otherwise get a needless 403 on every station
   // pick. Passing '' disables the query via its existing `enabled: !!stationId` guard.
   const { data: draft, isLoading: draftLoading } = useMyDraft(v2PreviewAllowed ? '' : selectedId)
-  const { data: templateResp, isLoading: templateLoading } = useTemplateForAudit(selectedId, v2PreviewAllowed, previewVersion)
+  const { data: templateResp, isLoading: templateLoading } = useTemplateForAudit(selectedId, v2PreviewAllowed, previewVersion, previewYearBuiltOverride)
   const saveDraftMutation = useSaveDraft(selectedId)
   const submitMutation = useSubmitChecklist(selectedId)
   const updateYearBuiltMutation = useUpdateYearBuilt()
-  // Session E3, Part B.1 — the full returned-work list, fetched only on the home screen (no
-  // station picked yet) — the header badge (layout.tsx) already covers every other screen with
-  // its own cheap count-only query.
-  const { data: myRejected } = useMyRejectedChecklists(!selectedId && user?.role === 'AUDITOR')
 
   const [submitResult, setSubmitResult] = React.useState<ChecklistRecord | null>(null)
   const [submitWarning, setSubmitWarning] = React.useState('')
@@ -153,10 +259,12 @@ export default function AuditPage() {
   }, [station?.id])
 
   // Hydrate the store exactly once per (station, template-mode load) — never on a background
-  // refetch of the same data (Part D P0 fix #1: tab-switch reset).
+  // refetch of the same data (Part D P0 fix #1: tab-switch reset). The preview-year override is
+  // included in the seed key so changing it in preview mode re-hydrates with the newly resolved
+  // template (redaction/applicable flags) instead of reusing the previous year's render.
   React.useEffect(() => {
     if (!station || draftLoading || templateLoading || !templateResp?.template) return
-    const key = `${station.id}:${v2PreviewAllowed}:${previewVersion ?? ''}`
+    const key = `${station.id}:${v2PreviewAllowed}:${previewVersion ?? ''}:${previewYearBuiltOverride ?? ''}`
     if (seededForRef.current === key) return
     seededForRef.current = key
     hydrate({
@@ -170,8 +278,11 @@ export default function AuditPage() {
       checklistId: draft?.id ?? null,
     })
     setYearBuiltInput(station.yearBuilt != null ? String(station.yearBuilt) : '')
+    // A changed preview year can change v2Pages' length/order (redacted pages drop out) —
+    // reset paging so currentPage never points past the end of the freshly-hydrated page set.
+    setCurrentPage(0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [station, draftLoading, templateLoading, draft, templateResp, v2PreviewAllowed, previewVersion])
+  }, [station, draftLoading, templateLoading, draft, templateResp, v2PreviewAllowed, previewVersion, previewYearBuiltOverride])
 
   // Debounced autosave — fires AUTOSAVE_DEBOUNCE_MS after the last edit, once checked in and
   // dirty. Skipped entirely in v2 preview (v2 is not activated — nothing to persist for real).
@@ -207,6 +318,13 @@ export default function AuditPage() {
     ? `โหมดตัวอย่าง — เทมเพลตเวอร์ชัน ${templateResp.templateVersion}`
     : 'โหมดตัวอย่าง'
 
+  // Session F1, Part B.1 — the client-side lock: this is what actually gates the "เริ่มการตรวจ
+  // ประเมิน" button (see the disabled prop below), not just a save-side no-op. The server check
+  // (ChecklistsService.assertYearBuiltPresent) is the real guarantee; this is UX only.
+  const yearBuiltNum = Number(yearBuiltInput)
+  const yearBuiltValid = v2PreviewAllowed
+    || (yearBuiltInput !== '' && !Number.isNaN(yearBuiltNum) && yearBuiltNum >= YEAR_BUILT_MIN && yearBuiltNum <= yearBuiltMax())
+
   async function saveYearBuilt(): Promise<void> {
     if (!station || v2PreviewAllowed) return
     const n = Number(yearBuiltInput)
@@ -218,7 +336,7 @@ export default function AuditPage() {
   // ── Check-in (Screen B "เริ่มการตรวจประเมิน") — client-side pre-check only. The
   // authoritative gate is always the server, re-checked again at submit time. ──
   async function handleCheckIn() {
-    if (!station) return
+    if (!station || !yearBuiltValid) return
     setCheckInStatus('checking')
     setCheckInMessage('')
     await saveYearBuilt()
@@ -318,9 +436,7 @@ export default function AuditPage() {
     return (
       <div className="space-y-4">
         {stationPicker}
-        {!selectedId && myRejected && myRejected.length > 0 && (
-          <ReturnedWorkSection items={myRejected} onSelect={setSelectedId} />
-        )}
+        {!selectedId && user?.role === 'AUDITOR' && <MyWorkLink />}
         <div className="rounded-xl bg-white p-6 text-center text-sm text-muted-foreground shadow-sm">
           {!selectedId ? 'กรุณาเลือกสถานีเพื่อเริ่มการตรวจสอบ' : 'กำลังโหลด…'}
         </div>
@@ -410,10 +526,18 @@ export default function AuditPage() {
         {stationPicker}
 
         {v2PreviewAllowed && (
-          <div className="flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs text-purple-700 shadow-sm">
-            <FlaskConical size={14} className="shrink-0" />
-            <span>{previewLabel} — สำหรับผู้ดูแลระบบเท่านั้น ไม่มีการบันทึกจริง</span>
-          </div>
+          <>
+            <div className="flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs text-purple-700 shadow-sm">
+              <FlaskConical size={14} className="shrink-0" />
+              <span>{previewLabel} — สำหรับผู้ดูแลระบบเท่านั้น ไม่มีการบันทึกจริง</span>
+            </div>
+            <PreviewYearControl
+              value={previewYearBuiltOverrideRaw}
+              onChange={setPreviewYearBuiltOverrideRaw}
+              appliedYearBuilt={templateResp?.appliedYearBuilt ?? null}
+            />
+            {!isV1 && templateDef && <PreviewRedactionSummary groups={templateDef.groups} />}
+          </>
         )}
 
         {rejectionNote && (
@@ -472,6 +596,13 @@ export default function AuditPage() {
                 ⚠ ยังไม่สามารถระบุปีก่อสร้างที่แน่ชัดได้ — ระบบใช้เกณฑ์ตามกฎหมายฉบับล่าสุดเป็นการชั่วคราว
               </p>
             )}
+            {/* Part B.1 — inline, always-visible reason the continue action is disabled, not a
+                toast fired after the fact. */}
+            {!yearBuiltValid && (
+              <p className="mt-1.5 text-[10px] text-red-600">
+                กรุณาระบุปีที่ก่อสร้าง (พ.ศ. {YEAR_BUILT_MIN}–{yearBuiltMax()}) ก่อนเริ่มการตรวจประเมิน
+              </p>
+            )}
           </div>
 
           {checkInStatus === 'blocked' && (
@@ -483,7 +614,7 @@ export default function AuditPage() {
 
           <button
             onClick={handleCheckIn}
-            disabled={checkInStatus === 'checking'}
+            disabled={checkInStatus === 'checking' || !yearBuiltValid}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground disabled:opacity-60"
           >
             {checkInStatus === 'checking' && <Loader2 size={15} className="animate-spin" />}
@@ -508,7 +639,10 @@ export default function AuditPage() {
   // v2's pager is one level deeper than v1's: v1 paginates group-by-group; v2 paginates
   // item-by-item within a group (A1 → A1.1, A1.2, …), continuing seamlessly into the next
   // group's first item — see V2PagerForm.tsx for what renders inside one item's page.
-  const v2Pages = isV1 ? [] : groups.flatMap((g) => g.items.map((item) => ({ group: g, item })))
+  // Part C.3 — a top-level group item that's fully era-redacted (itself, or every descendant when
+  // it's a pure container) never gets its own page; it's only visible read-only in the summary
+  // page's per-group footer note below.
+  const v2Pages = isV1 ? [] : groups.flatMap((g) => g.items.filter((item) => !isNodeFullyRedacted(item)).map((item) => ({ group: g, item })))
   const totalPages = isV1 ? groups.length : v2Pages.length
   const isSummaryPage = currentPage === totalPages
 
@@ -536,10 +670,20 @@ export default function AuditPage() {
       {stationPicker}
 
       {v2PreviewAllowed && (
-        <div className="flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs text-purple-700 shadow-sm">
-          <FlaskConical size={14} className="shrink-0" />
-          <span>{previewLabel} (DRAFT) — สำหรับผู้ดูแลระบบเท่านั้น ไม่มีการบันทึกจริง</span>
-        </div>
+        <>
+          <div className="flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs text-purple-700 shadow-sm">
+            <FlaskConical size={14} className="shrink-0" />
+            <span>{previewLabel} (DRAFT) — สำหรับผู้ดูแลระบบเท่านั้น ไม่มีการบันทึกจริง</span>
+          </div>
+          <PreviewYearControl
+            value={previewYearBuiltOverrideRaw}
+            onChange={setPreviewYearBuiltOverrideRaw}
+            appliedYearBuilt={templateResp?.appliedYearBuilt ?? null}
+          />
+          {/* Always visible, unlike RedactedFooter (summary-page-only) — this is what actually
+              answers "what got redacted for this year" without paging to the end. */}
+          {!isV1 && <PreviewRedactionSummary groups={groups} />}
+        </>
       )}
 
       {/* Header with overall progress — always visible */}
@@ -597,12 +741,17 @@ export default function AuditPage() {
             {groups.map((g) => {
               const p = countProgressForNodes(g.items, answers)
               const done = p.answered === p.total
+              const redacted = isV1 ? [] : collectRedactedLeaves(g.items)
               return (
-                <div key={g.code} className="flex items-center justify-between px-4 py-3">
-                  <span className="text-sm text-gray-800">{groupDisplayName(g)}</span>
-                  <span className={`text-xs font-semibold ${done ? 'text-green-600' : 'text-amber-600'}`}>
-                    {p.answered}/{p.total} {done ? '✓' : '⚠'}
-                  </span>
+                <div key={g.code}>
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <span className="text-sm text-gray-800">{groupDisplayName(g)}</span>
+                    <span className={`text-xs font-semibold ${done ? 'text-green-600' : 'text-amber-600'}`}>
+                      {p.answered}/{p.total} {done ? '✓' : '⚠'}
+                    </span>
+                  </div>
+                  {/* Part C.3 — collapsed, read-only footer note; auditors cannot answer these. */}
+                  {redacted.length > 0 && <RedactedFooter items={redacted} />}
                 </div>
               )
             })}

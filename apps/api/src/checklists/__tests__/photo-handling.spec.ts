@@ -30,7 +30,7 @@ describe('ChecklistsService — Part C.1 photo limit', () => {
     jest.clearAllMocks()
     checklistFindFirst.mockResolvedValue(null)
     checklistCreate.mockResolvedValue({ id: 'cl1' })
-    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', railSubtype: null })
+    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', railSubtype: null, yearBuilt: 2560 })
     templateFindFirst.mockResolvedValue(null)
 
     const moduleRef = await Test.createTestingModule({

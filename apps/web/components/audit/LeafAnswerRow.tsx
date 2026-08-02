@@ -4,7 +4,7 @@ import * as React from 'react'
 import { CheckCircle2, CheckSquare, Square, StickyNote, Ruler } from 'lucide-react'
 import type { TemplateNode, ChecklistValue, ChecklistPhoto } from '@repo/types'
 import { deriveMeasuredStandard, ratioLengthKey, ratioHeightKey } from '@repo/types'
-import { isLeafAnswered } from '@/lib/audit-form'
+import { isLeafAnswered, collectLeafCodes, collectLeaves, absentPatchFor, NA_CASCADE_PATCH } from '@/lib/audit-form'
 import { useAuditFormStore } from '@/stores/audit-form.store'
 import { PhotoPicker } from '@/components/audit/PhotoPicker'
 import { ThresholdModalTrigger } from '@/components/audit/ThresholdModal'
@@ -71,12 +71,37 @@ export function LeafAnswerRow({ node, disabled = false, breadcrumb }: {
 }) {
   const answer = useAuditFormStore((s) => s.answers[node.code])
   const setAnswer = useAuditFormStore((s) => s.setAnswer)
+  const stashAndCascade = useAuditFormStore((s) => s.stashAndCascade)
+  const restoreStash = useAuditFormStore((s) => s.restoreStash)
   const stationId = useAuditFormStore((s) => s.stationId)
   const checklistId = useAuditFormStore((s) => s.checklistId)
   const deletePhotoMutation = useDeleteChecklistPhoto(stationId ?? '')
   const [notesOpen, setNotesOpen] = React.useState(false)
 
   if (!answer || !node.answerType) return null
+
+  // Session F1, Part A — when this leaf ALSO carries its own subItems (a "hybrid" answerable
+  // container, e.g. air's "โถส้วม" B4.1-7), changing ITS OWN answer cascades onto every descendant
+  // exactly like a pure ContainerNode's มี/ไม่มี/ไม่เกี่ยวข้อง buttons (V2PagerForm.tsx) — same store
+  // actions, so restore-on-toggle-back behaves identically either way. No-op for a leaf with no
+  // subItems, which is every v1 leaf by construction (v1 has no nested criteria at all).
+  function handleSetAnswer(code: string, patch: Record<string, unknown>) {
+    const wasAbsent = node.answerType === 'choice' ? answer!.value === 'ไม่มี' : answer!.present === false
+    const wasNA = answer!.value === 'N/A'
+    setAnswer(code, patch)
+    if (!node.subItems || node.subItems.length === 0) return
+
+    const becomesAbsent = ('value' in patch && patch.value === 'ไม่มี') || ('present' in patch && patch.present === false)
+    const becomesNA = 'value' in patch && patch.value === 'N/A'
+    if (becomesAbsent) {
+      stashAndCascade(Object.fromEntries(collectLeaves(node).map((l) => [l.code, absentPatchFor(l)])))
+    } else if (becomesNA) {
+      stashAndCascade(Object.fromEntries(collectLeafCodes(node).map((c) => [c, NA_CASCADE_PATCH])))
+    } else if (wasAbsent || wasNA) {
+      // Leaving ไม่มี/ไม่เกี่ยวข้อง — back to มี, or toggled off to unanswered — restore either way.
+      restoreStash(collectLeafCodes(node))
+    }
+  }
 
   // Session E3, Part C.3 — removes a photo the auditor just added (wrong-evidence case), while
   // the checklist is DRAFT/REJECTED-being-fixed, which is the only state this form ever renders
@@ -132,13 +157,13 @@ export function LeafAnswerRow({ node, disabled = false, breadcrumb }: {
       <NodeReferenceImages node={node} className="mb-2.5" />
 
       {node.answerType === 'choice' && (
-        <ChoiceControl node={node} value={answer.value} meetsStandard={answer.meetsStandard} setAnswer={setAnswer} />
+        <ChoiceControl node={node} value={answer.value} meetsStandard={answer.meetsStandard} setAnswer={handleSetAnswer} />
       )}
       {node.answerType === 'presence' && (
-        <PresenceControl code={node.code} present={answer.present} value={answer.value} setAnswer={setAnswer} />
+        <PresenceControl code={node.code} present={answer.present} value={answer.value} setAnswer={handleSetAnswer} />
       )}
       {node.answerType === 'presence_standard' && (
-        <PresenceStandardControl node={node} answer={answer} setAnswer={setAnswer} />
+        <PresenceStandardControl node={node} answer={answer} setAnswer={handleSetAnswer} />
       )}
 
       {answer.photos.length > 0 && (

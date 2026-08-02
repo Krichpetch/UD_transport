@@ -36,7 +36,7 @@ describe('ChecklistsService.submit — pending-review uniqueness (Part D partial
 
   beforeEach(async () => {
     jest.clearAllMocks()
-    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', coordStatus: 'APPROXIMATE', yearBuilt: null })
+    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', coordStatus: 'APPROXIMATE', yearBuilt: 2560 })
     templateFindFirst.mockResolvedValue(null)
     checklistFindFirst.mockResolvedValue(null)
 

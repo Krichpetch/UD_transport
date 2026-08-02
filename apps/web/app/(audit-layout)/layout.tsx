@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Settings, LogOut, RotateCcw } from 'lucide-react'
+import { Settings, LogOut, RotateCcw, ClipboardList } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
 import { useAuthStore, useAuthHasHydrated } from '@/stores/auth.store'
 import { useMyRejectedCount } from '@/hooks/use-checklists'
@@ -44,9 +44,12 @@ export default function AuditLayout({ children }: { children: React.ReactNode })
             <p className="text-muted-foreground text-xs">ผู้ตรวจสอบ</p>
           </div>
           <div className="flex items-center gap-1.5">
+            {/* Session F1, Part E — "งานของฉัน" supersedes the old inline returned-work list as
+                the one place to browse all of an auditor's work; the badge count stays, it just
+                now links here (filtered to REJECTED) instead of the auditor home. */}
             {!!rejectedCount && (
               <Link
-                href="/audit"
+                href="/audit/my-work?status=REJECTED"
                 title="งานที่ถูกตีกลับ"
                 className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-semibold text-red-600"
               >
@@ -54,6 +57,13 @@ export default function AuditLayout({ children }: { children: React.ReactNode })
                 {rejectedCount}
               </Link>
             )}
+            <Link
+              href="/audit/my-work"
+              title="งานของฉัน"
+              className="border-border text-muted-foreground hover:bg-secondary hover:text-foreground rounded-lg border p-1.5 transition-colors"
+            >
+              <ClipboardList size={15} />
+            </Link>
             <Link
               href="/settings"
               title="บัญชีของฉัน"

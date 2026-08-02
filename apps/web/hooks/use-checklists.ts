@@ -12,8 +12,11 @@ import {
   deleteChecklistPhoto,
   getMyRejectedCount,
   getMyRejectedChecklists,
+  getMyChecklists,
+  getMyChecklistDetail,
 } from '@/lib/api/checklists'
 import type { SubmitGps } from '@/lib/geolocation'
+import type { MyChecklistStatus } from '@/lib/api/checklists'
 
 export function useChecklist(stationId: string) {
   return useQuery({
@@ -36,10 +39,12 @@ export function useMyDraft(stationId: string) {
 // E-form redesign (Session E2, Part A.6/D) — the era-resolved template driving the audit-form
 // engine. staleTime: Infinity + refetchOnWindowFocus: false for the same reason as useMyDraft:
 // a background refetch must never race the in-progress form's hydration (Part D P0 fix).
-export function useTemplateForAudit(stationId: string, preview?: boolean, version?: number) {
+// `yearBuiltOverride` (Session F1 follow-up) is included in the query key so picking a different
+// preview year re-fetches and re-hydrates rather than reusing a stale cached resolution.
+export function useTemplateForAudit(stationId: string, preview?: boolean, version?: number, yearBuiltOverride?: number) {
   return useQuery({
-    queryKey: ['checklist', stationId, 'template', preview ?? false, version ?? null],
-    queryFn:  () => getTemplateForAudit(stationId, { preview, version }),
+    queryKey: ['checklist', stationId, 'template', preview ?? false, version ?? null, yearBuiltOverride ?? null],
+    queryFn:  () => getTemplateForAudit(stationId, { preview, version, yearBuilt: yearBuiltOverride }),
     enabled:  !!stationId,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
@@ -113,5 +118,21 @@ export function useMyRejectedChecklists(enabled: boolean) {
     queryKey: ['checklists', 'rejected'],
     queryFn: getMyRejectedChecklists,
     enabled,
+  })
+}
+
+// Session F1, Part E — "งานของฉัน" full history, paginated + status-filterable.
+export function useMyChecklists(page: number, limit: number, status?: MyChecklistStatus) {
+  return useQuery({
+    queryKey: ['checklists', 'mine', page, limit, status ?? null],
+    queryFn: () => getMyChecklists(page, limit, status),
+  })
+}
+
+export function useMyChecklistDetail(id: string) {
+  return useQuery({
+    queryKey: ['checklists', 'mine', 'detail', id],
+    queryFn: () => getMyChecklistDetail(id),
+    enabled: !!id,
   })
 }

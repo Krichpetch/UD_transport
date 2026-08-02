@@ -3,7 +3,7 @@
 import * as React from 'react'
 import type { TemplateNode } from '@repo/types'
 import { useAuditFormStore } from '@/stores/audit-form.store'
-import { computeContainerStatus, collectLeafCodes } from '@/lib/audit-form'
+import { computeContainerStatus, collectLeafCodes, collectLeaves, absentPatchFor, NA_CASCADE_PATCH, isNodeFullyRedacted } from '@/lib/audit-form'
 import { LeafAnswerRow } from '@/components/audit/LeafAnswerRow'
 import { NodeReferenceImages } from '@/components/audit/NodeReferenceImages'
 
@@ -16,53 +16,53 @@ import { NodeReferenceImages } from '@/components/audit/NodeReferenceImages'
 
 const INACTIVE = 'border-border bg-white text-muted-foreground'
 
-// Which of the 3 container-level options was last clicked THIS session. Deliberately LOCAL, not
-// derived from descendant answers: มี/ไม่มี/ไม่เกี่ยวข้อง all need to highlight the instant they're
-// clicked (a UX requirement — "มี" clicked with nothing yet answered below it must still look
-// selected, not wait for the auditor's next action to light up), and ไม่มี/ไม่เกี่ยวข้อง both
-// cascade to the exact same underlying state (every descendant N/A — see markAbsent/markNA), so
-// there is no data-derived way to tell them apart after the fact anyway. Trade-off: on a cold
-// reload, a container previously marked ไม่มี or ไม่เกี่ยวข้อง both show as neutral (no button
-// highlighted) until re-clicked, since local state doesn't persist — only which OUTCOME (children
-// hidden + descendants N/A) survives, not which of the two reasons produced it.
+// Session F1, Part A — replaces the older disable/collapse cascade. Fully DERIVED from
+// computeContainerStatus, not local click-only state: unlike the pre-F1 version, ไม่มี is now a
+// REAL per-leaf answer (Part A.3), and ไม่เกี่ยวข้อง was already independently derivable (every
+// descendant N/A) — so a cold-reloaded container's buttons correctly reflect which of the three
+// states it's actually in, with no "which reason produced this" ambiguity left for either case.
 type ContainerChoice = 'มี' | 'ไม่มี' | 'ไม่เกี่ยวข้อง' | null
 
+function deriveChoice(status: ReturnType<typeof computeContainerStatus>): ContainerChoice {
+  if (status === 'มี' || status === 'บางส่วน') return 'มี'
+  if (status === 'ไม่มี') return 'ไม่มี'
+  if (status === 'ไม่เกี่ยวข้อง') return 'ไม่เกี่ยวข้อง'
+  return null
+}
+
 // A pure container (no own answerType, e.g. ทางลาด holding A1.1-1/-2/-3) — a real 3-way มี/ไม่มี/
-// ไม่เกี่ยวข้อง choice:
-//   - มี: reveals the children so the auditor answers the applicable one individually.
-//   - ไม่มี: the facility is required but genuinely absent here.
-//   - ไม่เกี่ยวข้อง: this whole item doesn't apply to this station at all.
-// ไม่มี and ไม่เกี่ยวข้อง both cascade N/A onto EVERY descendant leaf (see collectLeafCodes) and
-// hide the children — the auditor never has to open A1.1-1/-2/-3 individually just to mark them
-// ไม่เกี่ยวข้อง one at a time. (Scoring note: this means a genuinely-missing required facility and
-// a not-applicable one are currently scored identically — both fully excluded via N/A, since the
-// container itself is never an independent scored leaf, only its children are. Distinguishing
-// "missing, should count against the score" from "N/A, excluded entirely" at the container level
-// would need a real template-level answer, which was explicitly deferred earlier this session.)
+// ไม่เกี่ยวข้อง choice. Part A default: every descendant is VISIBLE from the start (nothing hidden
+// behind an unanswered parent) — only ไม่เกี่ยวข้อง collapses the subtree; ไม่มี keeps children
+// visible showing the auto-filled ไม่มี answer, inputs disabled.
+//   - มี: children enabled for normal filling.
+//   - ไม่มี: every descendant leaf auto-fills as a REAL ไม่มี answer (Part A.3 — counts against
+//     การจัดให้มีฯ, not excluded like N/A); visible, disabled.
+//   - ไม่เกี่ยวข้อง: the whole subtree collapses; every descendant becomes N/A (excluded from every
+//     denominator — unchanged from the E2-era behavior).
+// Toggling back to มี restores each descendant's pre-cascade answer from the store's stash (Part
+// A.5) — never the auto-filled/N/A value overwriting a real prior manual answer.
 function ContainerNode({ node, breadcrumb, disabled }: { node: TemplateNode; breadcrumb: string[]; disabled: boolean }) {
   const answers = useAuditFormStore((s) => s.answers)
-  const setAnswersBulk = useAuditFormStore((s) => s.setAnswersBulk)
+  const stashAndCascade = useAuditFormStore((s) => s.stashAndCascade)
+  const restoreStash = useAuditFormStore((s) => s.restoreStash)
   const status = computeContainerStatus(node, answers)
-  const [choice, setChoice] = React.useState<ContainerChoice>(() => (status === 'มี' || status === 'บางส่วน') ? 'มี' : null)
-  const childrenVisible = choice === 'มี' || status === 'มี' || status === 'บางส่วน'
+  const choice = deriveChoice(status)
+  const childrenCollapsed = choice === 'ไม่เกี่ยวข้อง'
+  const childrenDisabledByParent = choice === 'ไม่มี'
   const childBreadcrumb = [...breadcrumb, node.labelTh]
 
-  function cascade(value: 'N/A' | null) {
-    const codes = collectLeafCodes(node)
-    setAnswersBulk(Object.fromEntries(codes.map((c) => [c, { value, present: null, meetsStandard: false, values: {} }])))
-  }
-
   function selectPresent() {
-    if (choice !== 'มี') cascade(null) // undo a previous ไม่มี/ไม่เกี่ยวข้อง cascade — fillable again
-    setChoice('มี')
+    // Only a real transition out of ไม่มี/ไม่เกี่ยวข้อง needs restoring — clicking มี while already
+    // มี/บางส่วน/unanswered has nothing cascaded to undo.
+    if (choice === 'ไม่มี' || choice === 'ไม่เกี่ยวข้อง') restoreStash(collectLeafCodes(node))
   }
   function selectAbsent() {
-    cascade('N/A')
-    setChoice('ไม่มี')
+    const leaves = collectLeaves(node)
+    stashAndCascade(Object.fromEntries(leaves.map((l) => [l.code, absentPatchFor(l)])))
   }
   function selectNA() {
-    cascade('N/A')
-    setChoice('ไม่เกี่ยวข้อง')
+    const codes = collectLeafCodes(node)
+    stashAndCascade(Object.fromEntries(codes.map((c) => [c, NA_CASCADE_PATCH])))
   }
 
   return (
@@ -92,30 +92,37 @@ function ContainerNode({ node, breadcrumb, disabled }: { node: TemplateNode; bre
           ไม่เกี่ยวข้อง
         </button>
       </div>
-      {childrenVisible && node.subItems && (
+      {!childrenCollapsed && node.subItems && (
         <div className="ml-3 border-l border-border pl-1">
-          {node.subItems.map((c) => <CriterionNode key={c.code} node={c} breadcrumb={childBreadcrumb} disabled={disabled} />)}
+          {/* Part C.3 — a fully era-redacted child is never rendered as an answerable row (it's
+              surfaced only in the per-group collapsed footer note, see the summary page). */}
+          {node.subItems.filter((c) => !isNodeFullyRedacted(c)).map((c) => (
+            <CriterionNode key={c.code} node={c} breadcrumb={childBreadcrumb} disabled={disabled || childrenDisabledByParent} />
+          ))}
         </div>
       )}
     </div>
   )
 }
 
-// An answerable criterion. Children are HIDDEN (not merely disabled) until this node's own
-// answer is มี (Part C.5 "answerable containers"); toggling back to ไม่มี/unanswered hides them
-// again without wiping their already-entered answers (still in the store, just not rendered).
+// An answerable criterion that ALSO carries its own finer subItems (a "hybrid" node — its own
+// มี/ไม่มี/ไม่เกี่ยวข้อง answer lives in LeafAnswerRow, which cascades onto these children exactly
+// like ContainerNode's buttons do — see LeafAnswerRow's handleSetAnswer). Part A default: children
+// always visible; only ไม่เกี่ยวข้อง (N/A) collapses them, ไม่มี keeps them visible+disabled.
 function LeafNode({ node, breadcrumb, disabled }: { node: TemplateNode; breadcrumb: string[]; disabled: boolean }) {
   const answer = useAuditFormStore((s) => s.answers[node.code])
-  const isPresent =
-    node.answerType === 'choice' ? answer?.value === 'มี' : answer?.present === true
+  const isAbsent = node.answerType === 'choice' ? answer?.value === 'ไม่มี' : answer?.present === false
+  const isNA = answer?.value === 'N/A'
   const childBreadcrumb = [...breadcrumb, node.labelTh]
 
   return (
     <div className={node.subItems ? 'border-b border-border last:border-0' : ''}>
       <LeafAnswerRow node={node} disabled={disabled} breadcrumb={breadcrumb} />
-      {node.subItems && isPresent && (
+      {!isNA && node.subItems && (
         <div className="ml-4 border-l border-border pl-2">
-          {node.subItems.map((c) => <CriterionNode key={c.code} node={c} breadcrumb={childBreadcrumb} disabled={disabled} />)}
+          {node.subItems.filter((c) => !isNodeFullyRedacted(c)).map((c) => (
+            <CriterionNode key={c.code} node={c} breadcrumb={childBreadcrumb} disabled={disabled || isAbsent} />
+          ))}
         </div>
       )}
     </div>

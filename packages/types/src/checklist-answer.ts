@@ -41,6 +41,13 @@ export interface StoredChecklistNode {
   flagged?: boolean
   reviewFlag?: boolean
 
+  // Session F1, Part C.4 — baked in ONCE at submit time (ChecklistsService#applyRedactionFlags),
+  // mirroring TemplateNode.applicable at that moment's frozen appliedYearBuilt/appliedLawRefs
+  // stamp. Frozen forever after — never recomputed from a later template/law-registry change, so
+  // scoring never needs a template lookup to know whether a stored leaf counts (Part C.5
+  // determinism). Absent/true = counts normally.
+  applicable?: boolean
+
   subItems?: StoredChecklistNode[]
 }
 
@@ -110,6 +117,7 @@ function parseStoredNode(raw: unknown, path: string): StoredChecklistNode {
   if (Array.isArray(o.photos)) node.photos = o.photos as ChecklistPhoto[]
   if (typeof o.flagged === 'boolean') node.flagged = o.flagged
   if (typeof o.reviewFlag === 'boolean') node.reviewFlag = o.reviewFlag
+  if (typeof o.applicable === 'boolean') node.applicable = o.applicable
 
   return node
 }

@@ -66,7 +66,7 @@ describe('ChecklistsService — Part C item validation (via saveDraft)', () => {
   })
 
   it('accepts a v1 flat payload matching a v1 (no subItems) template', async () => {
-    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก' })
+    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', yearBuilt: 2560 })
     templateFindFirst.mockResolvedValue({ id: 't1', version: 1, definition: V1_TEMPLATE })
 
     const items = [{ groupId: 'A1', groupName: 'A1', items: [
@@ -77,7 +77,7 @@ describe('ChecklistsService — Part C item validation (via saveDraft)', () => {
   })
 
   it('rejects a v1 payload with an unknown item code, naming the offending code', async () => {
-    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก' })
+    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', yearBuilt: 2560 })
     templateFindFirst.mockResolvedValue({ id: 't1', version: 1, definition: V1_TEMPLATE })
 
     const items = [{ groupId: 'A1', groupName: 'A1', items: [
@@ -97,7 +97,7 @@ describe('ChecklistsService — Part C item validation (via saveDraft)', () => {
   })
 
   it('accepts a synthetic v2 nested+measured payload matching a v2 (with subItems) template', async () => {
-    findOne.mockResolvedValue({ id: 's2', mode: 'ทางน้ำ' })
+    findOne.mockResolvedValue({ id: 's2', mode: 'ทางน้ำ', yearBuilt: 2560 })
     templateFindFirst.mockResolvedValue({ id: 't2', version: 2, definition: V2_TEMPLATE })
 
     const items = [{ groupId: 'A1', groupName: 'test', items: [
@@ -110,7 +110,7 @@ describe('ChecklistsService — Part C item validation (via saveDraft)', () => {
   })
 
   it('rejects a v2 payload whose leaf has an invalid answerType', async () => {
-    findOne.mockResolvedValue({ id: 's2', mode: 'ทางน้ำ' })
+    findOne.mockResolvedValue({ id: 's2', mode: 'ทางน้ำ', yearBuilt: 2560 })
     templateFindFirst.mockResolvedValue({ id: 't2', version: 2, definition: V2_TEMPLATE })
 
     const items = [{ groupId: 'A1', groupName: 'test', items: [
@@ -123,7 +123,7 @@ describe('ChecklistsService — Part C item validation (via saveDraft)', () => {
   })
 
   it('rejects an oversized items payload before structural validation runs', async () => {
-    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก' })
+    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', yearBuilt: 2560 })
     templateFindFirst.mockResolvedValue(null)
 
     const huge = [{ groupId: 'A', groupName: 'A', items: [
