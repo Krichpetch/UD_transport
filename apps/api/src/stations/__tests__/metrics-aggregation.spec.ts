@@ -167,6 +167,16 @@ describe('StationsService.computeMetrics', () => {
     })
   })
 
+  it('filters by OTHER_AGENCY as notIn the 10 named agencies, not an exact string match', async () => {
+    stationFindMany.mockResolvedValue([])
+
+    await service.computeMetrics({ responsibleAgency: 'หน่วยงานอื่นที่เกี่ยวข้อง' })
+
+    const where = stationFindMany.mock.calls[0][0].where.responsibleAgency
+    expect(where).toEqual({ notIn: expect.arrayContaining(['การรถไฟแห่งประเทศไทย (รฟท.)', 'บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (BEM)']) })
+    expect(where.notIn).not.toContain('หน่วยงานอื่นที่เกี่ยวข้อง')
+  })
+
   it('applies from/to as a submittedAt range on the checklist query', async () => {
     stationFindMany.mockResolvedValue([{ id: 's1' }])
     checklistFindMany.mockResolvedValue([])

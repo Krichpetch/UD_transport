@@ -19,4 +19,4 @@ export type {
   ResponsibleAgency,
 } from '@repo/types'
 
-export { RESPONSIBLE_AGENCIES } from '@repo/types'
+export { RESPONSIBLE_AGENCIES, classifyAgency } from '@repo/types'

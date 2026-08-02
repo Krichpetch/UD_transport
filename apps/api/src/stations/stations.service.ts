@@ -7,7 +7,7 @@ import { CreateStationDto } from './dto/create-station.dto'
 import { UpdateStationDto } from './dto/update-station.dto'
 import { OtpRowDto } from './dto/otp-row.dto'
 import { computeScoreFromItems, scoreToStatus, hasReviewFlag } from '../checklists/scoring'
-import { computeFacilityMetrics, parseChecklistItems, isValidYearBuilt, deriveRegion, UNSPECIFIED_REGION } from '@repo/types'
+import { computeFacilityMetrics, parseChecklistItems, isValidYearBuilt, deriveRegion, UNSPECIFIED_REGION, RESPONSIBLE_AGENCIES, OTHER_AGENCY } from '@repo/types'
 import type { ParsedChecklistGroup, StoredChecklistNode } from '@repo/types'
 import { resolveStationMatch, type MasterlistStation } from './masterlist-match'
 import { applyOtpRowToStation } from './import-otp-row'
@@ -19,6 +19,21 @@ import { normalizeKey } from '../common/text-normalize'
 // is a single named bridge for the TS/Prisma interop gap, never a blind cast of unvalidated input.
 function toJson(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue
+}
+
+// The 10 canonical agencies with a real identity, i.e. everything except the OTHER_AGENCY
+// catch-all bucket itself.
+const NAMED_AGENCIES = RESPONSIBLE_AGENCIES.filter((a) => a !== OTHER_AGENCY)
+
+// responsibleAgency is stored as the raw value (a masterlist-sourced company name may not be
+// one of the 11 canonical strings — see migrate-agency-names.ts's header comment for why that's
+// deliberate). Filtering by one of the 10 named agencies is an exact match; filtering by
+// OTHER_AGENCY must also catch any raw value that ISN'T one of those 10, not just rows that
+// literally equal the OTHER_AGENCY string.
+function agencyWhere(agency: string): { responsibleAgency: string | { notIn: string[] } } {
+  return {
+    responsibleAgency: agency === OTHER_AGENCY ? { notIn: NAMED_AGENCIES } : agency,
+  }
 }
 
 // AND-combines id sets from independent filters (e.g. search + subItem) that each narrow
@@ -109,7 +124,7 @@ export class StationsService {
         region: filters.region === UNSPECIFIED_REGION ? null : filters.region,
       }),
       ...(filters?.province          && { province:          filters.province }),
-      ...(filters?.responsibleAgency && { responsibleAgency: filters.responsibleAgency }),
+      ...(filters?.responsibleAgency && agencyWhere(filters.responsibleAgency)),
       ...(filters?.status            && { status:            filters.status }),
     }
 
@@ -233,16 +248,11 @@ export class StationsService {
   }
 
   async getFilterOptions() {
-    const [regions, agencies, provinces] = await Promise.all([
+    const [regions, provinces] = await Promise.all([
       this.prisma.station.findMany({
         select: { region: true },
         distinct: ['region'],
         orderBy: { region: 'asc' },
-      }),
-      this.prisma.station.findMany({
-        select: { responsibleAgency: true },
-        distinct: ['responsibleAgency'],
-        orderBy: { responsibleAgency: 'asc' },
       }),
       // IN_SCOPE only — the admin province filter shouldn't offer provinces that only exist
       // among OUT_OF_SCOPE rows.
@@ -260,7 +270,11 @@ export class StationsService {
     const hasUnspecified = regions.some(r => r.region == null)
     return {
       regions:   hasUnspecified ? [...namedRegions, UNSPECIFIED_REGION] : namedRegions,
-      agencies:  agencies.map(a => a.responsibleAgency),
+      // Always the full canonical list, regardless of which agencies currently have stations —
+      // a filter option must never disappear just because its count is 0 (and, post
+      // migrate-agency-names.ts's 2026-08-02 correction, DB-distinct would also leak raw
+      // non-canonical company names into this dropdown).
+      agencies:  [...RESPONSIBLE_AGENCIES],
       provinces: provinces.map(p => p.province).filter((p): p is string => p != null),
     }
   }
@@ -710,7 +724,7 @@ export class StationsService {
         region: filters.region === UNSPECIFIED_REGION ? null : filters.region,
       }),
       ...(filters.province          && { province:          filters.province }),
-      ...(filters.responsibleAgency && { responsibleAgency: filters.responsibleAgency }),
+      ...(filters.responsibleAgency && agencyWhere(filters.responsibleAgency)),
     }
 
     const stations = await this.prisma.station.findMany({

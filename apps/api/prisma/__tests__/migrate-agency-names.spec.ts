@@ -2,9 +2,9 @@
  * migrate-agency-names.ts renames the old bare-abbreviation responsibleAgency/agency values to
  * the new canonical "full name (abbreviation)" list. Two things matter most: (1) all 11 known
  * legacy values map exactly onto their new canonical counterpart, and (2) anything NOT in that
- * known set is flagged (confident: false) and falls back to OTHER_AGENCY rather than being
- * silently dropped or left untouched — the caller (main()) uses that flag to warn before
- * --apply actually writes.
+ * known set is flagged (confident: false) and reported for review, but --apply deliberately
+ * leaves it untouched in the DB rather than overwriting it to OTHER_AGENCY — 2026-08-02
+ * correction, see the source file's header comment.
  */
 import { OTHER_AGENCY, RESPONSIBLE_AGENCIES } from '@repo/types'
 import {
@@ -48,13 +48,25 @@ describe('LEGACY_AGENCY_MAP', () => {
     expect(Object.keys(LEGACY_AGENCY_MAP).sort()).toEqual(
       [
         'ขบ.', 'ขสมก.', 'บขส.', 'รฟท.', 'รฟม.', 'รฟฟท.', 'BEM', 'จท.', 'ทย.', 'ทอท.', 'อื่นๆ',
-        'บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (มหาชน)',
+        'บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (มหาชน)', // BEM
       ].sort(),
     )
   })
 
-  it('maps BEM\'s masterlist legal name to the private-operator bucket, not OTHER_AGENCY', () => {
-    expect(LEGACY_AGENCY_MAP['บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (มหาชน)']).toBe('ผู้ให้บริการรถไฟฟ้า (เช่น BEM)')
+  it('maps BEM\'s masterlist legal name to its own bucket, not OTHER_AGENCY', () => {
+    expect(LEGACY_AGENCY_MAP['บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (มหาชน)']).toBe('บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (BEM)')
+  })
+
+  it('other private rail operators (BTS, monorails, ARL) are NOT special-cased — they fall to OTHER_AGENCY', () => {
+    const operators = [
+      'บริษัท ระบบขนส่งมวลชนกรุงเทพ จำกัด (มหาชน)', // BTS
+      'บริษัท นอร์ทเทิร์น บางกอกโมโนเรล จำกัด',       // Pink Line
+      'บริษัท อีสเทิร์น บางกอกโมโนเรล จำกัด',         // Yellow Line
+      'บริษัท เอเชีย เอรา วัน จำกัด',                 // ARL
+    ]
+    for (const name of operators) {
+      expect(LEGACY_AGENCY_MAP[name]).toBeUndefined()
+    }
   })
 })
 
@@ -117,6 +129,23 @@ describe('applyAgencyMigration', () => {
     const plan = await planAgencyMigration(client)
     await applyAgencyMigration(client, plan)
     expect(stationUpdateMany).not.toHaveBeenCalled()
+    expect(userUpdateMany).not.toHaveBeenCalled()
+  })
+
+  it('leaves unmapped (confident: false) values untouched — does not overwrite them to OTHER_AGENCY', async () => {
+    const { client, stationUpdateMany, userUpdateMany } = makeClient(
+      ['ขบ.', 'บริษัท ระบบขนส่งมวลชนกรุงเทพ จำกัด (มหาชน)'], // ขบ. is known, BTS's legal name is not
+      ['หน่วยงานลึกลับ'],
+    )
+    const plan = await planAgencyMigration(client)
+    await applyAgencyMigration(client, plan)
+
+    // Only the confident row (ขบ.) should have triggered a write.
+    expect(stationUpdateMany).toHaveBeenCalledTimes(1)
+    expect(stationUpdateMany).toHaveBeenCalledWith({
+      where: { responsibleAgency: 'ขบ.' },
+      data: { responsibleAgency: 'กรมการขนส่งทางบก (ขบ.)' },
+    })
     expect(userUpdateMany).not.toHaveBeenCalled()
   })
 })

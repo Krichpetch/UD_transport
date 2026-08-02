@@ -2,10 +2,13 @@
 // bare-abbreviation RESPONSIBLE_AGENCIES list to the new canonical "full name (abbreviation)"
 // list (@repo/types#RESPONSIBLE_AGENCIES). The 11 old values map 1:1 onto the 11 new ones (see
 // LEGACY_AGENCY_MAP below). Any OTHER value found in the data (an OTP-import free-text agency
-// that never went through LEGACY_AGENCY_MAP, a typo, pre-validation legacy data, etc.) falls
-// back to OTHER_AGENCY ('หน่วยงานอื่นที่เกี่ยวข้อง') — per instruction, those unmapped values
-// must be reviewed (value + row count) before being absorbed, so this script is a DRY RUN by
-// default and only writes when passed --apply.
+// that never went through LEGACY_AGENCY_MAP, a typo, a raw company name like BTS/monorail/ARL
+// that isn't one of the 11, etc.) is reported for review but deliberately left UNTOUCHED in the
+// DB — 2026-08-02 correction: this used to force-overwrite unmapped values to OTHER_AGENCY,
+// which destroyed the original identity of private rail operators that aren't BEM. Filtering
+// treats any non-canonical value as OTHER_AGENCY at query time instead (see
+// apps/api/src/stations/stations.service.ts's agencyWhere helper) — the raw value stays in the
+// DB. This script is a DRY RUN by default and only writes when passed --apply.
 //
 // Usage:
 //   npx ts-node prisma/migrate-agency-names.ts            (report only, no writes)
@@ -25,15 +28,19 @@ export const LEGACY_AGENCY_MAP: Record<string, string> = {
   'รฟท.':  'การรถไฟแห่งประเทศไทย (รฟท.)',
   'รฟม.':  'การรถไฟฟ้าขนส่งมวลชนแห่งประเทศไทย (รฟม.)',
   'รฟฟท.': 'บริษัท รถไฟฟ้า ร.ฟ.ท. จำกัด (รฟฟท.)',
-  'BEM':   'ผู้ให้บริการรถไฟฟ้า (เช่น BEM)',
+  'BEM':   'บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (BEM)',
   'จท.':   'กรมเจ้าท่า (จท.)',
   'ทย.':   'กรมท่าอากาศยาน (ทย.)',
   'ทอท.':  'บริษัท ท่าอากาศยานไทย จำกัด (มหาชน) (ทอท.)',
-  // BEM's actual legal name, as it appears in the masterlist source (821-row seed data) — a
-  // confident match to the "private rail operator" bucket, unlike the other masterlist-sourced
-  // operator names (BTS, Northern/Eastern Bangkok Monorail, Asia Era One) which were reviewed
-  // and confirmed to fall to OTHER_AGENCY instead (2026-08-01).
-  'บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (มหาชน)': 'ผู้ให้บริการรถไฟฟ้า (เช่น BEM)',
+  // BEM's actual legal name, as it appears in the masterlist source (821-row seed data) — the
+  // one private-operator name that IS literally one of the 10 named categories (its own
+  // bucket, "บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (BEM)"). Reverted 2026-08-01 per explicit
+  // correction: the other masterlist-sourced operator names (BTS, Northern/Eastern Bangkok
+  // Monorail, Asia Era One) do NOT get special-cased into this bucket just because they're
+  // "similar" — OTHER_AGENCY is the real fallback for anything that isn't actually one of the
+  // 10, and "keep the organization name as-is" for genuine matches means don't invent broader
+  // categories those don't belong to.
+  'บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (มหาชน)': 'บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (BEM)', // BEM
   'อื่นๆ': OTHER_AGENCY,
 }
 
@@ -92,10 +99,15 @@ export async function planAgencyMigration(client: MigrationClient): Promise<Agen
 }
 
 export async function applyAgencyMigration(client: MigrationClient, plan: AgencyMigrationPlan): Promise<void> {
+  // Only confident (known-legacy-value) rows get written — an unconfident row's oldValue isn't
+  // in LEGACY_AGENCY_MAP, so overwriting it would mean guessing, and guessing here means
+  // permanently destroying whatever raw value was actually there (see the file header).
   for (const row of plan.stationRows) {
+    if (!row.confident) continue
     await client.station.updateMany({ where: { responsibleAgency: row.oldValue }, data: { responsibleAgency: row.newValue } })
   }
   for (const row of plan.userRows) {
+    if (!row.confident) continue
     await client.user.updateMany({ where: { agency: row.oldValue }, data: { agency: row.newValue } })
   }
 }
@@ -107,8 +119,9 @@ function printRows(label: string, rows: AgencyPlanRow[]) {
     return
   }
   for (const row of rows) {
-    const flag = row.confident ? '' : '  [UNMAPPED -> falls back to OTHER_AGENCY, REVIEW]'
-    console.log(`  ${String(row.count).padStart(5)}  "${row.oldValue}" -> "${row.newValue}"${flag}`)
+    const arrow = row.confident ? `-> "${row.newValue}"` : '(left untouched)'
+    const flag  = row.confident ? '' : '  [UNMAPPED -> classified as OTHER_AGENCY for filtering only, DB value not written, REVIEW]'
+    console.log(`  ${String(row.count).padStart(5)}  "${row.oldValue}" ${arrow}${flag}`)
   }
 }
 
@@ -122,7 +135,7 @@ async function main() {
 
     const hasUnmapped = [...plan.stationRows, ...plan.userRows].some((r) => !r.confident)
     if (hasUnmapped) {
-      console.log('\nSome values above are UNMAPPED and will fall back to OTHER_AGENCY — review before --apply.')
+      console.log('\nSome values above are UNMAPPED — --apply will leave them untouched in the DB (not written to OTHER_AGENCY).')
     }
 
     if (!apply) {

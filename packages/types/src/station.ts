@@ -11,7 +11,7 @@ export const RESPONSIBLE_AGENCIES = [
   'การรถไฟแห่งประเทศไทย (รฟท.)',
   'การรถไฟฟ้าขนส่งมวลชนแห่งประเทศไทย (รฟม.)',
   'บริษัท รถไฟฟ้า ร.ฟ.ท. จำกัด (รฟฟท.)',
-  'ผู้ให้บริการรถไฟฟ้า (เช่น BEM)',
+  'บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (BEM)',
   'กรมเจ้าท่า (จท.)',
   'กรมท่าอากาศยาน (ทย.)',
   'บริษัท ท่าอากาศยานไทย จำกัด (มหาชน) (ทอท.)',
@@ -25,13 +25,23 @@ export type ResponsibleAgency = typeof RESPONSIBLE_AGENCIES[number]
 // 'อื่นๆ' abbreviation did across the OTP import path.
 export const OTHER_AGENCY: ResponsibleAgency = 'หน่วยงานอื่นที่เกี่ยวข้อง'
 
+// A stored responsibleAgency isn't guaranteed to be one of the 11 canonical strings — a
+// masterlist-sourced private rail operator (BTS, a monorail, ARL) keeps its own raw legal
+// name in the DB rather than being force-mapped onto a bucket it doesn't belong to (see
+// apps/api/prisma/migrate-agency-names.ts). This classifies a raw value into its filter/
+// display bucket without ever touching the underlying data: exact matches pass through,
+// anything else counts as OTHER_AGENCY.
+export function classifyAgency(raw: string): ResponsibleAgency {
+  return (RESPONSIBLE_AGENCIES as readonly string[]).includes(raw) ? (raw as ResponsibleAgency) : OTHER_AGENCY
+}
+
 // Grouping unchanged from before the Part D rename — same agencies under the same modes,
 // only the labels changed. (Note: 'กรมท่าอากาศยาน (ทย.)' sits under ทางน้ำ here, not ทางอากาศ,
 // which looks like a pre-existing mis-categorization — ทย. is the Department of AIRPORTS.
 // Left as-is; flagged separately rather than silently changed as part of this rename.)
 export const TRANSPORT_MODE_AGENCIES: Record<TransportMode, readonly ResponsibleAgency[]> = {
   'ทางบก':    ['กรมการขนส่งทางบก (ขบ.)', 'องค์การขนส่งมวลชนกรุงเทพ (ขสมก.)', 'บริษัท ขนส่ง จำกัด (บขส.)', 'หน่วยงานอื่นที่เกี่ยวข้อง'],
-  'ทางราง':   ['การรถไฟแห่งประเทศไทย (รฟท.)', 'การรถไฟฟ้าขนส่งมวลชนแห่งประเทศไทย (รฟม.)', 'บริษัท รถไฟฟ้า ร.ฟ.ท. จำกัด (รฟฟท.)', 'ผู้ให้บริการรถไฟฟ้า (เช่น BEM)', 'หน่วยงานอื่นที่เกี่ยวข้อง'],
+  'ทางราง':   ['การรถไฟแห่งประเทศไทย (รฟท.)', 'การรถไฟฟ้าขนส่งมวลชนแห่งประเทศไทย (รฟม.)', 'บริษัท รถไฟฟ้า ร.ฟ.ท. จำกัด (รฟฟท.)', 'บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (BEM)', 'หน่วยงานอื่นที่เกี่ยวข้อง'],
   'ทางน้ำ':   ['กรมเจ้าท่า (จท.)', 'กรมท่าอากาศยาน (ทย.)', 'หน่วยงานอื่นที่เกี่ยวข้อง'],
   'ทางอากาศ': ['บริษัท ท่าอากาศยานไทย จำกัด (มหาชน) (ทอท.)', 'หน่วยงานอื่นที่เกี่ยวข้อง'],
 }

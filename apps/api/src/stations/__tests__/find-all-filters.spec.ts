@@ -58,6 +58,18 @@ describe('StationsService.findAll — railSubtype/province/subItem filters', () 
     expect(stationFindMany.mock.calls[0][0].where.province).toBe('กรุงเทพมหานคร')
   })
 
+  it('filters by a named responsibleAgency with an exact match', async () => {
+    await service.findAll({ responsibleAgency: 'การรถไฟแห่งประเทศไทย (รฟท.)' })
+    expect(stationFindMany.mock.calls[0][0].where.responsibleAgency).toBe('การรถไฟแห่งประเทศไทย (รฟท.)')
+  })
+
+  it('filters by OTHER_AGENCY with notIn the 10 named agencies — catches raw non-canonical company names too, not just literal OTHER_AGENCY rows', async () => {
+    await service.findAll({ responsibleAgency: 'หน่วยงานอื่นที่เกี่ยวข้อง' })
+    const where = stationFindMany.mock.calls[0][0].where.responsibleAgency
+    expect(where).toEqual({ notIn: expect.arrayContaining(['การรถไฟแห่งประเทศไทย (รฟท.)', 'บริษัท ทางด่วนและรถไฟฟ้ากรุงเทพ จำกัด (BEM)']) })
+    expect(where.notIn).not.toContain('หน่วยงานอื่นที่เกี่ยวข้อง')
+  })
+
   it('subItem filter: resolves matching stations via the shared group-traversal, not a fan-out', async () => {
     // Scoping query (stationIdsWithAnsweredItem's first call) returns 2 candidate stations.
     stationFindMany.mockResolvedValueOnce([{ id: 's1' }, { id: 's2' }])

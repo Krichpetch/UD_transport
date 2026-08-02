@@ -5,7 +5,7 @@ import { getTransportLabel, CHECKLIST_CATEGORIES, checklistTemplates } from '@/l
 import { useStationSummary, useStationMetrics, useStationMapNodes } from '@/hooks/use-stations'
 import { StatusBadge, TransportBadge } from '@/components/shared/badges'
 import type { TransportMode, ChecklistSubItem, Station } from '@repo/types'
-import { TRANSPORT_MODES, UNSPECIFIED_REGION } from '@repo/types'
+import { TRANSPORT_MODES, UNSPECIFIED_REGION, RESPONSIBLE_AGENCIES, classifyAgency } from '@repo/types'
 import { StationBarChart } from '@/components/charts/StationBarChart'
 import { ThailandMap } from '@/components/maps/ThailandMap'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -84,10 +84,9 @@ export default function DashboardPage() {
     const base = regionFilter ? stations.filter(matchesRegionFilter) : stations
     return [...new Set(base.map(s => s.province).filter((p): p is string => p != null))].sort()
   }, [stations, regionFilter, matchesRegionFilter])
-  const AGENCIES = React.useMemo(
-    () => [...new Set(stations.map(s => s.responsibleAgency))].sort(),
-    [stations],
-  )
+  // Always all 11 canonical agencies, regardless of which ones the currently loaded stations
+  // happen to have — a filter option must never disappear just because its count is 0.
+  const AGENCIES: readonly string[] = RESPONSIBLE_AGENCIES
 
   const subItemOptions = React.useMemo(() => {
     if (!categoryFilter) return []
@@ -116,7 +115,7 @@ export default function DashboardPage() {
     (!modeFilter      || s.mode === modeFilter) &&
     matchesRegionFilter(s) &&
     (!provinceFilter  || s.province === provinceFilter) &&
-    (!agencyFilter    || s.responsibleAgency === agencyFilter)
+    (!agencyFilter    || classifyAgency(s.responsibleAgency) === agencyFilter)
   )
 
   const urgentStations = filteredStations.filter(
