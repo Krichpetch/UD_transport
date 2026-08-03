@@ -127,6 +127,17 @@ export interface TemplateNode {
   // not this shape check.
   imageKeys?: string[]
 
+  // Session S3b, Part C.4 — admin bookkeeping only, never read by scoring/the auditor E-form.
+  // The high-water mark of child sequence numbers ever assigned under THIS node via the
+  // structural editor's "เพิ่มข้อย่อย" action — never decremented, including on delete, so a
+  // freed number is never reassigned (the checklist-migration crosswalk depends on codes being
+  // stable identifiers; reusing a deleted code would silently alias two different historical
+  // items together). Absent on every node from before this feature existed, or that has never
+  // had a child added this way — the editor derives a starting value from existing children's
+  // codes the first time it's needed (see templates.core.ts#nextChildSeq) and persists it here
+  // from then on.
+  childSeq?: number
+
   subItems?: TemplateNode[]
 }
 
@@ -346,6 +357,7 @@ function parseNode(raw: unknown, path: string): TemplateNode {
     }
     node.imageKeys = o.imageKeys as string[]
   }
+  if (typeof o.childSeq === 'number') node.childSeq = o.childSeq
 
   return node
 }

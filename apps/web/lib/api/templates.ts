@@ -10,6 +10,9 @@ export interface TemplateSummary {
   measurementCount: number
   confirmedCount: number
   unconfirmedCount: number
+  // Session S3b, Part D.3 — coverage indicator.
+  lawRefsTaggedCount: number
+  lawRefsUntaggedCount: number
 }
 
 export interface TemplateListRow {
@@ -54,6 +57,8 @@ export interface EditMeasurementBody {
   value?: number | null
   value2?: number | null
   tiers?: TemplateTier[]
+  // Session S3b, Part C.3 — only meaningful when creating a brand-new tiered measurement.
+  inputs?: { key: string; labelTh: string }[]
   unit: string
   autoGrade: boolean
   sourceText?: string
@@ -154,4 +159,81 @@ export function removeTemplateImage(templateId: string, nodeCode: string, key: s
 // evidence photos already go through (uploads.controller.ts's PRESIGN_KEY_PREFIXES).
 export function presignTemplateImage(key: string) {
   return api.get<{ url: string }>(`/uploads/presign?key=${encodeURIComponent(key)}`)
+}
+
+// ---- Session S3b, Part C — structural editing (DRAFT-only, enforced server-side). ----
+
+export type QuestionTypeSelector = 'presence' | 'presence_standard' | 'measured'
+
+export function cloneToDraft(templateId: string) {
+  return api.post<TemplateDetail>(`/admin/templates/${templateId}/clone-to-draft`, {})
+}
+
+export function editLabel(templateId: string, nodeCode: string, body: { labelTh: string; num?: string }) {
+  return api.patch<{ id: string; definition: ChecklistTemplateDefinition }>(
+    `/admin/templates/${templateId}/nodes/${encodeURIComponent(nodeCode)}/label`,
+    body,
+  )
+}
+
+export function reorderMeasurement(templateId: string, nodeCode: string, measurementKey: string, direction: 'up' | 'down') {
+  return api.patch<{ id: string; definition: ChecklistTemplateDefinition }>(
+    `/admin/templates/${templateId}/measurements/${encodeURIComponent(nodeCode)}/${encodeURIComponent(measurementKey)}/reorder`,
+    { direction },
+  )
+}
+
+export function setQuestionType(
+  templateId: string,
+  nodeCode: string,
+  body: { type: QuestionTypeSelector; confirmDowngrade?: boolean },
+) {
+  return api.patch<{ id: string; definition: ChecklistTemplateDefinition }>(
+    `/admin/templates/${templateId}/nodes/${encodeURIComponent(nodeCode)}/type`,
+    body,
+  )
+}
+
+// A NEW measurement (distinct from editMeasurement above, which edits one that already exists).
+export function addMeasurement(templateId: string, nodeCode: string, body: EditMeasurementBody) {
+  return api.post<{ id: string; definition: ChecklistTemplateDefinition; key: string }>(
+    `/admin/templates/${templateId}/measurements/${encodeURIComponent(nodeCode)}`,
+    body,
+  )
+}
+
+export interface AddChildBody {
+  labelTh: string
+  type: QuestionTypeSelector
+  threshold?: EditMeasurementBody
+  lawRefs?: string[]
+}
+
+export function addChildNode(templateId: string, parentCode: string, body: AddChildBody) {
+  return api.post<{ id: string; definition: ChecklistTemplateDefinition; code: string }>(
+    `/admin/templates/${templateId}/nodes/${encodeURIComponent(parentCode)}/children`,
+    body,
+  )
+}
+
+export function reorderNode(templateId: string, nodeCode: string, direction: 'up' | 'down') {
+  return api.patch<{ id: string; definition: ChecklistTemplateDefinition }>(
+    `/admin/templates/${templateId}/nodes/${encodeURIComponent(nodeCode)}/reorder`,
+    { direction },
+  )
+}
+
+export function deleteNode(templateId: string, nodeCode: string) {
+  return api.delete<{ id: string; definition: ChecklistTemplateDefinition }>(
+    `/admin/templates/${templateId}/nodes/${encodeURIComponent(nodeCode)}`,
+  )
+}
+
+// ---- Session S3b, Part D — lawRefs editing (DRAFT AND ACTIVE). ----
+
+export function editLawRefs(templateId: string, nodeCode: string, body: { lawRefs: string[]; beyondLaw: boolean }) {
+  return api.patch<{ id: string; definition: ChecklistTemplateDefinition }>(
+    `/admin/templates/${templateId}/nodes/${encodeURIComponent(nodeCode)}/law-refs`,
+    body,
+  )
 }

@@ -20,6 +20,11 @@ import { TemplatesAdminService } from './templates.service'
 import { EditMeasurementDto } from './dto/edit-measurement.dto'
 import { EditEraDto } from './dto/edit-era.dto'
 import { EditGuidanceDto } from './dto/edit-guidance.dto'
+import { SetQuestionTypeDto } from './dto/set-question-type.dto'
+import { AddChildDto } from './dto/add-child.dto'
+import { ReorderNodeDto } from './dto/reorder-node.dto'
+import { EditLawRefsDto } from './dto/edit-law-refs.dto'
+import { EditLabelDto } from './dto/edit-label.dto'
 
 interface AuthRequest extends Request {
   user: { id: string; username: string; role: string }
@@ -126,5 +131,106 @@ export class TemplatesAdminController {
   ) {
     if (req.user.role !== 'ADMIN') throw new ForbiddenException()
     return this.templates.removeImage(id, nodeCode, key, req.user.id)
+  }
+
+  // ---- Session S3b, Part C — structural editing (DRAFT-only; enforced in the service, not just
+  // here — see TemplatesAdminService.applyStructuralEdit). ----
+
+  @Post(':id/clone-to-draft')
+  cloneToDraft(@Param('id') id: string, @Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.templates.cloneToDraft(id, req.user.id)
+  }
+
+  @Patch(':id/nodes/:nodeCode/label')
+  editLabel(
+    @Param('id') id: string,
+    @Param('nodeCode') nodeCode: string,
+    @Body() body: EditLabelDto,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.templates.editLabel(id, nodeCode, body, req.user.id)
+  }
+
+  @Patch(':id/measurements/:nodeCode/:measurementKey/reorder')
+  reorderMeasurement(
+    @Param('id') id: string,
+    @Param('nodeCode') nodeCode: string,
+    @Param('measurementKey') measurementKey: string,
+    @Body() body: ReorderNodeDto,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.templates.reorderMeasurement(id, nodeCode, measurementKey, body, req.user.id)
+  }
+
+  @Patch(':id/nodes/:nodeCode/type')
+  setQuestionType(
+    @Param('id') id: string,
+    @Param('nodeCode') nodeCode: string,
+    @Body() body: SetQuestionTypeDto,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.templates.setQuestionType(id, nodeCode, body, req.user.id)
+  }
+
+  // A NEW measurement threshold (Part C.3) — distinct from PATCH .../measurements/:nodeCode/:key
+  // above (S3a, edits a threshold that already exists, still allowed on ACTIVE).
+  @Post(':id/measurements/:nodeCode')
+  addMeasurement(
+    @Param('id') id: string,
+    @Param('nodeCode') nodeCode: string,
+    @Body() body: EditMeasurementDto,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.templates.addMeasurement(id, nodeCode, body, req.user.id)
+  }
+
+  @Post(':id/nodes/:parentCode/children')
+  addChild(
+    @Param('id') id: string,
+    @Param('parentCode') parentCode: string,
+    @Body() body: AddChildDto,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.templates.addChild(id, parentCode, body, req.user.id)
+  }
+
+  @Patch(':id/nodes/:nodeCode/reorder')
+  reorderNode(
+    @Param('id') id: string,
+    @Param('nodeCode') nodeCode: string,
+    @Body() body: ReorderNodeDto,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.templates.reorderNode(id, nodeCode, body, req.user.id)
+  }
+
+  @Delete(':id/nodes/:nodeCode')
+  deleteNode(
+    @Param('id') id: string,
+    @Param('nodeCode') nodeCode: string,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.templates.deleteNode(id, nodeCode, req.user.id)
+  }
+
+  // ---- Session S3b, Part D — lawRefs editing (DRAFT AND ACTIVE). ----
+
+  @Patch(':id/nodes/:nodeCode/law-refs')
+  editLawRefs(
+    @Param('id') id: string,
+    @Param('nodeCode') nodeCode: string,
+    @Body() body: EditLawRefsDto,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.templates.editLawRefs(id, nodeCode, body, req.user.id)
   }
 }

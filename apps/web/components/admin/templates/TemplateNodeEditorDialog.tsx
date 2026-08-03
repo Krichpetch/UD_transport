@@ -7,6 +7,8 @@ import { DIALOG_HEADER_CLS, DIALOG_TITLE_CLS } from '@/lib/ui-classes'
 import { MeasurementEditor } from './MeasurementEditor'
 import { TemplateNodeImages } from './TemplateNodeImages'
 import { GuidanceEditor } from './GuidanceEditor'
+import { LawRefsEditor } from './LawRefsEditor'
+import { StructuralEditor } from './StructuralEditor'
 
 // Centered modal (same Dialog + fixed header/footer, scrollable middle pattern as
 // EditStationModal / the stations bulk-import dialog in stations/page.tsx) rather than a
@@ -93,9 +95,34 @@ export function TemplateNodeEditorDialog({
                     </div>
                   )}
 
-                  {(node.measurements ?? []).map((m) => (
-                    <MeasurementEditor key={m.key} templateId={templateId} nodeCode={node.code} measurement={m} readOnly={measurementsLocked} />
+                  {(node.measurements ?? []).map((m, i, arr) => (
+                    <MeasurementEditor
+                      key={m.key}
+                      templateId={templateId}
+                      nodeCode={node.code}
+                      measurement={m}
+                      readOnly={measurementsLocked}
+                      reorder={templateStatus === 'DRAFT' ? { isFirst: i === 0, isLast: i === arr.length - 1 } : undefined}
+                    />
                   ))}
+                </div>
+              )}
+
+              {/* Session S3b, Part D — editable on items AND leaves, DRAFT and ACTIVE both. */}
+              <LawRefsEditor templateId={templateId} node={node} readOnly={retired} />
+
+              {/* Session S3b, Part C.1 — structural editing is DRAFT-only; the server enforces
+                  this independently (STRUCTURE_EDIT_REQUIRES_DRAFT), this is just the UI gate. */}
+              {templateStatus === 'DRAFT' ? (
+                <StructuralEditor
+                  templateId={templateId}
+                  node={node}
+                  onNodeDeleted={onClose}
+                  onChildAdded={() => {}}
+                />
+              ) : !retired && (
+                <div className="bg-secondary/60 text-muted-foreground rounded-lg p-2.5 text-sm">
+                  โครงสร้างแก้ไขได้ในเวอร์ชันร่างเท่านั้น — สร้างเวอร์ชันร่างใหม่จากหน้ารายละเอียดแบบประเมินเพื่อแก้ไขโครงสร้าง
                 </div>
               )}
             </div>

@@ -112,6 +112,13 @@ model Station {
   // resolution — see @repo/types#resolveEra. Every change writes an AuditLog entry.
   yearBuilt         Int?
 
+  // Session S3b, Part A — marks a station as a practice/tutorial fixture, never a real
+  // inspection target. Always OUT_OF_SCOPE (seed-training-stations.ts enforces this), so most
+  // aggregates already exclude it via `scope`; queries that don't scope by IN_SCOPE (map nodes,
+  // summary counts, filter dropdowns, the auditor picker) filter on this flag explicitly instead —
+  // see StationsService/AdminService call sites tagged "Part A" for the full list.
+  isTraining        Boolean   @default(false)
+
   checklists Checklist[]
 
   // Station masterlist cutover — identity is (mode, name, line), never name alone: 30+ stations
@@ -219,6 +226,12 @@ model Checklist {
   gpsDistanceM      Float?
   locationVerified  Boolean?
   proximityBypassed Boolean?
+
+  // Session S3b, Part A — stamped from Station.isTraining at creation (saveDraft/submit), never
+  // recomputed afterward. A denormalized copy, not a derived read through `station`, so every
+  // aggregate that already filters Checklist rows directly (never joining Station) can exclude
+  // training data with one flat `where` clause instead of a join.
+  isTraining Boolean @default(false)
 }
 
 model AuditLog {

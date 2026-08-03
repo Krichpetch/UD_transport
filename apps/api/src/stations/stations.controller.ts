@@ -102,17 +102,30 @@ export class StationsController {
     @Query('limit')           limit?: string,
     @Query('sortBy')          sortBy?: string,
     @Query('sortOrder')       sortOrder?: string,
+    @Query('includeTraining') includeTraining?: string,
   ) {
     if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
     // The approval-state queue (SUBMITTED/REJECTED/APPROVED checklists) is an admin review tool.
     if (checklistStatus && req.user.role !== 'ADMIN') throw new ForbiddenException()
+    // Session S3b, Part A.4 — the "แสดงสถานีฝึกหัด" toggle is admin-only; an EXECUTIVE/AUDITOR
+    // caller can never surface training fixtures through this endpoint regardless of query string.
+    if (includeTraining === '1' && req.user.role !== 'ADMIN') throw new ForbiddenException()
     return this.stations.findAll({
       mode, railSubtype, region, province, responsibleAgency, status, checklistStatus, search, subItem,
       page:      page      ? parseInt(page,  10) : 1,
       limit:     limit     ? parseInt(limit, 10) : 20,
       sortBy,
       sortOrder: sortOrder === 'desc' ? 'desc' : 'asc',
+      includeTraining: includeTraining === '1',
     })
+  }
+
+  // Must come before @Get(':id') to avoid route conflict.
+  // Session S3b, Part A.5 — the 5 fixed tutorial stations for the auditor home's "แบบฝึกหัด" section.
+  @Get('training-stations')
+  trainingStations(@Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    return this.stations.findTrainingStations()
   }
 
   @Get('filters')
@@ -125,15 +138,17 @@ export class StationsController {
   @Get('search')
   search(
     @Req() req: AuthRequest,
-    @Query('q')     q?: string,
-    @Query('mode')  mode?: string,
-    @Query('limit') limit?: string,
-    @Query('page')  page?: string,
+    @Query('q')           q?: string,
+    @Query('mode')        mode?: string,
+    @Query('railSubtype') railSubtype?: string,
+    @Query('limit')       limit?: string,
+    @Query('page')        page?: string,
   ) {
     if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
     return this.stations.searchSlim({
       q,
       mode,
+      railSubtype,
       limit: limit ? Math.min(parseInt(limit, 10), 50) : 20,
       page:  page  ? parseInt(page, 10) : 1,
     })

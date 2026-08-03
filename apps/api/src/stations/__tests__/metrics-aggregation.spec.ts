@@ -164,6 +164,8 @@ describe('StationsService.computeMetrics', () => {
 
     expect(stationFindMany.mock.calls[0][0].where).toEqual({
       mode: 'ทางราง', railSubtype: 'รถไฟฟ้า', region: 'กลาง', province: 'กรุงเทพมหานคร', responsibleAgency: 'การรถไฟฟ้าขนส่งมวลชนแห่งประเทศไทย (รฟม.)',
+      // Session S3b, Part A.4 — every computeMetrics call excludes training fixtures.
+      isTraining: false,
     })
   })
 

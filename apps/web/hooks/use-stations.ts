@@ -15,6 +15,7 @@ import {
   setItemFlag,
   getStationMetrics,
   getStationMapNodes,
+  getTrainingStations,
   type CreateStationInput,
   type UpdateStationInput,
   type StationFilters,
@@ -36,6 +37,7 @@ export function useStations(filters?: StationFilters) {
     limit:           filters?.limit,
     sortBy:          filters?.sortBy,
     sortOrder:       filters?.sortOrder,
+    includeTraining: filters?.includeTraining,
   }
   return useQuery({
     queryKey: ['stations', f],
@@ -117,6 +119,15 @@ export function useUpdateYearBuilt() {
       void qc.invalidateQueries({ queryKey: ['station', vars.id] })
       void qc.invalidateQueries({ queryKey: ['checklist', vars.id, 'template'] })
     },
+  })
+}
+
+// Session S3b, Part A.5 — the 5 fixed tutorial stations for the auditor home's "แบบฝึกหัด" section.
+export function useTrainingStations() {
+  return useQuery({
+    queryKey: ['stations', 'training'],
+    queryFn: getTrainingStations,
+    staleTime: 5 * 60 * 1000,
   })
 }
 

@@ -317,6 +317,7 @@ export default function StationsPage() {
 }
 
 function StationsPageContent() {
+  const user = useAuthStore((s) => s.user)
   // Filters — declared before useStations so they can be passed as params
   // `search` is the live input value (updates every keystroke, keeps focus/UI responsive);
   // `debouncedSearch` is what actually drives the query, ~300ms after typing stops.
@@ -335,6 +336,8 @@ function StationsPageContent() {
   const [sortBy, setSortBy] = React.useState<SortableCol>('nameTh')
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('asc')
   const [excelExporting, setExcelExporting] = React.useState(false)
+  // Session S3b, Part A.4 — hidden by default; training fixtures are never real audit targets.
+  const [includeTraining, setIncludeTraining] = React.useState(false)
 
   React.useEffect(() => {
     const t = setTimeout(() => {
@@ -381,6 +384,7 @@ function StationsPageContent() {
     limit:     PAGE_SIZE,
     sortBy,
     sortOrder,
+    includeTraining,
   })
   const stations = stationsPage?.data ?? []
   const total = stationsPage?.total ?? 0
@@ -859,6 +863,19 @@ function StationsPageContent() {
               ล้างตัวกรอง
             </button>
           )}
+          {/* Session S3b, Part A.4 — admin-only; the server 403s an EXECUTIVE/AUDITOR caller that
+              somehow sends includeTraining=1 regardless of this UI. */}
+          {user?.role === 'ADMIN' && (
+            <label className="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={includeTraining}
+                onChange={(e) => { setIncludeTraining(e.target.checked); setPage(1) }}
+                className="size-3.5 rounded border-input"
+              />
+              แสดงสถานีฝึกหัด
+            </label>
+          )}
         </div>
       </div>
 
@@ -946,6 +963,11 @@ function StationsPageContent() {
                           {hasPending && (
                             <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
                               รอรีวิว
+                            </span>
+                          )}
+                          {station.isTraining && (
+                            <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+                              ฝึกหัด
                             </span>
                           )}
                         </div>

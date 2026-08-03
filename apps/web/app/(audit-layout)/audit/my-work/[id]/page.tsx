@@ -88,7 +88,14 @@ export default function MyWorkDetailPage() {
       </button>
 
       <div className="rounded-xl bg-white p-4 shadow-sm">
-        <h1 className="text-sm font-bold text-foreground">{data.station.nameTh}</h1>
+        <div className="flex items-center gap-1.5">
+          <h1 className="text-sm font-bold text-foreground">{data.station.nameTh}</h1>
+          {data.isTraining && (
+            <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent">
+              ฝึกหัด
+            </span>
+          )}
+        </div>
         <p className="mt-0.5 text-xs text-muted-foreground">
           {data.station.mode}{data.station.railSubtype ? ` — ${data.station.railSubtype}` : ''} · {data.station.province ?? 'ไม่ระบุ'}
         </p>

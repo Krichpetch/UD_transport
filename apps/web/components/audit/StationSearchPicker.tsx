@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { Search, X, Loader2, ChevronRight, ChevronLeft, Bus, Train, TrainFront, Ship, Plane, LocateFixed, MapPin } from 'lucide-react'
+import { RAIL_SUBTYPES } from '@repo/types'
 import type { TransportMode, RailSubtype } from '@repo/types'
 import { searchStations, getNearbyStations } from '@/lib/api/stations'
 import type { StationSearchResult, NearbyStation } from '@/lib/api/stations'
@@ -19,7 +20,7 @@ const MODE_TABS: ModeTab[] = [
   { label: 'ทางอากาศ', value: 'ทางอากาศ' },
 ]
 
-function ModeIcon({ mode, railSubtype, size = 14 }: {
+export function ModeIcon({ mode, railSubtype, size = 14 }: {
   mode: string; railSubtype?: string; size?: number
 }) {
   const cls = 'shrink-0'
@@ -58,6 +59,9 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
   const [tab, setTab]               = React.useState<PickerTab>('search')
   const [query, setQuery]           = React.useState('')
   const [mode, setMode]             = React.useState<TransportMode | ''>('')
+  // Session S3b, Part B — mirrors the F2 admin rail subtype filter; only shown/sent when
+  // mode === 'ทางราง', cleared whenever mode changes (see the mode-chip onClick below).
+  const [railSubtype, setRailSubtype] = React.useState<RailSubtype | ''>('')
   const [results, setResults]       = React.useState<StationSearchResult[]>([])
   const [loading, setLoading]       = React.useState(false)
   const [page, setPage]             = React.useState(1)
@@ -78,6 +82,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
     }
     setTab('search')
     setQuery('')
+    setRailSubtype('')
     setResults([])
     setTotal(0)
     setTotalPages(1)
@@ -114,7 +119,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
   // Reset to page 1 when search terms change
   React.useEffect(() => {
     setPage(1)
-  }, [query, mode])
+  }, [query, mode, railSubtype])
 
   // Scroll list to top on page change
   React.useEffect(() => {
@@ -134,7 +139,13 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
       const ctrl = new AbortController()
       abortRef.current = ctrl
 
-      searchStations({ q: q || undefined, mode: mode || undefined, limit: PAGE_SIZE, page }, ctrl.signal)
+      searchStations({
+        q: q || undefined,
+        mode: mode || undefined,
+        railSubtype: mode === 'ทางราง' ? (railSubtype || undefined) : undefined,
+        limit: PAGE_SIZE,
+        page,
+      }, ctrl.signal)
         .then((res) => {
           if (ctrl.signal.aborted) return
           setResults(res.data)
@@ -153,7 +164,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
     }, delay)
 
     return () => clearTimeout(timer)
-  }, [query, mode, page, open])
+  }, [query, mode, railSubtype, page, open])
 
   function handleSelect(id: string) {
     onSelect(id)
@@ -265,7 +276,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
                 {MODE_TABS.map((modeTab) => (
                   <button
                     key={modeTab.value}
-                    onClick={() => setMode(modeTab.value)}
+                    onClick={() => { setMode(modeTab.value); setRailSubtype('') }}
                     className={`flex shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
                       mode === modeTab.value
                         ? 'bg-primary text-primary-foreground'
@@ -280,6 +291,37 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
                   </button>
                 ))}
               </div>
+
+              {/* Session S3b, Part B — rail subtype chips, same values/labels as the F2 admin
+                  filter (RAIL_SUBTYPES). Only meaningful/shown alongside mode='ทางราง'. */}
+              {mode === 'ทางราง' && (
+                <div className="flex gap-2 overflow-x-auto bg-white px-4 pb-3 [scrollbar-none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  <button
+                    onClick={() => setRailSubtype('')}
+                    className={`flex shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                      railSubtype === ''
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-secondary-foreground'
+                    }`}
+                  >
+                    ทุกประเภทย่อย
+                  </button>
+                  {RAIL_SUBTYPES.map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setRailSubtype(r)}
+                      className={`flex shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                        railSubtype === r
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary text-secondary-foreground'
+                      }`}
+                    >
+                      <ModeIcon mode="ทางราง" railSubtype={r} size={11} />
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              )}
             </>
           )}
 

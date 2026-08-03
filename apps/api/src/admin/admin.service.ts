@@ -93,8 +93,12 @@ export class AdminService {
       approximateOrPendingCoordsCount,
       activeAuditorRows,
     ] = await Promise.all([
+      // Session S3b, Part A.4 — every checklist/station count on this dashboard excludes training
+      // fixtures (isTraining:false on checklists; a training station also always carries
+      // scope=OUT_OF_SCOPE and coordStatus=PENDING by construction, but isTraining:false is added
+      // explicitly rather than relying on that, same as every other aggregate touched this part).
       this.prisma.checklist.findMany({
-        where: { status: 'SUBMITTED' },
+        where: { status: 'SUBMITTED', isTraining: false },
         select: {
           id: true,
           stationId: true,
@@ -104,7 +108,7 @@ export class AdminService {
         },
       }),
       this.prisma.checklist.findMany({
-        where: { status: { in: [...LATEST_CHECKLIST_STATUSES] } },
+        where: { status: { in: [...LATEST_CHECKLIST_STATUSES] }, isTraining: false },
         select: {
           stationId: true,
           status: true,
@@ -117,11 +121,11 @@ export class AdminService {
         distinct: ['stationId', 'auditorId'],
         orderBy: [{ stationId: 'asc' }, { auditorId: 'asc' }, { submittedAt: 'desc' }],
       }),
-      this.prisma.checklist.count({ where: { submittedAt: { gte: since7d } } }),
-      this.prisma.station.count({ where: { scope: 'IN_SCOPE', checklists: { none: {} } } }),
-      this.prisma.station.count({ where: { coordStatus: { in: ['APPROXIMATE', 'PENDING'] } } }),
+      this.prisma.checklist.count({ where: { submittedAt: { gte: since7d }, isTraining: false } }),
+      this.prisma.station.count({ where: { scope: 'IN_SCOPE', isTraining: false, checklists: { none: {} } } }),
+      this.prisma.station.count({ where: { coordStatus: { in: ['APPROXIMATE', 'PENDING'] }, isTraining: false } }),
       this.prisma.checklist.findMany({
-        where: { updatedAt: { gte: since7d } },
+        where: { updatedAt: { gte: since7d }, isTraining: false },
         select: { auditorId: true },
         distinct: ['auditorId'],
       }),

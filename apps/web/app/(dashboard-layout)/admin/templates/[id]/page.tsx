@@ -2,12 +2,12 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import type { TemplateNode } from '@repo/types'
 import { indexTemplateNodesByCode } from '@repo/types'
-import { ArrowLeft, Download, Loader2 } from 'lucide-react'
+import { ArrowLeft, Copy, Download, Loader2 } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
-import { useTemplateDetail } from '@/hooks/use-templates-admin'
+import { useCloneToDraft, useTemplateDetail } from '@/hooks/use-templates-admin'
 import { exportTemplate } from '@/lib/api/templates'
 import { TransportBadge } from '@/components/shared/badges'
 import { TemplateStatusBadge } from '@/components/admin/templates/TemplateStatusBadge'
@@ -26,9 +26,20 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
   const { id } = React.use(params)
   const { data, isLoading, error } = useTemplateDetail(id)
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const cloneToDraft = useCloneToDraft()
 
   const [selected, setSelected] = React.useState<{ node: TemplateNode; breadcrumb: string[] } | null>(null)
   const [exporting, setExporting] = React.useState(false)
+
+  // Session S3b, Part C.1 — "สร้างเวอร์ชันร่างใหม่": clones this ACTIVE template into a new
+  // (mode, variantKey, version+1) DRAFT row, then jumps straight there so the admin lands where
+  // structural editing is actually unlocked.
+  function handleCloneToDraft() {
+    cloneToDraft.mutate(id, {
+      onSuccess: (created) => router.push(`/admin/templates/${created.id}`),
+    })
+  }
 
   // Part B.3 review-queue "jump into the editor at that leaf" — ?node=<code> from the review
   // queue's row links auto-opens that node's editor sheet once the definition has loaded.
@@ -98,18 +109,38 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
             {data.notes && <p className="text-muted-foreground mt-1 truncate text-sm">{data.notes}</p>}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => void handleExport()}
-          disabled={exporting}
-          className="border-border bg-card hover:bg-secondary/60 flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-medium disabled:opacity-50"
-        >
-          {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-          ส่งออก JSON
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Session S3b, Part C.1 — the versioning gate's clone action; only ACTIVE templates
+              offer it (a DRAFT is already editable, RETIRED isn't part of this flow). */}
+          {data.status === 'ACTIVE' && (
+            <button
+              type="button"
+              onClick={handleCloneToDraft}
+              disabled={cloneToDraft.isPending}
+              className="border-border bg-card hover:bg-secondary/60 flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-medium disabled:opacity-50"
+              title="โครงสร้างแก้ไขได้ในเวอร์ชันร่างเท่านั้น"
+            >
+              {cloneToDraft.isPending ? <Loader2 size={15} className="animate-spin" /> : <Copy size={15} />}
+              สร้างเวอร์ชันร่างใหม่
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => void handleExport()}
+            disabled={exporting}
+            className="border-border bg-card hover:bg-secondary/60 flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-medium disabled:opacity-50"
+          >
+            {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+            ส่งออก JSON
+          </button>
+        </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-4">
+      {cloneToDraft.isError && (
+        <p className="text-xs text-red-500">{(cloneToDraft.error as Error).message}</p>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-5">
         <div className="bg-card border-border rounded-lg border p-4">
           <p className="text-muted-foreground text-xs uppercase">รายการ</p>
           <p className="text-foreground text-2xl font-bold">{data.summary.itemCount}</p>
@@ -127,6 +158,13 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
         <div className="bg-card border-border rounded-lg border p-4">
           <p className="text-muted-foreground text-xs uppercase">รายการตรวจที่ผูกกับแบบประเมินนี้</p>
           <p className="text-foreground text-2xl font-bold">{data.stampedChecklistCount}</p>
+        </div>
+        {/* Session S3b, Part D.3 — coverage indicator: tagged vs untagged lawRefs, live. */}
+        <div className="bg-card border-border rounded-lg border p-4">
+          <p className="text-muted-foreground text-xs uppercase">ระบุข้อยกเว้นทางกฎหมายแล้ว</p>
+          <p className="text-foreground text-2xl font-bold">
+            {data.summary.lawRefsTaggedCount}/{data.summary.lawRefsTaggedCount + data.summary.lawRefsUntaggedCount}
+          </p>
         </div>
       </div>
 

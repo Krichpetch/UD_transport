@@ -103,6 +103,11 @@ export class StationsService {
     limit?: number
     sortBy?: string
     sortOrder?: 'asc' | 'desc'
+    // Session S3b, Part A.4 — training stations are hidden from the admin stations list by
+    // default (they're fixtures, not real audit targets); an explicit "แสดงสถานีฝึกหัด" toggle
+    // sets this true to surface them for review/QA. Every OTHER caller of findAll (search
+    // dropdowns, checklist-status queue tabs) inherits the same default-excluded behavior.
+    includeTraining?: boolean
   }) {
     const page  = filters?.page  ?? 1
     const limit = Math.min(filters?.limit ?? 20, 100)
@@ -126,6 +131,7 @@ export class StationsService {
       ...(filters?.province          && { province:          filters.province }),
       ...(filters?.responsibleAgency && agencyWhere(filters.responsibleAgency)),
       ...(filters?.status            && { status:            filters.status }),
+      ...(!filters?.includeTraining  && { isTraining:        false }),
     }
 
     // Both resolved BEFORE the main where clause since each needs its own query. Station
@@ -250,6 +256,7 @@ export class StationsService {
   async getFilterOptions() {
     const [regions, provinces] = await Promise.all([
       this.prisma.station.findMany({
+        where: { isTraining: false },
         select: { region: true },
         distinct: ['region'],
         orderBy: { region: 'asc' },
@@ -257,7 +264,7 @@ export class StationsService {
       // IN_SCOPE only — the admin province filter shouldn't offer provinces that only exist
       // among OUT_OF_SCOPE rows.
       this.prisma.station.findMany({
-        where: { scope: 'IN_SCOPE' },
+        where: { scope: 'IN_SCOPE', isTraining: false },
         select: { province: true },
         distinct: ['province'],
         orderBy: { province: 'asc' },
@@ -279,18 +286,24 @@ export class StationsService {
     }
   }
 
-  async searchSlim(params: { q?: string; mode?: string; limit: number; page: number }) {
+  // Session S3b, Part B — railSubtype mirrors the F2 admin filter exactly (same values/labels,
+  // see @repo/types#RAIL_SUBTYPES): only meaningful alongside mode='ทางราง', ignored otherwise.
+  async searchSlim(params: { q?: string; mode?: string; railSubtype?: string; limit: number; page: number }) {
     const limit = Math.min(params.limit, 50)
     const page  = Math.max(params.page, 1)
     const q     = params.q?.trim()
     const where = {
       ...(params.mode && { mode: params.mode }),
+      ...(params.mode === 'ทางราง' && params.railSubtype && { railSubtype: params.railSubtype }),
       ...(q && {
         OR: [
           { nameTh:   { contains: q, mode: 'insensitive' as const } },
           { province: { contains: q, mode: 'insensitive' as const } },
         ],
       }),
+      // Session S3b, Part A.4 — the general auditor station picker never surfaces training
+      // fixtures; those are reached only through the dedicated "แบบฝึกหัด" section.
+      isTraining: false,
     }
     const [data, total] = await Promise.all([
       this.prisma.station.findMany({
@@ -307,6 +320,18 @@ export class StationsService {
 
   findOne(id: string) {
     return this.prisma.station.findUniqueOrThrow({ where: { id } })
+  }
+
+  // Session S3b, Part A.5 — backs the auditor home's "แบบฝึกหัด" section: the fixed set of
+  // practice stations (see seed-training-stations.ts), one per template type. Slim projection,
+  // same shape searchSlim already returns, ordered by mode so the 5 cards render in a stable
+  // sequence every time.
+  findTrainingStations() {
+    return this.prisma.station.findMany({
+      where: { isTraining: true },
+      select: { id: true, nameTh: true, mode: true, railSubtype: true },
+      orderBy: [{ mode: 'asc' }, { railSubtype: 'asc' }],
+    })
   }
 
   // Proximity search for the location-first auditor picker. PostGIS ST_DWithin/ST_Distance
@@ -555,8 +580,11 @@ export class StationsService {
   }
 
   async getPendingReviews(): Promise<string[]> {
+    // Session S3b, Part A.4 — a training checklist never rests at SUBMITTED (see
+    // ChecklistsService.submit's training branch), but isTraining:false is kept here explicitly
+    // rather than relying on that alone, matching every other review-queue-shaped query.
     const rows = await this.prisma.checklist.findMany({
-      where: { status: 'SUBMITTED' },
+      where: { status: 'SUBMITTED', isTraining: false },
       select: { stationId: true },
       distinct: ['stationId'],
     })
@@ -685,8 +713,10 @@ export class StationsService {
   // Reused by both the "all stations" and per-station export routes so there is
   // exactly one code path pulling real assessment results for exports.
   async findAllForExport(stationId?: string) {
+    // Session S3b, Part A.4 — training checklists finalize straight to APPROVED (see
+    // ChecklistsService.submit) but must never appear in an export.
     const checklists = await this.prisma.checklist.findMany({
-      where: { status: 'APPROVED', ...(stationId && { stationId }) },
+      where: { status: 'APPROVED', isTraining: false, ...(stationId && { stationId }) },
       include: { station: true },
       orderBy: [{ stationId: 'asc' }, { submittedAt: 'asc' }],
     })
@@ -725,6 +755,8 @@ export class StationsService {
       }),
       ...(filters.province          && { province:          filters.province }),
       ...(filters.responsibleAgency && agencyWhere(filters.responsibleAgency)),
+      // Session S3b, Part A.4 — training fixtures never count toward real facility metrics.
+      isTraining: false,
     }
 
     const stations = await this.prisma.station.findMany({
@@ -810,6 +842,8 @@ export class StationsService {
   // fine; what must never happen is the dashboard silently rendering a truncated subset.
   findMapNodes() {
     return this.prisma.station.findMany({
+      // Session S3b, Part A.4 — training fixtures never appear on the heatmap/map.
+      where: { isTraining: false },
       select: {
         id: true, name: true, nameTh: true, mode: true, railSubtype: true,
         province: true, region: true, responsibleAgency: true,
@@ -822,11 +856,12 @@ export class StationsService {
   }
 
   async summary() {
+    // Session S3b, Part A.4 — training fixtures never count toward the KPI cards.
     const [total, passing, needsImprovement, failing] = await Promise.all([
-      this.prisma.station.count(),
-      this.prisma.station.count({ where: { status: 'ผ่านมาตรฐาน' } }),
-      this.prisma.station.count({ where: { status: 'ต้องปรับปรุง' } }),
-      this.prisma.station.count({ where: { status: 'ไม่ผ่าน' } }),
+      this.prisma.station.count({ where: { isTraining: false } }),
+      this.prisma.station.count({ where: { status: 'ผ่านมาตรฐาน', isTraining: false } }),
+      this.prisma.station.count({ where: { status: 'ต้องปรับปรุง', isTraining: false } }),
+      this.prisma.station.count({ where: { status: 'ไม่ผ่าน', isTraining: false } }),
     ])
     return {
       totalStations: total,

@@ -79,6 +79,9 @@ export interface Station {
   // E-form redesign (Session E2, Part A) — Buddhist year, auditor-entered at confirm-to-start.
   // Nullable until an auditor first captures it; drives era resolution (see era-resolution.ts).
   yearBuilt?: number | null
+  // Session S3b, Part A — practice/tutorial fixture, never a real inspection target. Drives the
+  // client-side proximity-gate bypass (server-enforced regardless — see ChecklistsService.submit).
+  isTraining?: boolean
 }
 
 export interface KpiSummary {

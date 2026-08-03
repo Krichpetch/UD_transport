@@ -16,6 +16,8 @@ export interface StationFilters {
   limit?: number
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
+  // Session S3b, Part A.4 — admin-only "แสดงสถานีฝึกหัด" toggle; excluded by default.
+  includeTraining?: boolean
 }
 
 export interface ReviewChecklistSummary {
@@ -83,6 +85,7 @@ export function getStations(filters?: StationFilters) {
   if (filters?.limit)     params.set('limit',     String(filters.limit))
   if (filters?.sortBy)    params.set('sortBy',    filters.sortBy)
   if (filters?.sortOrder) params.set('sortOrder', filters.sortOrder)
+  if (filters?.includeTraining) params.set('includeTraining', '1')
   const qs = params.toString()
   return api.get<PaginatedStations>(`/stations${qs ? `?${qs}` : ''}`)
 }
@@ -252,14 +255,29 @@ export function getNearbyStations(lat: number, lng: number, limit = 20) {
   return api.get<NearbyStation[]>(`/stations/nearby?${p}`)
 }
 
+// Session S3b, Part B — railSubtype mirrors the F2 admin filter (RAIL_SUBTYPES, @repo/types):
+// only meaningful alongside mode='ทางราง'.
 export function searchStations(
-  params: { q?: string; mode?: string; limit?: number; page?: number },
+  params: { q?: string; mode?: string; railSubtype?: string; limit?: number; page?: number },
   signal?: AbortSignal,
 ): Promise<StationSearchPage> {
   const p = new URLSearchParams()
-  if (params.q)     p.set('q',     params.q)
-  if (params.mode)  p.set('mode',  params.mode)
+  if (params.q)           p.set('q',           params.q)
+  if (params.mode)        p.set('mode',        params.mode)
+  if (params.railSubtype) p.set('railSubtype', params.railSubtype)
   if (params.limit) p.set('limit', String(params.limit))
   if (params.page && params.page > 1) p.set('page', String(params.page))
   return api.get<StationSearchPage>(`/stations/search?${p}`, signal)
+}
+
+// Session S3b, Part A.5 — the 5 fixed tutorial stations for the auditor home's "แบบฝึกหัด" section.
+export interface TrainingStation {
+  id: string
+  nameTh: string
+  mode: string
+  railSubtype?: string
+}
+
+export function getTrainingStations() {
+  return api.get<TrainingStation[]>('/stations/training-stations')
 }

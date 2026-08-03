@@ -3,9 +3,9 @@
 import * as React from 'react'
 import type { TemplateMeasurement, TemplateTier, ThresholdOperator } from '@repo/types'
 import { LAW_REFERENCE_SEED } from '@repo/types'
-import { Check, Loader2, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, Loader2, Plus, Trash2 } from 'lucide-react'
 import { INPUT_CLS, SELECT_CLS } from '@/lib/ui-classes'
-import { useConfirmMeasurement, useEditEra, useEditMeasurement } from '@/hooks/use-templates-admin'
+import { useConfirmMeasurement, useEditEra, useEditMeasurement, useReorderMeasurement } from '@/hooks/use-templates-admin'
 
 const OPERATORS: ThresholdOperator[] = ['gte', 'lte', 'range', 'tiered']
 const OPERATOR_LABEL: Record<ThresholdOperator, string> = {
@@ -199,14 +199,20 @@ export function MeasurementEditor({
   nodeCode,
   measurement,
   readOnly,
+  reorder,
 }: {
   templateId: string
   nodeCode: string
   measurement: TemplateMeasurement
   readOnly: boolean
+  // Session S3b, Part C follow-up — display-order reorder (DRAFT-only; the caller only passes
+  // this when templateStatus === 'DRAFT', same gate as everything else in StructuralEditor).
+  // Safe regardless of position — scoring/era-resolution key by `measurement.key`, never index.
+  reorder?: { isFirst: boolean; isLast: boolean }
 }) {
   const editMeasurement = useEditMeasurement(templateId)
   const confirmMeasurement = useConfirmMeasurement(templateId)
+  const reorderMeasurement = useReorderMeasurement(templateId)
 
   const [operator, setOperator] = React.useState<ThresholdOperator>(measurement.operator)
   const [value, setValue] = React.useState<number | ''>(measurement.value ?? '')
@@ -235,7 +241,31 @@ export function MeasurementEditor({
   return (
     <div className="border-border bg-card rounded-xl border p-3">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-foreground font-mono text-xs font-semibold">{measurement.key}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-foreground font-mono text-xs font-semibold">{measurement.key}</span>
+          {reorder && (
+            <>
+              <button
+                type="button"
+                onClick={() => reorderMeasurement.mutate({ nodeCode, measurementKey: measurement.key, direction: 'up' })}
+                disabled={reorderMeasurement.isPending || reorder.isFirst}
+                title="เลื่อนขึ้น (ลำดับการแสดงผลในฟอร์มผู้ตรวจ)"
+                className="border-border rounded border p-0.5 disabled:opacity-30"
+              >
+                <ArrowUp size={10} />
+              </button>
+              <button
+                type="button"
+                onClick={() => reorderMeasurement.mutate({ nodeCode, measurementKey: measurement.key, direction: 'down' })}
+                disabled={reorderMeasurement.isPending || reorder.isLast}
+                title="เลื่อนลง (ลำดับการแสดงผลในฟอร์มผู้ตรวจ)"
+                className="border-border rounded border p-0.5 disabled:opacity-30"
+              >
+                <ArrowDown size={10} />
+              </button>
+            </>
+          )}
+        </div>
         <span
           className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
             measurement.confirmed ? 'bg-[#52aa4e]/10 text-[#52aa4e]' : 'bg-[#ffc107]/10 text-[#b38600]'

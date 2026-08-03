@@ -88,3 +88,90 @@ export function useRemoveTemplateImage(templateId: string) {
     onSuccess: invalidate,
   })
 }
+
+// ---- Session S3b, Part C — structural editing (DRAFT-only) ----
+
+// Cloning creates a NEW template row — invalidates the list (and its own future detail query,
+// once the caller navigates to it) rather than this template's own detail.
+export function useCloneToDraft() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (templateId: string) => templatesApi.cloneToDraft(templateId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: TEMPLATES_KEY, exact: true })
+    },
+  })
+}
+
+export function useEditLabel(templateId: string) {
+  const invalidate = useInvalidateAfterEdit(templateId)
+  return useMutation({
+    mutationFn: ({ nodeCode, labelTh, num }: { nodeCode: string; labelTh: string; num?: string }) =>
+      templatesApi.editLabel(templateId, nodeCode, { labelTh, num }),
+    onSuccess: invalidate,
+  })
+}
+
+export function useReorderMeasurement(templateId: string) {
+  const invalidate = useInvalidateAfterEdit(templateId)
+  return useMutation({
+    mutationFn: ({ nodeCode, measurementKey, direction }: { nodeCode: string; measurementKey: string; direction: 'up' | 'down' }) =>
+      templatesApi.reorderMeasurement(templateId, nodeCode, measurementKey, direction),
+    onSuccess: invalidate,
+  })
+}
+
+export function useSetQuestionType(templateId: string) {
+  const invalidate = useInvalidateAfterEdit(templateId)
+  return useMutation({
+    mutationFn: ({ nodeCode, type, confirmDowngrade }: { nodeCode: string; type: templatesApi.QuestionTypeSelector; confirmDowngrade?: boolean }) =>
+      templatesApi.setQuestionType(templateId, nodeCode, { type, confirmDowngrade }),
+    onSuccess: invalidate,
+  })
+}
+
+export function useAddMeasurement(templateId: string) {
+  const invalidate = useInvalidateAfterEdit(templateId)
+  return useMutation({
+    mutationFn: ({ nodeCode, body }: { nodeCode: string; body: templatesApi.EditMeasurementBody }) =>
+      templatesApi.addMeasurement(templateId, nodeCode, body),
+    onSuccess: invalidate,
+  })
+}
+
+export function useAddChildNode(templateId: string) {
+  const invalidate = useInvalidateAfterEdit(templateId)
+  return useMutation({
+    mutationFn: ({ parentCode, body }: { parentCode: string; body: templatesApi.AddChildBody }) =>
+      templatesApi.addChildNode(templateId, parentCode, body),
+    onSuccess: invalidate,
+  })
+}
+
+export function useReorderNode(templateId: string) {
+  const invalidate = useInvalidateAfterEdit(templateId)
+  return useMutation({
+    mutationFn: ({ nodeCode, direction }: { nodeCode: string; direction: 'up' | 'down' }) =>
+      templatesApi.reorderNode(templateId, nodeCode, direction),
+    onSuccess: invalidate,
+  })
+}
+
+export function useDeleteNode(templateId: string) {
+  const invalidate = useInvalidateAfterEdit(templateId)
+  return useMutation({
+    mutationFn: ({ nodeCode }: { nodeCode: string }) => templatesApi.deleteNode(templateId, nodeCode),
+    onSuccess: invalidate,
+  })
+}
+
+// ---- Session S3b, Part D — lawRefs editing (DRAFT AND ACTIVE) ----
+
+export function useEditLawRefs(templateId: string) {
+  const invalidate = useInvalidateAfterEdit(templateId)
+  return useMutation({
+    mutationFn: ({ nodeCode, lawRefs, beyondLaw }: { nodeCode: string; lawRefs: string[]; beyondLaw: boolean }) =>
+      templatesApi.editLawRefs(templateId, nodeCode, { lawRefs, beyondLaw }),
+    onSuccess: invalidate,
+  })
+}

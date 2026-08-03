@@ -28,6 +28,10 @@ export interface ChecklistRecord {
   respondsToChecklistId?: string | null
   templateVersion?: number | null
   template?: { variantKey: string } | null
+  // Session S3b, Part A — stamped from the station at creation; drives the ฝึกหัด badge on the
+  // history list/detail. Never affects scoring/display logic beyond that badge — the underlying
+  // record renders exactly like any other completed checklist.
+  isTraining?: boolean
 }
 
 export interface PaginatedChecklistHistory {
@@ -147,6 +151,8 @@ export interface MyChecklistRow {
   station: { nameTh: string; line?: string; mode: string; railSubtype: string | null; province: string | null }
   // Only populated for status === 'DRAFT' — server-computed from stored items, no template fetch.
   progress: { answered: number; total: number } | null
+  // Session S3b, Part A.5 — drives the ฝึกหัด badge on this list.
+  isTraining: boolean
 }
 
 export interface PaginatedMyChecklists {

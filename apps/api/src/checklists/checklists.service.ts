@@ -179,6 +179,12 @@ export class ChecklistsService {
   // is actually activated (out of scope this session — see Part A's decision note). Returns null
   // if no ACTIVE template exists at all yet (e.g. seed-templates.ts hasn't run) — callers degrade
   // gracefully rather than blocking submission on template metadata being present.
+  //
+  // Session S3b, Part A.3 — training stations resolve through this SAME method, with no
+  // special-casing: a tutorial always gets whatever template is currently ACTIVE for its
+  // (mode, railSubtype), never a hardcoded version. Today that's v1 everywhere; the moment a v2/
+  // v3 variant is activated for a mode, every tutorial of that type switches to it automatically,
+  // same as every real audit does.
   private async getActiveTemplate(mode: string, railSubtype?: string | null) {
     const { variantKey } = resolveVariantKey(mode as TransportMode, railSubtype)
     if (variantKey !== STANDARD_VARIANT_KEY) {
@@ -386,6 +392,8 @@ export class ChecklistsService {
             appliedYearBuilt,
             appliedLawRefs: appliedLawRefs === null ? Prisma.JsonNull : toJson(appliedLawRefs),
             finalThoughts: finalThoughts ?? null,
+            // Part A — stamped from the station at creation, never recomputed (see schema doc).
+            isTraining: station.isTraining,
           },
         })
       } catch (err) {
@@ -457,12 +465,17 @@ export class ChecklistsService {
       ? this.applyRedactionFlags(parsedGroups, resolvedDef)
       : parsedGroups
 
+    // Part A.2 — training stations skip the proximity gate entirely (server-enforced: this is
+    // Station.isTraining, never a client-supplied flag). locationVerified stays null rather than
+    // false so a training row is visibly distinct from a real "gate ran, coords unverified" case.
     const bypassAllowed = isProximityBypassActive()
 
     let distanceM: number | null = null
-    let locationVerified = false
+    let locationVerified: boolean | null = false
 
-    if (bypassAllowed) {
+    if (station.isTraining) {
+      locationVerified = null
+    } else if (bypassAllowed) {
       // Genuinely unverified — bypass skips the check, it doesn't fake a passing one.
       locationVerified = false
     } else if (station.coordStatus !== 'OK') {
@@ -502,7 +515,12 @@ export class ChecklistsService {
           appliedYearBuilt,
           appliedLawRefs: appliedLawRefs === null ? Prisma.JsonNull : toJson(appliedLawRefs),
           score,
-          status: 'SUBMITTED',
+          // Part A.2 — a training submission auto-finalizes straight to APPROVED, never resting
+          // at SUBMITTED: it must never appear in the admin review queue (every "pending review"
+          // query filters status=SUBMITTED), and skipping SUBMITTED entirely means the
+          // one-pending-SUBMITTED partial unique index is never engaged, so the same tutorial can
+          // be run again immediately (see the partial-index doc on the Checklist model).
+          status: station.isTraining ? 'APPROVED' : 'SUBMITTED',
           submittedAt: new Date(),
           templateId: template?.id,
           templateVersion: template?.version,
@@ -513,6 +531,7 @@ export class ChecklistsService {
           gpsDistanceM: distanceM,
           locationVerified,
           proximityBypassed: bypassAllowed,
+          isTraining: station.isTraining,
         },
       })
     } catch (err) {
@@ -600,7 +619,7 @@ export class ChecklistsService {
         select: {
           id: true, stationId: true, status: true,
           createdAt: true, updatedAt: true, submittedAt: true, reviewedAt: true, reviewNotes: true,
-          score: true, items: true,
+          score: true, items: true, isTraining: true,
           station: { select: { nameTh: true, line: true, mode: true, railSubtype: true, province: true } },
         },
       }),

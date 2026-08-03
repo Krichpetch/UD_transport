@@ -9,10 +9,11 @@ import { useUpdateYearBuilt } from '@/hooks/use-stations'
 import { computeScoreFromItems, buildHistogram, scoreToStatus } from '@repo/types'
 import {
   MapPin, Save, Send, Clock, User as UserIcon,
-  AlertTriangle, Loader2, X, FlaskConical, ChevronDown, ClipboardList,
+  AlertTriangle, Loader2, X, FlaskConical, ChevronDown, ClipboardList, GraduationCap,
 } from 'lucide-react'
 import Link from 'next/link'
 import { StationSearchPicker } from '@/components/audit/StationSearchPicker'
+import { TutorialSection } from '@/components/audit/TutorialSection'
 import { LeafAnswerRow } from '@/components/audit/LeafAnswerRow'
 import { V2ItemPage } from '@/components/audit/V2PagerForm'
 import { PageNavigatorTrigger, type NavigatorPage } from '@/components/audit/PageNavigator'
@@ -155,6 +156,19 @@ function RedactedFooter({ items }: { items: TemplateNode[] }) {
           ))}
         </ul>
       )}
+    </div>
+  )
+}
+
+// Session S3b, Part A.5 — informational-only banner while working a tutorial station; the
+// E-form/answering flow underneath is completely unchanged. Server-side, this is
+// Station.isTraining (never trust a client flag) — see ChecklistsService.submit's isTraining
+// branch for the actual proximity-skip/auto-finalize behavior this banner is just describing.
+function TrainingBanner() {
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 p-3 text-xs text-accent shadow-sm">
+      <GraduationCap size={14} className="shrink-0" />
+      <span>โหมดฝึกหัด — ไม่นับรวมในผลการตรวจสอบจริง ทำซ้ำได้ไม่จำกัด</span>
     </div>
   )
 }
@@ -344,8 +358,10 @@ export default function AuditPage() {
     // Preview never persists anything real (see the autosave/submit guards elsewhere on this
     // page) and the admin previewing it is essentially never standing at the actual station —
     // gating check-in on GPS proximity would just strand them on this screen with no way to see
-    // the form at all.
-    if (PROXIMITY_BYPASS || v2PreviewAllowed) {
+    // the form at all. Session S3b, Part A.2 — training stations skip the same way: the server
+    // ignores proximity entirely for isTraining (ChecklistsService.submit), so requiring a real
+    // GPS permission grant here would just block the tutorial on an unrelated device permission.
+    if (PROXIMITY_BYPASS || v2PreviewAllowed || station.isTraining) {
       setLocationUnverifiedMessage('')
       setCheckInStatus('ok')
       setCheckedIn(true)
@@ -437,9 +453,12 @@ export default function AuditPage() {
       <div className="space-y-4">
         {stationPicker}
         {!selectedId && user?.role === 'AUDITOR' && <MyWorkLink />}
-        <div className="rounded-xl bg-white p-6 text-center text-sm text-muted-foreground shadow-sm">
-          {!selectedId ? 'กรุณาเลือกสถานีเพื่อเริ่มการตรวจสอบ' : 'กำลังโหลด…'}
-        </div>
+        {!selectedId && user?.role === 'AUDITOR' && <TutorialSection onSelect={setSelectedId} />}
+        {selectedId && (
+          <div className="rounded-xl bg-white p-6 text-center text-sm text-muted-foreground shadow-sm">
+            กำลังโหลด…
+          </div>
+        )}
       </div>
     )
   }
@@ -464,6 +483,7 @@ export default function AuditPage() {
     return (
       <div className="space-y-4">
         {stationPicker}
+        {station.isTraining && <TrainingBanner />}
         <div className="rounded-xl bg-white p-6 shadow-sm">
           <p className="text-center text-lg font-bold text-foreground">ส่งรายงานสำเร็จ ✓</p>
           <p className="mt-1 text-center text-sm text-muted-foreground">{station.nameTh}</p>
@@ -524,6 +544,8 @@ export default function AuditPage() {
     return (
       <div className="space-y-4">
         {stationPicker}
+
+        {station.isTraining && <TrainingBanner />}
 
         {v2PreviewAllowed && (
           <>
@@ -668,6 +690,8 @@ export default function AuditPage() {
   return (
     <div className="space-y-4">
       {stationPicker}
+
+      {station.isTraining && <TrainingBanner />}
 
       {v2PreviewAllowed && (
         <>

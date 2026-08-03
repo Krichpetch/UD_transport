@@ -103,6 +103,14 @@ export default function MyWorkPage() {
                 <div className="flex items-center gap-1.5">
                   <p className="truncate text-sm font-medium text-foreground">{row.station.nameTh}</p>
                   {statusBadge(row.status)}
+                  {/* Session S3b, Part A.5 — completed tutorials are read-only history, like any
+                      other completed work, just visibly marked so they're never mistaken for a
+                      real audit. */}
+                  {row.isTraining && (
+                    <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent">
+                      ฝึกหัด
+                    </span>
+                  )}
                 </div>
                 <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                   {modeLabel(row.station.mode, row.station.railSubtype)}
@@ -120,6 +128,9 @@ export default function MyWorkPage() {
                     <span className="flex items-center gap-0.5 text-[10px] font-medium text-red-600">
                       <RotateCcw size={10} /> ต้องแก้ไข
                     </span>
+                  )}
+                  {(row.status === 'APPROVED' || row.status === 'SUBMITTED') && row.score != null && (
+                    <span className="text-[10px] font-medium text-foreground">คะแนน {row.score}%</span>
                   )}
                 </div>
               </div>
