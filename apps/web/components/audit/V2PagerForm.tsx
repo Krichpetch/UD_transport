@@ -3,7 +3,7 @@
 import * as React from 'react'
 import type { TemplateNode } from '@repo/types'
 import { useAuditFormStore } from '@/stores/audit-form.store'
-import { computeContainerStatus, collectLeafCodes, collectLeaves, absentPatchFor, NA_CASCADE_PATCH, isNodeFullyRedacted } from '@/lib/audit-form'
+import { computeContainerStatus, collectLeafCodes, collectLeaves, absentPatchFor, isNodeFullyRedacted } from '@/lib/audit-form'
 import { LeafAnswerRow } from '@/components/audit/LeafAnswerRow'
 import { NodeReferenceImages } from '@/components/audit/NodeReferenceImages'
 
@@ -30,17 +30,23 @@ function deriveChoice(status: ReturnType<typeof computeContainerStatus>): Contai
   return null
 }
 
-// A pure container (no own answerType, e.g. ทางลาด holding A1.1-1/-2/-3) — a real 3-way มี/ไม่มี/
-// ไม่เกี่ยวข้อง choice. Part A default: every descendant is VISIBLE from the start (nothing hidden
-// behind an unanswered parent) — only ไม่เกี่ยวข้อง collapses the subtree; ไม่มี keeps children
-// visible showing the auto-filled ไม่มี answer, inputs disabled.
+// A pure container (no own answerType, e.g. ทางลาด holding A1.1-1/-2/-3) — a 2-way มี/ไม่มี choice.
+//
+// Session F3, Part B — the third ไม่เกี่ยวข้อง button was REMOVED (สนข. 2026-08-03, Dr.Aliz;
+// audit team confirmed ไม่มี is used in its place). Nothing here can write 'N/A' any more.
+//
+// Part A default: every descendant is VISIBLE from the start (nothing hidden behind an unanswered
+// parent); ไม่มี keeps children visible showing the auto-filled ไม่มี answer, inputs disabled.
 //   - มี: children enabled for normal filling.
 //   - ไม่มี: every descendant leaf auto-fills as a REAL ไม่มี answer (Part A.3 — counts against
-//     การจัดให้มีฯ, not excluded like N/A); visible, disabled.
-//   - ไม่เกี่ยวข้อง: the whole subtree collapses; every descendant becomes N/A (excluded from every
-//     denominator — unchanged from the E2-era behavior).
+//     การจัดให้มีฯ, deliberately NOT excluded the way N/A was); visible, disabled.
 // Toggling back to มี restores each descendant's pre-cascade answer from the store's stash (Part
-// A.5) — never the auto-filled/N/A value overwriting a real prior manual answer.
+// A.5) — never the auto-filled value overwriting a real prior manual answer.
+//
+// `childrenCollapsed` still honours a derived ไม่เกี่ยวข้อง, which is now reachable ONLY from
+// stored data — a pre-F3 draft, or a REJECTED checklist returned for fixes, whose descendants are
+// all N/A. Neither button lights up in that state, and clicking มี releases the subtree. Dropping
+// this branch would strand such a draft with a permanently collapsed, unanswerable subtree.
 function ContainerNode({ node, breadcrumb, disabled }: { node: TemplateNode; breadcrumb: string[]; disabled: boolean }) {
   const answers = useAuditFormStore((s) => s.answers)
   const stashAndCascade = useAuditFormStore((s) => s.stashAndCascade)
@@ -52,25 +58,21 @@ function ContainerNode({ node, breadcrumb, disabled }: { node: TemplateNode; bre
   const childBreadcrumb = [...breadcrumb, node.labelTh]
 
   function selectPresent() {
-    // Only a real transition out of ไม่มี/ไม่เกี่ยวข้อง needs restoring — clicking มี while already
-    // มี/บางส่วน/unanswered has nothing cascaded to undo.
+    // Only a real transition out of ไม่มี (or a legacy ไม่เกี่ยวข้อง) needs restoring — clicking มี
+    // while already มี/บางส่วน/unanswered has nothing cascaded to undo.
     if (choice === 'ไม่มี' || choice === 'ไม่เกี่ยวข้อง') restoreStash(collectLeafCodes(node))
   }
   function selectAbsent() {
     const leaves = collectLeaves(node)
     stashAndCascade(Object.fromEntries(leaves.map((l) => [l.code, absentPatchFor(l)])))
   }
-  function selectNA() {
-    const codes = collectLeafCodes(node)
-    stashAndCascade(Object.fromEntries(codes.map((c) => [c, NA_CASCADE_PATCH])))
-  }
 
   return (
     <div className={disabled ? 'pointer-events-none opacity-40' : ''}>
       <p className="px-4 pt-2.5 text-xs font-semibold text-gray-600">{node.num ? `${node.num}. ` : ''}{node.labelTh}</p>
-      {/* Reference images (W2-S3a Part D) — after the category name, before the มี/ไม่มี/
-          ไม่เกี่ยวข้อง choices. This is the common case: most admin-attached images live at this
-          AX.X container level, not drilled down into individual sub-criteria. */}
+      {/* Reference images (W2-S3a Part D) — after the category name, before the มี/ไม่มี choices.
+          This is the common case: most admin-attached images live at this AX.X container level,
+          not drilled down into individual sub-criteria. */}
       <NodeReferenceImages node={node} className="px-4 pb-2" />
       <div className="flex gap-2 px-4 pb-2.5 pt-1.5">
         <button
@@ -84,12 +86,6 @@ function ContainerNode({ node, breadcrumb, disabled }: { node: TemplateNode; bre
           className={`flex-1 rounded-lg border py-1.5 text-xs font-medium transition-all ${choice === 'ไม่มี' ? 'border-red-200 bg-red-50 text-red-700' : INACTIVE}`}
         >
           ไม่มี
-        </button>
-        <button
-          onClick={selectNA}
-          className={`flex-1 rounded-lg border py-1.5 text-xs font-medium transition-all ${choice === 'ไม่เกี่ยวข้อง' ? 'border-gray-300 bg-gray-100 text-gray-600' : INACTIVE}`}
-        >
-          ไม่เกี่ยวข้อง
         </button>
       </div>
       {!childrenCollapsed && node.subItems && (
@@ -106,9 +102,10 @@ function ContainerNode({ node, breadcrumb, disabled }: { node: TemplateNode; bre
 }
 
 // An answerable criterion that ALSO carries its own finer subItems (a "hybrid" node — its own
-// มี/ไม่มี/ไม่เกี่ยวข้อง answer lives in LeafAnswerRow, which cascades onto these children exactly
-// like ContainerNode's buttons do — see LeafAnswerRow's handleSetAnswer). Part A default: children
-// always visible; only ไม่เกี่ยวข้อง (N/A) collapses them, ไม่มี keeps them visible+disabled.
+// มี/ไม่มี answer lives in LeafAnswerRow, which cascades onto these children exactly like
+// ContainerNode's buttons do — see LeafAnswerRow's handleSetAnswer). Part A default: children
+// always visible; ไม่มี keeps them visible+disabled. Session F3, Part B: a stored (legacy) N/A
+// still collapses them, but is no longer reachable from the form — see ContainerNode's doc.
 function LeafNode({ node, breadcrumb, disabled }: { node: TemplateNode; breadcrumb: string[]; disabled: boolean }) {
   const answer = useAuditFormStore((s) => s.answers[node.code])
   const isAbsent = node.answerType === 'choice' ? answer?.value === 'ไม่มี' : answer?.present === false

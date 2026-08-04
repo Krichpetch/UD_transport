@@ -20,9 +20,15 @@ export function NodeReferenceImages({ node, className }: { node: TemplateNode; c
     .filter((p) => p.url)
   if (photos.length === 0) return null
 
+  // Session F3, Part E — the 'reference' variant: large, all images visible, object-contain, same
+  // tap-to-zoom lightbox. These are instructions the auditor reads at a glance in the field, not
+  // evidence thumbnails to be inspected on demand — the evidence gallery keeps its own look.
   return (
     <div className={className}>
-      <ChecklistPhotoGallery photos={photos} />
+      <ChecklistPhotoGallery photos={photos} variant="reference" />
+      {photos.length > 1 && (
+        <p className="mt-1 text-[10px] text-muted-foreground">แตะที่รูปเพื่อขยาย ({photos.length} รูป)</p>
+      )}
     </div>
   )
 }

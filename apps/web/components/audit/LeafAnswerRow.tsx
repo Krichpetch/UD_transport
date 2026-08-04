@@ -4,7 +4,7 @@ import * as React from 'react'
 import { CheckCircle2, CheckSquare, Square, StickyNote, Ruler } from 'lucide-react'
 import type { TemplateNode, ChecklistValue, ChecklistPhoto } from '@repo/types'
 import { deriveMeasuredStandard, ratioLengthKey, ratioHeightKey } from '@repo/types'
-import { isLeafAnswered, collectLeafCodes, collectLeaves, absentPatchFor, NA_CASCADE_PATCH } from '@/lib/audit-form'
+import { isLeafAnswered, collectLeafCodes, collectLeaves, absentPatchFor } from '@/lib/audit-form'
 import { useAuditFormStore } from '@/stores/audit-form.store'
 import { PhotoPicker } from '@/components/audit/PhotoPicker'
 import { ThresholdModalTrigger } from '@/components/audit/ThresholdModal'
@@ -17,10 +17,13 @@ import { useDeleteChecklistPhoto } from '@/hooks/use-checklists'
 // button implementation to keep in sync). `disabled` is set by a parent container's own ไม่มี
 // answer (Part C.5) — the child's answer is preserved in the store either way, only the controls
 // stop responding.
+// Session F3, Part B — 2-way มี/ไม่มี. The ไม่เกี่ยวข้อง option was removed per สนข. 2026-08-03
+// (Dr.Aliz), confirmed by the audit team: auditors answer with ไม่มี only. 'N/A' remains a valid
+// stored ChecklistValue and is still read/rendered/scored everywhere — it simply can no longer be
+// WRITTEN from this form.
 const CHOICE_OPTIONS: { value: ChecklistValue; label: string; active: string }[] = [
-  { value: 'มี',    label: 'มี',            active: 'border-blue-300 bg-blue-50 text-blue-700' },
-  { value: 'ไม่มี', label: 'ไม่มี',         active: 'border-red-200 bg-red-50 text-red-700' },
-  { value: 'N/A',  label: 'ไม่เกี่ยวข้อง', active: 'border-gray-200 bg-gray-50 text-gray-600' },
+  { value: 'มี',    label: 'มี',    active: 'border-blue-300 bg-blue-50 text-blue-700' },
+  { value: 'ไม่มี', label: 'ไม่มี', active: 'border-red-200 bg-red-50 text-red-700' },
 ]
 const INACTIVE = 'border-border bg-white text-muted-foreground'
 
@@ -82,9 +85,18 @@ export function LeafAnswerRow({ node, disabled = false, breadcrumb }: {
 
   // Session F1, Part A — when this leaf ALSO carries its own subItems (a "hybrid" answerable
   // container, e.g. air's "โถส้วม" B4.1-7), changing ITS OWN answer cascades onto every descendant
-  // exactly like a pure ContainerNode's มี/ไม่มี/ไม่เกี่ยวข้อง buttons (V2PagerForm.tsx) — same store
+  // exactly like a pure ContainerNode's มี/ไม่มี buttons (V2PagerForm.tsx) — same store
   // actions, so restore-on-toggle-back behaves identically either way. No-op for a leaf with no
   // subItems, which is every v1 leaf by construction (v1 has no nested criteria at all).
+  //
+  // Session F3, Part B — reduced to the ไม่มี <-> มี chain. The ไม่เกี่ยวข้อง rung is gone with the
+  // button: nothing here can write 'N/A' any more.
+  //
+  // `wasNA` is deliberately KEPT in the restore condition even though nothing writes it: a draft
+  // resumed from before F3 (or a REJECTED checklist returned for fixes) can still carry a stored
+  // N/A on this node. Clicking มี on such a node must still un-cascade its subtree, or a legacy
+  // draft would be stranded with children it can no longer release. That is a READ of legacy
+  // state, not a write path.
   function handleSetAnswer(code: string, patch: Record<string, unknown>) {
     const wasAbsent = node.answerType === 'choice' ? answer!.value === 'ไม่มี' : answer!.present === false
     const wasNA = answer!.value === 'N/A'
@@ -92,13 +104,10 @@ export function LeafAnswerRow({ node, disabled = false, breadcrumb }: {
     if (!node.subItems || node.subItems.length === 0) return
 
     const becomesAbsent = ('value' in patch && patch.value === 'ไม่มี') || ('present' in patch && patch.present === false)
-    const becomesNA = 'value' in patch && patch.value === 'N/A'
     if (becomesAbsent) {
       stashAndCascade(Object.fromEntries(collectLeaves(node).map((l) => [l.code, absentPatchFor(l)])))
-    } else if (becomesNA) {
-      stashAndCascade(Object.fromEntries(collectLeafCodes(node).map((c) => [c, NA_CASCADE_PATCH])))
     } else if (wasAbsent || wasNA) {
-      // Leaving ไม่มี/ไม่เกี่ยวข้อง — back to มี, or toggled off to unanswered — restore either way.
+      // Leaving ไม่มี (or a legacy ไม่เกี่ยวข้อง) — back to มี, or toggled off to unanswered.
       restoreStash(collectLeafCodes(node))
     }
   }
@@ -233,10 +242,17 @@ function ChoiceControl({ node, value, meetsStandard, setAnswer }: {
   )
 }
 
-// mี/ไม่มี/ไม่เกี่ยวข้อง — 3-way, mutually exclusive (Session E2 follow-up: some v2 criteria are
-// mutually-exclusive alternatives, e.g. three ramp-length bands where only one applies; the other
-// two get marked ไม่เกี่ยวข้อง). `present` and `value` ('N/A' or null) are kept mutually exclusive
-// by construction here — selecting ไม่เกี่ยวข้อง clears `present`; selecting มี/ไม่มี clears `value`.
+// มี/ไม่มี — 2-way, mutually exclusive.
+//
+// Session F3, Part B — the third ไม่เกี่ยวข้อง button was REMOVED (สนข. 2026-08-03, Dr.Aliz;
+// confirmed by the audit team: ไม่มี is used in its place). Session E2 had introduced it for
+// mutually-exclusive criteria such as the three ramp-length bands where only one physically
+// applies; those are now answered ไม่มี like anything else.
+//
+// `isNa` is still READ, and is why neither button lights up for a node whose stored value is
+// 'N/A': a resumed pre-F3 draft (or a REJECTED checklist returned for fixes) can carry one, and
+// showing it as มี or ไม่มี would misrepresent what the auditor actually recorded. Picking either
+// button clears it, which is how such a node gets migrated onto the 2-way model.
 function PresenceControl({ code, present, value, setAnswer }: {
   code: string
   present: boolean | null
@@ -257,12 +273,6 @@ function PresenceControl({ code, present, value, setAnswer }: {
         className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-all ${present === false && !isNa ? 'border-red-200 bg-red-50 text-red-700' : INACTIVE}`}
       >
         ไม่มี
-      </button>
-      <button
-        onClick={() => setAnswer(code, { present: null, value: isNa ? null : 'N/A' })}
-        className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-all ${isNa ? 'border-gray-300 bg-gray-100 text-gray-600' : INACTIVE}`}
-      >
-        ไม่เกี่ยวข้อง
       </button>
     </div>
   )

@@ -225,6 +225,11 @@ export default function AuditPage() {
 
   // ── Check-in gate (Screen B) — confirm-to-start + GPS capture + year-built capture ──
   const [checkedIn, setCheckedIn] = React.useState(false)
+  // Session F3, Part H.1/H.4 — the GPS reading that PASSED check-in, held so the first draft save
+  // (the call that actually creates the checklist row, and therefore the one the server gates)
+  // carries it. A ref, not state: it must not re-trigger the autosave effect, and it is read
+  // inside a timeout callback where a stale closure over state would be wrong.
+  const checkInGpsRef = React.useRef<SubmitGps | undefined>(undefined)
   const [checkInStatus, setCheckInStatus] = React.useState<'idle' | 'checking' | 'blocked' | 'ok'>('idle')
   const [checkInMessage, setCheckInMessage] = React.useState('')
   // Session E3, Part E — holds the specific reason, not just a boolean: an APPROXIMATE station
@@ -265,6 +270,8 @@ export default function AuditPage() {
     setCheckedIn(false)
     setCheckInStatus('idle')
     setCheckInMessage('')
+    // Part H — a reading only ever proves presence at the station it was taken for.
+    checkInGpsRef.current = undefined
     setLocationUnverifiedMessage('')
     setRejectionBannerDismissed(false)
     setYearBuiltInput('')
@@ -307,7 +314,14 @@ export default function AuditPage() {
     autoSaveTimerRef.current = setTimeout(async () => {
       setSaveStatus('saving')
       try {
-        const saved = await saveDraftMutation.mutateAsync({ items: buildStoredGroups(templateDef, answers), finalThoughts })
+        // Part H.1 — the check-in reading rides along. On the call that CREATES the draft the
+        // server uses it to run the proximity gate; on later autosaves it is ignored (updating
+        // an existing draft is deliberately ungated).
+        const saved = await saveDraftMutation.mutateAsync({
+          items: buildStoredGroups(templateDef, answers),
+          finalThoughts,
+          gps: checkInGpsRef.current,
+        })
         // Session E3, Part C.3 — the first autosave of a brand-new checklist is what creates its
         // DRAFT row; photo-delete needs that id to scope its request to, so the store learns it
         // here rather than staying null for the rest of this session.
@@ -327,6 +341,17 @@ export default function AuditPage() {
   const score = templateDef ? computeScoreFromItems(buildStoredGroups(templateDef, answers), templateDef) : 0
   const { answered, total } = templateDef ? countProgressForNodes(templateDef.groups.flatMap((g) => g.items), answers) : { answered: 0, total: 0 }
   const progress = total > 0 ? Math.round((answered / total) * 100) : 0
+
+  // Session F3, Part C.2 — the SUBMIT gate counts only groups the template does NOT mark
+  // `optional` (สนข.: group C may be submitted incomplete). The header progress bar above still
+  // reports the whole form, so an auditor always sees the true overall figure; this second tally
+  // exists solely to decide whether submitting is allowed. Driven by the per-group flag stamped
+  // on the template (see @repo/types#ChecklistTemplateGroupDef.optional) — never a `/^C/` test.
+  const requiredProgress = templateDef
+    ? countProgressForNodes(templateDef.groups.filter((g) => !g.optional).flatMap((g) => g.items), answers)
+    : { answered: 0, total: 0 }
+  const requiredComplete = requiredProgress.answered >= requiredProgress.total
+  const requiredRemaining = requiredProgress.total - requiredProgress.answered
   const isV1 = templateDef?.schemaVersion === 1
   const previewLabel = templateResp?.templateVersion != null
     ? `โหมดตัวอย่าง — เทมเพลตเวอร์ชัน ${templateResp.templateVersion}`
@@ -362,6 +387,9 @@ export default function AuditPage() {
     // ignores proximity entirely for isTraining (ChecklistsService.submit), so requiring a real
     // GPS permission grant here would just block the tutorial on an unrelated device permission.
     if (PROXIMITY_BYPASS || v2PreviewAllowed || station.isTraining) {
+      // No reading to carry: the server skips the gate for these cases on its own authority
+      // (Station.isTraining / isProximityBypassActive()), never on anything sent from here.
+      checkInGpsRef.current = undefined
       setLocationUnverifiedMessage('')
       setCheckInStatus('ok')
       setCheckedIn(true)
@@ -400,11 +428,17 @@ export default function AuditPage() {
       )
     }
 
+    // Part H.1 — check-in passed, so this is the reading that proves presence at the station.
+    // The server re-verifies the distance from these coordinates before creating the draft; this
+    // is evidence to be checked, never a "client says it's fine" flag.
+    checkInGpsRef.current = { lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy }
+
     setCheckInStatus('ok')
     setCheckedIn(true)
   }
 
-  // ── Submit — server re-verifies distance; on a location rejection, save as draft ──
+  // ── Submit — no longer proximity-gated (Session F3, Part H): the gate ran at check-in/draft
+  //    creation, and work started on-site may be finished and submitted from anywhere. ──
   async function handleSubmit() {
     if (!station || !templateDef) return
     setSubmitWarning('')
@@ -422,21 +456,15 @@ export default function AuditPage() {
       const result = await submitMutation.mutateAsync({ items, score, gps, finalThoughts })
       setSubmitResult(result)
     } catch (err) {
-      const code = err instanceof ApiError ? err.code : undefined
-      if (code === 'OUT_OF_RANGE' || code === 'LOCATION_REQUIRED') {
-        await saveDraftMutation.mutateAsync({ items, finalThoughts })
-        // Session E3, Part E.2 — surface distance + station name clearly when the server body
-        // carries distanceM (OUT_OF_RANGE); LOCATION_REQUIRED has no distance to show.
-        const distanceM = err instanceof ApiError && typeof err.data.distanceM === 'number' ? err.data.distanceM : null
-        setSubmitWarning(
-          distanceM != null
-            ? `คุณอยู่นอกพื้นที่สถานี ${station.nameTh} (ห่างประมาณ ${Math.round(distanceM).toLocaleString()} ม.) งานของคุณถูกบันทึกเป็นร่างแล้ว กรุณาลองส่งใหม่เมื่อถึงพื้นที่สถานี`
-            : (err instanceof ApiError ? err.message : null) ??
-              'ไม่สามารถส่งรายงานได้ งานของคุณถูกบันทึกเป็นร่างแล้ว กรุณาลองส่งใหม่เมื่อถึงพื้นที่สถานี'
-        )
-      } else {
-        setSubmitWarning(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการส่งรายงาน')
-      }
+      // Session F3, Part H.4 — the OUT_OF_RANGE/LOCATION_REQUIRED → auto-save-as-draft branch is
+      // gone: submit can no longer fail on location, so that recovery path is unreachable by
+      // construction. The generic handling below is deliberately kept (and is now the only path),
+      // so a network/validation/duplicate-submit failure still surfaces its real message.
+      setSubmitWarning(
+        (err instanceof ApiError ? err.message : null) ??
+        (err instanceof Error ? err.message : null) ??
+        'เกิดข้อผิดพลาดในการส่งรายงาน'
+      )
     }
   }
 
@@ -766,12 +794,20 @@ export default function AuditPage() {
               const p = countProgressForNodes(g.items, answers)
               const done = p.answered === p.total
               const redacted = isV1 ? [] : collectRedactedLeaves(g.items)
+              // Part C.2 — an optional group still shows its real answered/total (the auditor
+              // should see the gap), but an incomplete one is labelled "ไม่บังคับ" in a neutral
+              // colour rather than the amber ⚠ that means "this is blocking your submit".
+              const optional = g.optional === true
               return (
                 <div key={g.code}>
                   <div className="flex items-center justify-between px-4 py-3">
                     <span className="text-sm text-gray-800">{groupDisplayName(g)}</span>
-                    <span className={`text-xs font-semibold ${done ? 'text-green-600' : 'text-amber-600'}`}>
-                      {p.answered}/{p.total} {done ? '✓' : '⚠'}
+                    <span
+                      className={`text-xs font-semibold ${
+                        done ? 'text-green-600' : optional ? 'text-gray-400' : 'text-amber-600'
+                      }`}
+                    >
+                      {p.answered}/{p.total} {done ? '✓' : optional ? '· ไม่บังคับ' : '⚠'}
                     </span>
                   </div>
                   {/* Part C.3 — collapsed, read-only footer note; auditors cannot answer these. */}
@@ -802,14 +838,16 @@ export default function AuditPage() {
                 </p>
                 <button
                   onClick={handleSubmit}
-                  disabled={submitMutation.isPending || locating || progress < 100}
+                  disabled={submitMutation.isPending || locating || !requiredComplete}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground disabled:opacity-50"
                 >
                   {(submitMutation.isPending || locating) ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
                   {locating ? 'กำลังระบุตำแหน่ง…' : submitMutation.isPending ? 'กำลังส่ง…' : 'ส่งรายงาน'}
                 </button>
-                {progress < 100 && (
-                  <p className="text-center text-xs text-amber-600">ยังมีรายการที่ยังไม่ได้ตอบ ({total - answered} ข้อ)</p>
+                {/* Part C.2 — blocks only on the REQUIRED groups. An incomplete optional group is
+                    still surfaced (in the per-group list above, as "ไม่บังคับ"), just never fatal. */}
+                {!requiredComplete && (
+                  <p className="text-center text-xs text-amber-600">ยังมีรายการที่ยังไม่ได้ตอบ ({requiredRemaining} ข้อ)</p>
                 )}
               </div>
             </>

@@ -9,7 +9,6 @@ import {
   collectLeafCodes,
   collectLeaves,
   absentPatchFor,
-  NA_CASCADE_PATCH,
   isLeafAnswered,
   countProgressForNodes,
   computeContainerStatus,

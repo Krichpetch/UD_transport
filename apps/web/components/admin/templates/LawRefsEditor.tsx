@@ -2,8 +2,8 @@
 
 import * as React from 'react'
 import type { TemplateNode } from '@repo/types'
-import { LAW_REFERENCE_SEED } from '@repo/types'
-import { Check, Loader2 } from 'lucide-react'
+import { LAW_REFERENCE_SEED, isNeverEraGated } from '@repo/types'
+import { Check, Loader2, ShieldCheck } from 'lucide-react'
 import { useEditLawRefs } from '@/hooks/use-templates-admin'
 
 // Session S3b, Part D — lawRefs multi-select + beyondLaw toggle, on ITEMS and LEAVES both (per
@@ -42,6 +42,21 @@ export function LawRefsEditor({
       <p className="text-muted-foreground text-[11px]">
         กฎหมายที่กำหนดให้ต้องมีรายการนี้ — ใช้ในการซ่อนรายการที่ไม่เข้าข่ายตามปีที่ก่อสร้าง (มีผลกับการตรวจครั้งต่อไปเท่านั้น ไม่กระทบรายงานที่ตรวจไปแล้ว)
       </p>
+
+      {/* Session F3, Part D.4 — read-only explanation of WHY this item never redacts. The flag is
+          FACILITY_CATALOG data keyed off facilityCode, not a per-node property, so it is shown
+          rather than edited (making it admin-editable is deliberately out of scope). Rendered in
+          both the read-only and editable branches: an admin ticking lawRefs below needs to know
+          they will have no redaction effect on this particular item. */}
+      {isNeverEraGated(node.facilityCode) && (
+        <div className="flex items-start gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-[11px] text-emerald-800">
+          <ShieldCheck size={13} className="mt-px shrink-0" />
+          <span>
+            รายการนี้<strong>ไม่ผูกกับปีที่ก่อสร้าง</strong> — พื้นผิวต่างสัมผัส/Guiding Block ต้องมีทุกสถานีเสมอ
+            จึงไม่ถูกซ่อนตามปีที่ก่อสร้าง แม้จะระบุกฎหมายไว้ด้านล่างก็ตาม (ตามมติที่ประชุม สนข.)
+          </span>
+        </div>
+      )}
 
       {readOnly ? (
         <div className="text-muted-foreground text-xs">

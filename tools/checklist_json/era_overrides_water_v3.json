@@ -1,0 +1,204 @@
+{
+  "_generated": "tools/checklist-migration/era_overrides_convert.py — do not hand-edit; regenerate from the candidate file instead",
+  "mode": "ทางน้ำ",
+  "overrides": {
+    "A1.1-1.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "1.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    },
+    "A1.1-2.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "2.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    },
+    "A1.1-3.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "3.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    },
+    "B1.1-1.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "1.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    },
+    "B1.1-2.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "2.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    },
+    "B1.1-3.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "3.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    },
+    "B4.1-1.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "1.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    },
+    "B4.1-2.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "2.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    },
+    "B4.1-3.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "3.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    }
+  }
+}

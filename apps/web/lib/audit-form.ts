@@ -300,10 +300,19 @@ export function absentPatchFor(node: TemplateNode): Partial<AuditAnswer> {
     : { present: false, value: null, meetsStandard: false, values: {} }
 }
 
-// Part A.4 — ไม่เกี่ยวข้อง cascades the universal N/A marker (unchanged from the E2-era behavior,
-// same shape regardless of answerType) — this is the "whole subtree excluded from every
-// denominator" case, distinct from A.3's "counts as absent" case.
-export const NA_CASCADE_PATCH: Partial<AuditAnswer> = { value: 'N/A', present: null, meetsStandard: false, values: {} }
+// Session F3, Part B — NA_CASCADE_PATCH (the ไม่เกี่ยวข้อง cascade patch) has been REMOVED.
+//
+// สนข. 2026-08-03 (Dr.Aliz), confirmed by the audit team: "เอาปุ่ม ไม่เกี่ยวข้อง ออก" — auditors now
+// answer with ไม่มี only, so no auditor code path may write 'N/A' any more. This constant was the
+// only such write path, so deleting it is what makes that guarantee structural rather than a
+// convention someone can re-break by adding a button back.
+//
+// 'N/A' itself is deliberately UNTOUCHED as a VALUE: it remains in ChecklistValue, in scoring.ts,
+// in computeFacilityMetrics, in the excel export, in the admin checklist page's state breakdown
+// and in the auditor history renderer. Thousands of stored checklists contain it and must keep
+// rendering and scoring exactly as they always have — see leafState/computeContainerStatus below,
+// which still READ it. Era redaction (`applicable === false`) rides the same exclusion mechanics
+// and is a different thing entirely from the auditor's old N/A; it is untouched too.
 
 export function buildStoredGroups(def: ChecklistTemplateDefinition, answers: AnswerMap) {
   return def.groups.map((g) => ({

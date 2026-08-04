@@ -92,6 +92,10 @@ export class StationsService {
   async findAll(filters?: {
     mode?: string
     railSubtype?: string
+    // Session F3, Part A.4 — line/route (สาย) the station sits on. Exact match, and part of the
+    // station identity key (mode, nameTh, line), so it belongs in scopeWhere alongside
+    // mode/railSubtype: the subItem filter scopes through it identically.
+    line?: string
     region?: string
     province?: string
     responsibleAgency?: string
@@ -125,6 +129,7 @@ export class StationsService {
     const scopeWhere = {
       ...(filters?.mode              && { mode:              filters.mode }),
       ...(filters?.railSubtype       && { railSubtype:       filters.railSubtype }),
+      ...(filters?.line              && { line:              filters.line }),
       ...(filters?.region            && {
         region: filters.region === UNSPECIFIED_REGION ? null : filters.region,
       }),
@@ -288,19 +293,27 @@ export class StationsService {
 
   // Session S3b, Part B — railSubtype mirrors the F2 admin filter exactly (same values/labels,
   // see @repo/types#RAIL_SUBTYPES): only meaningful alongside mode='ทางราง', ignored otherwise.
-  async searchSlim(params: { q?: string; mode?: string; railSubtype?: string; limit: number; page: number }) {
+  //
+  // Session F3, Part A.1 — search now goes through searchStationIds() (the SAME normalized
+  // matching findAll uses) instead of the plain Prisma `contains` on nameTh/province it used
+  // before. That predicate silently dropped `line` entirely — the very component that
+  // distinguishes two same-named stations post-masterlist-cutover, which is exactly what the
+  // auditor picker needs to tell apart. Deliberately ONE normalization for the whole app, not a
+  // third ad-hoc variant: searchStationIds already covers nameTh/name/line/province with
+  // whitespace normalization + ILIKE escaping.
+  async searchSlim(params: { q?: string; mode?: string; railSubtype?: string; line?: string; limit: number; page: number }) {
     const limit = Math.min(params.limit, 50)
     const page  = Math.max(params.page, 1)
     const q     = params.q?.trim()
+    // Resolved BEFORE the where clause since it needs its own query, exactly as in findAll().
+    const searchIds = q ? await this.searchStationIds(q) : null
     const where = {
       ...(params.mode && { mode: params.mode }),
       ...(params.mode === 'ทางราง' && params.railSubtype && { railSubtype: params.railSubtype }),
-      ...(q && {
-        OR: [
-          { nameTh:   { contains: q, mode: 'insensitive' as const } },
-          { province: { contains: q, mode: 'insensitive' as const } },
-        ],
-      }),
+      // Part A.4 — same exact-match line filter as findAll's scopeWhere, so both roles' pickers
+      // narrow identically. Composes with (never overwrites) mode/railSubtype/search above.
+      ...(params.line && { line: params.line }),
+      ...(searchIds !== null && { id: { in: searchIds } }),
       // Session S3b, Part A.4 — the general auditor station picker never surfaces training
       // fixtures; those are reached only through the dedicated "แบบฝึกหัด" section.
       isTraining: false,
@@ -308,7 +321,9 @@ export class StationsService {
     const [data, total] = await Promise.all([
       this.prisma.station.findMany({
         where,
-        select: { id: true, nameTh: true, province: true, mode: true, railSubtype: true },
+        // Part A.1 — `line` is selected so a result row can render it: two stations sharing a
+        // nameTh are only distinguishable by it.
+        select: { id: true, nameTh: true, province: true, mode: true, railSubtype: true, line: true },
         orderBy: { nameTh: 'asc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -318,6 +333,27 @@ export class StationsService {
     return { data, total, page, totalPages: Math.ceil(total / limit) }
   }
 
+  // Session F3, Part A.4 — distinct non-empty `line` values for a mode/railSubtype scope, backing
+  // the line filter control in both the admin stations filter bar and the auditor picker. ONE
+  // bounded query: deriving this client-side from a page of results would only ever see the lines
+  // present on that page. Empty string (the deliberate "no line" sentinel — see schema.prisma
+  // Station.line) is never offered as an option. The UI shows the control only when this returns
+  // a non-empty list, so a mode that gains lines later needs no code change.
+  async findLines(params: { mode?: string; railSubtype?: string }): Promise<string[]> {
+    const rows = await this.prisma.station.findMany({
+      where: {
+        ...(params.mode && { mode: params.mode }),
+        ...(params.mode === 'ทางราง' && params.railSubtype && { railSubtype: params.railSubtype }),
+        line: { not: '' },
+        isTraining: false,
+      },
+      select: { line: true },
+      distinct: ['line'],
+      orderBy: { line: 'asc' },
+    })
+    return rows.map((r) => r.line)
+  }
+
   findOne(id: string) {
     return this.prisma.station.findUniqueOrThrow({ where: { id } })
   }
@@ -325,11 +361,12 @@ export class StationsService {
   // Session S3b, Part A.5 — backs the auditor home's "แบบฝึกหัด" section: the fixed set of
   // practice stations (see seed-training-stations.ts), one per template type. Slim projection,
   // same shape searchSlim already returns, ordered by mode so the 5 cards render in a stable
-  // sequence every time.
+  // sequence every time. Part A.3 — `line` selected here too, so a training fixture that ever
+  // carries one labels identically to a real station rather than silently dropping it.
   findTrainingStations() {
     return this.prisma.station.findMany({
       where: { isTraining: true },
-      select: { id: true, nameTh: true, mode: true, railSubtype: true },
+      select: { id: true, nameTh: true, mode: true, railSubtype: true, line: true },
       orderBy: [{ mode: 'asc' }, { railSubtype: 'asc' }],
     })
   }
@@ -342,11 +379,12 @@ export class StationsService {
   async findNearby(lat: number, lng: number, limit = 20) {
     const rows = await this.prisma.$queryRaw<Array<{
       id: string; name: string; nameTh: string; mode: string; railSubtype: string | null
+      line: string
       province: string | null; region: string | null; responsibleAgency: string; lat: number; lng: number
       coordStatus: string; score: number; status: string; lastInspected: Date | null
       urgentIssues: string[]; distanceM: number
     }>>`
-      SELECT id, name, "nameTh", mode, "railSubtype", province, region, "responsibleAgency",
+      SELECT id, name, "nameTh", mode, "railSubtype", line, province, region, "responsibleAgency",
              lat, lng, "coordStatus", score, status, "lastInspected", "urgentIssues",
              ST_Distance(
                ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography,
@@ -380,6 +418,25 @@ export class StationsService {
     return rows[0] ? Math.round(Number(rows[0].distanceM)) : null
   }
 
+  // Session F3, Part A.5 — station identity is the (mode, nameTh, line) composite unique index,
+  // so any admin edit to one of those three can collide with an existing row. Before F3 this was
+  // an unhandled P2002 surfacing as a raw 500 on a nameTh/mode edit; now every write through
+  // create()/update() reports WHICH station it clashed with, in Thai, so the admin can act on it.
+  // Looks the conflicting row up by the same key Postgres rejected on — never a guess.
+  private async describeIdentityConflict(key: { mode: string; nameTh: string; line: string }): Promise<never> {
+    const clash = await this.prisma.station.findFirst({ where: key })
+    const where = [clash?.province, clash?.responsibleAgency].filter(Boolean).join(' · ')
+    const lineLabel = key.line ? `สาย "${key.line}"` : 'ไม่ระบุสาย'
+    throw new BadRequestException({
+      code: 'STATION_IDENTITY_CONFLICT',
+      message:
+        `มีสถานีชื่อ "${key.nameTh}" (${key.mode}, ${lineLabel}) อยู่แล้ว` +
+        (where ? ` — ${where}` : '') +
+        ' กรุณาแก้ไขชื่อสถานีหรือระบุสายให้ต่างจากเดิม',
+      conflictingStationId: clash?.id ?? null,
+    })
+  }
+
   // Dedupe guard: match on normalized (nameTh, mode, province) — case/whitespace
   // insensitive — regardless of responsibleAgency, since agency parsing drift
   // (e.g. an OTHER_AGENCY fallback) is what let same-station duplicates slip past the
@@ -399,10 +456,19 @@ export class StationsService {
     // region is derived, not user input (Session E4) — callers normally omit it; lat/lng are
     // always required here, so deriveRegion always has coordinates to work from.
     const region = dto.region?.trim() || deriveRegion({ lat: dto.lat, lng: dto.lng, province })
-    const station = await this.prisma.station.create({
-      data: { ...dto, nameTh, province, region, urgentIssues: [] },
-    })
-    return { station, deduped: false }
+    // Part A.5 — '' (never null) is the deliberate "no line" sentinel; see schema.prisma.
+    const line = dto.line?.trim() ?? ''
+    try {
+      const station = await this.prisma.station.create({
+        data: { ...dto, nameTh, province, region, line, urgentIssues: [] },
+      })
+      return { station, deduped: false }
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        await this.describeIdentityConflict({ mode: dto.mode, nameTh, line })
+      }
+      throw err
+    }
   }
 
   // Admin fix-up for name/classification/agency and, most importantly, location:
@@ -425,23 +491,41 @@ export class StationsService {
             province: dto.province !== undefined ? dto.province.trim() : before.province,
           })
         : undefined
-    const after = await this.prisma.station.update({
-      where: { id },
-      data: {
-        ...(dto.nameTh             !== undefined && { nameTh: dto.nameTh.trim() }),
-        ...(dto.mode               !== undefined && { mode: dto.mode }),
-        ...(dto.railSubtype        !== undefined && { railSubtype: dto.railSubtype || null }),
-        ...(dto.province           !== undefined && { province: dto.province.trim() }),
-        ...(region                 !== undefined && { region }),
-        ...(dto.responsibleAgency  !== undefined && { responsibleAgency: dto.responsibleAgency }),
-        ...(hasNewCoords && {
-          lat: dto.lat,
-          lng: dto.lng,
-          coordSource: 'MANUAL' as const,
-          coordStatus: 'OK' as const,
-        }),
-      },
-    })
+    // Part A.5 — '' (never null) is the deliberate "no line" sentinel; see schema.prisma.
+    const line = dto.line !== undefined ? dto.line.trim() : undefined
+    let after
+    try {
+      after = await this.prisma.station.update({
+        where: { id },
+        data: {
+          ...(dto.nameTh             !== undefined && { nameTh: dto.nameTh.trim() }),
+          ...(dto.mode               !== undefined && { mode: dto.mode }),
+          ...(line                   !== undefined && { line }),
+          ...(dto.railSubtype        !== undefined && { railSubtype: dto.railSubtype || null }),
+          ...(dto.province           !== undefined && { province: dto.province.trim() }),
+          ...(region                 !== undefined && { region }),
+          ...(dto.responsibleAgency  !== undefined && { responsibleAgency: dto.responsibleAgency }),
+          ...(hasNewCoords && {
+            lat: dto.lat,
+            lng: dto.lng,
+            coordSource: 'MANUAL' as const,
+            coordStatus: 'OK' as const,
+          }),
+        },
+      })
+    } catch (err) {
+      // Part A.5 — the (mode, nameTh, line) identity collision. Reported against the values this
+      // update was actually trying to land on (falling back to the row's current ones for fields
+      // the caller didn't touch), so the message names the real clash.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        await this.describeIdentityConflict({
+          mode:   dto.mode   ?? before.mode,
+          nameTh: dto.nameTh?.trim() ?? before.nameTh,
+          line:   line       ?? before.line,
+        })
+      }
+      throw err
+    }
 
     await this.auditLog.log({
       userId: adminId, action: 'UPDATE', entityType: 'Station', entityId: id, before, after,

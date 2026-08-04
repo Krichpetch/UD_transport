@@ -144,8 +144,30 @@ export interface TemplateNode {
 export interface ChecklistTemplateGroupDef {
   code: string       // e.g. 'A1'
   labelTh: string
+  // Session F3, Part C — an auditor may SUBMIT with this group incomplete (สนข. meeting
+  // 2026-08-03: "CheckList ข้อ C สามารถประเมินไม่ครบ แต่ส่งผลการประเมินและคำนวณได้"). Deliberately a
+  // per-group DATA flag stamped on the template, not a `/^C/` test at the call site: which groups
+  // are optional is a สนข. policy decision that belongs with the checklist definition, and a
+  // future template can mark a different group optional without touching the submit gate.
+  //
+  // NOT a scoring concept. Unanswered leaves are already excluded from every numerator and
+  // denominator regardless of which group they sit in (see scoring.ts — `value === null` and
+  // `present !== true` both skip), so a blank optional group scores exactly like an absent one.
+  optional?: boolean
   items: TemplateNode[]
 }
+
+// Session F3, Part C.1 — the group codes สนข. has declared optional to complete before submitting
+// (meeting 2026-08-03, Dr.Aliz). Consumed ONLY by the seed script, which stamps
+// ChecklistTemplateGroupDef.optional onto the matching groups of every template version it writes;
+// nothing at runtime tests a group code against this list. That indirection is the point: the
+// submit gate reads the per-template flag, so an admin-authored or future template can declare a
+// different set without a code change here.
+//
+// C1 = ความรับรู้ในการเข้าถึงการให้บริการ (Awareness), C2 = การฝึกอบรมของผู้ให้บริการ (Training) — both are
+// staff/process questions answered by station personnel, not physical facts an auditor can
+// observe unaided, which is why สนข. accepts a partial answer set for them.
+export const OPTIONAL_GROUP_CODES: readonly string[] = ['C1', 'C2']
 
 export interface ChecklistTemplateDefinition {
   schemaVersion: 1 | 2
@@ -253,7 +275,17 @@ export function parseMeasurement(raw: unknown, path: string): TemplateMeasuremen
     if (o.tiers !== undefined) tiers = parseTiers(o.tiers, `${path}.tiers`)
     if (!tiers && !byLaw) fail(path, 'tiered measurement requires flat tiers or byLaw')
   } else {
-    if (o.value !== undefined) value = typeof o.value === 'number' ? o.value : fail(`${path}.value`, 'must be a number')
+    // `null` is accepted as equivalent to absent, NOT rejected: parseMeasurement itself emits
+    // `value: value ?? null` below, so a measurement whose value comes only from `byLaw` round-
+    // trips as an explicit null. applyEraOverrides re-validates its own merged output through
+    // parseTemplateDefinition, so rejecting null here made every byLaw-only override throw
+    // "$.….value: must be a number" — i.e. era overrides could never be applied at all for the
+    // ordinary gte/lte/range shapes. (The single committed override file, era_overrides_rail.json,
+    // is `tiered`, the one operator whose branch above skips this check, which is why the bug
+    // stayed invisible until Session F3, Part G wired the remaining modes up.)
+    if (o.value !== undefined && o.value !== null) {
+      value = typeof o.value === 'number' ? o.value : fail(`${path}.value`, 'must be a number')
+    }
     if (operator === 'range' && value !== undefined && typeof o.value2 !== 'number') {
       fail(`${path}.value2`, 'range operator requires numeric value2')
     }
@@ -369,7 +401,12 @@ function parseGroup(raw: unknown, path: string): ChecklistTemplateGroupDef {
   const labelTh = checkString(o.labelTh, path, 'labelTh')
   if (!Array.isArray(o.items)) fail(`${path}.items`, 'must be an array')
   const items = (o.items as unknown[]).map((it, i) => parseNode(it, `${path}.items[${i}]`))
-  return { code, labelTh, items }
+  // Session F3, Part C.1 — additive: absent stays absent (never serialized back as `false`), so
+  // every pre-F3 template still round-trips byte-identically through the admin editor.
+  if (o.optional !== undefined && typeof o.optional !== 'boolean') {
+    fail(`${path}.optional`, 'must be a boolean when present')
+  }
+  return { code, labelTh, ...(o.optional === true && { optional: true as const }), items }
 }
 
 const VALID_MODES: readonly string[] = ['ทางบก', 'ทางราง', 'ทางน้ำ', 'ทางอากาศ']

@@ -26,6 +26,12 @@ export class SaveDraftChecklistDto {
   // Session E2, Part D — drafts persist finalThoughts too, so a cold-reload resume restores it
   // (same field, same cap as the submit-time one below).
   @IsOptional() @IsString() @MaxLength(FINAL_THOUGHTS_MAX_LENGTH) finalThoughts?: string
+  // Session F3, Part H.1 — the proximity gate moved to draft CREATION, so the create call needs a
+  // GPS reading. Optional because it is meaningless on the update path (autosave), which is
+  // ungated by design; the server decides which path this is, never the client. As before, the
+  // reading is evidence only — distance is always recomputed server-side, and no client-supplied
+  // "I am near" flag exists to trust.
+  @IsOptional() @ValidateNested() @Type(() => SubmitGpsDto) gps?: SubmitGpsDto
 }
 
 export class SubmitChecklistDto {

@@ -14,6 +14,10 @@ export interface StationFormValue {
   nameTh: string
   mode: TransportMode
   railSubtype?: string
+  // Session F3, Part A.5 — line/route (สาย). Part of the (mode, nameTh, line) identity key, so a
+  // clash is reported by the API as STATION_IDENTITY_CONFLICT naming the conflicting station.
+  // '' is a real value (the "no line" sentinel), not "unset".
+  line?: string
   province: string
   responsibleAgency: string
   lat: number | null
@@ -102,6 +106,20 @@ export function StationForm({
             </select>
           </div>
         )}
+      </div>
+
+      {/* Session F3, Part A.5 — line/route. Free text, not a dropdown: the canonical list is
+          whatever the masterlist carries, and an admin correcting a station may legitimately need
+          a value that doesn't exist yet. Blank means "no line", which is a valid identity. */}
+      <div>
+        <label className="text-foreground mb-1 block text-xs font-medium">สาย / เส้นทาง</label>
+        <input
+          className={INPUT_CLS}
+          value={value.line ?? ''}
+          onChange={(e) => onChange({ line: e.target.value })}
+          placeholder="เช่น สายสีเขียว (เว้นว่างหากไม่มี)"
+          disabled={disabled}
+        />
       </div>
 
       <div>

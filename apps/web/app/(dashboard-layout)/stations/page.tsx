@@ -19,7 +19,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import type { TransportMode, StationStatus, ResponsibleAgency, ChecklistSubItem } from '@repo/types'
 import { TRANSPORT_MODE_AGENCIES, TRANSPORT_MODES, STATION_STATUSES, RAIL_SUBTYPES, YEAR_BUILT_MIN, yearBuiltMax } from '@repo/types'
 import type { StationRow, ParsedRow, OtpImportRowResult } from '@/lib/api/stations'
-import { batchOtpImport } from '@/lib/api/stations'
+import { batchOtpImport, getStationLines } from '@/lib/api/stations'
 import { parseOtpRows, detectOtpFormat } from '@/lib/otp-import'
 import type { OtpParsedRow, OtpParseResult } from '@/lib/otp-import'
 import { StatusBadge, ScoreBar } from '@/components/shared/badges'
@@ -123,6 +123,7 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
     nameTh: station.nameTh,
     mode: station.mode,
     railSubtype: station.railSubtype,
+    line: station.line ?? '',
     province: station.province ?? '',
     responsibleAgency: station.responsibleAgency,
     lat: station.lat,
@@ -162,6 +163,9 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
           nameTh: form.nameTh,
           mode: form.mode,
           railSubtype: form.mode === 'ทางราง' ? form.railSubtype : undefined,
+          // Part A.5 — always sent (including ''), since clearing a line is a real edit to the
+          // station's identity, not "leave unchanged".
+          line: form.line ?? '',
           province: form.province,
           // region is derived server-side from province/coords whenever either changes — see
           // StationsService.update (Session E4). Omitted here deliberately.
@@ -325,6 +329,10 @@ function StationsPageContent() {
   const [debouncedSearch, setDebouncedSearch] = React.useState('')
   const [typeFilter, setTypeFilter] = React.useState<TransportMode | ''>('')
   const [railSubtypeFilter, setRailSubtypeFilter] = React.useState('')
+  // Session F3, Part A.4 — line/route filter. Mirrors the auditor picker exactly: the control
+  // renders only when the lines endpoint returns something for the current mode/railSubtype
+  // scope (never a hardcoded mode list), and clears whenever that scope changes.
+  const [lineFilter, setLineFilter] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<StationStatus | ''>('')
   const [agencyFilter, setAgencyFilter] = React.useState('')
   const [regionFilter, setRegionFilter] = React.useState('')
@@ -352,6 +360,21 @@ function StationsPageContent() {
   React.useEffect(() => { setRailSubtypeFilter('') }, [typeFilter])
   React.useEffect(() => { setSubItemFilter('') }, [categoryFilter, typeFilter])
 
+  // Part A.4 — available lines for the current scope, and drop a selection the new scope can't
+  // satisfy. Same one-bounded-query-per-scope-change shape as the auditor picker.
+  const [lineOptions, setLineOptions] = React.useState<string[]>([])
+  React.useEffect(() => {
+    let cancelled = false
+    setLineFilter('')
+    getStationLines({
+      mode: typeFilter || undefined,
+      railSubtype: typeFilter === 'ทางราง' ? (railSubtypeFilter || undefined) : undefined,
+    })
+      .then((lines) => { if (!cancelled) setLineOptions(lines) })
+      .catch(() => { if (!cancelled) setLineOptions([]) })
+    return () => { cancelled = true }
+  }, [typeFilter, railSubtypeFilter])
+
   // Item-code picker (Part C.3) — grouped by the selected mode's template structure, same
   // category -> sub-item two-step as the executive dashboard's filter bar (dashboard/page.tsx),
   // reusing the same checklistTemplates source rather than a second copy.
@@ -373,6 +396,7 @@ function StationsPageContent() {
   } = useStations({
     mode:            typeFilter || undefined,
     railSubtype:     railSubtypeFilter || undefined,
+    line:            lineFilter || undefined,
     status:          statusFilter || undefined,
     checklistStatus: approvalTab || undefined,
     agency:          agencyFilter || undefined,
@@ -623,7 +647,7 @@ function StationsPageContent() {
     )
 
   const hasFilters = !!(
-    search || typeFilter || railSubtypeFilter || statusFilter || agencyFilter ||
+    search || typeFilter || railSubtypeFilter || lineFilter || statusFilter || agencyFilter ||
     regionFilter || provinceFilter || categoryFilter || subItemFilter
   )
 
@@ -647,6 +671,7 @@ function StationsPageContent() {
     setDebouncedSearch('')
     setTypeFilter('')
     setRailSubtypeFilter('')
+    setLineFilter('')
     setStatusFilter('')
     setAgencyFilter('')
     setRegionFilter('')
@@ -779,6 +804,20 @@ function StationsPageContent() {
               }}
               options={RAIL_SUBTYPES.map((r) => ({ value: r, label: r }))}
               allLabel="ทุกประเภทย่อย"
+              triggerClassName={FILTER_SELECT_TRIGGER_CLS}
+            />
+          )}
+          {/* Session F3, Part A.4 — driven purely by "this scope has lines", so land terminals
+              with lines work later with no code change. */}
+          {lineOptions.length > 0 && (
+            <FilterSelect
+              value={lineFilter}
+              onChange={(v) => {
+                setLineFilter(v)
+                setPage(1)
+              }}
+              options={lineOptions.map((l) => ({ value: l, label: l }))}
+              allLabel="ทุกสาย"
               triggerClassName={FILTER_SELECT_TRIGGER_CLS}
             />
           )}

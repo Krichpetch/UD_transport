@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import type { ChecklistTemplateDefinition } from '@repo/types'
 import { useAuditFormStore } from '../audit-form.store'
-import { collectLeafCodes, collectLeaves, absentPatchFor, NA_CASCADE_PATCH, defaultAnswer } from '@/lib/audit-form'
+import { collectLeafCodes, collectLeaves, absentPatchFor, defaultAnswer } from '@/lib/audit-form'
 
 const TEMPLATE: ChecklistTemplateDefinition = {
   schemaVersion: 2, mode: 'ทางบก',
@@ -65,15 +65,23 @@ describe('audit-form.store — Part A.3/A.5 cascade + restore-on-toggle-back', (
     expect(useAuditFormStore.getState().answers['A1.1-1']).toEqual(defaultAnswer())
   })
 
-  it('toggling ไม่มี -> ไม่เกี่ยวข้อง (without returning to มี first) never re-stashes the already-cascaded value over the original manual one', () => {
+  // Session F3, Part B — REWRITTEN, not deleted. This test used to drive ไม่มี -> ไม่เกี่ยวข้อง,
+  // a chain that no longer exists now that the ไม่เกี่ยวข้อง button is gone (สนข. 2026-08-03: ไม่มี
+  // is used in its place). The INVARIANT it protects is unchanged and still reachable in the
+  // 2-way world — a second cascade over already-cascaded leaves (a re-click, or an ancestor
+  // container cascading over a descendant that already did) must never overwrite the stashed
+  // ORIGINAL manual answer with the intermediate auto-filled one. So the chain is now ไม่มี ->
+  // ไม่มี, which exercises exactly the same `if (!(code in stash))` guard in stashAndCascade.
+  it('a second ไม่มี cascade never re-stashes the already-cascaded value over the original manual one', () => {
     useAuditFormStore.getState().setAnswer('A1.1-1', { value: 'มี', meetsStandard: true })
 
     const leaves = collectLeaves(CONTAINER)
     const codes = collectLeafCodes(CONTAINER)
-    useAuditFormStore.getState().stashAndCascade(Object.fromEntries(leaves.map((l) => [l.code, absentPatchFor(l)]))) // -> ไม่มี
-    useAuditFormStore.getState().stashAndCascade(Object.fromEntries(codes.map((c) => [c, NA_CASCADE_PATCH]))) // -> ไม่เกี่ยวข้อง
+    const absentPatches = Object.fromEntries(leaves.map((l) => [l.code, absentPatchFor(l)]))
+    useAuditFormStore.getState().stashAndCascade(absentPatches) // -> ไม่มี
+    useAuditFormStore.getState().stashAndCascade(absentPatches) // -> ไม่มี again, no restore between
 
-    expect(useAuditFormStore.getState().answers['A1.1-1']!.value).toBe('N/A')
+    expect(useAuditFormStore.getState().answers['A1.1-1']!.value).toBe('ไม่มี')
 
     useAuditFormStore.getState().restoreStash(codes) // back to มี
     const restored = useAuditFormStore.getState().answers['A1.1-1']!

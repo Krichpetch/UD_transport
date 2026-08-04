@@ -6,6 +6,37 @@ import type { ChecklistPhoto } from '@repo/types'
 
 const VISIBLE = 3
 
+// Session F3, Part E — this component serves two jobs with opposite needs, so it now takes an
+// explicit variant instead of one set of dimensions tuned for the first one:
+//
+//   'evidence'  (default, UNCHANGED) — auditor-uploaded proof photos, shown in a dense table
+//               cell / row. size-8 tiles, max 3 with a "+N" overflow badge. The point is a
+//               compact indicator you tap to inspect.
+//   'reference' — admin-attached INSTRUCTIONAL images on the auditor E-form (สนข.: "ปรับรูปให้
+//               เห็นชัดขึ้น"). These have to be legible at a glance on a phone WITHOUT tapping,
+//               so they render as a full-width grid of large tiles with every image visible —
+//               an instruction hidden behind a "+2" badge is an instruction nobody reads.
+//
+// Both variants keep the identical tap-to-open lightbox; only the inline presentation differs.
+export type PhotoGalleryVariant = 'evidence' | 'reference'
+
+const VARIANT_STYLES: Record<PhotoGalleryVariant, { wrapper: string; tile: string; img: string }> = {
+  evidence: {
+    wrapper: 'flex items-center gap-1',
+    tile:    'relative size-8 shrink-0 overflow-hidden rounded border border-border shadow-sm',
+    img:     'size-full object-cover',
+  },
+  reference: {
+    // A grid, not a strip: one big image when there's one (the common case), two-up beyond that,
+    // so a single reference diagram gets the full width it needs to be readable.
+    wrapper: 'grid w-full grid-cols-1 gap-2 sm:grid-cols-2',
+    tile:    'relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-white shadow-sm',
+    // `contain`, not `cover`: a cropped diagram loses exactly the edges that carry the dimension
+    // annotations these images exist to show.
+    img:     'size-full object-contain',
+  },
+}
+
 // ── Carousel lightbox ──────────────────────────────────────────
 export function PhotoLightbox({
   photos,
@@ -128,9 +159,12 @@ export function PhotoLightbox({
 }
 
 // ── Thumbnail strip — max VISIBLE + "+N" overflow ──────────────
-export function ChecklistPhotoGallery({ photos, onDelete }: {
+export function ChecklistPhotoGallery({ photos, onDelete, variant = 'evidence' }: {
   photos: ChecklistPhoto[]
   onDelete?: (photo: ChecklistPhoto) => void | Promise<void>
+  // Session F3, Part E — defaults to the pre-F3 appearance, so every existing evidence call site
+  // is untouched.
+  variant?: PhotoGalleryVariant
 }) {
   const [lightboxIdx, setLightboxIdx] = React.useState<number | null>(null)
   const btnRefs = React.useRef<(HTMLButtonElement | null)[]>([])
@@ -139,30 +173,34 @@ export function ChecklistPhotoGallery({ photos, onDelete }: {
     return <span className="text-[10px] text-muted-foreground/40">—</span>
   }
 
-  const visible  = photos.slice(0, VISIBLE)
-  const overflow = photos.length - VISIBLE
+  const styles = VARIANT_STYLES[variant]
+  // Reference images are instructions: every one is shown, never collapsed behind a "+N".
+  const showAll  = variant === 'reference'
+  const visible  = showAll ? photos : photos.slice(0, VISIBLE)
+  const overflow = showAll ? 0 : photos.length - VISIBLE
 
   function open(i: number) { setLightboxIdx(i) }
 
   function close() {
-    const trigger = lightboxIdx !== null ? (btnRefs.current[Math.min(lightboxIdx, VISIBLE - 1)] ?? null) : null
+    const lastVisible = visible.length - 1
+    const trigger = lightboxIdx !== null ? (btnRefs.current[Math.min(lightboxIdx, lastVisible)] ?? null) : null
     setLightboxIdx(null)
     trigger?.focus()
   }
 
   return (
     <>
-      <div className="flex items-center gap-1">
+      <div className={styles.wrapper}>
         {visible.map((p, i) => {
-          const showOverlay = i === VISIBLE - 1 && overflow > 0
+          const showOverlay = !showAll && i === VISIBLE - 1 && overflow > 0
           return (
             <button
               key={p.id}
               ref={el => { btnRefs.current[i] = el }}
               onClick={() => open(i)}
-              className="relative size-8 shrink-0 overflow-hidden rounded border border-border shadow-sm focus:outline-none focus:ring-2 focus:ring-ring/60"
+              className={`${styles.tile} focus:outline-none focus:ring-2 focus:ring-ring/60`}
             >
-              <img src={p.url} alt={p.filename} loading="lazy" className="size-full object-cover" />
+              <img src={p.url} alt={p.filename} loading="lazy" className={styles.img} />
               {showOverlay && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/55 text-[10px] font-bold text-white">
                   +{overflow}

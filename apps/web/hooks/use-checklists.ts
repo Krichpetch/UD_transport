@@ -71,8 +71,8 @@ export function useChecklistHistoryPaginated(stationId: string, page: number, li
 export function useSaveDraft(stationId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ items, finalThoughts }: { items: unknown[]; finalThoughts?: string }) =>
-      saveDraft(stationId, items, finalThoughts),
+    mutationFn: ({ items, finalThoughts, gps }: { items: unknown[]; finalThoughts?: string; gps?: SubmitGps }) =>
+      saveDraft(stationId, items, finalThoughts, gps),
     onSuccess:  () => qc.invalidateQueries({ queryKey: ['checklist', stationId] }),
   })
 }

@@ -13,7 +13,7 @@ import {
   SidebarGroupLabel,
   SidebarGroupContent,
 } from '@/components/ui/sidebar'
-import { LayoutDashboard, Building2, Settings, LogOut, User, Users, ClipboardCheck, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, BarChart3, Building2, Settings, LogOut, User, Users, ClipboardCheck, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
@@ -29,9 +29,16 @@ const ROLE_LABEL: Record<string, string> = {
 // "ADMIN gets an extra item" ternary. /stations (and its checklist detail page) carry full
 // mutating controls (approve/reject/edit/import), so they're ADMIN-only here; EXECUTIVE keeps
 // the read-only /dashboard as their home instead of the admin operational overview.
+//
+// Session F3, Part F — "เอาหน้า Dashboard ของ Executive มาใส่ให้ Admin ด้วย" (สนข. 2026-08-03).
+// ADMIN now sees the SAME /dashboard entry, not a fork of it: the page, its guards and its three
+// backing endpoints (/stations/summary, /stations/metrics, /stations/map-nodes) already admitted
+// ADMIN — this was purely a nav-visibility gap. /admin/overview stays ADMIN's login landing
+// (ROLE_DESTINATIONS unchanged); the dashboard is an ADDITIONAL entry, not a replacement, so the
+// two are relabelled to tell them apart (both used to read plain "ภาพรวม").
 const NAV_ITEMS: { labelTh: string; icon: LucideIcon; href: string; roles: UserRole[] }[] = [
-  { labelTh: 'ภาพรวม',        icon: LayoutDashboard, href: '/admin/overview',  roles: ['ADMIN'] },
-  { labelTh: 'ภาพรวม',        icon: LayoutDashboard, href: '/dashboard',       roles: ['EXECUTIVE'] },
+  { labelTh: 'ภาพรวมระบบ',     icon: LayoutDashboard, href: '/admin/overview',  roles: ['ADMIN'] },
+  { labelTh: 'แดชบอร์ดผู้บริหาร', icon: BarChart3,       href: '/dashboard',       roles: ['ADMIN', 'EXECUTIVE'] },
   { labelTh: 'จัดการสถานี',    icon: Building2,       href: '/stations',        roles: ['ADMIN'] },
   { labelTh: 'จัดการแบบประเมิน', icon: ClipboardCheck,  href: '/admin/templates', roles: ['ADMIN'] },
   { labelTh: 'จัดการผู้ใช้งาน', icon: Users,           href: '/users',           roles: ['ADMIN'] },

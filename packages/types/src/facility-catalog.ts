@@ -66,6 +66,22 @@ export interface FacilityCatalogEntry {
   lawRefs: LawReferenceCode[]
   cabinetResolution?: boolean  // one of the 5 มติ ครม. priority items
   beyondLaw?: boolean          // starred (31-33): project-added, not required by any กฎกระทรวง
+  // Session F3, Part D — "ตัว Guiding Block และตัว พื้นผิว ไม่ผูกกับปีที่ก่อสร้าง" (สนข. meeting
+  // 2026-08-03, Dr.Aliz). The item IS required by law — its lawRefs stay real and complete — it is
+  // simply never REDACTED by a station's build year: tactile surfaces are expected at every
+  // station regardless of when it was built.
+  //
+  // Deliberately NOT expressed by reusing `beyondLaw`. That flag means "not in any กฎกระทรวง at
+  // all", and S3b's admin lawRefs editor and its law-coverage indicator both read it with exactly
+  // that meaning; overloading it here would mark a legally-mandated facility as beyond-law and
+  // silently corrupt both. Two different facts, two different flags.
+  //
+  // Affects ONLY isItemApplicable (item-level redaction). It does NOT touch resolveEra, which
+  // picks byLaw measurement VALUES per era — a neverEraGated item with a byLaw measurement would
+  // still resolve its thresholds normally. (Verified 2026-08-04: no code-5 leaf carries a byLaw
+  // measurement in any seeded template, and none would gain one from the era-override candidates,
+  // so that combination does not arise today.)
+  neverEraGated?: boolean
   confidence?: 'low'           // source table row was low-fidelity — flag, don't force-guess
   note?: string
 }
@@ -90,7 +106,9 @@ export const FACILITY_CATALOG: FacilityCatalogEntry[] = [
   { code: 3, nameTh: 'ทางลาด', lawRefs: ['MHT_2548', 'PSD_2555', 'MOT_2556', 'MHT_2564'], cabinetResolution: true },
   // PROVISIONAL-LOW-CONFIDENCE: PSD_2555 blank in source table (low-fidelity extraction)
   { code: 4, nameTh: 'บันไดและราวจับสำหรับคนพิการ', lawRefs: ['MHT_2548', 'MOT_2556', 'MHT_2564'], confidence: 'low' },
-  { code: 5, nameTh: 'พื้นผิวต่างสัมผัส (ทุกชนิด Tactile)', lawRefs: ['MHT_2548', 'PSD_2555', 'MOT_2556', 'MHT_2564'], note: 'Collapses Warning/Guiding/Positioning tactile variants — template items stay granular, share this facilityCode.' },
+  // Session F3, Part D — never era-gated (see FacilityCatalogEntry.neverEraGated). lawRefs below
+  // stay complete and real; only build-year REDACTION is switched off for this facility.
+  { code: 5, nameTh: 'พื้นผิวต่างสัมผัส (ทุกชนิด Tactile)', lawRefs: ['MHT_2548', 'PSD_2555', 'MOT_2556', 'MHT_2564'], neverEraGated: true, note: 'Collapses Warning/Guiding/Positioning tactile variants — template items stay granular, share this facilityCode. Session F3: never era-gated per สนข. — Guiding Block / พื้นผิวต่างสัมผัส is not tied to build year.' },
   { code: 6, nameTh: 'ช่องขายตั๋ว/ช่องเก็บตั๋วสำหรับคนพิการ', lawRefs: ['MOT_2556'] },
   { code: 7, nameTh: 'อุปกรณ์นำพาคนพิการ/รถเข็นขึ้นลงจากรถ', lawRefs: ['MOT_2556'] },
   { code: 8, nameTh: 'ราวกันตก/ผนังกันตก/ประตูกั้นชานชาลา', lawRefs: ['PSD_2555', 'MOT_2556'] },

@@ -353,7 +353,11 @@ export class ChecklistsService {
   // find-then-create/update like before, but a concurrent double-create now loses cleanly via
   // the real DB constraint (P2002) instead of racing on a read-then-write check — the loser
   // falls back to updating the row the winner just created.
-  async saveDraft(stationId: string, auditorId: string, items: unknown, finalThoughts?: string) {
+  //
+  // Session F3, Part H.1 — CREATING a draft is "starting an inspection", so it now runs the
+  // proximity gate (see runProximityGate). UPDATING an existing draft is deliberately ungated:
+  // once started on-site, the auditor may keep working — and autosaving — from anywhere.
+  async saveDraft(stationId: string, auditorId: string, items: unknown, finalThoughts?: string, gps?: SubmitGps) {
     const station = await this.stations.findOne(stationId)
     const template = await this.getActiveTemplate(station.mode, station.railSubtype)
     this.validateItemsPayload(items, template?.definition as ChecklistTemplateDefinition | undefined)
@@ -361,6 +365,10 @@ export class ChecklistsService {
     const existing = await this.prisma.checklist.findFirst({
       where: { stationId, auditorId, status: 'DRAFT' },
     })
+    // Part H.1 — gate BEFORE the year-built assertion has any side effect, and only on creation.
+    // Both are start-time preconditions; order between them is not significant, but the gate must
+    // never run on the update path.
+    const startGate = existing ? null : await this.runProximityGate(station, gps)
     if (!existing) this.assertYearBuiltPresent(station.yearBuilt)
 
     let checklist
@@ -392,6 +400,9 @@ export class ChecklistsService {
             appliedYearBuilt,
             appliedLawRefs: appliedLawRefs === null ? Prisma.JsonNull : toJson(appliedLawRefs),
             finalThoughts: finalThoughts ?? null,
+            // Session F3, Part H.3 — the start-time GPS audit trail, stamped once here. This
+            // draft's creation is the moment presence at the station was actually proven.
+            ...(startGate ? this.startGpsColumns(startGate, gps) : {}),
             // Part A — stamped from the station at creation, never recomputed (see schema doc).
             isTraining: station.isTraining,
           },
@@ -409,6 +420,25 @@ export class ChecklistsService {
       }
     }
 
+    // Session F3, Part H.5 — a distinct START event, logged only on creation and carrying the
+    // measured distance. This is what an admin reads to answer "was this auditor actually at the
+    // station when they started?" after the fact — SAVE_DRAFT fires on every autosave tick and
+    // says nothing about location, so it can't answer that question.
+    if (startGate) {
+      await this.auditLog.log({
+        userId: auditorId,
+        action: 'START_CHECKLIST',
+        entityType: 'Checklist',
+        entityId: checklist.id,
+        after: {
+          stationId,
+          distanceM:         startGate.distanceM,
+          locationVerified:  startGate.locationVerified,
+          proximityBypassed: startGate.bypassAllowed,
+        },
+      })
+    }
+
     await this.auditLog.log({
       userId: auditorId,
       action: 'SAVE_DRAFT',
@@ -419,16 +449,74 @@ export class ChecklistsService {
     return checklist
   }
 
-  // Proximity gate — recomputes distance server-side; a client "isNear" flag is never trusted.
-  //   - coordStatus=OK station: GPS required, must be within PROXIMITY_RADIUS_M or the submit
-  //     is rejected (frontend is expected to save the work as a draft on this error).
-  //   - coordStatus!=OK station (APPROXIMATE/PENDING): can't be distance-gated (coords may be
-  //     tens of km off) — allowed through, but locationVerified=false so the app can still show
-  //     an "unverified location" warning.
-  //   - Dev/staging bypass: a server-side env switch (APP_ENV + PROXIMITY_BYPASS), never a
+  // ── Proximity gate (Session F3, Part H — gates the START, not the submit) ──────────────────
+  //
+  // สนข. 2026-08-03: an inspection may only be STARTED at the station, but once started it lives
+  // in a DRAFT that can be finished and submitted from anywhere ("เน้นวัดๆไปก่อนแล้วค่อยมาเพิ่มรูป
+  // ทีหลัง"). So this ladder now runs on the two paths that CREATE a checklist row —
+  // saveDraft()'s create branch and a submit() with no prior draft — and on nothing else.
+  // Updating an existing draft, and submitting one, are deliberately ungated.
+  //
+  // Every rung is preserved exactly as it was in submit() before F3:
+  //   - training station: skipped entirely (Station.isTraining, server-side, never a client flag).
+  //     locationVerified stays null so a training row is visibly distinct from a real
+  //     "gate ran, coords unverified" case.
+  //   - dev/staging bypass: a server-side env switch (APP_ENV + PROXIMITY_BYPASS), never a
   //     client-supplied flag — isProximityBypassActive() is the sole authority and is itself
   //     fail-closed in production (see validateEnv). Any bypassRequested the client sends is
-  //     ignored outright.
+  //     ignored outright. Genuinely unverified: bypass skips the check, it doesn't fake a pass.
+  //   - coordStatus!=OK station (APPROXIMATE/PENDING): can't be distance-gated (coords may be
+  //     tens of km off) — allowed through with locationVerified=false so the app can still show
+  //     an "unverified location" warning.
+  //   - coordStatus=OK station: GPS required, and must be within PROXIMITY_RADIUS_M.
+  //
+  // Distance is always recomputed server-side; a client "isNear" flag is never trusted.
+  // Throws (403 LOCATION_REQUIRED / 400 OUT_OF_RANGE) exactly as submit() used to.
+  private async runProximityGate(
+    station: { id: string; isTraining: boolean; coordStatus: string },
+    gps: SubmitGps | undefined,
+  ): Promise<{ distanceM: number | null; locationVerified: boolean | null; bypassAllowed: boolean }> {
+    const bypassAllowed = isProximityBypassActive()
+
+    if (station.isTraining) return { distanceM: null, locationVerified: null, bypassAllowed }
+    if (bypassAllowed)      return { distanceM: null, locationVerified: false, bypassAllowed }
+    if (station.coordStatus !== 'OK') return { distanceM: null, locationVerified: false, bypassAllowed }
+
+    if (gps?.lat == null || gps?.lng == null) {
+      throw new ForbiddenException({
+        code: 'LOCATION_REQUIRED',
+        message: 'ต้องเปิดใช้งาน GPS เพื่อเริ่มการตรวจประเมิน',
+      })
+    }
+    const distanceM = await this.stations.distanceToStationMeters(station.id, gps.lat, gps.lng)
+    if (distanceM === null || distanceM > PROXIMITY_RADIUS_M) {
+      throw new BadRequestException({
+        code: 'OUT_OF_RANGE',
+        message: 'คุณอยู่นอกพื้นที่สถานี ไม่สามารถเริ่มการตรวจประเมินได้',
+        distanceM,
+      })
+    }
+    return { distanceM, locationVerified: true, bypassAllowed }
+  }
+
+  // Part H.3/H.5 — the start-time audit trail. Columns are stamped once at creation and never
+  // touched again (see schema.prisma), and the same distance is written to AuditLog so an admin
+  // can answer "was this auditor actually at the station when they started?" without reading the
+  // checklist row itself.
+  private startGpsColumns(
+    gate: { distanceM: number | null; locationVerified: boolean | null; bypassAllowed: boolean },
+    gps: SubmitGps | undefined,
+  ) {
+    return {
+      startGpsLat:            gps?.lat ?? null,
+      startGpsLng:            gps?.lng ?? null,
+      startGpsAccuracy:       gps?.accuracy ?? null,
+      startGpsDistanceM:      gate.distanceM,
+      startLocationVerified:  gate.locationVerified,
+      startProximityBypassed: gate.bypassAllowed,
+    }
+  }
+
   async submit(
     stationId: string,
     auditorId: string,
@@ -465,38 +553,35 @@ export class ChecklistsService {
       ? this.applyRedactionFlags(parsedGroups, resolvedDef)
       : parsedGroups
 
-    // Part A.2 — training stations skip the proximity gate entirely (server-enforced: this is
-    // Station.isTraining, never a client-supplied flag). locationVerified stays null rather than
-    // false so a training row is visibly distinct from a real "gate ran, coords unverified" case.
-    const bypassAllowed = isProximityBypassActive()
+    // Session F3, Part H.1/H.2 — the proximity gate runs ONLY when this submit is also a START,
+    // i.e. there is no prior DRAFT for this (station, auditor). That path genuinely can create an
+    // inspection from nothing, so it is gated exactly as draft creation is.
+    //
+    // When a draft DOES exist, the gate has already run (at draft creation) and this submit is
+    // deliberately ungated — that is the whole point of the change: work started on-site may be
+    // finished and submitted from anywhere.
+    //
+    // Submit-time GPS is still recorded whenever the client supplies it (below), but it is no
+    // longer a gate and no longer proves presence — see the schema doc on startGps*.
+    const isStart = !existingDraft
+    const startGate = isStart
+      ? await this.runProximityGate(station, gps)
+      : null
 
-    let distanceM: number | null = null
-    let locationVerified: boolean | null = false
-
-    if (station.isTraining) {
-      locationVerified = null
-    } else if (bypassAllowed) {
-      // Genuinely unverified — bypass skips the check, it doesn't fake a passing one.
-      locationVerified = false
-    } else if (station.coordStatus !== 'OK') {
-      locationVerified = false
-    } else {
-      if (gps?.lat == null || gps?.lng == null) {
-        throw new ForbiddenException({
-          code: 'LOCATION_REQUIRED',
-          message: 'ต้องเปิดใช้งาน GPS เพื่อส่งรายงาน',
-        })
-      }
+    // Submit-time distance is computed for the audit trail only, never to reject. Skipped for
+    // training rows and when no GPS was offered, matching the pre-F3 "nothing to record" cases.
+    let distanceM: number | null = startGate?.distanceM ?? null
+    if (!isStart && !station.isTraining && gps?.lat != null && gps?.lng != null) {
       distanceM = await this.stations.distanceToStationMeters(stationId, gps.lat, gps.lng)
-      if (distanceM === null || distanceM > PROXIMITY_RADIUS_M) {
-        throw new BadRequestException({
-          code: 'OUT_OF_RANGE',
-          message: 'คุณอยู่นอกพื้นที่สถานี ไม่สามารถส่งรายงานได้',
-          distanceM,
-        })
-      }
-      locationVerified = true
     }
+    const bypassAllowed = startGate?.bypassAllowed ?? isProximityBypassActive()
+    // Preserves the pre-F3 semantics of this column: whether the SUBMIT-time reading was verified.
+    // For a resumed draft nothing was verified at submit time, which is exactly the honest answer.
+    const locationVerified: boolean | null = station.isTraining
+      ? null
+      : startGate
+        ? startGate.locationVerified
+        : false
 
     // Re-derive score server-side; never trust the client-supplied value. Passing the ERA-
     // RESOLVED template def (not the raw ACTIVE one) lets measured presence_standard leaves
@@ -531,6 +616,10 @@ export class ChecklistsService {
           gpsDistanceM: distanceM,
           locationVerified,
           proximityBypassed: bypassAllowed,
+          // Part H.3 — a no-prior-draft submit IS a start, so it carries the start-time trail too.
+          // A resumed draft leaves these null on the SUBMITTED row; the proof of presence lives on
+          // the DRAFT row that was gated at creation (linked by (stationId, auditorId)).
+          ...(startGate ? this.startGpsColumns(startGate, gps) : {}),
           isTraining: station.isTraining,
         },
       })
@@ -546,6 +635,24 @@ export class ChecklistsService {
         })
       }
       throw err
+    }
+
+    // Part H.5 — a fresh submit with no prior draft IS a start (nothing was created before it),
+    // so it gets the same START event the draft-creation path writes.
+    if (startGate) {
+      await this.auditLog.log({
+        userId: auditorId,
+        action: 'START_CHECKLIST',
+        entityType: 'Checklist',
+        entityId: checklist.id,
+        after: {
+          stationId,
+          distanceM:         startGate.distanceM,
+          locationVerified:  startGate.locationVerified,
+          proximityBypassed: startGate.bypassAllowed,
+          viaDirectSubmit:   true,
+        },
+      })
     }
 
     await this.auditLog.log({

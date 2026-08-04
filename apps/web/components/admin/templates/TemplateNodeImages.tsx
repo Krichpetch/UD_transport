@@ -34,9 +34,13 @@ export function TemplateNodeImages({ templateId, node, readOnly }: { templateId:
       <p className="text-foreground mb-2 text-xs font-semibold">
         รูปภาพประกอบ ({keys.length}/{MAX_IMAGES})
       </p>
-      <div className="flex items-center gap-2">
+      {/* Session F3, Part E.2 — the admin sees the images at the SAME size the auditor will, so
+          "is this legible in the field?" is answerable here rather than only after publishing.
+          Same 'reference' variant the E-form uses; delete stays available via the lightbox. */}
+      <div className="flex flex-col items-start gap-2">
         <ChecklistPhotoGallery
           photos={photos}
+          variant="reference"
           onDelete={readOnly ? undefined : async (photo) => { await removeImage.mutateAsync({ nodeCode: node.code, key: photo.id }) }}
         />
         {!readOnly && keys.length < MAX_IMAGES && (

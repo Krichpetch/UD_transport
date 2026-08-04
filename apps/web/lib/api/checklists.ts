@@ -100,8 +100,11 @@ export function getChecklistHistoryPaginated(stationId: string, page: number, li
 // `items` is deliberately `unknown[]` rather than `ChecklistGroup[]` — v2 nested trees don't fit
 // that flat shape (see @repo/types#StoredChecklistNode); every ChecklistGroup[] value is still
 // assignable here, so this is a strict widening, not a breaking change for v1 callers.
-export function saveDraft(stationId: string, items: unknown[], finalThoughts?: string) {
-  return api.post<ChecklistRecord>(`/stations/${stationId}/checklist/draft`, { items, finalThoughts })
+// Session F3, Part H.1 — `gps` is sent so the server can run the proximity gate when this call
+// CREATES the draft (starting an inspection). The server decides whether that's the case; the
+// client never claims it. Autosave ticks on an existing draft carry it harmlessly and ungated.
+export function saveDraft(stationId: string, items: unknown[], finalThoughts?: string, gps?: SubmitGps) {
+  return api.post<ChecklistRecord>(`/stations/${stationId}/checklist/draft`, { items, finalThoughts, gps })
 }
 
 export function submitChecklist(

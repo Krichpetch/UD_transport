@@ -5,6 +5,8 @@ import type { ChecklistRecord } from './checklists'
 export interface StationFilters {
   mode?: TransportMode | ''
   railSubtype?: string
+  // Session F3, Part A.4 — line/route (สาย). Exact match; composes with mode/railSubtype/search.
+  line?: string
   region?: string
   province?: string
   agency?: string
@@ -50,6 +52,8 @@ export interface CreateStationInput {
   nameTh: string
   mode: string
   railSubtype?: string
+  // Session F3, Part A.5 — omitted defaults to '' server-side (the "no line" sentinel).
+  line?: string
   province: string
   // region is derived server-side from coordinates (province as fallback) — see
   // StationsService.create. Omit it; only pass it to pin an explicit override.
@@ -74,6 +78,7 @@ export function getStations(filters?: StationFilters) {
   const params = new URLSearchParams()
   if (filters?.mode)        params.set('mode',        filters.mode)
   if (filters?.railSubtype) params.set('railSubtype', filters.railSubtype)
+  if (filters?.line)        params.set('line',        filters.line)
   if (filters?.region)      params.set('region',      filters.region)
   if (filters?.province)    params.set('province',    filters.province)
   if (filters?.agency)      params.set('agency',      filters.agency)
@@ -163,6 +168,9 @@ export interface UpdateStationInput {
   nameTh?: string
   mode?: string
   railSubtype?: string
+  // Session F3, Part A.5 — part of the (mode, nameTh, line) identity key; a clash comes back as
+  // a STATION_IDENTITY_CONFLICT error naming the conflicting station.
+  line?: string
   province?: string
   region?: string
   responsibleAgency?: string
@@ -236,6 +244,10 @@ export interface StationSearchResult {
   province: string
   mode: string
   railSubtype?: string
+  // Session F3, Part A.1 — always present (empty string when the station has no line, never
+  // null — see schema.prisma Station.line). Two stations sharing a nameTh are distinguishable
+  // ONLY by this, so every surface that renders a name renders this alongside it.
+  line: string
 }
 
 export interface StationSearchPage {
@@ -258,16 +270,31 @@ export function getNearbyStations(lat: number, lng: number, limit = 20) {
 // Session S3b, Part B — railSubtype mirrors the F2 admin filter (RAIL_SUBTYPES, @repo/types):
 // only meaningful alongside mode='ทางราง'.
 export function searchStations(
-  params: { q?: string; mode?: string; railSubtype?: string; limit?: number; page?: number },
+  params: { q?: string; mode?: string; railSubtype?: string; line?: string; limit?: number; page?: number },
   signal?: AbortSignal,
 ): Promise<StationSearchPage> {
   const p = new URLSearchParams()
   if (params.q)           p.set('q',           params.q)
   if (params.mode)        p.set('mode',        params.mode)
   if (params.railSubtype) p.set('railSubtype', params.railSubtype)
+  if (params.line)        p.set('line',        params.line)
   if (params.limit) p.set('limit', String(params.limit))
   if (params.page && params.page > 1) p.set('page', String(params.page))
   return api.get<StationSearchPage>(`/stations/search?${p}`, signal)
+}
+
+// Session F3, Part A.4 — distinct lines for a mode/railSubtype scope. The line filter control is
+// rendered only when this returns a non-empty list, so a mode that gains lines later (e.g. land
+// terminals) needs no code change — never gate the control on a hardcoded mode list.
+export function getStationLines(
+  params: { mode?: string; railSubtype?: string },
+  signal?: AbortSignal,
+): Promise<string[]> {
+  const p = new URLSearchParams()
+  if (params.mode)        p.set('mode',        params.mode)
+  if (params.railSubtype) p.set('railSubtype', params.railSubtype)
+  const qs = p.toString()
+  return api.get<string[]>(`/stations/lines${qs ? `?${qs}` : ''}`, signal)
 }
 
 // Session S3b, Part A.5 — the 5 fixed tutorial stations for the auditor home's "แบบฝึกหัด" section.
@@ -276,6 +303,8 @@ export interface TrainingStation {
   nameTh: string
   mode: string
   railSubtype?: string
+  // Session F3, Part A.3 — labelled the same way real stations are, if a fixture ever carries one.
+  line: string
 }
 
 export function getTrainingStations() {

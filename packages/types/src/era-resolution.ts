@@ -17,7 +17,21 @@ import type {
   TemplateNode,
   ChecklistTemplateGroupDef,
 } from './checklist-template.js'
-import { LAW_REFERENCE_SEED } from './facility-catalog.js'
+import { LAW_REFERENCE_SEED, FACILITY_CATALOG } from './facility-catalog.js'
+
+// Session F3, Part D — facility codes flagged neverEraGated in FACILITY_CATALOG (today: 5,
+// พื้นผิวต่างสัมผัส / tactile of every kind). Precomputed once rather than scanning the catalog per
+// leaf, since isItemApplicable runs over every node of every template resolution.
+const NEVER_ERA_GATED_FACILITY_CODES: ReadonlySet<number> = new Set(
+  FACILITY_CATALOG.filter((e) => e.neverEraGated).map((e) => e.code),
+)
+
+// Session F3, Part D — is this node exempt from build-year redaction by its facility type?
+// Exported so the admin lawRefs editor can show an admin WHY an item never redacts (read-only
+// indicator — the flag itself is catalog data, not admin-editable).
+export function isNeverEraGated(facilityCode: number | undefined | null): boolean {
+  return facilityCode != null && NEVER_ERA_GATED_FACILITY_CODES.has(facilityCode)
+}
 
 export interface EraResolution {
   lawCode: string
@@ -169,6 +183,10 @@ export function resolveTemplateEras(
 //   - one of its lawRefs is 'PROJECT', or it's flagged beyondLaw — these are not กฎกระทรวง
 //     requirements at all (the สนข. project checklist superset / beyond-law additions), so they
 //     are never era-gated
+//   - Session F3, Part D: its facility type is flagged neverEraGated (tactile surfaces / Guiding
+//     Block). Distinct from the beyondLaw case above — these items ARE in law, they are just not
+//     gated by build year — which is why it is a separate flag and a separate clause, not a
+//     beyondLaw reuse (see FacilityCatalogEntry.neverEraGated)
 //   - at least one of its lawRefs is a law already in force (lawYear <= yearBuilt)
 //   - one of its lawRefs is a code missing from the registry entirely — fails open (missing
 //     registry data is a data-quality gap, not grounds to hide a real checklist item)
@@ -178,6 +196,9 @@ function isItemApplicable(
   registry: readonly EraLawRef[],
 ): boolean {
   if (yearBuilt == null) return true
+  // Session F3, Part D — checked BEFORE the lawRefs tests: a neverEraGated facility survives every
+  // build year precisely BECAUSE of what it is, regardless of how completely it is law-tagged.
+  if (isNeverEraGated(node.facilityCode)) return true
   if (!node.lawRefs || node.lawRefs.length === 0) return true
   if (node.beyondLaw || node.lawRefs.includes('PROJECT')) return true
   return node.lawRefs.some((code) => {

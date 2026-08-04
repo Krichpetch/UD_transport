@@ -4,9 +4,24 @@ import * as React from 'react'
 import { Search, X, Loader2, ChevronRight, ChevronLeft, Bus, Train, TrainFront, Ship, Plane, LocateFixed, MapPin } from 'lucide-react'
 import { RAIL_SUBTYPES } from '@repo/types'
 import type { TransportMode, RailSubtype } from '@repo/types'
-import { searchStations, getNearbyStations } from '@/lib/api/stations'
+import { searchStations, getNearbyStations, getStationLines } from '@/lib/api/stations'
 import type { StationSearchResult, NearbyStation } from '@/lib/api/stations'
 import { getCurrentPosition } from '@/lib/geolocation'
+
+// Session F3, Part A.3 — the line/route badge. Station identity is (mode, nameTh, line), so two
+// same-named stations on different lines are ONLY distinguishable by this: it must be visible on
+// every row and on the selected-station chip, without the auditor having to open the station.
+// Renders nothing for the empty-string "no line" case (the deliberate sentinel, never null).
+export function LineBadge({ line, className = '' }: { line?: string | null; className?: string }) {
+  if (!line) return null
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold leading-tight text-primary ${className}`}
+    >
+      {line}
+    </span>
+  )
+}
 
 // ── Mode tabs ──────────────────────────────────────────────────────────────────
 
@@ -39,6 +54,9 @@ interface SelectedStation {
   province: string | null
   mode: TransportMode
   railSubtype?: RailSubtype
+  // Part A.3 — shown on the closed trigger chip, so the auditor can confirm they picked the
+  // right one of two same-named stations without reopening the picker.
+  line?: string
 }
 
 interface Props {
@@ -62,6 +80,12 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
   // Session S3b, Part B — mirrors the F2 admin rail subtype filter; only shown/sent when
   // mode === 'ทางราง', cleared whenever mode changes (see the mode-chip onClick below).
   const [railSubtype, setRailSubtype] = React.useState<RailSubtype | ''>('')
+  // Session F3, Part A.4 — line filter. `lineOptions` drives whether the control renders at all:
+  // "the lines endpoint returned something for this scope", never a hardcoded mode list, so a
+  // mode that gains lines later works with no code change. Cleared whenever mode/railSubtype
+  // changes, exactly like railSubtype is cleared on a mode change above.
+  const [line, setLine]               = React.useState('')
+  const [lineOptions, setLineOptions] = React.useState<string[]>([])
   const [results, setResults]       = React.useState<StationSearchResult[]>([])
   const [loading, setLoading]       = React.useState(false)
   const [page, setPage]             = React.useState(1)
@@ -83,6 +107,8 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
     setTab('search')
     setQuery('')
     setRailSubtype('')
+    setLine('')
+    setLineOptions([])
     setResults([])
     setTotal(0)
     setTotalPages(1)
@@ -116,10 +142,26 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
     return () => { cancelled = true }
   }, [open, tab])
 
+  // Part A.4 — refresh the available lines whenever the mode/railSubtype scope changes, and drop
+  // any line selection that the new scope can't satisfy (mirrors the mode-chip's railSubtype
+  // reset). One bounded query per scope change, never derived from a page of results.
+  React.useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setLine('')
+    getStationLines({
+      mode: mode || undefined,
+      railSubtype: mode === 'ทางราง' ? (railSubtype || undefined) : undefined,
+    })
+      .then((lines) => { if (!cancelled) setLineOptions(lines) })
+      .catch(() => { if (!cancelled) setLineOptions([]) })
+    return () => { cancelled = true }
+  }, [open, mode, railSubtype])
+
   // Reset to page 1 when search terms change
   React.useEffect(() => {
     setPage(1)
-  }, [query, mode, railSubtype])
+  }, [query, mode, railSubtype, line])
 
   // Scroll list to top on page change
   React.useEffect(() => {
@@ -143,6 +185,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
         q: q || undefined,
         mode: mode || undefined,
         railSubtype: mode === 'ทางราง' ? (railSubtype || undefined) : undefined,
+        line: line || undefined,
         limit: PAGE_SIZE,
         page,
       }, ctrl.signal)
@@ -164,7 +207,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
     }, delay)
 
     return () => clearTimeout(timer)
-  }, [query, mode, railSubtype, page, open])
+  }, [query, mode, railSubtype, line, page, open])
 
   function handleSelect(id: string) {
     onSelect(id)
@@ -196,6 +239,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
               <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
                 {selectedStation.nameTh}
               </span>
+              <LineBadge line={selectedStation.line} />
               <span className="shrink-0 text-xs text-gray-400">{selectedStation.province}</span>
             </>
           ) : (
@@ -259,7 +303,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
                     autoComplete="off"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="พิมพ์ชื่อสถานี หรือจังหวัด…"
+                    placeholder="พิมพ์ชื่อสถานี สายรถไฟ หรือจังหวัด…"
                     className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                   />
                   {loading && <Loader2 size={14} className="shrink-0 animate-spin text-muted-foreground" />}
@@ -322,6 +366,37 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
                   ))}
                 </div>
               )}
+
+              {/* Session F3, Part A.4 — line chips. Rendered purely on "this scope has lines",
+                  never on a hardcoded mode list, so land terminals with lines work later with no
+                  code change. Cleared on any mode/railSubtype change (see the effect above). */}
+              {lineOptions.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto bg-white px-4 pb-3 [scrollbar-none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  <button
+                    onClick={() => setLine('')}
+                    className={`flex shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                      line === ''
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-secondary-foreground'
+                    }`}
+                  >
+                    ทุกสาย
+                  </button>
+                  {lineOptions.map((l) => (
+                    <button
+                      key={l}
+                      onClick={() => setLine(l)}
+                      className={`flex shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                        line === l
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary text-secondary-foreground'
+                      }`}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              )}
             </>
           )}
 
@@ -359,8 +434,11 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
                         <ModeIcon mode={r.mode} railSubtype={r.railSubtype} size={16} />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-foreground">
-                          {r.nameTh}
+                        <span className="flex items-center gap-1.5">
+                          <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                            {r.nameTh}
+                          </span>
+                          <LineBadge line={r.line} />
                         </span>
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
                           <MapPin size={10} className="shrink-0" />
@@ -398,8 +476,11 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
                       <ModeIcon mode={r.mode} railSubtype={r.railSubtype} size={16} />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-foreground">
-                        {r.nameTh}
+                      <span className="flex items-center gap-1.5">
+                        <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                          {r.nameTh}
+                        </span>
+                        <LineBadge line={r.line} />
                       </span>
                       <span className="text-xs text-muted-foreground">{r.province}</span>
                     </span>

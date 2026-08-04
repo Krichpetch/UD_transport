@@ -93,7 +93,7 @@ export class ChecklistsController {
     @Req() req: AuthRequest,
   ) {
     if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
-    return this.checklists.saveDraft(stationId, req.user.id, body.items, body.finalThoughts)
+    return this.checklists.saveDraft(stationId, req.user.id, body.items, body.finalThoughts, body.gps)
   }
 
   @Post('submit')

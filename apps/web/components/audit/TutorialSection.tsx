@@ -2,7 +2,7 @@
 
 import { GraduationCap, ChevronRight, Loader2 } from 'lucide-react'
 import { useTrainingStations } from '@/hooks/use-stations'
-import { ModeIcon } from './StationSearchPicker'
+import { ModeIcon, LineBadge } from './StationSearchPicker'
 
 interface Props {
   onSelect: (id: string) => void
@@ -47,6 +47,9 @@ export function TutorialSection({ onSelect }: Props) {
             <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
               {s.nameTh}
             </span>
+            {/* Session F3, Part A.3 — same line labelling as the real station rows, for the day a
+                training fixture carries one. */}
+            <LineBadge line={s.line} />
             <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
           </button>
         ))}

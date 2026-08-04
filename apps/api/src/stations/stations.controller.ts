@@ -91,6 +91,7 @@ export class StationsController {
     @Req() req: AuthRequest,
     @Query('mode')            mode?: string,
     @Query('railSubtype')     railSubtype?: string,
+    @Query('line')            line?: string,
     @Query('region')          region?: string,
     @Query('province')        province?: string,
     @Query('agency')          responsibleAgency?: string,
@@ -111,7 +112,7 @@ export class StationsController {
     // caller can never surface training fixtures through this endpoint regardless of query string.
     if (includeTraining === '1' && req.user.role !== 'ADMIN') throw new ForbiddenException()
     return this.stations.findAll({
-      mode, railSubtype, region, province, responsibleAgency, status, checklistStatus, search, subItem,
+      mode, railSubtype, line, region, province, responsibleAgency, status, checklistStatus, search, subItem,
       page:      page      ? parseInt(page,  10) : 1,
       limit:     limit     ? parseInt(limit, 10) : 20,
       sortBy,
@@ -134,13 +135,14 @@ export class StationsController {
     return this.stations.getFilterOptions()
   }
 
-  // Slim search for the auditor station picker — returns id/nameTh/province/mode only
+  // Slim search for the auditor station picker — returns id/nameTh/province/mode/line only
   @Get('search')
   search(
     @Req() req: AuthRequest,
     @Query('q')           q?: string,
     @Query('mode')        mode?: string,
     @Query('railSubtype') railSubtype?: string,
+    @Query('line')        line?: string,
     @Query('limit')       limit?: string,
     @Query('page')        page?: string,
   ) {
@@ -149,9 +151,23 @@ export class StationsController {
       q,
       mode,
       railSubtype,
+      line,
       limit: limit ? Math.min(parseInt(limit, 10), 50) : 20,
       page:  page  ? parseInt(page, 10) : 1,
     })
+  }
+
+  // Must come before @Get(':id') to avoid route conflict.
+  // Session F3, Part A.4 — distinct lines for a mode/railSubtype scope, backing the line filter
+  // control. Same read-only role set as the other filter-option endpoints.
+  @Get('lines')
+  lines(
+    @Req() req: AuthRequest,
+    @Query('mode')        mode?: string,
+    @Query('railSubtype') railSubtype?: string,
+  ) {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    return this.stations.findLines({ mode, railSubtype })
   }
 
   // Must come before @Get(':id') to avoid route conflict.

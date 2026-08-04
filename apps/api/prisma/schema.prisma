@@ -227,6 +227,25 @@ model Checklist {
   locationVerified  Boolean?
   proximityBypassed Boolean?
 
+  // Session F3, Part H — START-time GPS audit trail. สนข. 2026-08-03 moved the proximity gate from
+  // submit to START ("กดเข้าไปทำได้แค่ตอนอยู่ใกล้สถานี ... แล้วสามารถส่งจากที่ไหนก็ได้"), so the
+  // submit-time fields above NO LONGER prove the auditor was at the station — these do.
+  //
+  // Added as NEW columns rather than repurposing the existing ones on purpose: rows written before
+  // F3 have a submit-time reading that WAS gated, and rows written after have one that wasn't.
+  // Overloading the same columns would make those two cases indistinguishable after the fact and
+  // silently rewrite the meaning of every historical row. A row with startLocationVerified = null
+  // is therefore exactly "created before F3" (or a training/bypass case, per the flags below).
+  //
+  // Stamped once, at the moment the checklist row is CREATED (saveDraft's create branch, or a
+  // no-prior-draft submit — the two paths that can start an inspection), and never touched again.
+  startGpsLat            Float?
+  startGpsLng            Float?
+  startGpsAccuracy       Float?
+  startGpsDistanceM      Float?
+  startLocationVerified  Boolean?
+  startProximityBypassed Boolean?
+
   // Session S3b, Part A — stamped from Station.isTraining at creation (saveDraft/submit), never
   // recomputed afterward. A denormalized copy, not a derived read through `station`, so every
   // aggregate that already filters Checklist rows directly (never joining Station) can exclude

@@ -1,0 +1,270 @@
+{
+  "_generated": "tools/checklist-migration/era_overrides_convert.py — do not hand-edit; regenerate from the candidate file instead",
+  "mode": "ทางราง",
+  "overrides": {
+    "A2.2-1.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "1.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    },
+    "A2.2-3.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "3.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    },
+    "B1.1-1.1": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 900.0
+            },
+            "MHT_2564": {
+              "value": 860.0
+            }
+          }
+        }
+      ],
+      "labelHint": "1.1 ความกว้างของช่องประตูวัดถึงขอบใน ต้องไม่น้อยกว่า 900 มิลลิเมตร"
+    },
+    "B1.1-2.1.1": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 900.0
+            },
+            "MHT_2564": {
+              "value": 860.0
+            }
+          }
+        }
+      ],
+      "labelHint": "2.1.1 ประตูต้องมีความกว้างสุทธิวัดถึงขอบในไม่น้อยกว่า 900 มิลลิเมตร"
+    },
+    "B1.1-2.2.1": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 900.0
+            },
+            "MHT_2564": {
+              "value": 860.0
+            }
+          }
+        }
+      ],
+      "labelHint": "2.2.1 ประตูต้องมีความกว้างสุทธิวัดถึงขอบใน ไม่น้อยกว่า 900 มิลลิเมตร"
+    },
+    "B1.1-2.3.1": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 900.0
+            },
+            "MHT_2564": {
+              "value": 860.0
+            }
+          }
+        }
+      ],
+      "labelHint": "2.3.1 ความกว้างสุทธิของช่องเปิดประตูวัดถึง ขอบในต้องไม่น้อยกว่า 900 มิลลิเมตร"
+    },
+    "B2.7-1.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "1.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    },
+    "B2.7-2.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "2.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    },
+    "B2.7-3.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "3.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    },
+    "B7.10-1.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "1.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    },
+    "B7.10-2.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "2.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    },
+    "B7.10-3.5": {
+      "measurements": [
+        {
+          "autoGrade": true,
+          "confirmed": false,
+          "extracted": true,
+          "key": "m1",
+          "operator": "gte",
+          "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+          "unit": "mm",
+          "byLaw": {
+            "MHT_2548": {
+              "value": 50.0
+            },
+            "MHT_2564": {
+              "value": 100.0
+            }
+          }
+        }
+      ],
+      "labelHint": "3.5 ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลล"
+    }
+  }
+}

@@ -105,7 +105,12 @@ describe('ChecklistsService.submit — Part B.3 resubmit-after-rejection linkage
   it('an ordinary submit with no prior draft never writes a RESUBMIT_AFTER_REJECTION entry', async () => {
     checklistFindFirst.mockResolvedValueOnce(null) // no existing draft
     await service.submit('s1', 'u1', [])
-    expect(auditLog).toHaveBeenCalledTimes(1) // only SUBMIT_CHECKLIST
+    // Session F3, Part H.5 — a submit with NO prior draft is also a START (it creates the
+    // inspection from nothing), so it now writes START_CHECKLIST alongside SUBMIT_CHECKLIST.
+    // Asserted by action rather than by call count, so this test keeps testing what it is about
+    // — resubmission linkage — instead of breaking whenever an unrelated audit event is added.
+    const actions = auditLog.mock.calls.map((c) => c[0].action)
+    expect(actions).toEqual(['START_CHECKLIST', 'SUBMIT_CHECKLIST'])
     expect(auditLog).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'RESUBMIT_AFTER_REJECTION' }))
   })
 

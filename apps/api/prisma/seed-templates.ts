@@ -32,6 +32,7 @@ import {
   type TemplateNode,
   FACILITY_CATALOG,
   LAW_REFERENCE_SEED,
+  OPTIONAL_GROUP_CODES,
 } from '@repo/types'
 import { V1_TEMPLATE_GROUPS } from './v1-template-groups'
 
@@ -59,18 +60,22 @@ const V2_VARIANTS: Record<Mode, VariantFiles[]> = {
 }
 
 // v3-migration-cutover — candidate templates from the checklist-migration pipeline
-// (tools/checklist-migration/). DRAFT only; no era-override application in this loop —
-// applyEraOverrides() fails silently on this pipeline's candidate-file shape, so wiring it in
-// here would look like it worked while doing nothing. Era overrides on v3 are a separate,
-// deliberately deferred task.
+// (tools/checklist-migration/).
+//
+// Session F3, Part G — era overrides ARE applied here now, exactly as in the v2 loop above. They
+// previously were not, because applyEraOverrides() cannot read the migration pipeline's CANDIDATE
+// file shape (per-law raw numbers keyed by leaf code) — that gap is now closed by an explicit
+// converter, tools/checklist-migration/era_overrides_convert.py, which turns a candidate file
+// into the `{ overrides: { code: { measurements: [...] } } }` shape this loop merges. Regenerate
+// the files named below with that script; never hand-edit them.
 const V3_VARIANTS: Record<Mode, VariantFiles[]> = {
-  ทางบก:    [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_land_v3.json' }],
+  ทางบก:    [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_land_v3.json', overridesFile: 'era_overrides_land_v3.json' }],
   ทางราง:   [
-    { variantKey: RAIL_TRAIN_VARIANT_KEY, file: 'template_rail_rail_train_v3.json' },
-    { variantKey: RAIL_METRO_VARIANT_KEY, file: 'template_rail_rail_metro_v3.json' },
+    { variantKey: RAIL_TRAIN_VARIANT_KEY, file: 'template_rail_rail_train_v3.json', overridesFile: 'era_overrides_rail_rail_train_v3.json' },
+    { variantKey: RAIL_METRO_VARIANT_KEY, file: 'template_rail_rail_metro_v3.json', overridesFile: 'era_overrides_rail_rail_metro_v3.json' },
   ],
-  ทางน้ำ:   [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_water_v3.json' }],
-  ทางอากาศ: [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_air_v3.json' }],
+  ทางน้ำ:   [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_water_v3.json', overridesFile: 'era_overrides_water_v3.json' }],
+  ทางอากาศ: [{ variantKey: STANDARD_VARIANT_KEY, file: 'template_air_v3.json', overridesFile: 'era_overrides_air_v3.json' }],
 }
 
 // tools/checklist_json/ is the real current home for these seed JSONs — moved here (from the
@@ -125,6 +130,84 @@ function tagLeaves(def: ChecklistTemplateDefinition): TagStats {
   return stats
 }
 
+// ---- Session F3, Part G.1 — era-override application, loudly ---------------------------------
+//
+// A DECLARED-but-missing overrides file used to be a silent no-op: `if (fs.existsSync(path))`
+// with no else. Four of the five v2 files named in V2_VARIANTS have never existed, so four modes
+// were seeded with no era overrides at all while the seed report said nothing — which is the
+// entire reason "era overrides don't work" went unnoticed for three sessions.
+//
+// Now a missing declared file is reported as a WARNING line, collected and re-printed as a block
+// at the end of the run so it cannot scroll past unnoticed. Deliberately a warning, not a hard
+// failure: `pnpm db:seed` must stay runnable on a fresh checkout where the (gitignored, สนข.-
+// derived) override files have not been generated yet — see era_overrides_convert.py. Making it
+// fatal would block every developer from seeding at all over data they may not be allowed to hold.
+// The one thing it must never do again is pass silently.
+function applyOverridesFile(
+  def: ChecklistTemplateDefinition,
+  variant: VariantFiles,
+  label: string,
+  report: string[],
+  warnings: string[],
+): ChecklistTemplateDefinition {
+  if (!variant.overridesFile) return def
+
+  const overridesPath = path.join(TEMPLATE_JSON_DIR, variant.overridesFile)
+  if (!fs.existsSync(overridesPath)) {
+    const warning = `${label}: era overrides DECLARED but MISSING — ${variant.overridesFile} not found in ${TEMPLATE_JSON_DIR}. This template was seeded with NO era overrides.`
+    warnings.push(warning)
+    report.push(`  ⚠ ${warning}`)
+    return def
+  }
+
+  const overridesRaw = JSON.parse(fs.readFileSync(overridesPath, 'utf-8'))
+  const merged = applyEraOverrides(def, overridesRaw)
+  const count = Object.keys(overridesRaw.overrides ?? {}).length
+  if (count === 0) {
+    const warning = `${label}: ${variant.overridesFile} exists but declares ZERO overrides — nothing was applied.`
+    warnings.push(warning)
+    report.push(`  ⚠ ${warning}`)
+    return merged
+  }
+  report.push(`${label}: applied era overrides from ${variant.overridesFile} (${count} leaf(ves))`)
+  return merged
+}
+
+// Part G.5 — honest byLaw coverage, counted on the template as it will actually be stored.
+function countByLawLeaves(def: ChecklistTemplateDefinition): number {
+  let n = 0
+  const visit = (node: TemplateNode) => {
+    if (node.measurements?.some((m) => m.byLaw && Object.keys(m.byLaw).length > 0)) n++
+    for (const child of node.subItems ?? []) visit(child)
+  }
+  for (const g of def.groups) for (const item of g.items) visit(item)
+  return n
+}
+
+// ---- Session F3, Part C.1 — optional-group stamping ----------------------------------------
+//
+// Marks every group whose code is in OPTIONAL_GROUP_CODES (C1/C2) as `optional: true`, on EVERY
+// version this script seeds — v1, v2 and v3 alike. The auditor submit gate reads that per-group
+// flag, never a `/^C/` test, so which groups are optional stays a property of the checklist
+// definition rather than a hardcoded rule in the form.
+//
+// Purely additive: a template with no matching group codes is returned unchanged, and the flag is
+// only ever set to `true` (never written as `false`), so untouched templates still round-trip
+// byte-identically through the admin editor.
+//
+// Coverage note (verified 2026-08-04): v2 and v3 carry C1+C2 for every mode/variant. v1 does NOT
+// — only ทางบก has C groups at all; v1 ทางราง/ทางน้ำ/ทางอากาศ have none, so this is a no-op there.
+function markOptionalGroups(def: ChecklistTemplateDefinition): number {
+  let marked = 0
+  for (const g of def.groups) {
+    if (OPTIONAL_GROUP_CODES.includes(g.code)) {
+      g.optional = true
+      marked++
+    }
+  }
+  return marked
+}
+
 // ---- v1 definition construction ------------------------------------------------------------
 
 function buildV1Definition(mode: Mode): ChecklistTemplateDefinition {
@@ -153,6 +236,10 @@ async function upsertTemplate(
 
 async function main() {
   const report: string[] = []
+  // Session F3, Part G.1 — collected separately from `report` so declared-but-missing override
+  // files are re-printed as a block at the very end. Inline warnings scroll past in a seed run
+  // that prints a line per mode per version; that is exactly how this went unnoticed before.
+  const warnings: string[] = []
 
   // ---- 1. LawReference ----
   for (const law of LAW_REFERENCE_SEED) {
@@ -168,10 +255,11 @@ async function main() {
   for (const mode of MODES) {
     const v1def = parseTemplateDefinition(buildV1Definition(mode)) // round-trip through the validator as a sanity check
     const v1stats = tagLeaves(v1def)
+    const v1optional = markOptionalGroups(v1def)
     // v1 is NOT split by variant (Session E3, Part A decision) — the live parity anchor stays at
     // variantKey='standard' for every mode, rail included, until v2 activation.
     await upsertTemplate(mode, STANDARD_VARIANT_KEY, 1, 'ACTIVE', v1def, 'v1 parity anchor — item-for-item, code-for-code with the pre-E1 in-code form (apps/web/lib/constants.ts)')
-    report.push(`v1 ${mode}: ${v1stats.total} items, ${v1stats.tagged}/${v1stats.total} facility-tagged`)
+    report.push(`v1 ${mode}: ${v1stats.total} items, ${v1stats.tagged}/${v1stats.total} facility-tagged, ${v1optional} optional group(s)`)
     if (v1stats.unmatched.length) report.push(`  v1 ${mode} unmatched: ${v1stats.unmatched.join(' | ')}`)
 
     // v2 DRAFT(s) — one per declared variant; a missing source file is a logged no-op (Session
@@ -189,25 +277,19 @@ async function main() {
       // (there used to be one, when the canonical value was "ทางเรือ").
       let v2def = parseTemplateDefinition(raw) // throws loudly on any mismatch — v2 files are loaded verbatim, never coerced
 
-      if (variant.overridesFile) {
-        const overridesPath = path.join(TEMPLATE_JSON_DIR, variant.overridesFile)
-        if (fs.existsSync(overridesPath)) {
-          const overridesRaw = JSON.parse(fs.readFileSync(overridesPath, 'utf-8'))
-          v2def = applyEraOverrides(v2def, overridesRaw)
-          report.push(`v2 ${mode} [${variant.variantKey}]: applied era overrides from ${variant.overridesFile} (${Object.keys(overridesRaw.overrides ?? {}).length} leaf(ves))`)
-        }
-      }
+      v2def = applyOverridesFile(v2def, variant, `v2 ${mode} [${variant.variantKey}]`, report, warnings)
 
       const v2stats = tagLeaves(v2def)
+      const v2optional = markOptionalGroups(v2def)
       await upsertTemplate(mode, variant.variantKey, 2, 'DRAFT', v2def, 'PROVISIONAL — see apps/docs/Checklist_Utils/DATA_DICTIONARY_v2.md; NOT activated in Session E1')
-      report.push(`v2 ${mode} [${variant.variantKey}]: ${v2stats.total} leaves, ${v2stats.tagged}/${v2stats.total} facility-tagged`)
+      report.push(`v2 ${mode} [${variant.variantKey}]: ${v2stats.total} leaves, ${v2stats.tagged}/${v2stats.total} facility-tagged, ${v2optional} optional group(s), ${countByLawLeaves(v2def)} byLaw leaf(ves)`)
       if (v2stats.unmatched.length) {
         report.push(`  v2 ${mode} [${variant.variantKey}] unmatched (${v2stats.unmatched.length}): ${v2stats.unmatched.slice(0, 30).join(' | ')}${v2stats.unmatched.length > 30 ? ' ...' : ''}`)
       }
     }
 
     // v3 DRAFT(s) — candidates from the checklist-migration pipeline. Mirrors the v2 loop
-    // exactly except: no era-override application (see V3_VARIANTS comment above).
+    // exactly, era-override application included (Session F3, Part G.3).
     for (const variant of V3_VARIANTS[mode]) {
       const rawPath = path.join(TEMPLATE_JSON_DIR, variant.file)
       if (!fs.existsSync(rawPath)) {
@@ -215,11 +297,14 @@ async function main() {
         continue
       }
       const raw = JSON.parse(fs.readFileSync(rawPath, 'utf-8'))
-      const v3def = parseTemplateDefinition(raw) // throws loudly on any mismatch — v3 files are loaded verbatim, never coerced
+      let v3def = parseTemplateDefinition(raw) // throws loudly on any mismatch — v3 files are loaded verbatim, never coerced
+
+      v3def = applyOverridesFile(v3def, variant, `v3 ${mode} [${variant.variantKey}]`, report, warnings)
 
       const v3stats = tagLeaves(v3def)
-      await upsertTemplate(mode, variant.variantKey, 3, 'DRAFT', v3def, 'PROVISIONAL — checklist-migration pipeline candidate; NOT activated, NOT era-overridden')
-      report.push(`v3 ${mode} [${variant.variantKey}]: ${v3stats.total} leaves, ${v3stats.tagged}/${v3stats.total} facility-tagged`)
+      const v3optional = markOptionalGroups(v3def)
+      await upsertTemplate(mode, variant.variantKey, 3, 'DRAFT', v3def, 'PROVISIONAL — checklist-migration pipeline candidate; NOT activated')
+      report.push(`v3 ${mode} [${variant.variantKey}]: ${v3stats.total} leaves, ${v3stats.tagged}/${v3stats.total} facility-tagged, ${v3optional} optional group(s), ${countByLawLeaves(v3def)} byLaw leaf(ves)`)
       if (v3stats.unmatched.length) {
         report.push(`  v3 ${mode} [${variant.variantKey}] unmatched (${v3stats.unmatched.length}): ${v3stats.unmatched.slice(0, 30).join(' | ')}${v3stats.unmatched.length > 30 ? ' ...' : ''}`)
       }
@@ -244,6 +329,20 @@ async function main() {
   report.push(`Backfill: ${backfilled}/${unbackfilled.length} pre-existing Checklist rows stamped to their mode's v1 ACTIVE template`)
 
   console.log(report.join('\n'))
+
+  // Part G.1 — the block that makes a silent no-op impossible to miss.
+  if (warnings.length > 0) {
+    console.warn(
+      `\n${'='.repeat(78)}\n` +
+      `⚠  ERA OVERRIDES: ${warnings.length} declared file(s) were NOT applied\n` +
+      `${'='.repeat(78)}\n` +
+      warnings.map((w) => `  • ${w}`).join('\n') +
+      `\n\nGenerate the missing file(s) with:\n` +
+      `  python tools/checklist-migration/era_overrides_convert.py \\\n` +
+      `      <candidates.json> <template.json> tools/checklist_json/<overrides.json>\n` +
+      `${'='.repeat(78)}\n`
+    )
+  }
 }
 
 main()
