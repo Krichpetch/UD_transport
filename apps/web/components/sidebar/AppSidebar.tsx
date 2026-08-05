@@ -88,7 +88,7 @@ export function AppSidebar() {
               <User size={14} className="text-sidebar-foreground" />
             </div>
             <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-              <p className="text-sidebar-foreground truncate text-xs font-medium">{user?.username ?? '—'}</p>
+              <p className="text-sidebar-foreground truncate text-xs font-medium">{user?.displayName || user?.username || '—'}</p>
               <p className="text-sidebar-foreground/60 truncate text-[10px]">{ROLE_LABEL[user?.role ?? ''] ?? ''}</p>
             </div>
             <button

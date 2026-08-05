@@ -470,6 +470,49 @@ export class ChecklistsService {
     return checklist
   }
 
+  // 2026-08-06 — Checklist.appliedYearBuilt is frozen at creation on purpose (see the model doc):
+  // an audit already underway must not have its criteria shift under it just because SOMEONE ELSE
+  // corrected the station's yearBuilt mid-audit. But that freeze becomes a bug the moment the
+  // AUDITOR THEMSELVES deliberately changes the year and expects the rest of the audit — including
+  // final scoring — to actually follow it: submit() (below) reads the DRAFT's frozen stamp, not the
+  // station's live yearBuilt, so without this the client could reload and answer against a NEWLY
+  // resolved template while still being scored against the OLD one at submit — a silent mismatch,
+  // arguably worse than the original "doesn't reload at all" bug, since it would look fixed on
+  // screen while actually being wrong underneath. Called from the auditor's confirm-to-start screen
+  // right after a year change is confirmed on a station with an existing DRAFT — a no-op (returns
+  // null) when there is no draft yet, since a fresh saveDraft() will stamp correctly at creation.
+  async restampDraftEra(stationId: string, auditorId: string) {
+    const existing = await this.prisma.checklist.findFirst({ where: { stationId, auditorId, status: 'DRAFT' } })
+    if (!existing) return null
+
+    const station = await this.stations.findOne(stationId)
+    const template = await this.getActiveTemplate(station.mode, station.railSubtype)
+    const { appliedYearBuilt, appliedYearBuiltDate, appliedLawRefs } = this.resolveEraStamp(
+      template?.definition as ChecklistTemplateDefinition | undefined,
+      station.yearBuilt,
+      toIsoDate(station.yearBuiltDate),
+    )
+
+    const checklist = await this.prisma.checklist.update({
+      where: { id: existing.id },
+      data: {
+        appliedYearBuilt,
+        appliedYearBuiltDate: appliedYearBuiltDate ? new Date(appliedYearBuiltDate) : null,
+        appliedLawRefs: appliedLawRefs === null ? Prisma.JsonNull : toJson(appliedLawRefs),
+      },
+    })
+
+    await this.auditLog.log({
+      userId: auditorId,
+      action: 'RESTAMP_DRAFT_ERA',
+      entityType: 'Checklist',
+      entityId: existing.id,
+      before: { appliedYearBuilt: existing.appliedYearBuilt, appliedYearBuiltDate: toIsoDate(existing.appliedYearBuiltDate) },
+      after: { appliedYearBuilt, appliedYearBuiltDate },
+    })
+    return checklist
+  }
+
   // ── Proximity gate (Session F3, Part H — gates the START, not the submit) ──────────────────
   //
   // สนข. 2026-08-03: an inspection may only be STARTED at the station, but once started it lives

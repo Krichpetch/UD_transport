@@ -6,6 +6,7 @@ import { AuditLogService } from '../audit/audit.service'
 import { BCRYPT_ROUNDS } from '../config/constants'
 import { LoginDto } from './dto/login.dto'
 import { ChangePasswordDto } from './dto/change-password.dto'
+import { UpdateProfileDto } from './dto/update-profile.dto'
 
 @Injectable()
 export class AuthService {
@@ -30,7 +31,7 @@ export class AuthService {
     const payload = { sub: user.id, username: user.username, role: user.role }
     return {
       access_token: this.jwt.sign(payload),
-      user: { id: user.id, username: user.username, role: user.role },
+      user: { id: user.id, username: user.username, role: user.role, displayName: user.displayName },
     }
   }
 
@@ -60,5 +61,29 @@ export class AuthService {
       entityId:   userId,
       ipAddress,
     })
+
+    return { success: true }
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto, ipAddress?: string) {
+    const before = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (!before) throw new UnauthorizedException()
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data:  { displayName: dto.displayName },
+    })
+
+    await this.auditLog.log({
+      userId,
+      action:     'PROFILE_UPDATED',
+      entityType: 'User',
+      entityId:   userId,
+      before:     { displayName: before.displayName },
+      after:      { displayName: user.displayName },
+      ipAddress,
+    })
+
+    return { id: user.id, username: user.username, role: user.role, displayName: user.displayName }
   }
 }

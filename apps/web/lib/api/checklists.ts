@@ -54,8 +54,16 @@ export function getLatestChecklist(stationId: string) {
   return api.get<ChecklistRecord | null>(`/stations/${stationId}/checklist`)
 }
 
+// 2026-08-06 — pre-existing, unrelated to the year-reload work: ChecklistsService.findDraft
+// returns `null` for "no draft yet," but Nest serializes that as a genuinely EMPTY response body
+// (200, content-length 0), not JSON `null` — so api.get's empty-body handling (see request() in
+// lib/api.ts) resolves this to `undefined`, not `null`. Harmless in itself (every call site already
+// does draft?.items etc.), but react-query hard-forbids a queryFn ever resolving to `undefined`
+// ("Query data cannot be undefined") — fires on literally every fresh audit start, for any station
+// with no draft, independent of anything else. Coerced back to `null` here, at the one place this
+// function is actually wired into a useQuery (useMyDraft, hooks/use-checklists.ts).
 export function getMyDraft(stationId: string) {
-  return api.get<ChecklistRecord | null>(`/stations/${stationId}/checklist/draft`)
+  return api.get<ChecklistRecord | null>(`/stations/${stationId}/checklist/draft`).then((r) => r ?? null)
 }
 
 // E-form redesign (Session E2, Part A.6) — the mode's ACTIVE template, era-resolved server-side
@@ -112,6 +120,14 @@ export function getChecklistHistoryPaginated(stationId: string, page: number, li
 // client never claims it. Autosave ticks on an existing draft carry it harmlessly and ungated.
 export function saveDraft(stationId: string, items: unknown[], finalThoughts?: string, gps?: SubmitGps) {
   return api.post<ChecklistRecord>(`/stations/${stationId}/checklist/draft`, { items, finalThoughts, gps })
+}
+
+// 2026-08-06 — pairs with the auditor confirm-to-start screen's year-change reload: re-stamps an
+// EXISTING draft's frozen appliedYearBuilt/appliedYearBuiltDate against the station's current year,
+// so the final submit's scoring actually matches whatever era the auditor just reloaded to on
+// screen. A no-op (null) when there's no draft yet — see restampDraftEra's doc in checklists.service.ts.
+export function restampDraftEra(stationId: string) {
+  return api.post<ChecklistRecord | null>(`/stations/${stationId}/checklist/restamp-era`, {})
 }
 
 export function submitChecklist(

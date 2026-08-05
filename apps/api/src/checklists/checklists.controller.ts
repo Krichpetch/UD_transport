@@ -45,6 +45,18 @@ export class ChecklistsController {
     return this.checklists.findDraft(stationId, req.user.id)
   }
 
+  // 2026-08-06 — pairs with the auditor confirm-to-start screen's year-change reload. Re-stamps an
+  // EXISTING draft's frozen appliedYearBuilt/appliedYearBuiltDate against the station's current
+  // year — see restampDraftEra's doc for why this must happen alongside the client-side reload,
+  // not instead of it: submit() scores against the draft's frozen stamp, not a live re-resolution,
+  // so skipping this would let the auditor answer one era's form while being scored against
+  // another. AUDITOR-only, same guard as /draft — a no-op (null) when there's no draft yet.
+  @Post('restamp-era')
+  restampDraftEra(@Param('stationId') stationId: string, @Req() req: AuthRequest) {
+    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    return this.checklists.restampDraftEra(stationId, req.user.id)
+  }
+
   // E-form redesign (Session E2, Part A.6) — the ACTIVE template with byLaw values already
   // resolved (client never picks between eras). AUDITOR-only: this is keyed to "my" in-progress
   // draft's stamp when one exists, same guard as /draft above. `preview=1` (Part B.2) and/or

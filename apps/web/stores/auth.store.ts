@@ -7,6 +7,7 @@ export interface AuthUser {
   id: string
   username: string
   role: UserRole
+  displayName?: string | null
 }
 
 interface AuthState {
@@ -14,6 +15,7 @@ interface AuthState {
   token: string | null
   login: (user: AuthUser, token: string) => void
   logout: () => void
+  updateUser: (patch: Partial<AuthUser>) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -23,6 +25,7 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       login:  (user, token) => set({ user, token }),
       logout: () => set({ user: null, token: null }),
+      updateUser: (patch) => set((s) => (s.user ? { user: { ...s.user, ...patch } } : s)),
     }),
     {
       name:    'auth',

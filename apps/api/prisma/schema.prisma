@@ -58,6 +58,7 @@ model User {
   username     String    @unique
   email        String    @unique
   passwordHash String
+  displayName  String?
   role         UserRole  @default(AUDITOR)
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())

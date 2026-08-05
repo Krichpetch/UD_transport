@@ -1,10 +1,11 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import { login } from '@/lib/api/auth'
 import { useAuthStore } from '@/stores/auth.store'
+import { PasswordInput } from '@/components/ui/password-input'
 
 const ROLE_DESTINATIONS: Record<string, string> = {
   EXECUTIVE: '/dashboard',
@@ -13,7 +14,17 @@ const ROLE_DESTINATIONS: Record<string, string> = {
 }
 
 export default function LoginPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <LoginForm />
+    </React.Suspense>
+  )
+}
+
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const passwordChanged = searchParams.get('passwordChanged') === '1'
   const storeLogin = useAuthStore((s) => s.login)
 
   const [username, setUsername] = React.useState('')
@@ -72,15 +83,19 @@ export default function LoginPage() {
 
           <div className="space-y-1.5">
             <label className="text-foreground text-sm font-medium">รหัสผ่าน</label>
-            <input
-              type="password"
+            <PasswordInput
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={mutation.isPending}
-              className="border-input bg-background placeholder:text-muted-foreground focus:ring-ring w-full rounded-lg border px-3 py-2.5 text-sm focus:ring-2 focus:outline-none disabled:opacity-50"
             />
           </div>
+
+          {passwordChanged && !errorMsg && (
+            <p className="rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">
+              เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบอีกครั้ง
+            </p>
+          )}
 
           {errorMsg && (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{errorMsg}</p>

@@ -40,7 +40,7 @@ export default function AuditLayout({ children }: { children: React.ReactNode })
       <div className="min-h-screen overflow-x-hidden bg-background">
         <header className="border-border bg-card/80 supports-[backdrop-filter]:bg-card/60 sticky top-0 z-30 flex items-center justify-between gap-3 border-b px-4 py-3 backdrop-blur">
           <div className="min-w-0">
-            <p className="text-foreground truncate text-sm font-semibold">{user?.username ?? '-'}</p>
+            <p className="text-foreground truncate text-sm font-semibold">{user?.displayName || user?.username || '-'}</p>
             <p className="text-muted-foreground text-xs">ผู้ตรวจสอบ</p>
           </div>
           <div className="flex items-center gap-1.5">

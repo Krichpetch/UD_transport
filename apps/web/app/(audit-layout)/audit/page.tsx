@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { getStationTypeLabel } from '@/lib/constants'
 import { useStation } from '@/hooks/use-stations'
 import { useSaveDraft, useSubmitChecklist, useMyDraft, useTemplateForAudit } from '@/hooks/use-checklists'
+import { restampDraftEra } from '@/lib/api/checklists'
 import { useUpdateYearBuilt } from '@/hooks/use-stations'
 import { computeScoreFromItems, buildHistogram, scoreToStatus } from '@repo/types'
 import {
@@ -20,7 +21,8 @@ import { V2ItemPage } from '@/components/audit/V2PagerForm'
 import { PageNavigatorTrigger, type NavigatorPage } from '@/components/audit/PageNavigator'
 import { useAuthStore } from '@/stores/auth.store'
 import { useAuditFormStore } from '@/stores/audit-form.store'
-import { buildStoredGroups, countProgressForNodes, groupDisplayName, collectRedactedLeaves, isNodeFullyRedacted } from '@/lib/audit-form'
+import { buildStoredGroups, countProgress, countProgressForNodes, groupDisplayName, collectRedactedLeaves, isNodeFullyRedacted } from '@/lib/audit-form'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { ApiError } from '@/lib/api'
 import { getCurrentPosition, haversineMeters, PROXIMITY_BYPASS } from '@/lib/geolocation'
 import type { SubmitGps } from '@/lib/geolocation'
@@ -276,6 +278,16 @@ export default function AuditPage() {
 
   const seededForRef = React.useRef<string | null>(null)
   const autoSaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 2026-08-06 — changing the construction month/year on a station with existing progress now
+  // reloads the era-resolved template instead of silently keeping the one resolved for the OLD
+  // year (the actual bug behind the "only pre-2556 items showing" report). `carryOverRef` stashes
+  // the CURRENT in-session answers right before the reload, keyed for hydrateAnswers to re-project
+  // onto the newly-resolved tree by leaf code — an item whose code no longer exists there (redacted
+  // under the new year) silently loses its answer, exactly the "not completely transported"
+  // behavior the confirm dialog below warns about. Consumed once by the hydrate effect, then
+  // cleared, so a later NORMAL reload (e.g. switching stations) falls back to the real draft.
+  const carryOverRef = React.useRef<{ items: ReturnType<typeof buildStoredGroups>; finalThoughts: string } | null>(null)
+  const [pendingYearChange, setPendingYearChange] = React.useState<{ next: string; previous: string } | null>(null)
 
   // Reset all form + check-in state when the selected station changes
   React.useEffect(() => {
@@ -304,19 +316,27 @@ export default function AuditPage() {
     const key = `${station.id}:${v2PreviewAllowed}:${previewVersion ?? ''}:${previewYearBuiltOverride ?? ''}:${previewBuildDateOverride ?? ''}`
     if (seededForRef.current === key) return
     seededForRef.current = key
+    // A pending carry-over (set by confirmYearChange below) wins over the real draft — it IS the
+    // real draft's answers, just re-projected through buildStoredGroups so hydrateAnswers can match
+    // them against the freshly-resolved tree instead of the stale one they were entered under.
+    const carryOver = carryOverRef.current
+    carryOverRef.current = null
     hydrate({
       stationId: station.id,
       templateDef: templateResp.template,
-      storedItems: draft?.items ?? null,
-      finalThoughts: draft?.finalThoughts ?? '',
+      storedItems: carryOver ? carryOver.items : (draft?.items ?? null),
+      finalThoughts: carryOver ? carryOver.finalThoughts : (draft?.finalThoughts ?? ''),
       yearBuilt: templateResp.appliedYearBuilt,
       eraUnresolved: templateResp.eraUnresolved,
-      resumedFromDraft: !!(draft?.items && (draft.items as unknown[]).length > 0),
+      resumedFromDraft: carryOver ? true : !!(draft?.items && (draft.items as unknown[]).length > 0),
       checklistId: draft?.id ?? null,
     })
     // yearBuiltDate arrives as a full ISO datetime (Prisma DateTime -> JSON), truncate to the
-    // "YYYY-MM" value MonthYearBuiltInput expects (month/year precision only).
-    setYearBuiltDateInput(station.yearBuiltDate ? station.yearBuiltDate.slice(0, 7) : '')
+    // "YYYY-MM" value MonthYearBuiltInput expects (month/year precision only). Skipped during a
+    // carry-over reload: yearBuiltDateInput already shows the auditor's just-picked value, and
+    // `station` may not have finished refetching its own invalidated query yet — overwriting it
+    // here risks a one-render flash back to the pre-change value.
+    if (!carryOver) setYearBuiltDateInput(station.yearBuiltDate ? station.yearBuiltDate.slice(0, 7) : '')
     // A changed preview year can change v2Pages' length/order (redacted pages drop out) —
     // reset paging so currentPage never points past the end of the freshly-hydrated page set.
     setCurrentPage(0)
@@ -406,6 +426,58 @@ export default function AuditPage() {
       yearBuilt: n,
       yearBuiltDate: `${dateInput}-01`,
     })
+  }
+
+  // Whether there's anything a year-driven reload could actually lose. `resumedFromDraft` covers
+  // the case where the template hasn't hydrated with a live answer count yet; countProgress covers
+  // in-session edits since hydrate. Either being true is reason enough to ask first.
+  function hasExistingProgress(): boolean {
+    if (resumedFromDraft) return true
+    if (!templateDef) return false
+    return countProgress(templateDef, answers).answered > 0
+  }
+
+  // 2026-08-06 — MonthYearBuiltInput's onCommit target. A station with no progress yet can save
+  // and reload freely (nothing to lose); one with progress prompts first, since the newly-resolved
+  // template may drop items the auditor already answered (see carryOverRef's doc above).
+  function handleYearBuiltCommit(dateInput: string): void {
+    if (!hasExistingProgress()) {
+      void saveYearBuilt(dateInput)
+      return
+    }
+    // yearBuiltDateInput hasn't picked up onChange's update yet in this closure (same same-tick
+    // staleness saveYearBuilt's own doc explains) — it's still the value from BEFORE this pick,
+    // exactly what cancelYearChange needs to revert the display to.
+    setPendingYearChange({ next: dateInput, previous: yearBuiltDateInput })
+  }
+
+  async function confirmYearChange(): Promise<void> {
+    if (!pendingYearChange || !templateDef || !station) return
+    const { next } = pendingYearChange
+    carryOverRef.current = { items: buildStoredGroups(templateDef, answers), finalThoughts }
+    setPendingYearChange(null)
+    // Lets the hydrate effect re-run once the invalidated template query (useUpdateYearBuilt's
+    // onSuccess already invalidates it) resolves with the new era's resolution — the effect's own
+    // `key` never changes on a real yearBuilt edit (it's not part of the key), so without this the
+    // fresh data would arrive and sit there unused, which is the actual bug this whole feature
+    // exists to fix.
+    seededForRef.current = null
+    await saveYearBuilt(next)
+    // Re-stamps an EXISTING draft's frozen appliedYearBuilt too — the reload above only changes
+    // what's shown on screen; without this, submit() would still score against whichever era the
+    // draft was originally created under (see restampDraftEra's doc in checklists.service.ts). A
+    // no-op when there's no draft yet, since a fresh saveDraft() stamps correctly at creation.
+    await restampDraftEra(station.id).catch(() => {
+      // Best-effort: the reload/merge above already succeeded and is the visible, important part.
+      // A failure here just means submit() would (rarely) still need a subsequent autosave tick to
+      // catch up the stamp — not worth failing the whole confirm over.
+    })
+  }
+
+  function cancelYearChange(): void {
+    if (!pendingYearChange) return
+    setYearBuiltDateInput(pendingYearChange.previous)
+    setPendingYearChange(null)
   }
 
   // ── Check-in (Screen B "เริ่มการตรวจประเมิน") — client-side pre-check only. The
@@ -658,7 +730,7 @@ export default function AuditPage() {
             </div>
             <div className="flex items-center gap-2">
               <UserIcon size={14} className="shrink-0 text-muted-foreground" />
-              <span className="text-foreground">{user?.username ?? '-'}</span>
+              <span className="text-foreground">{user?.displayName || user?.username || '-'}</span>
             </div>
           </div>
 
@@ -674,7 +746,7 @@ export default function AuditPage() {
               key={station.id}
               value={yearBuiltDateInput}
               onChange={setYearBuiltDateInput}
-              onCommit={(v) => { void saveYearBuilt(v) }}
+              onCommit={handleYearBuiltCommit}
               disabled={v2PreviewAllowed}
               minBuddhistYear={YEAR_BUILT_MIN}
               className="mt-1.5"
@@ -695,6 +767,34 @@ export default function AuditPage() {
               </p>
             )}
           </div>
+
+          {/* 2026-08-06 — changing the year on a station with existing progress reloads the
+              era-resolved template (see carryOverRef's doc); warn first, since some already-
+              entered answers may not exist in the new form. */}
+          <Dialog open={!!pendingYearChange} onOpenChange={(o) => { if (!o) cancelYearChange() }}>
+            <DialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-xl p-5">
+              <DialogTitle className="text-sm font-bold text-foreground">เปลี่ยนปีที่ก่อสร้าง?</DialogTitle>
+              <p className="mt-2 text-xs text-muted-foreground">
+                การเปลี่ยนเดือน/ปีที่ก่อสร้างจะโหลดแบบฟอร์มใหม่ตามเกณฑ์กฎหมายที่ใช้บังคับในปีนั้น
+                คำตอบที่กรอกไว้แล้วจะถูกโอนมาเฉพาะรายการที่ยังคงมีอยู่ในแบบฟอร์มใหม่ —
+                รายการที่ไม่มีอยู่แล้วจะไม่ถูกโอนมาและต้องตอบใหม่
+              </p>
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={cancelYearChange}
+                  className="flex-1 rounded-lg border border-border py-2.5 text-xs font-medium text-foreground"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  onClick={() => { void confirmYearChange() }}
+                  className="flex-1 rounded-lg bg-primary py-2.5 text-xs font-bold text-primary-foreground"
+                >
+                  ยืนยันและโหลดใหม่
+                </button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {checkInStatus === 'blocked' && (
             <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">

@@ -44,9 +44,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(message, res.status, body)
   }
 
-  // 204 No Content
-  if (res.status === 204) return undefined as T
-  return res.json() as Promise<T>
+  // 204 No Content, or a 2xx response with a genuinely empty body (e.g. Nest
+  // resolving a handler that returns undefined) — res.json() throws
+  // "Unexpected end of JSON input" on an empty string, so check first.
+  const text = await res.text()
+  if (!text) return undefined as T
+  return JSON.parse(text) as T
 }
 
 export const api = {
