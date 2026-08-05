@@ -57,16 +57,21 @@ function lawYear(law: EraLawRef): number {
   return law.effectiveYear ?? law.buddhistYear
 }
 
-// 2026-08-05 — a station's build "instant" is now either a Buddhist YEAR (as always) or, when the
-// auditor captured it, an exact Gregorian DATE (Station.yearBuiltDate). Compares a law's
-// enforcement start against whichever precision the station actually has. Prefers a true
-// date-to-date comparison when BOTH sides carry one — this is what resolves same-Buddhist-year
-// law collisions, e.g. PSD_2555 (16 ม.ค. 2556) vs MOT_2556 (3 เม.ย. 2556), both พ.ศ. 2556 (see
-// facility-catalog.ts's file-level note) — and falls back to the pre-existing year-only comparison
-// whenever either side lacks that precision. Never synthesizes a date that wasn't actually
-// supplied: a yearBuilt-only station compares exactly as it always has, byte-for-byte.
+// 2026-08-05, revised same day after PM review — a station's build "instant" is now either a
+// Buddhist YEAR (as always) or, when the auditor captured it, a Gregorian MONTH (Station.
+// yearBuiltDate — the PM decided month/year precision is enough, day-of-month is not asked for).
+// Compares a law's enforcement start against whichever precision the station actually has,
+// TRUNCATED TO MONTH (`yyyy-mm`, the first 7 chars of the ISO string) on both sides — the exact
+// day either one carries (if any) is deliberately ignored, never compared. This is what resolves
+// same-Buddhist-year law collisions, e.g. PSD_2555 (16 ม.ค. 2556) vs MOT_2556 (3 เม.ย. 2556), both
+// พ.ศ. 2556 (see facility-catalog.ts's file-level note): at month granularity these become "ม.ค.
+// 2556" and "เม.ย. 2556" — a station the PM classifies as built มกรา-มีนา 2556 (Jan-Mar 2556, before
+// MOT_2556's เม.ย. cutover) correctly lands in the PSD_2555-only bracket, exactly as ruled. Falls
+// back to the pre-existing year-only comparison whenever either side lacks month precision at all.
+// Never synthesizes a month that wasn't actually supplied: a yearBuilt-only station compares
+// exactly as it always has, byte-for-byte.
 function isLawInForce(law: EraLawRef, yearBuilt: number | null | undefined, buildDate?: string | null): boolean {
-  if (buildDate && law.effectiveDate) return law.effectiveDate <= buildDate
+  if (buildDate && law.effectiveDate) return law.effectiveDate.slice(0, 7) <= buildDate.slice(0, 7)
   if (yearBuilt == null) return false
   return lawYear(law) <= yearBuilt
 }

@@ -2136,12 +2136,38 @@
          "answerType": "presence_standard",
          "code": "A3.2-2.1",
          "labelTh": "ราวจับทำด้วยวัสดุผิวเรียบ ลักษณะกลม เส้นผ่านศูนย์กลาง 30 ถึง 40 มิลลิเมตร",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "range",
+           "sourceText": "30 ถึง 40 มิลลิเมตร",
+           "unit": "mm",
+           "value": 30,
+           "value2": 40
+          }
+         ],
          "num": "2.1"
         },
         {
          "answerType": "presence_standard",
          "code": "A3.2-2.2",
          "labelTh": "ติดตั้งสูงจากพื้น 800 ถึง 900 มิลลิเมตร",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "range",
+           "sourceText": "800 ถึง 900 มิลลิเมตร",
+           "unit": "mm",
+           "value": 800,
+           "value2": 900
+          }
+         ],
          "num": "2.2"
         },
         {
@@ -5745,7 +5771,7 @@
    "items": [
     {
      "code": "B4.1",
-     "labelTh": "ลิฟต์ภายในสถานีรถไฟสำหรับคนพิการ",
+     "labelTh": "ลิฟต์ภายในสถานีรถไฟฟ้าสำหรับคนพิการ",
      "subItems": [
       {
        "answerType": "presence",
@@ -5862,6 +5888,17 @@
            "sourceText": "ไม่น้อยกว่า120 มิลลิเมตร",
            "unit": "mm",
            "value": 120
+          },
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m2",
+           "note": "bare spec (no qualifier in text) — verify operator during review",
+           "operator": "gte",
+           "sourceText": "50 มิลลิเมตร",
+           "unit": "mm",
+           "value": 50
           }
          ],
          "num": "5.3"
@@ -5928,6 +5965,28 @@
            "sourceText": "ไม่น้อยกว่า 400 มิลลิเมตร",
            "unit": "mm",
            "value": 400
+          },
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m3",
+           "note": "bare spec (no qualifier in text) — verify operator during review",
+           "operator": "gte",
+           "sourceText": "1,200 มิลลิเมตร",
+           "unit": "mm",
+           "value": 1200
+          },
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m4",
+           "note": "bare spec (no qualifier in text) — verify operator during review",
+           "operator": "gte",
+           "sourceText": "1,500 มิลลิเมตร",
+           "unit": "mm",
+           "value": 1500
           }
          ],
          "num": "8.1"

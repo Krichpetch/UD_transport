@@ -1,11 +1,18 @@
 /**
- * 2026-08-05 — exact-date era resolution (Station.yearBuiltDate / LawReference.effectiveDate).
+ * 2026-08-05 — month-precision era resolution (Station.yearBuiltDate / LawReference.effectiveDate).
  *
  * The gap this closes: Station.yearBuilt is a Buddhist YEAR, but PSD_2555 (effective 16 ม.ค. 2556)
  * and MOT_2556 (effective 3 เม.ย. 2556) both land in the same พ.ศ. 2556 — a station permitted
- * anywhere in 2556 could not be told apart as "before or after 3 เม.ย." Auditor-captured exact
- * dates (Station.yearBuiltDate) plus real LawReference.effectiveDate values resolve that, but ONLY
- * when both sides have one; a year-only station must keep resolving exactly as it always has.
+ * anywhere in 2556 could not be told apart as "before or after เม.ย." Auditor-captured dates
+ * (Station.yearBuiltDate) plus real LawReference.effectiveDate values resolve that, but ONLY when
+ * both sides have one; a year-only station must keep resolving exactly as it always has.
+ *
+ * Revised same day after PM review: only MONTH/YEAR precision is captured (not day-of-month), and
+ * comparison is truncated to `yyyy-mm` on both sides regardless of what day either value stores —
+ * see isLawInForce's doc in era-resolution.ts. The PM's explicit ruling for this exact boundary:
+ * a station built มกรา-มีนา 2556 (Jan-Mar 2556) is PSD_2555-only; เมษายน 2556 (Apr 2556) onward
+ * gets MOT_2556 too. Tests below use full ISO dates as input (matching what the DB stores) but
+ * assert on month-truncated outcomes.
  */
 import {
   resolveEra,
@@ -30,20 +37,28 @@ describe('resolveEra — exact-date tie-break within the same Buddhist year', ()
     expect(resolveEra(2556, ['PSD_2555', 'MOT_2556'], REGISTRY)).toEqual({ lawCode: 'MOT_2556', eraUnresolved: false })
   })
 
-  it('a buildDate between the two exact dates resolves to the EARLIER law, not the later one a year-only comparison would pick', () => {
-    // 1 กุมภาพันธ์ 2556 — after PSD_2555 (16 ม.ค.) but before MOT_2556 (3 เม.ย.)
+  it('a buildDate in a month between the two effective months resolves to the EARLIER law, not the later one a year-only comparison would pick', () => {
+    // กุมภาพันธ์ 2556 (Feb 2556) — after PSD_2555's ม.ค. but before MOT_2556's เม.ย.
     expect(resolveEra(2556, ['PSD_2555', 'MOT_2556'], REGISTRY, '2013-02-01')).toEqual({ lawCode: 'PSD_2555', eraUnresolved: false })
   })
 
-  it('a buildDate on or after the later exact date resolves to the later law', () => {
+  it('the PM\'s exact ruling: มีนาคม (Mar) 2556 is still PSD_2555-only; เมษายน (Apr) 2556 gets MOT_2556 too', () => {
+    expect(resolveEra(2556, ['PSD_2555', 'MOT_2556'], REGISTRY, '2013-03-15')).toEqual({ lawCode: 'PSD_2555', eraUnresolved: false })
+    expect(resolveEra(2556, ['PSD_2555', 'MOT_2556'], REGISTRY, '2013-04-01')).toEqual({ lawCode: 'MOT_2556', eraUnresolved: false })
+  })
+
+  it('day-of-month is ignored — any day within MOT_2556\'s effective month (เม.ย. 2556) resolves to MOT_2556, even a day before its stored 3 เม.ย.', () => {
+    expect(resolveEra(2556, ['PSD_2555', 'MOT_2556'], REGISTRY, '2013-04-01')).toEqual({ lawCode: 'MOT_2556', eraUnresolved: false })
+  })
+
+  it('a buildDate on or after the later effective month resolves to the later law', () => {
     expect(resolveEra(2556, ['PSD_2555', 'MOT_2556'], REGISTRY, '2013-04-03')).toEqual({ lawCode: 'MOT_2556', eraUnresolved: false })
     expect(resolveEra(2556, ['PSD_2555', 'MOT_2556'], REGISTRY, '2013-12-31')).toEqual({ lawCode: 'MOT_2556', eraUnresolved: false })
   })
 
-  it('a buildDate before the earlier exact date resolves to the earlier law, flagged provisional', () => {
-    // Still พ.ศ. 2556 but before 16 ม.ค. — a real-world impossible date for these two laws, but the
-    // resolver must still degrade sanely rather than crash.
-    expect(resolveEra(2556, ['PSD_2555', 'MOT_2556'], REGISTRY, '2013-01-01')).toEqual({ lawCode: 'PSD_2555', eraUnresolved: true })
+  it('a buildDate in an earlier month than either law resolves to the earlier law, flagged provisional', () => {
+    // ธันวาคม 2555 (Dec 2555 / Dec 2012 Gregorian) — before PSD_2555's ม.ค. 2556 by a full month.
+    expect(resolveEra(2556, ['PSD_2555', 'MOT_2556'], REGISTRY, '2012-12-15')).toEqual({ lawCode: 'PSD_2555', eraUnresolved: true })
   })
 
   it('a buildDate that disagrees with a DIFFERENT candidate set (no effectiveDate on either side) falls back to year-only, byte-identical to before this feature existed', () => {

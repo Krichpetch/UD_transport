@@ -130,6 +130,205 @@ function tagLeaves(def: ChecklistTemplateDefinition): TagStats {
   return stats
 }
 
+// ---- 2026-08-05 — container-level facility-catalog tagging (all 5 modes) -------------------
+//
+// Cross-mode comparison report (2026-08-05, tools/checklist_json/template_*_v3.json diff) found
+// tagLeaves' per-leaf matching to be the root cause of the water-checklist byLaw/lawRefs bug: two
+// sibling leaves under the SAME facility container could independently match (or fail to match)
+// different catalog entries, so they could disagree about which laws gate them. Re-running the
+// SAME matcher one level up — against the CONTAINER (the node directly under a group, e.g.
+// 'A1.1') instead of each leaf — resolves 220/291 containers automatically and, critically, makes
+// that disagreement structurally impossible: every leaf under a resolved container is stamped
+// from the SAME facility entry, never independently re-matched.
+//
+// Piloted on rail_metro alone first (2026-08-05, explicit user decision: "fixing one mode first"),
+// then extended to the remaining 4 modes same day once the mechanism was verified. Every v3
+// mode/variant now calls tagContainers(); tagLeaves() itself is untouched and still backs the v1/v2
+// loops, and is also tagContainers' own fallback for any container below that isn't decided yet.
+interface ContainerFacilityOverride {
+  facilityCode?: number  // omit alongside beyondLaw:true for a genuine beyond-law addition
+  beyondLaw?: true
+}
+
+// Keyed by `${mode}:${variantKey}:${containerCode}`. Each entry is a container the automated
+// matcher (matchFacility, same substring logic as tagLeaves) can't resolve on its own, decided by
+// the user from the report's §03 "71 containers to map" table — applied as given ("session 3 can
+// be let through without any changes"). Grouped by mode below for readability; rail carries both
+// the rail_train and rail_metro variants under the one ทางราง mode.
+function facilityKey(mode: string, variantKey: string, containerCode: string): string {
+  return `${mode}:${variantKey}:${containerCode}`
+}
+const LAND_MODE = 'ทางบก'
+const WATER_MODE = 'ทางน้ำ'
+const AIR_MODE = 'ทางอากาศ'
+const RAIL_MODE = 'ทางราง'
+
+const CONTAINER_FACILITY_OVERRIDES: Record<string, ContainerFacilityOverride> = {
+  // ---- ทางบก (land, standard) ----
+  [facilityKey(LAND_MODE, STANDARD_VARIANT_KEY, 'A2.3')]:  { facilityCode: 4 },   // บันได
+  [facilityKey(LAND_MODE, STANDARD_VARIANT_KEY, 'B4.1')]:  { facilityCode: 4 },
+  [facilityKey(LAND_MODE, STANDARD_VARIANT_KEY, 'B3.1')]:  { facilityCode: 10 },  // ลิฟต์
+  [facilityKey(LAND_MODE, STANDARD_VARIANT_KEY, 'B1.6')]:  { facilityCode: 2 },   // ที่นั่งสำหรับคนพิการ
+  [facilityKey(LAND_MODE, STANDARD_VARIANT_KEY, 'B6.1')]:  { facilityCode: 2 },
+  [facilityKey(LAND_MODE, STANDARD_VARIANT_KEY, 'B1.7')]:  { facilityCode: 2 },   // พื้นที่จอดรถเข็น
+  [facilityKey(LAND_MODE, STANDARD_VARIANT_KEY, 'B6.2')]:  { facilityCode: 2 },
+  [facilityKey(LAND_MODE, STANDARD_VARIANT_KEY, 'B1.3')]:  { facilityCode: 16 },  // สถานีที่ติดต่อประชาสัมพันธ์
+  [facilityKey(LAND_MODE, STANDARD_VARIANT_KEY, 'B1.18')]: { facilityCode: 33 },  // TTRS
+  [facilityKey(LAND_MODE, STANDARD_VARIANT_KEY, 'B2.3')]:  { facilityCode: 32 },  // ที่เปลี่ยนผ้าอ้อมสำหรับเด็ก
+  [facilityKey(LAND_MODE, STANDARD_VARIANT_KEY, 'B5.1')]:  { facilityCode: 13 },  // พื้นที่หนีภัย/หลบภัยของคนพิการ
+  [facilityKey(LAND_MODE, STANDARD_VARIANT_KEY, 'C1.1')]:  { facilityCode: 19 },  // คู่มือการให้ความช่วยเหลือฯ
+  [facilityKey(LAND_MODE, STANDARD_VARIANT_KEY, 'C2.1')]:  { facilityCode: 21 },  // เจ้าหน้าที่ผ่านการฝึกอบรมฯ
+  [facilityKey(LAND_MODE, STANDARD_VARIANT_KEY, 'A2.8')]:  { facilityCode: 12 },  // จุดจอดรับ-ส่งคนพิการ
+  [facilityKey(LAND_MODE, STANDARD_VARIANT_KEY, 'A2.9')]:  { beyondLaw: true },   // หลังคาป้องกันแดดและฝน
+
+  // ---- ทางน้ำ (water, standard) ----
+  [facilityKey(WATER_MODE, STANDARD_VARIANT_KEY, 'B3.1')]: { facilityCode: 2 },   // ที่นั่งสำหรับคนพิการ
+  [facilityKey(WATER_MODE, STANDARD_VARIANT_KEY, 'B3.2')]: { facilityCode: 2 },   // พื้นที่จอดรถเข็น
+  [facilityKey(WATER_MODE, STANDARD_VARIANT_KEY, 'B2.2')]: { facilityCode: 16 },  // สถานีที่ติดต่อประชาสัมพันธ์
+  [facilityKey(WATER_MODE, STANDARD_VARIANT_KEY, 'B4.2')]: { beyondLaw: true },   // หลังคาป้องกันแดดและฝน
+  [facilityKey(WATER_MODE, STANDARD_VARIANT_KEY, 'C1.1')]: { facilityCode: 19 },  // คู่มือการให้ความช่วยเหลือฯ
+  [facilityKey(WATER_MODE, STANDARD_VARIANT_KEY, 'C2.1')]: { facilityCode: 21 },  // เจ้าหน้าที่ผ่านการฝึกอบรมฯ
+
+  // ---- ทางอากาศ (air, standard) ----
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'A2.5')]:  { facilityCode: 4 },   // บันได
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'B6.1')]:  { facilityCode: 4 },
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'B1.6')]:  { facilityCode: 4 },   // บันได...ราวจับบนทางราบ
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'B5.1')]:  { facilityCode: 10 },  // ลิฟต์
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'B2.8')]:  { facilityCode: 2 },   // ที่นั่งสำหรับคนพิการ
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'B3.1')]:  { facilityCode: 2 },
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'B2.9')]:  { facilityCode: 2 },   // พื้นที่จอดรถเข็น
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'B3.2')]:  { facilityCode: 2 },
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'B2.1')]:  { facilityCode: 16 },  // สถานีที่ติดต่อประชาสัมพันธ์
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'B2.2')]:  { facilityCode: 16 },  // จุดบริการให้ข้อมูลการเดินทาง
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'B3.11')]: { facilityCode: 33 },  // TTRS
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'B4.3')]:  { facilityCode: 32 },  // ที่เปลี่ยนผ้าอ้อมสำหรับเด็ก
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'B7.1')]:  { facilityCode: 13 },  // พื้นที่หนีภัย/หลบภัยของคนพิการ
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'C1.1')]:  { facilityCode: 19 },  // คู่มือการให้ความช่วยเหลือฯ
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'C2.1')]:  { facilityCode: 21 },  // เจ้าหน้าที่ผ่านการฝึกอบรมฯ
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'A2.8')]:  { facilityCode: 12 },  // จุดจอดรับ-ส่งคนพิการ
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'A2.9')]:  { beyondLaw: true },   // หลังคาป้องกันแดดและฝน
+  [facilityKey(AIR_MODE, STANDARD_VARIANT_KEY, 'B2.4')]:  { facilityCode: 6 },   // เคาน์เตอร์เช็คอิน (report flagged "6, or a new code" — 6 chosen)
+
+  // ---- ทางราง / rail_train ----
+  [facilityKey(RAIL_MODE, RAIL_TRAIN_VARIANT_KEY, 'A2.3')]:  { facilityCode: 4 },   // บันได
+  [facilityKey(RAIL_MODE, RAIL_TRAIN_VARIANT_KEY, 'B5.1')]:  { facilityCode: 4 },
+  [facilityKey(RAIL_MODE, RAIL_TRAIN_VARIANT_KEY, 'B4.1')]:  { facilityCode: 10 },  // ลิฟต์
+  [facilityKey(RAIL_MODE, RAIL_TRAIN_VARIANT_KEY, 'B2.5')]:  { facilityCode: 2 },   // ที่นั่งสำหรับคนพิการ
+  [facilityKey(RAIL_MODE, RAIL_TRAIN_VARIANT_KEY, 'B7.1')]:  { facilityCode: 2 },
+  [facilityKey(RAIL_MODE, RAIL_TRAIN_VARIANT_KEY, 'B2.6')]:  { facilityCode: 2 },   // พื้นที่จอดรถเข็น
+  [facilityKey(RAIL_MODE, RAIL_TRAIN_VARIANT_KEY, 'B7.2')]:  { facilityCode: 2 },
+  [facilityKey(RAIL_MODE, RAIL_TRAIN_VARIANT_KEY, 'B2.2')]:  { facilityCode: 16 },  // สถานีที่ติดต่อประชาสัมพันธ์
+  [facilityKey(RAIL_MODE, RAIL_TRAIN_VARIANT_KEY, 'B2.17')]: { facilityCode: 33 },  // TTRS
+  [facilityKey(RAIL_MODE, RAIL_TRAIN_VARIANT_KEY, 'B3.3')]:  { facilityCode: 32 },  // ที่เปลี่ยนผ้าอ้อมสำหรับเด็ก
+  [facilityKey(RAIL_MODE, RAIL_TRAIN_VARIANT_KEY, 'B6.1')]:  { facilityCode: 13 },  // พื้นที่หนีภัย/หลบภัยของคนพิการ
+  [facilityKey(RAIL_MODE, RAIL_TRAIN_VARIANT_KEY, 'C1.1')]:  { facilityCode: 19 },  // คู่มือการให้ความช่วยเหลือฯ
+  [facilityKey(RAIL_MODE, RAIL_TRAIN_VARIANT_KEY, 'C2.1')]:  { facilityCode: 21 },  // เจ้าหน้าที่ผ่านการฝึกอบรมฯ
+  [facilityKey(RAIL_MODE, RAIL_TRAIN_VARIANT_KEY, 'A2.8')]:  { facilityCode: 12 },  // จุดจอดรับ-ส่งคนพิการ
+  [facilityKey(RAIL_MODE, RAIL_TRAIN_VARIANT_KEY, 'A2.9')]:  { beyondLaw: true },   // หลังคาป้องกันแดดและฝน
+
+  // ---- ทางราง / rail_metro ----
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'A2.3')]:  { facilityCode: 4 },   // บันได
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'A3.2')]:  { facilityCode: 4 },
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'B5.1')]:  { facilityCode: 4 },
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'A3.1')]:  { facilityCode: 10 },  // ลิฟต์
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'B4.1')]:  { facilityCode: 10 },
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'B2.6')]:  { facilityCode: 2 },   // ที่นั่งสำหรับคนพิการ
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'B7.1')]:  { facilityCode: 2 },
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'B2.7')]:  { facilityCode: 2 },   // พื้นที่จอดรถเข็น
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'B7.2')]:  { facilityCode: 2 },
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'B2.3')]:  { facilityCode: 16 },  // สถานีที่ติดต่อประชาสัมพันธ์
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'B2.18')]: { facilityCode: 33 },  // TTRS
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'B3.3')]:  { facilityCode: 32 },  // ที่เปลี่ยนผ้าอ้อมสำหรับเด็ก
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'B6.1')]:  { facilityCode: 13 },  // พื้นที่หนีภัย/หลบภัยของคนพิการ
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'C1.1')]:  { facilityCode: 19 },  // คู่มือการให้ความช่วยเหลือฯ
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'C2.1')]:  { facilityCode: 21 },  // เจ้าหน้าที่ผ่านการฝึกอบรมฯ
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'A2.8')]:  { facilityCode: 12 },  // จุดจอดรับ-ส่งคนพิการ
+  [facilityKey(RAIL_MODE, RAIL_METRO_VARIANT_KEY, 'A2.9')]:  { beyondLaw: true },   // หลังคาป้องกันแดดและฝน
+}
+
+interface ContainerTagStats extends TagStats {
+  containersAutoMatched: number
+  containersOverridden: number
+  containersFallenBackToLeaf: number
+}
+
+// Stamps every LEAF beneath `container` (recursively) with the same facility identity — never the
+// container node itself, preserving the existing "facilityCode/lawRefs live on leaves only"
+// invariant every other reader (era-resolution.ts, the admin lawRefs editor, summarizeTemplate)
+// already assumes.
+function stampFacilityOnLeaves(
+  container: TemplateNode,
+  tag: { facilityCode?: number; lawRefs?: readonly string[]; cabinetResolution?: boolean; beyondLaw?: boolean },
+  stats: TagStats,
+): void {
+  const visit = (node: TemplateNode) => {
+    if (node.subItems && node.subItems.length > 0) {
+      for (const child of node.subItems) visit(child)
+      return
+    }
+    stats.total++
+    stats.tagged++
+    if (tag.facilityCode !== undefined) node.facilityCode = tag.facilityCode
+    if (tag.lawRefs) node.lawRefs = [...tag.lawRefs]
+    if (tag.cabinetResolution) node.cabinetResolution = true
+    if (tag.beyondLaw) node.beyondLaw = true
+  }
+  visit(container)
+}
+
+function tagContainers(def: ChecklistTemplateDefinition, mode: string, variantKey: string): ContainerTagStats {
+  const stats: ContainerTagStats = {
+    total: 0, tagged: 0, unmatched: [],
+    containersAutoMatched: 0, containersOverridden: 0, containersFallenBackToLeaf: 0,
+  }
+
+  for (const g of def.groups) {
+    for (const container of g.items) {
+      const override = CONTAINER_FACILITY_OVERRIDES[facilityKey(mode, variantKey, container.code)]
+      if (override) {
+        stats.containersOverridden++
+        if (override.beyondLaw) {
+          stampFacilityOnLeaves(container, { beyondLaw: true }, stats)
+        } else if (override.facilityCode !== undefined) {
+          const entry = FACILITY_CATALOG.find(e => e.code === override.facilityCode)!
+          stampFacilityOnLeaves(container, { facilityCode: entry.code, lawRefs: entry.lawRefs, cabinetResolution: entry.cabinetResolution, beyondLaw: entry.beyondLaw }, stats)
+        }
+        continue
+      }
+
+      const match = matchFacility(container.labelTh)
+      if (match) {
+        stats.containersAutoMatched++
+        const entry = FACILITY_CATALOG.find(e => e.code === match.code)!
+        stampFacilityOnLeaves(container, { facilityCode: entry.code, lawRefs: entry.lawRefs, cabinetResolution: entry.cabinetResolution, beyondLaw: entry.beyondLaw }, stats)
+        continue
+      }
+
+      // Neither an override nor an auto-match at container level — fall back to the ORIGINAL
+      // per-leaf matcher for this one container's subtree, so anything not yet reviewed behaves
+      // exactly as tagLeaves() already did (no regression for the un-decided remainder).
+      stats.containersFallenBackToLeaf++
+      const visit = (node: TemplateNode) => {
+        if (node.subItems && node.subItems.length > 0) {
+          for (const child of node.subItems) visit(child)
+          return
+        }
+        stats.total++
+        const leafMatch = matchFacility(node.labelTh)
+        if (!leafMatch) { stats.unmatched.push(node.labelTh); return }
+        stats.tagged++
+        const catalogEntry = FACILITY_CATALOG.find(e => e.code === leafMatch.code)!
+        node.facilityCode = catalogEntry.code
+        node.lawRefs = [...catalogEntry.lawRefs]
+        if (catalogEntry.cabinetResolution) node.cabinetResolution = true
+        if (catalogEntry.beyondLaw) node.beyondLaw = true
+      }
+      visit(container)
+    }
+  }
+  return stats
+}
+
 // ---- Session F3, Part G.1 — era-override application, loudly ---------------------------------
 //
 // A DECLARED-but-missing overrides file used to be a silent no-op: `if (fs.existsSync(path))`
@@ -303,10 +502,13 @@ async function main() {
 
       v3def = applyOverridesFile(v3def, variant, `v3 ${mode} [${variant.variantKey}]`, report, warnings)
 
-      const v3stats = tagLeaves(v3def)
+      // 2026-08-05 — every v3 mode/variant now uses container-level tagging (see tagContainers'
+      // doc). v1/v2 still use the original per-leaf tagLeaves() — out of scope, both superseded.
+      const v3stats = tagContainers(v3def, mode, variant.variantKey)
       const v3optional = markOptionalGroups(v3def)
       await upsertTemplate(mode, variant.variantKey, 3, 'DRAFT', v3def, 'PROVISIONAL — checklist-migration pipeline candidate; NOT activated')
       report.push(`v3 ${mode} [${variant.variantKey}]: ${v3stats.total} leaves, ${v3stats.tagged}/${v3stats.total} facility-tagged, ${v3optional} optional group(s), ${countByLawLeaves(v3def)} byLaw leaf(ves)`)
+      report.push(`  v3 ${mode} [${variant.variantKey}] container-level: ${v3stats.containersOverridden} overridden, ${v3stats.containersAutoMatched} auto-matched, ${v3stats.containersFallenBackToLeaf} fell back to per-leaf matching`)
       if (v3stats.unmatched.length) {
         report.push(`  v3 ${mode} [${variant.variantKey}] unmatched (${v3stats.unmatched.length}): ${v3stats.unmatched.slice(0, 30).join(' | ')}${v3stats.unmatched.length > 30 ? ' ...' : ''}`)
       }

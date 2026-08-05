@@ -153,20 +153,19 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
   // Part A.4 — refresh the available lines whenever the mode/railSubtype scope changes, and drop
   // any line selection that the new scope can't satisfy (mirrors the mode-chip's railSubtype
   // reset). One bounded query per scope change, never derived from a page of results.
-  // Under ทางราง, lines only make sense for รถไฟฟ้า (metro) — รถไฟ intercity stations aren't
-  // line-tagged in this dataset, so mixing them in before a subtype is picked read as noise.
+  // Positive gate: only ทางราง + รถไฟฟ้า specifically. Anything else (no mode chosen at all, a
+  // different mode, or ทางราง with no/other subtype) must clear rather than fall through to an
+  // unscoped fetch — an empty `mode` previously slipped past a `mode === 'ทางราง'` negative check
+  // and queried lines across every mode.
   React.useEffect(() => {
     if (!open) return
     let cancelled = false
     setLine('')
-    if (mode === 'ทางราง' && railSubtype !== 'รถไฟฟ้า') {
+    if (!(mode === 'ทางราง' && railSubtype === 'รถไฟฟ้า')) {
       setLineOptions([])
       return
     }
-    getStationLines({
-      mode: mode || undefined,
-      railSubtype: mode === 'ทางราง' ? (railSubtype || undefined) : undefined,
-    })
+    getStationLines({ mode: 'ทางราง', railSubtype: 'รถไฟฟ้า' })
       .then((lines) => { if (!cancelled) setLineOptions(lines) })
       .catch(() => { if (!cancelled) setLineOptions([]) })
     return () => { cancelled = true }

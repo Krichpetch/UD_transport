@@ -6,10 +6,13 @@ import { IsDateString, IsInt, IsOptional } from 'class-validator'
 export class UpdateYearBuiltDto {
   @IsInt() yearBuilt: number
 
-  // 2026-08-05 — exact building-permit-application date, ISO yyyy-mm-dd, GREGORIAN (native HTML
-  // date input format). Optional refinement captured by the auditor when they can find one (e.g.
-  // on a permit placard) — yearBuilt alone stays sufficient to start an audit. Server-side
-  // validated for internal consistency against yearBuilt in StationsService.updateYearBuilt, not
-  // here — same "range check needs runtime context" reasoning as yearBuilt's own bound above.
+  // 2026-08-05, revised same day after PM review — building-permit-application MONTH, at
+  // month/year precision only (day-of-month was never asked for; era resolution ignores it — see
+  // @repo/types#isLawInForce). Sent as a full ISO yyyy-mm-dd string (day fixed to 01) so the
+  // existing DATE column/validation need no schema change; GREGORIAN, from the auditor's native
+  // HTML month input. Optional refinement captured when the auditor can find a permit record —
+  // yearBuilt alone stays sufficient to start an audit. Server-side validated for internal
+  // consistency against yearBuilt in StationsService.updateYearBuilt, not here — same "range check
+  // needs runtime context" reasoning as yearBuilt's own bound above.
   @IsOptional() @IsDateString() yearBuiltDate?: string
 }

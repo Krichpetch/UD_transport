@@ -755,55 +755,149 @@
        ]
       },
       {
-       "answerType": "presence_standard",
-       "code": "A2.2-4.3",
-       "labelTh": "สูงจากพื้นไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
-       "measurements": [
+       "code": "A2.2-4",
+       "labelTh": "มีราวจับทั้งสองด้าน",
+       "num": "4",
+       "subItems": [
         {
-         "autoGrade": true,
-         "confirmed": false,
-         "extracted": true,
-         "key": "m1",
-         "operator": "range",
-         "sourceText": "ไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
-         "unit": "mm",
-         "value": 800,
-         "value2": 900
-        }
-       ],
-       "num": "4.3"
-      },
-      {
-       "answerType": "presence_standard",
-       "code": "A2.2-4.6",
-       "labelTh": "ราวจับด้านที่อยู่ติดผนังให้มีระยะห่างจากผนัง ไม่น้อยกว่า 50 มิลลิเมตร มีความสูงจากจุดยึด ไม่น้อยกว่า 120 มิลลิเมตร และผนังบริเวณราวจับ ต้องเป็นผนังเรียบ",
-       "measurements": [
-        {
-         "autoGrade": true,
-         "confirmed": false,
-         "extracted": true,
-         "key": "m1",
-         "operator": "gte",
-         "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
-         "unit": "mm",
-         "value": 50
+         "answerType": "presence",
+         "code": "A2.2-4.1",
+         "labelTh": "ทำด้วยวัสดุเรียบ มีความมั่นคงแข็งแรง ไม่เป็นอันตรายในการจับและไม่ลื่น",
+         "num": "4.1"
         },
         {
-         "autoGrade": true,
-         "confirmed": false,
-         "extracted": true,
-         "key": "m2",
-         "operator": "gte",
-         "sourceText": "ไม่น้อยกว่า 120 มิลลิเมตร",
-         "unit": "mm",
-         "value": 120
+         "answerType": "presence_standard",
+         "code": "A2.2-4.2",
+         "labelTh": "ลักษณะกลม เส้นผ่านศูนย์กลางไม่น้อยกว่า30 มิลลิเมตร แต่ไม่เกิน 40 มิลลิเมตร",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "range",
+           "sourceText": "ไม่น้อยกว่า 30 มิลลิเมตร แต่ไม่เกิน 40 มิลลิเมตร",
+           "unit": "mm",
+           "value": 30,
+           "value2": 40
+          }
+         ],
+         "num": "4.2"
+        },
+        {
+         "answerType": "presence_standard",
+         "code": "A2.2-4.3",
+         "labelTh": "สูงจากพื้นไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "range",
+           "sourceText": "ไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
+           "unit": "mm",
+           "value": 800,
+           "value2": 900
+          }
+         ],
+         "num": "4.3"
+        },
+        {
+         "answerType": "presence_standard",
+         "code": "A2.2-4.4",
+         "labelTh": "ติดตั้งราวจับราวที่สองในระดับความสูงระหว่าง700-750 มิลลิเมตรจากพื้น เพื่อประโยชน์ต่อผู้ใช้ รถเข็นคนพิการ (Wheelchair)",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "range",
+           "sourceText": "700-750 มิลลิเมตร",
+           "unit": "mm",
+           "value": 700,
+           "value2": 750
+          }
+         ],
+         "num": "4.4"
+        },
+        {
+         "answerType": "presence",
+         "code": "A2.2-4.5",
+         "labelTh": "กรณีราวจับคู่ (Double rail)* สำหรับราวจับของเด็ก ติดตั้งสูงจากพื้น 600-650 มิลลิเมตร",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "range",
+           "sourceText": "600-650 มิลลิเมตร",
+           "unit": "mm",
+           "value": 600,
+           "value2": 650
+          }
+         ],
+         "num": "4.5"
+        },
+        {
+         "answerType": "presence_standard",
+         "code": "A2.2-4.6",
+         "labelTh": "ราวจับด้านที่อยู่ติดผนังให้มีระยะห่างจากผนัง ไม่น้อยกว่า 50 มิลลิเมตร มีความสูงจากจุดยึด ไม่น้อยกว่า 120 มิลลิเมตร และผนังบริเวณราวจับ ต้องเป็นผนังเรียบ",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "gte",
+           "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+           "unit": "mm",
+           "value": 50
+          },
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m2",
+           "operator": "gte",
+           "sourceText": "ไม่น้อยกว่า 120 มิลลิเมตร",
+           "unit": "mm",
+           "value": 120
+          }
+         ],
+         "num": "4.6"
+        },
+        {
+         "answerType": "presence",
+         "code": "A2.2-4.7",
+         "labelTh": "ราวจับต้องยาวต่อเนื่อง และส่วนที่ยึดติดกับผนัง ต้องไม่กีดขวางหรือเป็นอุปสรรคต่อการใช้ ของคนพิการทางการเห็น",
+         "num": "4.7"
+        },
+        {
+         "answerType": "presence_standard",
+         "code": "A2.2-4.8",
+         "labelTh": "ปลายของราวจับให้ยื่นเลยจากจุดเริ่มต้นและ จุดสิ้นสุดของทางลาดไม่น้อยกว่า 300 มิลลิเมตร",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "gte",
+           "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
+           "unit": "mm",
+           "value": 300
+          }
+         ],
+         "num": "4.8"
         }
-       ],
-       "num": "4.6"
+       ]
       },
       {
        "answerType": "presence_standard",
-       "code": "A2.2-4",
+       "code": "A2.2-5",
        "labelTh": "พื้นที่บริเวณที่จุดเริ่มต้นและสิ้นสุดทางลาด ให้เป็นพื้นที่ว่างปราศจากสิ่งกีดขวางโดยมีความกว้างและความยาว ไม่น้อยกว่า 1,500 x 1,500 มิลลิเมตร",
        "measurements": [
         {
@@ -827,19 +921,19 @@
          "value": 1500
         }
        ],
-       "num": "4"
-      },
-      {
-       "answerType": "presence",
-       "code": "A2.2-5",
-       "labelTh": "มีป้ายแสดงทิศทาง ตำแหน่ง หรือหมายเลขชั้น ของอาคารที่คนพิการทางการเห็น และผู้สูงอายุสามารถ ทราบความหมายได้ ตั้งอยู่บริเวณทางขึ้นและทางลง ของทางลาดที่เชื่อมระหว่างชั้นของอาคาร",
        "num": "5"
       },
       {
        "answerType": "presence",
        "code": "A2.2-6",
-       "labelTh": "มีสัญลักษณ์รูปคนพิการและผู้สูงอายุติดไว้ในบริเวณทางลาดที่จัดไว้",
+       "labelTh": "มีป้ายแสดงทิศทาง ตำแหน่ง หรือหมายเลขชั้น ของอาคารที่คนพิการทางการเห็น และผู้สูงอายุสามารถ ทราบความหมายได้ ตั้งอยู่บริเวณทางขึ้นและทางลง ของทางลาดที่เชื่อมระหว่างชั้นของอาคาร",
        "num": "6"
+      },
+      {
+       "answerType": "presence",
+       "code": "A2.2-7",
+       "labelTh": "มีสัญลักษณ์รูปคนพิการและผู้สูงอายุติดไว้ในบริเวณทางลาดที่จัดไว้",
+       "num": "7"
       }
      ]
     },

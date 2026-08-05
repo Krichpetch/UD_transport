@@ -316,8 +316,8 @@ export default function AuditPage() {
     })
     setYearBuiltInput(station.yearBuilt != null ? String(station.yearBuilt) : '')
     // yearBuiltDate arrives as a full ISO datetime (Prisma DateTime -> JSON), truncate to the
-    // date-only value a native <input type="date"> expects.
-    setYearBuiltDateInput(station.yearBuiltDate ? station.yearBuiltDate.slice(0, 10) : '')
+    // "YYYY-MM" value a native <input type="month"> expects (month/year precision only).
+    setYearBuiltDateInput(station.yearBuiltDate ? station.yearBuiltDate.slice(0, 7) : '')
     // A changed preview year can change v2Pages' length/order (redacted pages drop out) —
     // reset paging so currentPage never points past the end of the freshly-hydrated page set.
     setCurrentPage(0)
@@ -392,9 +392,17 @@ export default function AuditPage() {
     if (!station || v2PreviewAllowed) return
     const n = Number(effectiveYearBuiltInput)
     if (!effectiveYearBuiltInput || Number.isNaN(n) || n < YEAR_BUILT_MIN || n > yearBuiltMax()) return
-    const currentDate = station.yearBuiltDate ? station.yearBuiltDate.slice(0, 10) : ''
-    if (station.yearBuilt === n && currentDate === yearBuiltDateInput) return
-    await updateYearBuiltMutation.mutateAsync({ id: station.id, yearBuilt: n, yearBuiltDate: yearBuiltDateInput || undefined })
+    // yearBuiltDateInput is a native <input type="month"> value ("YYYY-MM") — month/year
+    // precision only, per the PM's 2026-08-05 ruling (day-of-month was never asked for; the
+    // server ignores it anyway, see isLawInForce). Sent as the 1st of the month so the existing
+    // full-date column/validation need no schema change.
+    const currentMonth = station.yearBuiltDate ? station.yearBuiltDate.slice(0, 7) : ''
+    if (station.yearBuilt === n && currentMonth === yearBuiltDateInput) return
+    await updateYearBuiltMutation.mutateAsync({
+      id: station.id,
+      yearBuilt: n,
+      yearBuiltDate: yearBuiltDateInput ? `${yearBuiltDateInput}-01` : undefined,
+    })
   }
 
   // ── Check-in (Screen B "เริ่มการตรวจประเมิน") — client-side pre-check only. The
@@ -666,19 +674,19 @@ export default function AuditPage() {
                 className="border-border focus:ring-ring mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 disabled:opacity-50"
               />
             </label>
-            {/* 2026-08-05 — optional exact date, only when the auditor can find one (e.g. on a
-                permit placard). Drives the year field above instead of being independently typed —
-                two laws in the same พ.ศ. year (16 ม.ค. 2556 vs 3 เม.ย. 2556) can only be told apart
-                with the exact date. */}
+            {/* 2026-08-05, revised same day after PM review — เดือน/ปี only, not a full date (day
+                of month was never needed and the server ignores it anyway). Drives the year field
+                above instead of being independently typed — two laws in the same พ.ศ. year (ม.ค.
+                2556 vs เม.ย. 2556) can still be told apart at month precision. */}
             <label className="mt-2.5 block text-xs font-medium text-foreground">
-              วันที่ยื่นขออนุญาตก่อสร้าง (ถ้าทราบ)
+              เดือน/ปีที่ยื่นขออนุญาตก่อสร้าง (ถ้าทราบ)
               <input
-                type="date"
+                type="month"
                 value={yearBuiltDateInput}
                 onChange={(e) => setYearBuiltDateInput(e.target.value)}
                 onBlur={saveYearBuilt}
                 disabled={v2PreviewAllowed}
-                max={new Date().toISOString().slice(0, 10)}
+                max={new Date().toISOString().slice(0, 7)}
                 className="border-border focus:ring-ring mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 disabled:opacity-50"
               />
             </label>
@@ -686,7 +694,7 @@ export default function AuditPage() {
               <p className="mt-1 text-[10px] text-muted-foreground">
                 = พ.ศ. {buddhistYearOfIsoDate(yearBuiltDateInput)} —{' '}
                 <button type="button" onClick={() => setYearBuiltDateInput('')} className="underline">
-                  ล้างวันที่ แล้วระบุเฉพาะปี
+                  ล้างเดือน/ปี แล้วระบุเฉพาะปี
                 </button>
               </p>
             )}

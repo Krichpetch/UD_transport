@@ -358,46 +358,200 @@
        ]
       },
       {
-       "answerType": "presence_standard",
-       "code": "A2.1-3.5",
-       "labelTh": "ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลลิเมตร และมีราวกันตก/ ราวจับทำด้วยวัสดุที่มั่นคงและแข็งแรง",
-       "measurements": [
+       "code": "A2.1-3",
+       "labelTh": "กรณีที่ทางลาดยาวตั้งแต่ 6,000 มิลลิเมตร ขึ้นไป",
+       "num": "3",
+       "subItems": [
         {
-         "autoGrade": true,
-         "confirmed": false,
-         "extracted": true,
-         "key": "m1",
-         "operator": "gte",
-         "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
-         "unit": "mm",
-         "value": 50
+         "answerType": "presence",
+         "code": "A2.1-3.1",
+         "labelTh": "มีทางลาดในบริเวณพื้นที่ต่างระดับ โดยพื้นผิวเป็น วัสดุที่ป้องกันการลื่นไถล และติดตั้งราวจับทั้งสองด้าน โดยมีลักษณะดังข้อ 4.",
+         "num": "3.1"
+        },
+        {
+         "answerType": "presence_standard",
+         "code": "A2.1-3.2",
+         "labelTh": "ความกว้างสุทธิไม่น้อยกว่า 1,500 มิลลิเมตร",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "gte",
+           "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
+           "unit": "mm",
+           "value": 1500
+          }
+         ],
+         "num": "3.2"
+        },
+        {
+         "answerType": "presence_standard",
+         "code": "A2.1-3.3",
+         "labelTh": "พื้นที่หน้าทางลาดเป็นที่ว่างยาวไม่น้อยกว่า 1,500 มิลลิเมตร",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "gte",
+           "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
+           "unit": "mm",
+           "value": 1500
+          }
+         ],
+         "num": "3.3"
+        },
+        {
+         "answerType": "presence_standard",
+         "code": "A2.1-3.4",
+         "labelTh": "ความลาดชันไม่เกิน 1:12",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "note": "slope 1:X — auditor inputs X; flatter (larger X) passes",
+           "operator": "gte",
+           "sourceText": "ความลาดชันไม่เกิน 1:12",
+           "unit": "ratio_1_x",
+           "value": 12
+          }
+         ],
+         "num": "3.4"
+        },
+        {
+         "answerType": "presence_standard",
+         "code": "A2.1-3.5",
+         "labelTh": "ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลลิเมตร และมีราวกันตก/ ราวจับทำด้วยวัสดุที่มั่นคงและแข็งแรง",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "gte",
+           "sourceText": "ไม่น้อยกว่า 50 มิลลิเมตร",
+           "unit": "mm",
+           "value": 50
+          }
+         ],
+         "num": "3.5"
+        },
+        {
+         "answerType": "presence_standard",
+         "code": "A2.1-3.6",
+         "labelTh": "จัดให้มีชานพักยาวไม่น้อยกว่า 1,500 มิลลิเมตร คั่นระหว่างแต่ละช่วงของทางลาด",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "gte",
+           "sourceText": "ไม่น้อยกว่า 1,500 มิลลิเมตร",
+           "unit": "mm",
+           "value": 1500
+          }
+         ],
+         "num": "3.6"
         }
-       ],
-       "num": "3.5"
+       ]
       },
       {
-       "answerType": "presence_standard",
-       "code": "A2.1-4.3",
-       "labelTh": "สูงจากพื้นไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
-       "measurements": [
+       "code": "A2.1-4",
+       "labelTh": "มีราวจับทั้งสองด้าน",
+       "num": "4",
+       "subItems": [
         {
-         "autoGrade": true,
-         "confirmed": false,
-         "extracted": true,
-         "key": "m1",
-         "operator": "range",
-         "sourceText": "ไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
-         "unit": "mm",
-         "value": 800,
-         "value2": 900
-        }
-       ],
-       "num": "4.3"
-      },
-      {
-       "answerType": "presence_standard",
-       "code": "A2.1-4.6",
-       "labelTh": "ราวจับด้านที่อยู่ติดผนังให้มีระยะห่างจากผนัง ไม่น้อยกว่า 50 มิลลิเมตร มีความสูงจากจุดยึด ไม่น้อยกว่า 120 มิลลิเมตร และผนังบริเวณราวจับ ต้องเป็นผนังเรียบ",
+         "answerType": "presence",
+         "code": "A2.1-4.1",
+         "labelTh": "ทำด้วยวัสดุเรียบ มีความมั่นคงแข็งแรง ไม่เป็นอันตรายในการจับและไม่ลื่น",
+         "num": "4.1"
+        },
+        {
+         "answerType": "presence_standard",
+         "code": "A2.1-4.2",
+         "labelTh": "ลักษณะกลม เส้นผ่านศูนย์กลางไม่น้อยกว่า30 มิลลิเมตร แต่ไม่เกิน 40 มิลลิเมตร",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "range",
+           "sourceText": "ไม่น้อยกว่า 30 มิลลิเมตร แต่ไม่เกิน 40 มิลลิเมตร",
+           "unit": "mm",
+           "value": 30,
+           "value2": 40
+          }
+         ],
+         "num": "4.2"
+        },
+        {
+         "answerType": "presence_standard",
+         "code": "A2.1-4.3",
+         "labelTh": "สูงจากพื้นไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "range",
+           "sourceText": "ไม่น้อยกว่า 800 มิลลิเมตร แต่ไม่เกิน 900 มิลลิเมตร",
+           "unit": "mm",
+           "value": 800,
+           "value2": 900
+          }
+         ],
+         "num": "4.3"
+        },
+        {
+         "answerType": "presence_standard",
+         "code": "A2.1-4.4",
+         "labelTh": "ติดตั้งราวจับราวที่สองในระดับความสูงระหว่าง700-750 มิลลิเมตรจากพื้น เพื่อประโยชน์ต่อผู้ใช้ รถเข็นคนพิการ (Wheelchair)",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "range",
+           "sourceText": "700-750 มิลลิเมตร",
+           "unit": "mm",
+           "value": 700,
+           "value2": 750
+          }
+         ],
+         "num": "4.4"
+        },
+        {
+         "answerType": "presence",
+         "code": "A2.1-4.5",
+         "labelTh": "กรณีราวจับคู่ (Double rail)* สำหรับราวจับของเด็ก ติดตั้งสูงจากพื้น 600-650 มิลลิเมตร",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "range",
+           "sourceText": "600-650 มิลลิเมตร",
+           "unit": "mm",
+           "value": 600,
+           "value2": 650
+          }
+         ],
+         "num": "4.5"
+        },
+        {
+         "answerType": "presence_standard",
+         "code": "A2.1-4.6",
+         "labelTh": "ราวจับด้านที่อยู่ติดผนังให้มีระยะห่างจากผนัง ไม่น้อยกว่า 50 มิลลิเมตร มีความสูงจากจุดยึด ไม่น้อยกว่า 120 มิลลิเมตร และผนังบริเวณราวจับ ต้องเป็นผนังเรียบ",
        "measurements": [
         {
          "autoGrade": true,
@@ -421,6 +575,72 @@
         }
        ],
        "num": "4.6"
+        },
+        {
+         "answerType": "presence",
+         "code": "A2.1-4.7",
+         "labelTh": "ราวจับต้องยาวต่อเนื่อง และส่วนที่ยึดติดกับผนัง ต้องไม่กีดขวางหรือเป็นอุปสรรคต่อการใช้ ของคนพิการทางการเห็น",
+         "num": "4.7"
+        },
+        {
+         "answerType": "presence_standard",
+         "code": "A2.1-4.8",
+         "labelTh": "ปลายของราวจับให้ยื่นเลยจากจุดเริ่มต้นและ จุดสิ้นสุดของทางลาดไม่น้อยกว่า 300 มิลลิเมตร",
+         "measurements": [
+          {
+           "autoGrade": true,
+           "confirmed": false,
+           "extracted": true,
+           "key": "m1",
+           "operator": "gte",
+           "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
+           "unit": "mm",
+           "value": 300
+          }
+         ],
+         "num": "4.8"
+        }
+       ]
+      },
+      {
+       "answerType": "presence_standard",
+       "code": "A2.1-5",
+       "labelTh": "พื้นที่บริเวณที่จุดเริ่มต้นและสิ้นสุดทางลาด ให้เป็นพื้นที่ว่างปราศจากสิ่งกีดขวางโดยมีความกว้างและความยาว ไม่น้อยกว่า 1,500 x 1,500 มิลลิเมตร",
+       "measurements": [
+        {
+         "autoGrade": true,
+         "confirmed": false,
+         "extracted": true,
+         "key": "m1",
+         "operator": "gte",
+         "sourceText": "1,500x1,500 มิลลิเมตร (กว้าง)",
+         "unit": "mm",
+         "value": 1500
+        },
+        {
+         "autoGrade": true,
+         "confirmed": false,
+         "extracted": true,
+         "key": "m2",
+         "operator": "gte",
+         "sourceText": "1,500x1,500 มิลลิเมตร (ยาว)",
+         "unit": "mm",
+         "value": 1500
+        }
+       ],
+       "num": "5"
+      },
+      {
+       "answerType": "presence",
+       "code": "A2.1-6",
+       "labelTh": "มีป้ายแสดงทิศทาง ตำแหน่ง หรือหมายเลขชั้น ของอาคารที่คนพิการทางการเห็น และผู้สูงอายุสามารถ ทราบความหมายได้ ตั้งอยู่บริเวณทางขึ้นและทางลง ของทางลาดที่เชื่อมระหว่างชั้นของอาคาร",
+       "num": "6"
+      },
+      {
+       "answerType": "presence",
+       "code": "A2.1-7",
+       "labelTh": "มีสัญลักษณ์รูปคนพิการและผู้สูงอายุติดไว้ในบริเวณทางลาดที่จัดไว้",
+       "num": "7"
       }
      ]
     },
@@ -1030,12 +1250,144 @@
       {
        "answerType": "presence",
        "code": "A2.8-1",
-       "labelTh": "ป้ายสัญลักษณ์ติดตั้งในบริเวณที่สามารถมองเห็นได้อย่างชัดเจน และจัดให้มีแสงส่องสว่างเป็นพิเศษ ทั้งกลางวันและกลางคืน",
+       "labelTh": "จุดจอดรับ-ส่งคนพิการ",
        "num": "1"
       },
       {
-       "answerType": "presence_standard",
+       "answerType": "presence",
        "code": "A2.8-2",
+       "labelTh": "ที่จอดรถสำหรับคนพิการให้จัดไว้ใกล้ทางเข้าและออก อาคารให้มากที่สด มีพื้นผิวเรียบเสมอกัน มีสัญลักษณ์ รูปคนพิการบนพื้นของที่จอดรถ และมีป้ายแสดง ที่จอดรถของคนพิการ",
+       "num": "2"
+      },
+      {
+       "answerType": "presence_standard",
+       "code": "A2.8-3",
+       "labelTh": "ที่จอดรถสำหรับคนพิการและผู้สูงอายุต้องเป็นพื้นที่สี่เหลี่ยมผืนผ้า",
+       "num": "3"
+      },
+      {
+       "answerType": "presence_standard",
+       "code": "A2.8-4",
+       "labelTh": "ขนาดกว้างไม่น้อยกว่า 2,400 มิลลิเมตรและยาวไม่น้อยกว่า 6,000 มิลลิเมตร",
+       "measurements": [
+        {
+         "autoGrade": true,
+         "confirmed": false,
+         "extracted": true,
+         "key": "m1",
+         "operator": "gte",
+         "sourceText": "ไม่น้อยกว่า 2,400 มิลลิเมตร",
+         "unit": "mm",
+         "value": 2400
+        },
+        {
+         "autoGrade": true,
+         "confirmed": false,
+         "extracted": true,
+         "key": "m2",
+         "operator": "gte",
+         "sourceText": "ไม่น้อยกว่า 6,000 มิลลิเมตร",
+         "unit": "mm",
+         "value": 6000
+        }
+       ],
+       "num": "4"
+      },
+      {
+       "answerType": "presence_standard",
+       "code": "A2.8-5",
+       "labelTh": "จัดให้มีที่ว่างข้างที่จอดรถกว้างไม่น้อยกว่า 1,000 มิลลิเมตร ตลอดความยาวของที่จอดรถ",
+       "measurements": [
+        {
+         "autoGrade": true,
+         "confirmed": false,
+         "extracted": true,
+         "key": "m1",
+         "operator": "gte",
+         "sourceText": "ไม่น้อยกว่า 1,000 มิลลิเมตร",
+         "unit": "mm",
+         "value": 1000
+        }
+       ],
+       "num": "5"
+      },
+      {
+       "answerType": "presence_standard",
+       "code": "A2.8-6",
+       "labelTh": "มีสัญลักษณ์รูปคนพิการนั่งรถเข็นคนพิการ (Wheelchair)อยู่บนพื้นของที่จอดรถด้านที่ติดกับทางเดินรถขนาด สัญลักษณ์กว้างไม่น้อยกว่า 900 มิลลิเมตร และยาวไม่น้อยกว่า 900 มิลลิเมตร",
+       "measurements": [
+        {
+         "autoGrade": true,
+         "confirmed": false,
+         "extracted": true,
+         "key": "m1",
+         "operator": "gte",
+         "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
+         "unit": "mm",
+         "value": 900
+        },
+        {
+         "autoGrade": true,
+         "confirmed": false,
+         "extracted": true,
+         "key": "m2",
+         "operator": "gte",
+         "sourceText": "ไม่น้อยกว่า 900 มิลลิเมตร",
+         "unit": "mm",
+         "value": 900
+        }
+       ],
+       "num": "6"
+      },
+      {
+       "answerType": "presence_standard",
+       "code": "A2.8-7",
+       "labelTh": "ป้ายพื้นสีน้ำเงิน สัญลักษณ์รูปคนพิการสีขาวหรือป้ายพื้นสีขาว สัญลักษณ์รูปคนพิการสีน้ำเงิน",
+       "num": "7"
+      },
+      {
+       "answerType": "presence_standard",
+       "code": "A2.8-8",
+       "labelTh": "ป้ายเป็นรูปสี่เหลี่ยมจัตุรัสหรือสี่เหลี่ยมผืนผ้า",
+       "num": "8"
+      },
+      {
+       "answerType": "presence_standard",
+       "code": "A2.8-9",
+       "labelTh": "มีป้ายแสดงที่จอดรถของคนพิการ ขนาดกว้างไม่น้อยกว่า 300 มิลลิเมตร และยาวไม่น้อยกว่า 300 มิลลิเมตร",
+       "measurements": [
+        {
+         "autoGrade": true,
+         "confirmed": false,
+         "extracted": true,
+         "key": "m1",
+         "operator": "gte",
+         "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
+         "unit": "mm",
+         "value": 300
+        },
+        {
+         "autoGrade": true,
+         "confirmed": false,
+         "extracted": true,
+         "key": "m2",
+         "operator": "gte",
+         "sourceText": "ไม่น้อยกว่า 300 มิลลิเมตร",
+         "unit": "mm",
+         "value": 300
+        }
+       ],
+       "num": "9"
+      },
+      {
+       "answerType": "presence",
+       "code": "A2.8-10",
+       "labelTh": "ป้ายสัญลักษณ์ติดตั้งในบริเวณที่สามารถมองเห็นได้อย่างชัดเจน และจัดให้มีแสงส่องสว่างเป็นพิเศษ ทั้งกลางวันและกลางคืน",
+       "num": "10"
+      },
+      {
+       "answerType": "presence_standard",
+       "code": "A2.8-11",
        "labelTh": "ป้ายสัญลักษณ์ติดตั้งอยู่สูงจากพื้นไม่น้อยกว่า2,000 มิลลิเมตร",
        "measurements": [
         {
@@ -1049,17 +1401,17 @@
          "value": 2000
         }
        ],
-       "num": "2"
+       "num": "11"
       },
       {
        "answerType": "presence",
-       "code": "A2.8-3",
+       "code": "A2.8-12",
        "labelTh": "มีพื้นผิวต่างสัมผัสชนิดเตือน (Warning Tactile/Block)",
-       "num": "3"
+       "num": "12"
       },
       {
        "answerType": "presence_standard",
-       "code": "A2.8-4",
+       "code": "A2.8-13",
        "labelTh": "มีทางลาดความชันไม่เกิน 1:12",
        "measurements": [
         {
@@ -1074,7 +1426,7 @@
          "value": 12
         }
        ],
-       "num": "4"
+       "num": "13"
       }
      ]
     },
@@ -5985,6 +6337,19 @@
        "answerType": "presence_standard",
        "code": "B6.2-5",
        "labelTh": "บริเวณทางขึ้นและลงของบันไดเลื่อนต้องไม่มี สิ่งกีดขวาง และให้มีพื้นผิวต่างสัมผัส อยู่ห่างจากบันไดเลื่อนในระยะ 300 ถึง 350 มิลลิเมตร",
+       "measurements": [
+        {
+         "autoGrade": true,
+         "confirmed": false,
+         "extracted": true,
+         "key": "m1",
+         "operator": "range",
+         "sourceText": "300 ถึง 350 มิลลิเมตร",
+         "unit": "mm",
+         "value": 300,
+         "value2": 350
+        }
+       ],
        "num": "5"
       },
       {
@@ -6027,6 +6392,19 @@
        "answerType": "presence_standard",
        "code": "B6.2-10",
        "labelTh": "ในกรณีที่ใต้บันไดเลื่อนมีพื้นที่ว่างซึ่งมีความสูงน้อยกว่า2,000 มิลลิเมตร ให้ติดตั้งสิ่งกีดขวางเพื่อป้องกันการเดินเข้าไป",
+       "measurements": [
+        {
+         "autoGrade": true,
+         "confirmed": false,
+         "extracted": true,
+         "key": "m1",
+         "note": "bare spec (no qualifier in text) — verify operator during review",
+         "operator": "gte",
+         "sourceText": "2,000 มิลลิเมตร",
+         "unit": "mm",
+         "value": 2000
+        }
+       ],
        "num": "10"
       },
       {

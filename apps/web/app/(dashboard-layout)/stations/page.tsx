@@ -369,14 +369,15 @@ function StationsPageContent() {
   React.useEffect(() => {
     let cancelled = false
     setLineFilter('')
-    if (typeFilter === 'ทางราง' && railSubtypeFilter !== 'รถไฟฟ้า') {
+    // Positive gate: only ทางราง + รถไฟฟ้า specifically. Anything else (no mode chosen at all,
+    // a different mode, or ทางราง with no/other subtype) must clear rather than fall through to
+    // an unscoped fetch — an empty typeFilter previously slipped past a `typeFilter === 'ทางราง'`
+    // negative check and queried lines across every mode.
+    if (!(typeFilter === 'ทางราง' && railSubtypeFilter === 'รถไฟฟ้า')) {
       setLineOptions([])
       return
     }
-    getStationLines({
-      mode: typeFilter || undefined,
-      railSubtype: typeFilter === 'ทางราง' ? (railSubtypeFilter || undefined) : undefined,
-    })
+    getStationLines({ mode: 'ทางราง', railSubtype: 'รถไฟฟ้า' })
       .then((lines) => { if (!cancelled) setLineOptions(lines) })
       .catch(() => { if (!cancelled) setLineOptions([]) })
     return () => { cancelled = true }

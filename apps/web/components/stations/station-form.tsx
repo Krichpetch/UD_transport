@@ -81,7 +81,7 @@ export function StationForm({
           <select
             className={SELECT_CLS}
             value={value.mode}
-            onChange={(e) => onChange({ mode: e.target.value as TransportMode, railSubtype: undefined })}
+            onChange={(e) => onChange({ mode: e.target.value as TransportMode, railSubtype: undefined, line: undefined })}
             disabled={disabled}
             required
           >
@@ -96,7 +96,10 @@ export function StationForm({
             <select
               className={SELECT_CLS}
               value={value.railSubtype ?? ''}
-              onChange={(e) => onChange({ railSubtype: e.target.value || undefined })}
+              onChange={(e) => {
+                const next = e.target.value || undefined
+                onChange({ railSubtype: next, ...(next !== 'รถไฟฟ้า' ? { line: undefined } : {}) })
+              }}
               disabled={disabled}
             >
               <option value="">ไม่ระบุ</option>
@@ -110,17 +113,22 @@ export function StationForm({
 
       {/* Session F3, Part A.5 — line/route. Free text, not a dropdown: the canonical list is
           whatever the masterlist carries, and an admin correcting a station may legitimately need
-          a value that doesn't exist yet. Blank means "no line", which is a valid identity. */}
-      <div>
-        <label className="text-foreground mb-1 block text-xs font-medium">สาย / เส้นทาง</label>
-        <input
-          className={INPUT_CLS}
-          value={value.line ?? ''}
-          onChange={(e) => onChange({ line: e.target.value })}
-          placeholder="เช่น สายสีเขียว (เว้นว่างหากไม่มี)"
-          disabled={disabled}
-        />
-      </div>
+          a value that doesn't exist yet. Blank means "no line", which is a valid identity.
+          Only meaningful for รถไฟฟ้า (metro) today — every other mode/subtype is cleared via the
+          mode/railSubtype onChange handlers above, mirroring the admin filter bar and auditor
+          picker's line-control visibility. */}
+      {value.mode === 'ทางราง' && value.railSubtype === 'รถไฟฟ้า' && (
+        <div>
+          <label className="text-foreground mb-1 block text-xs font-medium">สาย / เส้นทาง</label>
+          <input
+            className={INPUT_CLS}
+            value={value.line ?? ''}
+            onChange={(e) => onChange({ line: e.target.value })}
+            placeholder="เช่น สายสีเขียว (เว้นว่างหากไม่มี)"
+            disabled={disabled}
+          />
+        </div>
+      )}
 
       <div>
         <label className="text-foreground mb-1 block text-xs font-medium">จังหวัด *</label>

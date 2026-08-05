@@ -26,6 +26,7 @@ export function useStations(filters?: StationFilters) {
   const f = {
     mode:            filters?.mode            || undefined,
     railSubtype:     filters?.railSubtype     || undefined,
+    line:            filters?.line            || undefined,
     region:          filters?.region          || undefined,
     province:        filters?.province        || undefined,
     agency:          filters?.agency          || undefined,
