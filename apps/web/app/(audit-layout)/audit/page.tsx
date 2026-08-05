@@ -857,7 +857,14 @@ export default function AuditPage() {
               )
             })}
           </div>
-          {isV1 && !v2PreviewAllowed && (
+          {/* 2026-08-06 — was `isV1 && !v2PreviewAllowed`: conflated "this is v1" with "this is a
+              real, submittable audit" back when v2/v3 were ALWAYS DRAFT/preview-only, so the two
+              happened to mean the same thing. Once a v2/v3 template gets ACTIVATED (this session),
+              they stop being the same thing — a real auditor on a real, non-preview v3 audit has
+              isV1===false, so the old condition silently hid the submit button and showed the
+              "preview mode, can't submit" banner below for a REAL audit. The only thing that
+              should ever gate real submission is whether this genuinely IS a preview. */}
+          {!v2PreviewAllowed && (
             <>
               {/* Part C.7 — final thoughts, before the submit action */}
               <div className="border-t px-4 py-4">
@@ -893,7 +900,7 @@ export default function AuditPage() {
               </div>
             </>
           )}
-          {(!isV1 || v2PreviewAllowed) && (
+          {v2PreviewAllowed && (
             <p className="px-4 py-4 text-center text-xs text-purple-600">
               {previewLabel} — ไม่สามารถส่งรายงานจริงได้ในขั้นตอนนี้
             </p>
@@ -939,8 +946,11 @@ export default function AuditPage() {
         })()
       )}
 
-      {/* Navigation — prev/next apply to both v1 and v2's pager; save-draft is v1-only (v2
-          preview never persists — see the autosave effect's v2PreviewAllowed guard above). */}
+      {/* Navigation — prev/next apply to both v1 and v2's pager. 2026-08-06 — save-draft used to
+          be gated `isV1` too, on the same stale "v2 is always preview, preview never persists"
+          assumption the submit-button gate below had (see that fix's comment) — a real, non-preview
+          v2/v3 audit had no manual save-draft button at all (autosave still ran; only the manual
+          button was missing). Now gated the same correct way: only a genuine preview skips it. */}
       <div className="flex gap-3 pb-6">
         {currentPage > 0 && (
           <button
@@ -950,7 +960,7 @@ export default function AuditPage() {
             ← ก่อนหน้า
           </button>
         )}
-        {isV1 && (
+        {!v2PreviewAllowed && (
           <button
             onClick={() => saveDraftMutation.mutate({ items: buildStoredGroups(templateDef, answers), finalThoughts })}
             disabled={saveDraftMutation.isPending}

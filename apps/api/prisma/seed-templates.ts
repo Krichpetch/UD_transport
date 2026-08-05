@@ -418,6 +418,15 @@ function buildV1Definition(mode: Mode): ChecklistTemplateDefinition {
   return { schemaVersion: 1, mode, provisional: false, groups }
 }
 
+// 2026-08-06 — `status` is deliberately absent from `update`, present only in `create`. Found via
+// a real report: an admin activated rail_metro v3, then a later reseed silently reset it back to
+// DRAFT — because this upsert used to write `status` unconditionally on EVERY run, from the
+// caller's hardcoded per-version default (v1→ACTIVE, v2/v3→DRAFT, always). That default is only
+// correct for a row's very first insert; once a row exists, its status is an ADMIN DECISION
+// (activateTemplate.ts / the admin activate endpoint / a manual retirement) that seeding has no
+// business overwriting — seeding's job is refreshing CONTENT, never making activation calls. This
+// bug was silent and total: it affected every mode, not just rail, and would have reverted
+// tomorrow's activation the moment anyone reseeded afterward for any reason.
 async function upsertTemplate(
   mode: Mode,
   variantKey: string,
@@ -428,7 +437,7 @@ async function upsertTemplate(
 ) {
   await prisma.checklistTemplate.upsert({
     where: { mode_variantKey_version: { mode, variantKey, version } },
-    update: { definition: def as unknown as Prisma.InputJsonValue, status, notes },
+    update: { definition: def as unknown as Prisma.InputJsonValue, notes },
     create: { mode, variantKey, version, status, definition: def as unknown as Prisma.InputJsonValue, notes },
   })
 }
