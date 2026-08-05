@@ -47,6 +47,7 @@ export interface EraLawRef {
   buddhistYear: number
   effectiveYear?: number | null
   effectiveDate?: string | null   // ISO yyyy-mm-dd, Gregorian — see facility-catalog.ts
+  isFloor?: boolean                // always in force regardless of yearBuilt — see facility-catalog.ts
 }
 
 export class EraResolutionError extends Error {}
@@ -70,7 +71,14 @@ function lawYear(law: EraLawRef): number {
 // back to the pre-existing year-only comparison whenever either side lacks month precision at all.
 // Never synthesizes a month that wasn't actually supplied: a yearBuilt-only station compares
 // exactly as it always has, byte-for-byte.
+//
+// 2026-08-06 — a floor law (isFloor: true, today only MHT_2548) is always in force, for any
+// yearBuilt including ones older than the law's own year: matches the user's own 4-bracket legal
+// model ("Permit before 16 ม.ค. 2556 → evaluated under MHT_2548 only") — MHT_2548 is meant to apply
+// retroactively to every station, not merely ones built after 2548. Checked first, before any date
+// or year comparison, and independent of yearBuilt/buildDate being present at all.
 function isLawInForce(law: EraLawRef, yearBuilt: number | null | undefined, buildDate?: string | null): boolean {
+  if (law.isFloor) return true
   if (buildDate && law.effectiveDate) return law.effectiveDate.slice(0, 7) <= buildDate.slice(0, 7)
   if (yearBuilt == null) return false
   return lawYear(law) <= yearBuilt
@@ -130,7 +138,7 @@ function resolveMeasurement(
   registry: readonly EraLawRef[],
   appliedLawRefs: Record<string, string>,
   buildDate?: string | null,
-): { measurement: TemplateMeasurement; eraUnresolved: boolean } {
+): { measurement: TemplateMeasurement; eraUnresolved: boolean; labelTh?: string } {
   if (!m.byLaw) return { measurement: m, eraUnresolved: false }
 
   const { lawCode, eraUnresolved } = resolveEra(yearBuilt, Object.keys(m.byLaw), registry, buildDate)
@@ -143,6 +151,8 @@ function resolveMeasurement(
   // Strip byLaw from what the client sees — it never picks between eras, only the resolved
   // flat value. Fields not supplied by the resolved entry fall back to the measurement's own
   // flat value (lets a byLaw group override only some fields while others stay constant).
+  // sourceText/labelTh follow the same rule: the entry's era-specific prose wins when present,
+  // else the template's base text (which otherwise would keep quoting a different era's number).
   const { byLaw: _byLaw, ...flat } = m
   return {
     measurement: {
@@ -150,8 +160,10 @@ function resolveMeasurement(
       value: entry.value !== undefined ? entry.value : m.value,
       value2: entry.value2 !== undefined ? entry.value2 : m.value2,
       tiers: entry.tiers !== undefined ? entry.tiers : m.tiers,
+      sourceText: entry.sourceText !== undefined ? (entry.sourceText ?? undefined) : m.sourceText,
     },
     eraUnresolved,
+    labelTh: entry.labelTh ?? undefined,
   }
 }
 
@@ -164,15 +176,25 @@ function resolveNode(
   buildDate?: string | null,
 ): TemplateNode {
   let measurements = node.measurements
+  // A resolved measurement may carry an era-specific labelTh for the CONTAINING leaf (the
+  // question's own prose embeds the same number the measurement grades against). Last one wins —
+  // in practice a node with an era-varying label carries exactly one byLaw-bearing measurement.
+  let labelTh = node.labelTh
   if (measurements) {
     measurements = measurements.map((m) => {
-      const { measurement, eraUnresolved } = resolveMeasurement(m, node.code, yearBuilt, registry, appliedLawRefs, buildDate)
+      const { measurement, eraUnresolved, labelTh: resolvedLabel } = resolveMeasurement(m, node.code, yearBuilt, registry, appliedLawRefs, buildDate)
       if (eraUnresolved) unresolvedFlag.value = true
+      if (resolvedLabel !== undefined) labelTh = resolvedLabel
       return measurement
     })
   }
   const subItems = node.subItems?.map((c) => resolveNode(c, yearBuilt, registry, appliedLawRefs, unresolvedFlag, buildDate))
-  return { ...node, ...(measurements ? { measurements } : {}), ...(subItems ? { subItems } : {}) }
+  return {
+    ...node,
+    ...(labelTh !== node.labelTh ? { labelTh } : {}),
+    ...(measurements ? { measurements } : {}),
+    ...(subItems ? { subItems } : {}),
+  }
 }
 
 // Walks the whole template, resolving every byLaw-wrapped measurement against `yearBuilt`.

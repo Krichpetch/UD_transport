@@ -103,6 +103,16 @@ export function useCloneToDraft() {
   })
 }
 
+// 2026-08-05 — DRAFT -> ACTIVE. Invalidates the list too since another row (the one being
+// superseded) may flip to RETIRED server-side as part of the same call.
+export function useActivateTemplate(templateId: string) {
+  const invalidate = useInvalidateAfterEdit(templateId)
+  return useMutation({
+    mutationFn: (force: boolean) => templatesApi.activateTemplate(templateId, force),
+    onSuccess: invalidate,
+  })
+}
+
 export function useEditLabel(templateId: string) {
   const invalidate = useInvalidateAfterEdit(templateId)
   return useMutation({

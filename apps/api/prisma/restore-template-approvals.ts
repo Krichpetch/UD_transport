@@ -13,8 +13,8 @@
  * runbook before seeding) onto the CURRENT definition, so the newly-seeded content is kept and
  * only the human-authored bits are restored.
  *
- * THE MERGE RULE
- * --------------
+ * THE MERGE RULE — measurements
+ * ------------------------------
  * Base is the CURRENT (freshly seeded) definition, so anything new from the seed survives.
  * Per measurement slot, keyed by `${leaf.code}::${measurement.key}`:
  *
@@ -26,7 +26,20 @@
  *     silently undo the override.
  *   - `byLaw` itself is never taken from the backup, for the same reason.
  *
- * Slots present in only one side are reported and skipped, never guessed at.
+ * THE MERGE RULE — node-level fields (2026-08-06)
+ * -------------------------------------------------
+ * `imageKeys` (admin-attached reference photos, W2-S3a) and `guidance` (คู่มือการตรวจประเมิน text)
+ * live on the NODE, not a measurement, and — unlike threshold scalars — are NEVER set by
+ * seed-templates.ts at all (grep confirms zero references). There is no seed-vs-admin conflict to
+ * resolve for these: any value found on a node in the backup is purely admin-authored and always
+ * safe to replay onto the same node code in the current tree. Keyed by leaf `code` alone (not a
+ * measurement key). `labelTh`/`num` renames and admin-added `lawRefs`/`beyondLaw` are a KNOWN,
+ * NOT-YET-COVERED gap in the same family — those two overlap with content the seed itself can
+ * legitimately change (a JSON source typo fix, or the byLaw→lawRefs union fix), so blindly
+ * replaying an old backup value risks undoing a real, intentional content fix. Left alone
+ * deliberately rather than guessed at; flag to a human before extending this further.
+ *
+ * Slots/nodes present in only one side are reported and skipped, never guessed at.
  *
  * Dry-run by default. Pass --confirm to write.
  *
@@ -66,19 +79,44 @@ function indexMeasurements(def: unknown): Map<string, MeasurementLike> {
   return out
 }
 
+interface NodeLike {
+  code?: string
+  imageKeys?: string[]
+  guidance?: { text?: string; reference?: string }
+  [k: string]: unknown
+}
+
+/** Indexes every node (container or leaf) in a definition by its `code`. */
+function indexNodes(def: unknown): Map<string, NodeLike> {
+  const out = new Map<string, NodeLike>()
+  const walk = (n: unknown): void => {
+    if (Array.isArray(n)) return n.forEach(walk)
+    if (n && typeof n === 'object') {
+      const node = n as NodeLike
+      if (typeof node.code === 'string') out.set(node.code, node)
+      Object.values(n).forEach(walk)
+    }
+  }
+  walk(def)
+  return out
+}
+
 interface MergeStats {
   confirmedRestored: number
   scalarsRestored: number
   byLawPreserved: number
+  imageKeysRestored: number
+  guidanceRestored: number
   onlyInBackup: string[]
   onlyInCurrent: string[]
 }
 
 /**
  * Returns a deep clone of `currentDef` with the backup's human edits replayed onto it.
- * Mutates nothing the caller owns.
+ * Mutates nothing the caller owns. Exported for ad-hoc verification (no jest harness exists for
+ * prisma/ scripts) — not imported anywhere in the app itself.
  */
-function mergeEdits(currentDef: unknown, backupDef: unknown): { merged: unknown; stats: MergeStats } {
+export function mergeEdits(currentDef: unknown, backupDef: unknown): { merged: unknown; stats: MergeStats } {
   const merged = JSON.parse(JSON.stringify(currentDef)) as unknown
   const cur = indexMeasurements(merged)
   const old = indexMeasurements(backupDef)
@@ -87,6 +125,8 @@ function mergeEdits(currentDef: unknown, backupDef: unknown): { merged: unknown;
     confirmedRestored: 0,
     scalarsRestored: 0,
     byLawPreserved: 0,
+    imageKeysRestored: 0,
+    guidanceRestored: 0,
     onlyInBackup: [],
     onlyInCurrent: [],
   }
@@ -119,6 +159,31 @@ function mergeEdits(currentDef: unknown, backupDef: unknown): { merged: unknown;
   }
 
   for (const key of cur.keys()) if (!old.has(key)) stats.onlyInCurrent.push(key)
+
+  // Node-level admin-authored fields (imageKeys, guidance) — never seed-owned, so any value found
+  // in the backup is unconditionally safe to replay onto the same node code. Codes present only in
+  // the backup (a node the seed removed/renamed) are silently skipped, not reported: unlike a
+  // measurement slot, a missing node here is expected background noise (most nodes carry neither
+  // field), not a signal worth surfacing in the report.
+  const curNodes = indexNodes(merged)
+  const oldNodes = indexNodes(backupDef)
+  for (const [code, oldNode] of oldNodes) {
+    const curNode = curNodes.get(code)
+    if (!curNode) continue
+
+    if (Array.isArray(oldNode.imageKeys) && oldNode.imageKeys.length > 0) {
+      if (JSON.stringify(curNode.imageKeys) !== JSON.stringify(oldNode.imageKeys)) {
+        curNode.imageKeys = oldNode.imageKeys
+        stats.imageKeysRestored++
+      }
+    }
+    if (oldNode.guidance && (oldNode.guidance.text || oldNode.guidance.reference)) {
+      if (JSON.stringify(curNode.guidance) !== JSON.stringify(oldNode.guidance)) {
+        curNode.guidance = oldNode.guidance
+        stats.guidanceRestored++
+      }
+    }
+  }
 
   return { merged, stats }
 }
@@ -178,6 +243,8 @@ async function main(): Promise<void> {
       `confirmed+${stats.confirmedRestored}`,
       `fields+${stats.scalarsRestored}`,
       `byLawKept=${stats.byLawPreserved}`,
+      `imageKeys+${stats.imageKeysRestored}`,
+      `guidance+${stats.guidanceRestored}`,
     ]
     if (stats.onlyInBackup.length) parts.push(`backupOnly=${stats.onlyInBackup.length}`)
     if (stats.onlyInCurrent.length) parts.push(`currentOnly=${stats.onlyInCurrent.length}`)
@@ -187,7 +254,7 @@ async function main(): Promise<void> {
       console.log(`    note: ${stats.onlyInBackup.length} slot(s) exist only in the backup and were skipped: ${stats.onlyInBackup.slice(0, 5).join(', ')}${stats.onlyInBackup.length > 5 ? ' …' : ''}`)
     }
 
-    if (confirm && (stats.confirmedRestored > 0 || stats.scalarsRestored > 0)) {
+    if (confirm && (stats.confirmedRestored > 0 || stats.scalarsRestored > 0 || stats.imageKeysRestored > 0 || stats.guidanceRestored > 0)) {
       await prisma.checklistTemplate.update({
         where: { id: current.id },
         data: { definition: merged as Prisma.InputJsonValue },
@@ -200,9 +267,12 @@ async function main(): Promise<void> {
   if (!confirm) console.log('Re-run with --confirm to apply.')
 }
 
-main()
-  .catch((e) => {
-    console.error(e)
-    process.exit(1)
-  })
-  .finally(() => prisma.$disconnect())
+// Guarded so `mergeEdits` can be imported for ad-hoc verification without also running `main()`.
+if (require.main === module) {
+  main()
+    .catch((e) => {
+      console.error(e)
+      process.exit(1)
+    })
+    .finally(() => prisma.$disconnect())
+}

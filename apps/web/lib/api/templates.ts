@@ -169,6 +169,13 @@ export function cloneToDraft(templateId: string) {
   return api.post<TemplateDetail>(`/admin/templates/${templateId}/clone-to-draft`, {})
 }
 
+// 2026-08-05 — DRAFT -> ACTIVE. On a 409, the ApiError's `.data` carries
+// { code: 'DRAFTS_AT_RISK', stations: string[], count: number } — the caller re-submits with
+// force=true to proceed anyway (see [id]/page.tsx's activation dialog).
+export function activateTemplate(templateId: string, force = false) {
+  return api.post<TemplateDetail>(`/admin/templates/${templateId}/activate`, { force })
+}
+
 export function editLabel(templateId: string, nodeCode: string, body: { labelTh: string; num?: string }) {
   return api.patch<{ id: string; definition: ChecklistTemplateDefinition }>(
     `/admin/templates/${templateId}/nodes/${encodeURIComponent(nodeCode)}/label`,

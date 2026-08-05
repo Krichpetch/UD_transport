@@ -12,6 +12,7 @@ import {
   AlertTriangle, Loader2, X, FlaskConical, ChevronDown, ClipboardList, GraduationCap,
 } from 'lucide-react'
 import Link from 'next/link'
+import { MonthYearBuiltInput } from '@/components/shared/MonthYearBuiltInput'
 import { StationSearchPicker } from '@/components/audit/StationSearchPicker'
 import { TutorialSection } from '@/components/audit/TutorialSection'
 import { LeafAnswerRow } from '@/components/audit/LeafAnswerRow'
@@ -248,10 +249,10 @@ export default function AuditPage() {
   // than a message implying the AUDITOR's own GPS reading is what's in doubt.
   const [locationUnverifiedMessage, setLocationUnverifiedMessage] = React.useState('')
   const [rejectionBannerDismissed, setRejectionBannerDismissed] = React.useState(false)
-  const [yearBuiltInput, setYearBuiltInput] = React.useState('')
-  // 2026-08-05 — optional exact-date refinement (native <input type="date">, ISO yyyy-mm-dd). When
-  // set, it DRIVES yearBuiltInput (derived, read-only) rather than the two being independently
-  // editable — guarantees they can never disagree, since the server rejects a mismatch anyway.
+  // 2026-08-06 — the ONLY year-built capture control now (a separate year-only field used to sit
+  // alongside this and derive/disable against it — confusing, since both looked editable at a
+  // glance; removed). MonthYearBuiltInput ("YYYY-MM", Gregorian) is the sole source of truth;
+  // yearBuilt itself is always derived from it, never typed separately — see saveYearBuilt below.
   const [yearBuiltDateInput, setYearBuiltDateInput] = React.useState('')
 
   // Part D — Zustand audit-form store: single source of truth for answers/finalThoughts once
@@ -289,7 +290,6 @@ export default function AuditPage() {
     checkInGpsRef.current = undefined
     setLocationUnverifiedMessage('')
     setRejectionBannerDismissed(false)
-    setYearBuiltInput('')
     setYearBuiltDateInput('')
     resetForm()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -314,9 +314,8 @@ export default function AuditPage() {
       resumedFromDraft: !!(draft?.items && (draft.items as unknown[]).length > 0),
       checklistId: draft?.id ?? null,
     })
-    setYearBuiltInput(station.yearBuilt != null ? String(station.yearBuilt) : '')
     // yearBuiltDate arrives as a full ISO datetime (Prisma DateTime -> JSON), truncate to the
-    // "YYYY-MM" value a native <input type="month"> expects (month/year precision only).
+    // "YYYY-MM" value MonthYearBuiltInput expects (month/year precision only).
     setYearBuiltDateInput(station.yearBuiltDate ? station.yearBuiltDate.slice(0, 7) : '')
     // A changed preview year can change v2Pages' length/order (redacted pages drop out) —
     // reset paging so currentPage never points past the end of the freshly-hydrated page set.
@@ -376,10 +375,9 @@ export default function AuditPage() {
     ? `โหมดตัวอย่าง — เทมเพลตเวอร์ชัน ${templateResp.templateVersion}`
     : 'โหมดตัวอย่าง'
 
-  // 2026-08-05 — when the auditor has entered an exact permit date, it DRIVES the effective year
-  // (derived, not independently typed) — see the yearBuiltDateInput state doc above. Falls back to
-  // the manually-typed year field exactly as before whenever no date is set.
-  const effectiveYearBuiltInput = yearBuiltDateInput ? String(buddhistYearOfIsoDate(yearBuiltDateInput)) : yearBuiltInput
+  // 2026-08-06 — yearBuilt (Buddhist year) is always DERIVED from the month/year input now, never
+  // typed separately (see the yearBuiltDateInput state doc above).
+  const effectiveYearBuiltInput = yearBuiltDateInput ? String(buddhistYearOfIsoDate(yearBuiltDateInput)) : ''
 
   // Session F1, Part B.1 — the client-side lock: this is what actually gates the "เริ่มการตรวจ
   // ประเมิน" button (see the disabled prop below), not just a save-side no-op. The server check
@@ -388,20 +386,25 @@ export default function AuditPage() {
   const yearBuiltValid = v2PreviewAllowed
     || (effectiveYearBuiltInput !== '' && !Number.isNaN(yearBuiltNum) && yearBuiltNum >= YEAR_BUILT_MIN && yearBuiltNum <= yearBuiltMax())
 
-  async function saveYearBuilt(): Promise<void> {
-    if (!station || v2PreviewAllowed) return
-    const n = Number(effectiveYearBuiltInput)
-    if (!effectiveYearBuiltInput || Number.isNaN(n) || n < YEAR_BUILT_MIN || n > yearBuiltMax()) return
-    // yearBuiltDateInput is a native <input type="month"> value ("YYYY-MM") — month/year
-    // precision only, per the PM's 2026-08-05 ruling (day-of-month was never asked for; the
-    // server ignores it anyway, see isLawInForce). Sent as the 1st of the month so the existing
-    // full-date column/validation need no schema change.
+  // Takes the month/year value directly as a parameter rather than reading yearBuiltDateInput from
+  // closure — MonthYearBuiltInput's onCommit fires in the same tick as its onChange (the state
+  // update it triggers hasn't been applied by React yet), so reading state here would see the
+  // PREVIOUS value, one commit behind. handleCheckIn (below) calls this with no argument once the
+  // button is clicked well after any pending state update has already settled, where reading
+  // current state is fine.
+  async function saveYearBuilt(dateInput: string = yearBuiltDateInput): Promise<void> {
+    if (!station || v2PreviewAllowed || !dateInput) return
+    const n = buddhistYearOfIsoDate(dateInput)
+    if (n < YEAR_BUILT_MIN || n > yearBuiltMax()) return
+    // dateInput is "YYYY-MM" (month/year precision only, per the PM's 2026-08-05 ruling —
+    // day-of-month was never asked for; the server ignores it anyway, see isLawInForce). Sent as
+    // the 1st of the month so the existing full-date column/validation need no schema change.
     const currentMonth = station.yearBuiltDate ? station.yearBuiltDate.slice(0, 7) : ''
-    if (station.yearBuilt === n && currentMonth === yearBuiltDateInput) return
+    if (station.yearBuilt === n && currentMonth === dateInput) return
     await updateYearBuiltMutation.mutateAsync({
       id: station.id,
       yearBuilt: n,
-      yearBuiltDate: yearBuiltDateInput ? `${yearBuiltDateInput}-01` : undefined,
+      yearBuiltDate: `${dateInput}-01`,
     })
   }
 
@@ -659,44 +662,25 @@ export default function AuditPage() {
             </div>
           </div>
 
-          {/* Part C.6 — year-built capture, required at confirm-to-start */}
+          {/* Part C.6 — year-built capture, required at confirm-to-start. 2026-08-06 — a separate
+              year-only field used to sit here alongside this one, deriving/disabling against
+              whichever was filled — confusing, since both looked editable. This is now the ONLY
+              capture control; yearBuilt itself is always derived from it (see saveYearBuilt). */}
           <div className="border-t border-border pt-4">
-            <label className="text-xs font-medium text-foreground">
-              ปีที่ก่อสร้าง (พ.ศ.)
-              <input
-                type="number"
-                inputMode="numeric"
-                value={effectiveYearBuiltInput}
-                onChange={(e) => setYearBuiltInput(e.target.value)}
-                onBlur={saveYearBuilt}
-                disabled={v2PreviewAllowed || !!yearBuiltDateInput}
-                placeholder="เช่น 2555"
-                className="border-border focus:ring-ring mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 disabled:opacity-50"
-              />
-            </label>
-            {/* 2026-08-05, revised same day after PM review — เดือน/ปี only, not a full date (day
-                of month was never needed and the server ignores it anyway). Drives the year field
-                above instead of being independently typed — two laws in the same พ.ศ. year (ม.ค.
-                2556 vs เม.ย. 2556) can still be told apart at month precision. */}
-            <label className="mt-2.5 block text-xs font-medium text-foreground">
-              เดือน/ปีที่ยื่นขออนุญาตก่อสร้าง (ถ้าทราบ)
-              <input
-                type="month"
-                value={yearBuiltDateInput}
-                onChange={(e) => setYearBuiltDateInput(e.target.value)}
-                onBlur={saveYearBuilt}
-                disabled={v2PreviewAllowed}
-                max={new Date().toISOString().slice(0, 7)}
-                className="border-border focus:ring-ring mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 disabled:opacity-50"
-              />
-            </label>
+            {/* Not a <label>: MonthYearBuiltInput renders two Select triggers (buttons, not native
+                inputs), so a wrapping <label> wouldn't associate correctly with either one. */}
+            <p className="text-xs font-medium text-foreground">เดือน/ปีที่ก่อสร้าง (พ.ศ.)</p>
+            <MonthYearBuiltInput
+              key={station.id}
+              value={yearBuiltDateInput}
+              onChange={setYearBuiltDateInput}
+              onCommit={(v) => { void saveYearBuilt(v) }}
+              disabled={v2PreviewAllowed}
+              minBuddhistYear={YEAR_BUILT_MIN}
+              className="mt-1.5"
+            />
             {yearBuiltDateInput && (
-              <p className="mt-1 text-[10px] text-muted-foreground">
-                = พ.ศ. {buddhistYearOfIsoDate(yearBuiltDateInput)} —{' '}
-                <button type="button" onClick={() => setYearBuiltDateInput('')} className="underline">
-                  ล้างเดือน/ปี แล้วระบุเฉพาะปี
-                </button>
-              </p>
+              <p className="mt-1 text-[10px] text-muted-foreground">= พ.ศ. {buddhistYearOfIsoDate(yearBuiltDateInput)}</p>
             )}
             {eraUnresolved && (
               <p className="mt-1.5 text-[10px] text-amber-600">

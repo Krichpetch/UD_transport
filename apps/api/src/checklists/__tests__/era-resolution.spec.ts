@@ -6,6 +6,7 @@
 import {
   resolveEra,
   resolveTemplateEras,
+  filterApplicableItems,
   EraResolutionError,
   isValidYearBuilt,
   YEAR_BUILT_MIN,
@@ -145,6 +146,106 @@ describe('resolveTemplateEras — A1.1-1 parking-tier example (rail, MHT_2548 vs
     // 2548 table, basis=30 -> required 1
     expect(deriveMeasuredStandard(leaf2550.measurements, { basis: 30, provided: 1 })).toBe(true)
     expect(deriveMeasuredStandard(leaf2550.measurements, { basis: 30, provided: 0 })).toBe(false)
+  })
+})
+
+describe('resolveTemplateEras — era-varying sourceText/labelTh follow the resolved value (2026-08-05 fix)', () => {
+  // Mirrors the real bug: A2.2-1.5 (rail_train) graded gte 50mm under MHT_2548, gte 100mm under
+  // MHT_2564 — but before this fix, only the graded `value` switched; the leaf's own question text
+  // and the measurement's sourceText kept quoting "50 มิลลิเมตร" even when MHT_2564 applied.
+  const templateDef: ChecklistTemplateDefinition = {
+    schemaVersion: 2,
+    mode: 'ทางราง',
+    groups: [{
+      code: 'A2', labelTh: 'ทางลาด', items: [{
+        code: 'A2.2', labelTh: 'ทางลาดสำหรับคนพิการ', subItems: [{
+          code: 'A2.2-1.5',
+          labelTh: 'ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลลิเมตร',
+          answerType: 'presence_standard',
+          measurements: [{
+            key: 'm1', operator: 'gte', unit: 'mm', autoGrade: true,
+            sourceText: 'ไม่น้อยกว่า 50 มิลลิเมตร',
+            byLaw: {
+              MHT_2548: { value: 50 },
+              MHT_2564: {
+                value: 100,
+                sourceText: 'ไม่น้อยกว่า 100 มิลลิเมตร',
+                labelTh: 'ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 100 มิลลิเมตร',
+              },
+            },
+          }],
+        }],
+      }],
+    }],
+  }
+
+  it('MHT_2548 (older law): value/sourceText/labelTh all stay at the template\'s base 50mm text — the byLaw entry supplies no override', () => {
+    const { resolved } = resolveTemplateEras(templateDef, 2548, REGISTRY)
+    const leaf = resolved.groups[0]!.items[0]!.subItems![0]!
+    expect(leaf.measurements![0]!.value).toBe(50)
+    expect(leaf.measurements![0]!.sourceText).toBe('ไม่น้อยกว่า 50 มิลลิเมตร')
+    expect(leaf.labelTh).toBe('ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 50 มิลลิเมตร')
+  })
+
+  it('MHT_2564 (newer law): value, sourceText, AND the leaf\'s labelTh all switch to the 100mm text together', () => {
+    const { resolved } = resolveTemplateEras(templateDef, 2564, REGISTRY)
+    const leaf = resolved.groups[0]!.items[0]!.subItems![0]!
+    expect(leaf.measurements![0]!.value).toBe(100)
+    expect(leaf.measurements![0]!.sourceText).toBe('ไม่น้อยกว่า 100 มิลลิเมตร')
+    expect(leaf.labelTh).toBe('ทางลาดด้านที่ไม่มีผนังกั้นให้ยกขอบสูงจากพื้นผิว ของทางลาดไม่น้อยกว่า 100 มิลลิเมตร')
+  })
+})
+
+describe('isFloor — MHT_2548 applies retroactively, even to stations built before 2548 (2026-08-06)', () => {
+  const FLOOR_REGISTRY: EraLawRef[] = [
+    { code: 'MHT_2548', buddhistYear: 2548, effectiveYear: null, isFloor: true },
+    { code: 'PSD_2555', buddhistYear: 2555, effectiveYear: null },
+    { code: 'MOT_2556', buddhistYear: 2556, effectiveYear: null },
+    { code: 'MHT_2564', buddhistYear: 2564, effectiveYear: null },
+  ]
+
+  it('resolveEra: a station built before 2548 resolves confidently to MHT_2548, not flagged provisional', () => {
+    expect(resolveEra(2530, ['MHT_2548', 'PSD_2555', 'MOT_2556', 'MHT_2564'], FLOOR_REGISTRY))
+      .toEqual({ lawCode: 'MHT_2548', eraUnresolved: false })
+    expect(resolveEra(2400, ['MHT_2548'], FLOOR_REGISTRY)).toEqual({ lawCode: 'MHT_2548', eraUnresolved: false })
+  })
+
+  it('resolveEra: a byLaw group WITHOUT the floor law is unaffected — still flags provisional below every candidate', () => {
+    const noFloor: EraLawRef[] = [
+      { code: 'PSD_2555', buddhistYear: 2555, effectiveYear: null },
+      { code: 'MOT_2556', buddhistYear: 2556, effectiveYear: null },
+    ]
+    expect(resolveEra(2530, ['PSD_2555', 'MOT_2556'], noFloor)).toEqual({ lawCode: 'PSD_2555', eraUnresolved: true })
+  })
+
+  it('resolveEra: yearBuilt null is unaffected by isFloor — still resolves to the latest law, flagged provisional', () => {
+    expect(resolveEra(null, ['MHT_2548', 'PSD_2555', 'MOT_2556', 'MHT_2564'], FLOOR_REGISTRY))
+      .toEqual({ lawCode: 'MHT_2564', eraUnresolved: true })
+  })
+
+  function floorDef(): ChecklistTemplateDefinition {
+    return {
+      schemaVersion: 2,
+      mode: 'ทางบก',
+      groups: [{
+        code: 'A1', labelTh: 'group', items: [
+          { code: 'A1.1', labelTh: 'floor-gated (tactile-style, e.g. parking)', answerType: 'presence', lawRefs: ['MHT_2548'] },
+          { code: 'A1.2', labelTh: 'later-gated (only required from 2555)', answerType: 'presence', lawRefs: ['PSD_2555'] },
+        ],
+      }],
+    }
+  }
+
+  it('filterApplicableItems: a station built before 2548 keeps MHT_2548-only items but still redacts PSD_2555-only items', () => {
+    const result = filterApplicableItems(floorDef(), 2530, FLOOR_REGISTRY)
+    const codes = result.groups[0]!.items.map((i) => i.code)
+    expect(codes).toEqual(['A1.1'])
+  })
+
+  it('filterApplicableItems: a station built in 2555 or later now sees BOTH items, same as before this fix', () => {
+    const result = filterApplicableItems(floorDef(), 2555, FLOOR_REGISTRY)
+    const codes = result.groups[0]!.items.map((i) => i.code)
+    expect(codes).toEqual(['A1.1', 'A1.2'])
   })
 })
 

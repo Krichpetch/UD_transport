@@ -1,8 +1,8 @@
 import { randomBytes } from 'crypto'
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
-import type { ChecklistTemplateDefinition } from '@repo/types'
-import { ChecklistTemplateValidationError } from '@repo/types'
+import type { ChecklistTemplateDefinition, TransportMode } from '@repo/types'
+import { ChecklistTemplateValidationError, resolveVariantKey } from '@repo/types'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditLogService } from '../../audit/audit.service'
 import { MinioService } from '../../minio/minio.service'
@@ -28,6 +28,11 @@ export const TEMPLATE_IMAGE_EDIT = 'TEMPLATE_IMAGE_EDIT'
 export const TEMPLATE_CLONE_TO_DRAFT = 'TEMPLATE_CLONE_TO_DRAFT'
 export const TEMPLATE_STRUCTURE_EDIT = 'TEMPLATE_STRUCTURE_EDIT'
 export const TEMPLATE_LAWREFS_EDIT = 'TEMPLATE_LAWREFS_EDIT'
+// 2026-08-05 — DRAFT -> ACTIVE, the UI counterpart to apps/api/prisma/activate-template.ts.
+// Same action names as that script so audit-log history reads as one continuous trail regardless
+// of which path (CLI or UI) performed a given activation.
+export const TEMPLATE_ACTIVATE = 'TEMPLATE_ACTIVATE'
+export const TEMPLATE_RETIRE = 'TEMPLATE_RETIRE'
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 export const TEMPLATE_IMAGE_KEY_PREFIX = 'template-images/'
@@ -173,6 +178,95 @@ export class TemplatesAdminService {
     })
 
     return created
+  }
+
+  // 2026-08-05 — the admin-UI counterpart to apps/api/prisma/activate-template.ts (kept for
+  // scripted/bulk use). Flips DRAFT -> ACTIVE with the same three guardrails that script's header
+  // comment documents, since a bare `UPDATE ... SET status='ACTIVE'` would miss all of them:
+  //   1. retire whatever else is ACTIVE for this (mode, variantKey) in the same transaction —
+  //      there is no partial unique index and getActiveTemplate() uses findFirst, so two ACTIVE
+  //      rows would resolve non-deterministically.
+  //   2. refuse (unless force) while an in-progress DRAFT checklist for this variant is stamped
+  //      to a different template — getTemplateForAudit() resolves by (mode, variantKey), not by
+  //      the draft's own templateId, so that auditor would be handed this template next open with
+  //      their stored answers unhydrated.
+  //   3. audit-log both sides (root CLAUDE.md: every mutation writes an AuditLog entry).
+  //   4. refuse — no force override — while any numeric threshold on this template is unconfirmed.
+  //      The review queue's own comment already names it "the activation-gate metric"; this is
+  //      that intent enforced, not just displayed as a count. Unlike guardrail 2 this one is never
+  //      forceable: an unreviewed threshold is a correctness risk to inspection data, not a
+  //      one-auditor inconvenience, so there is no "proceed anyway" — go confirm it first.
+  async activateTemplate(templateId: string, actorId: string, force: boolean) {
+    const row = await this.loadRow(templateId)
+    if (row.status === 'ACTIVE') throw new BadRequestException('แบบประเมินนี้ใช้งานอยู่แล้ว')
+    if (row.status === 'RETIRED') throw new BadRequestException('ไม่สามารถเปิดใช้งานแบบประเมินที่เลิกใช้แล้วได้')
+
+    const summary = core.summarizeTemplate(row.definition as unknown as ChecklistTemplateDefinition)
+    const unconfirmed = summary.measurementCount - summary.confirmedCount
+    if (unconfirmed > 0) {
+      throw new BadRequestException({
+        code: 'UNCONFIRMED_THRESHOLDS',
+        message: `มีเกณฑ์ตัวเลขที่ยังไม่ยืนยัน ${unconfirmed} รายการ — ยืนยันเกณฑ์ทั้งหมดก่อนเปิดใช้งาน`,
+        unconfirmed,
+      })
+    }
+
+    const drafts = await this.prisma.checklist.findMany({
+      where: { status: 'DRAFT' },
+      select: { id: true, templateId: true, station: { select: { nameTh: true, mode: true, railSubtype: true } } },
+    })
+    const atRisk = drafts.filter((d) => {
+      if (!d.station) return false
+      const { variantKey } = resolveVariantKey(d.station.mode as TransportMode, d.station.railSubtype)
+      return d.station.mode === row.mode && variantKey === row.variantKey && d.templateId !== row.id
+    })
+    if (atRisk.length > 0 && !force) {
+      throw new ConflictException({
+        code: 'DRAFTS_AT_RISK',
+        message: `มีแบบตรวจค้างอยู่ ${atRisk.length} รายการที่ใช้แบบประเมินเวอร์ชันอื่นของ ${row.mode} (${row.variantKey}) — เปิดใช้งานตอนนี้จะทำให้ผู้ตรวจเห็นแบบใหม่โดยคำตอบเดิมไม่ถูกโหลด`,
+        stations: atRisk.slice(0, 10).map((d) => d.station!.nameTh),
+        count: atRisk.length,
+      })
+    }
+
+    const superseded = await this.prisma.checklistTemplate.findMany({
+      where: { mode: row.mode, variantKey: row.variantKey, status: 'ACTIVE', id: { not: row.id } },
+    })
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const s of superseded) {
+        await tx.checklistTemplate.update({ where: { id: s.id }, data: { status: 'RETIRED' } })
+        await tx.auditLog.create({
+          data: {
+            userId: actorId,
+            action: TEMPLATE_RETIRE,
+            entityType: 'ChecklistTemplate',
+            entityId: s.id,
+            before: { status: s.status } as Prisma.InputJsonValue,
+            after: { status: 'RETIRED', supersededBy: row.id, supersededByVersion: row.version } as Prisma.InputJsonValue,
+          },
+        })
+      }
+      await tx.checklistTemplate.update({ where: { id: row.id }, data: { status: 'ACTIVE' } })
+      await tx.auditLog.create({
+        data: {
+          userId: actorId,
+          action: TEMPLATE_ACTIVATE,
+          entityType: 'ChecklistTemplate',
+          entityId: row.id,
+          before: { status: row.status } as Prisma.InputJsonValue,
+          after: {
+            status: 'ACTIVE',
+            mode: row.mode,
+            variantKey: row.variantKey,
+            version: row.version,
+            ...(atRisk.length > 0 ? { forcedPastAtRiskDrafts: atRisk.length } : {}),
+          } as Prisma.InputJsonValue,
+        },
+      })
+    })
+
+    return this.get(templateId)
   }
 
   async editLabel(templateId: string, nodeCode: string, dto: EditLabelDto, actorId: string) {

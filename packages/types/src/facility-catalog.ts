@@ -24,6 +24,14 @@ export interface LawReferenceSeed {
   // build date AND an exact law date are known (era-resolution.ts#isLawInForce); falls back to
   // effectiveYear/buddhistYear otherwise, same nullable-never-guessed rule as effectiveYear.
   effectiveDate?: string | null
+  // 2026-08-06 — a floor law is treated as always in force, for every yearBuilt, however old the
+  // station: isLawInForce (era-resolution.ts) short-circuits to true before any year comparison.
+  // Distinct from the fallback resolveEra already had for a yearBuilt below every candidate (which
+  // still picks the oldest law but FLAGS it eraUnresolved/provisional) — a floor law is a
+  // deliberate legal fact ("this law is retroactive," per the user's own 4-bracket model: "Permit
+  // before 16 ม.ค. 2556 → evaluated under MHT_2548 only"), not a best guess. Only MHT_2548 carries
+  // this today.
+  isFloor?: boolean
   notes?: string
 }
 
@@ -42,7 +50,8 @@ export const LAW_REFERENCE_SEED: LawReferenceSeed[] = [
     buddhistYear: 2548,
     effectiveYear: null,
     effectiveDate: null,
-    notes: 'Base law — already in force before the 2556 cutovers below. No exact enforcement date supplied yet; buddhistYear fallback (2548) stands.',
+    isFloor: true,
+    notes: 'Base law — already in force before the 2556 cutovers below. No exact enforcement date supplied yet; buddhistYear fallback (2548) stands. isFloor: applies to every station regardless of build year, including ones built before 2548 itself — matches the user\'s bracket-1 legal model.',
   },
   {
     code: 'PSD_2555',

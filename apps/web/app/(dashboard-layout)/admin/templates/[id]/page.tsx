@@ -5,10 +5,13 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { TemplateNode } from '@repo/types'
 import { indexTemplateNodesByCode } from '@repo/types'
-import { ArrowLeft, Copy, Download, Loader2 } from 'lucide-react'
+import { ArrowLeft, Copy, Download, Loader2, Rocket } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
-import { useCloneToDraft, useTemplateDetail } from '@/hooks/use-templates-admin'
+import { useActivateTemplate, useCloneToDraft, useTemplateDetail } from '@/hooks/use-templates-admin'
 import { exportTemplate } from '@/lib/api/templates'
+import { ApiError } from '@/lib/api'
+import { DIALOG_HEADER_CLS, DIALOG_TITLE_CLS } from '@/lib/ui-classes'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { TransportBadge } from '@/components/shared/badges'
 import { TemplateStatusBadge } from '@/components/admin/templates/TemplateStatusBadge'
 import { TemplateTree } from '@/components/admin/templates/TemplateTree'
@@ -28,9 +31,34 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
   const searchParams = useSearchParams()
   const router = useRouter()
   const cloneToDraft = useCloneToDraft()
+  const activateTemplate = useActivateTemplate(id)
 
   const [selected, setSelected] = React.useState<{ node: TemplateNode; breadcrumb: string[] } | null>(null)
   const [exporting, setExporting] = React.useState(false)
+  const [activateOpen, setActivateOpen] = React.useState(false)
+  const [atRisk, setAtRisk] = React.useState<{ stations: string[]; count: number } | null>(null)
+
+  // 2026-08-05 — activation was previously CLI-only (apps/api/prisma/activate-template.ts,
+  // Notion "Feedback after first meeting" Open decision #19). This mirrors the script's own
+  // in-progress-draft guardrail: the first call goes unforced; a 409 DRAFTS_AT_RISK response means
+  // an auditor elsewhere is mid-audit on a different template for this mode/variant, so the dialog
+  // shows who and requires an explicit second click (force=true) to proceed anyway.
+  function handleActivate(force: boolean) {
+    activateTemplate.mutate(force, {
+      onSuccess: () => {
+        setActivateOpen(false)
+        setAtRisk(null)
+      },
+      onError: (err) => {
+        if (err instanceof ApiError && err.code === 'DRAFTS_AT_RISK') {
+          setAtRisk({
+            stations: Array.isArray(err.data.stations) ? (err.data.stations as string[]) : [],
+            count: typeof err.data.count === 'number' ? err.data.count : 0,
+          })
+        }
+      },
+    })
+  }
 
   // Session S3b, Part C.1 — "สร้างเวอร์ชันร่างใหม่": clones this ACTIVE template into a new
   // (mode, variantKey, version+1) DRAFT row, then jumps straight there so the admin lands where
@@ -105,11 +133,41 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
               <span className="text-muted-foreground text-sm">{data.variantKey === 'standard' ? 'มาตรฐาน' : data.variantKey}</span>
               <span className="text-foreground text-base font-semibold">เวอร์ชัน {data.version}</span>
               <TemplateStatusBadge status={data.status} />
+              {/* 2026-08-05 — same clause as the ฉบับร่าง badge: the activation-gate reason, not a
+                  link, since the review queue is one click away already (below) and this is just
+                  a status readout. */}
+              {data.status === 'DRAFT' && data.summary.unconfirmedCount > 0 && (
+                <span className="text-muted-foreground text-xs">
+                  เหลือยืนยันเกณฑ์ตัวเลขอีก {data.summary.unconfirmedCount} รายการก่อนเปิดใช้งาน
+                </span>
+              )}
             </div>
             {data.notes && <p className="text-muted-foreground mt-1 truncate text-sm">{data.notes}</p>}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {/* 2026-08-05 — only a DRAFT can be activated; ACTIVE already is, RETIRED is retired
+              on purpose (clone it back to a new draft first via the button below). Also gated on
+              the review queue being clear — server-enforced too (see activateTemplate's
+              UNCONFIRMED_THRESHOLDS check), this is just the client-side reflection of it so the
+              button reads as unavailable rather than failing after a click; the reason is shown as
+              a status readout next to the ฉบับร่าง badge above, not here. */}
+          {data.status === 'DRAFT' && (
+            <button
+              type="button"
+              onClick={() => setActivateOpen(true)}
+              disabled={data.summary.unconfirmedCount > 0}
+              title={
+                data.summary.unconfirmedCount > 0
+                  ? `ยืนยันเกณฑ์ตัวเลขที่เหลืออีก ${data.summary.unconfirmedCount} รายการก่อนเปิดใช้งาน`
+                  : undefined
+              }
+              className="bg-primary text-primary-foreground flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:opacity-40"
+            >
+              <Rocket size={15} />
+              เปิดใช้งาน
+            </button>
+          )}
           {/* Session S3b, Part C.1 — the versioning gate's clone action; only ACTIVE templates
               offer it (a DRAFT is already editable, RETIRED isn't part of this flow). */}
           {data.status === 'ACTIVE' && (
@@ -191,6 +249,70 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
         breadcrumb={selected?.breadcrumb ?? []}
         onClose={() => setSelected(null)}
       />
+
+      <Dialog
+        open={activateOpen}
+        onOpenChange={(open) => {
+          setActivateOpen(open)
+          if (!open) setAtRisk(null)
+        }}
+      >
+        <DialogContent>
+          <div className={`${DIALOG_HEADER_CLS} -mx-6 -mt-6 mb-4`}>
+            <DialogTitle className={DIALOG_TITLE_CLS}>เปิดใช้งานเวอร์ชัน {data.version}?</DialogTitle>
+          </div>
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground">
+              การเปิดใช้งานจะเปลี่ยนแบบฟอร์มที่ผู้ตรวจทุกคนของ <TransportBadge type={data.mode} /> (
+              {data.variantKey === 'standard' ? 'มาตรฐาน' : data.variantKey}) เห็นในการตรวจครั้งถัดไปทันที
+              เวอร์ชันที่ใช้งานอยู่ปัจจุบัน (ถ้ามี) จะถูกเปลี่ยนสถานะเป็นเลิกใช้โดยอัตโนมัติ
+            </p>
+
+            {atRisk && (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-red-600">
+                <p className="font-medium">⚠ มีแบบตรวจค้างอยู่ {atRisk.count} รายการที่ใช้แบบประเมินเวอร์ชันอื่นของสถานีประเภทนี้</p>
+                {atRisk.stations.length > 0 && (
+                  <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
+                    {atRisk.stations.map((name, i) => (
+                      <li key={i}>{name}</li>
+                    ))}
+                  </ul>
+                )}
+                {atRisk.count > atRisk.stations.length && (
+                  <p className="mt-1">…และอีก {atRisk.count - atRisk.stations.length} รายการ</p>
+                )}
+                <p className="mt-2">
+                  ผู้ตรวจเหล่านี้จะเห็นแบบใหม่โดยคำตอบเดิมไม่ถูกโหลด แนะนำให้รอจนกว่าจะส่งงานหรือยกเลิกแบบร่างก่อน
+                  หรือกดยืนยันอีกครั้งเพื่อเปิดใช้งานทันที
+                </p>
+              </div>
+            )}
+
+            {activateTemplate.isError && !atRisk && (
+              <p className="text-xs text-red-500">{(activateTemplate.error as Error).message}</p>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setActivateOpen(false)}
+                className="border-border bg-card hover:bg-secondary/60 rounded-lg border px-3.5 py-2 text-sm font-medium"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={() => handleActivate(!!atRisk)}
+                disabled={activateTemplate.isPending}
+                className="bg-primary text-primary-foreground flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium disabled:opacity-50"
+              >
+                {activateTemplate.isPending ? <Loader2 size={15} className="animate-spin" /> : <Rocket size={15} />}
+                {atRisk ? 'เปิดใช้งานต่อไป (บังคับ)' : 'ยืนยันเปิดใช้งาน'}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

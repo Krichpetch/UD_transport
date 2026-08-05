@@ -25,6 +25,7 @@ import { AddChildDto } from './dto/add-child.dto'
 import { ReorderNodeDto } from './dto/reorder-node.dto'
 import { EditLawRefsDto } from './dto/edit-law-refs.dto'
 import { EditLabelDto } from './dto/edit-label.dto'
+import { ActivateTemplateDto } from './dto/activate-template.dto'
 
 interface AuthRequest extends Request {
   user: { id: string; username: string; role: string }
@@ -140,6 +141,14 @@ export class TemplatesAdminController {
   cloneToDraft(@Param('id') id: string, @Req() req: AuthRequest) {
     if (req.user.role !== 'ADMIN') throw new ForbiddenException()
     return this.templates.cloneToDraft(id, req.user.id)
+  }
+
+  // 2026-08-05 — DRAFT -> ACTIVE. Previously CLI-only (apps/api/prisma/activate-template.ts);
+  // this is the same guardrails behind a real admin action (see templates.service.ts).
+  @Post(':id/activate')
+  activate(@Param('id') id: string, @Body() body: ActivateTemplateDto, @Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.templates.activateTemplate(id, req.user.id, body.force ?? false)
   }
 
   @Patch(':id/nodes/:nodeCode/label')

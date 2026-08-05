@@ -42,6 +42,13 @@ export interface TemplateMeasurementByLawEntry {
   value?: number | null
   value2?: number | null
   tiers?: TemplateTier[]
+  // Session F3 follow-up (2026-08-05) — the numeric value isn't the only text that varies by era:
+  // the question's own prose (leaf labelTh) and the measurement's sourceText both embed the same
+  // number in Thai. Optional here because most byLaw entries don't need it (era-resolution.ts
+  // falls back to the leaf's/measurement's flat text when absent) — only set when this law's
+  // number differs from the template's base flat text.
+  sourceText?: string | null
+  labelTh?: string | null
 }
 
 // A single numeric criterion attached to a presence_standard leaf (DATA_DICTIONARY_v2.md §2).
@@ -238,11 +245,20 @@ function parseByLawEntry(raw: unknown, path: string, operator: ThresholdOperator
   const o = raw as Record<string, unknown>
   if (operator === 'tiered') {
     if (o.tiers === undefined) fail(`${path}.tiers`, 'tiered byLaw entry requires tiers')
-    return { tiers: parseTiers(o.tiers, `${path}.tiers`) }
+    return {
+      tiers: parseTiers(o.tiers, `${path}.tiers`),
+      sourceText: typeof o.sourceText === 'string' ? o.sourceText : undefined,
+      labelTh: typeof o.labelTh === 'string' ? o.labelTh : undefined,
+    }
   }
   if (typeof o.value !== 'number') fail(`${path}.value`, 'must be a number')
   if (operator === 'range' && typeof o.value2 !== 'number') fail(`${path}.value2`, 'range operator requires numeric value2')
-  return { value: o.value as number, value2: typeof o.value2 === 'number' ? o.value2 : null }
+  return {
+    value: o.value as number,
+    value2: typeof o.value2 === 'number' ? o.value2 : null,
+    sourceText: typeof o.sourceText === 'string' ? o.sourceText : undefined,
+    labelTh: typeof o.labelTh === 'string' ? o.labelTh : undefined,
+  }
 }
 
 // Exported (not just used internally) so era-overrides.ts can validate override measurement
