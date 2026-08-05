@@ -219,7 +219,7 @@ export class StationsController {
   @Patch(':id/year-built')
   async updateYearBuilt(@Param('id') id: string, @Body() dto: UpdateYearBuiltDto, @Req() req: AuthRequest) {
     if (req.user.role !== 'ADMIN' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
-    return this.stations.updateYearBuilt(id, dto.yearBuilt, req.user.id)
+    return this.stations.updateYearBuilt(id, dto.yearBuilt, req.user.id, dto.yearBuiltDate)
   }
 
   @SkipThrottle()

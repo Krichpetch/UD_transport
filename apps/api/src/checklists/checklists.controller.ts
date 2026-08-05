@@ -60,6 +60,7 @@ export class ChecklistsController {
     @Query('preview') preview: string | undefined,
     @Query('version') version: string | undefined,
     @Query('yearBuilt') yearBuilt: string | undefined,
+    @Query('buildDate') buildDate: string | undefined,
     @Req() req: AuthRequest,
   ) {
     if (req.user.role !== 'AUDITOR' && req.user.role !== 'ADMIN') throw new ForbiddenException()
@@ -83,7 +84,19 @@ export class ChecklistsController {
       }
     }
 
-    return this.checklists.getTemplateForAudit(stationId, req.user.id, wantsPreview, versionOverride, yearBuiltOverride)
+    // 2026-08-05 — buildDate's exact-date companion to yearBuilt above: only meaningful alongside
+    // an override year (it refines which law applies WITHIN that year), so it's rejected on its
+    // own the same way yearBuilt is rejected outside preview mode.
+    let buildDateOverride: string | undefined
+    if (buildDate !== undefined) {
+      if (yearBuiltOverride === undefined) throw new BadRequestException('buildDate override requires yearBuilt to also be set')
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(buildDate) || Number.isNaN(new Date(buildDate).getTime())) {
+        throw new BadRequestException('buildDate must be an ISO yyyy-mm-dd date')
+      }
+      buildDateOverride = buildDate
+    }
+
+    return this.checklists.getTemplateForAudit(stationId, req.user.id, wantsPreview, versionOverride, yearBuiltOverride, buildDateOverride)
   }
 
   @Post('draft')

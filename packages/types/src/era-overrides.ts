@@ -54,6 +54,23 @@ export function applyEraOverrides(def: ChecklistTemplateDefinition, overridesJso
       throw new EraOverrideError(`era override for leaf "${leafCode}" must supply a measurements array`)
     }
     leaf.measurements = override.measurements.map((m, i) => parseMeasurement(m, `overrides.${leafCode}.measurements[${i}]`))
+
+    // A byLaw entry asserts "this law gives this item a value" — which only makes sense if the
+    // item is already considered to EXIST under that law. isItemApplicable (era-resolution.ts)
+    // redacts a leaf whose lawRefs are all still-future relative to a station's build year, so a
+    // byLaw code missing from lawRefs is a standing contradiction: the value resolver would apply
+    // that law's threshold while the redaction pass hides the item for the very same build year.
+    // Union every byLaw code onto lawRefs here, once, at the one place overrides are merged in —
+    // never let the two mechanisms disagree about which eras an item exists in.
+    const byLawCodes = new Set<string>()
+    for (const m of leaf.measurements) {
+      if (m.byLaw) for (const code of Object.keys(m.byLaw)) byLawCodes.add(code)
+    }
+    if (byLawCodes.size > 0) {
+      const existing = new Set(leaf.lawRefs ?? [])
+      for (const code of byLawCodes) existing.add(code)
+      leaf.lawRefs = [...existing]
+    }
   }
 
   // Re-validate the whole merged tree — cheap, and catches a hand-edited overrides file that

@@ -92,25 +92,43 @@ describe('ChecklistsController.findTemplateForAudit — preview year override gu
 
   it('rejects yearBuilt for a non-ADMIN caller even in preview mode', () => {
     const req = { user: { id: 'u1', username: 'a', role: 'AUDITOR' } } as never
-    expect(() => controller.findTemplateForAudit('s1', '1', undefined, '2560', req)).toThrow(ForbiddenException)
+    expect(() => controller.findTemplateForAudit('s1', '1', undefined, '2560', undefined, req)).toThrow(ForbiddenException)
     expect(getTemplateForAudit).not.toHaveBeenCalled()
   })
 
   it('rejects yearBuilt supplied without preview/version — has no meaning against a real audit', () => {
     const req = { user: { id: 'u1', username: 'a', role: 'ADMIN' } } as never
-    expect(() => controller.findTemplateForAudit('s1', undefined, undefined, '2560', req)).toThrow(BadRequestException)
+    expect(() => controller.findTemplateForAudit('s1', undefined, undefined, '2560', undefined, req)).toThrow(BadRequestException)
     expect(getTemplateForAudit).not.toHaveBeenCalled()
   })
 
   it('rejects an out-of-range yearBuilt', () => {
     const req = { user: { id: 'u1', username: 'a', role: 'ADMIN' } } as never
-    expect(() => controller.findTemplateForAudit('s1', '1', undefined, '99', req)).toThrow(BadRequestException)
+    expect(() => controller.findTemplateForAudit('s1', '1', undefined, '99', undefined, req)).toThrow(BadRequestException)
   })
 
   it('accepts a valid yearBuilt for an ADMIN in preview mode and passes it through', () => {
     getTemplateForAudit.mockResolvedValue({})
     const req = { user: { id: 'u1', username: 'a', role: 'ADMIN' } } as never
-    controller.findTemplateForAudit('s1', '1', undefined, '2560', req)
-    expect(getTemplateForAudit).toHaveBeenCalledWith('s1', 'u1', true, undefined, 2560)
+    controller.findTemplateForAudit('s1', '1', undefined, '2560', undefined, req)
+    expect(getTemplateForAudit).toHaveBeenCalledWith('s1', 'u1', true, undefined, 2560, undefined)
+  })
+
+  it('rejects a buildDate override without a yearBuilt override — refines a year, not a standalone input', () => {
+    const req = { user: { id: 'u1', username: 'a', role: 'ADMIN' } } as never
+    expect(() => controller.findTemplateForAudit('s1', '1', undefined, undefined, '2013-01-16', req)).toThrow(BadRequestException)
+    expect(getTemplateForAudit).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed buildDate', () => {
+    const req = { user: { id: 'u1', username: 'a', role: 'ADMIN' } } as never
+    expect(() => controller.findTemplateForAudit('s1', '1', undefined, '2556', 'not-a-date', req)).toThrow(BadRequestException)
+  })
+
+  it('accepts a valid buildDate alongside yearBuilt and passes both through', () => {
+    getTemplateForAudit.mockResolvedValue({})
+    const req = { user: { id: 'u1', username: 'a', role: 'ADMIN' } } as never
+    controller.findTemplateForAudit('s1', '1', undefined, '2556', '2013-01-16', req)
+    expect(getTemplateForAudit).toHaveBeenCalledWith('s1', 'u1', true, undefined, 2556, '2013-01-16')
   })
 })

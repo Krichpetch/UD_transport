@@ -29,6 +29,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { StationForm, StationCoordinateFields, type StationFormValue } from '@/components/stations/station-form'
 import { INPUT_CLS, DIALOG_HEADER_CLS, DIALOG_TITLE_CLS } from '@/lib/ui-classes'
+import { getLineColor } from '@/lib/line-colors'
 import { RequireRole } from '@/components/auth/require-role'
 import { countReviewFlags } from '@/lib/checklist-review-flags'
 import {
@@ -362,10 +363,16 @@ function StationsPageContent() {
 
   // Part A.4 — available lines for the current scope, and drop a selection the new scope can't
   // satisfy. Same one-bounded-query-per-scope-change shape as the auditor picker.
+  // Under ทางราง, lines only make sense for รถไฟฟ้า (metro) — รถไฟ intercity stations aren't
+  // line-tagged in this dataset, so mixing them in before a subtype is picked read as noise.
   const [lineOptions, setLineOptions] = React.useState<string[]>([])
   React.useEffect(() => {
     let cancelled = false
     setLineFilter('')
+    if (typeFilter === 'ทางราง' && railSubtypeFilter !== 'รถไฟฟ้า') {
+      setLineOptions([])
+      return
+    }
     getStationLines({
       mode: typeFilter || undefined,
       railSubtype: typeFilter === 'ทางราง' ? (railSubtypeFilter || undefined) : undefined,
@@ -996,7 +1003,9 @@ function StationsPageContent() {
                                 line · province stands in per Part G.1 (W2-S1) rather than
                                 duplicating nameTh or inventing a transliteration. */}
                             <p className="text-muted-foreground truncate text-xs">
-                              {station.line || '—'} · {station.province ?? 'ไม่ระบุ'}
+                              {station.line ? (
+                                <span style={{ color: getLineColor(station.line) }}>{station.line}</span>
+                              ) : '—'} · {station.province ?? 'ไม่ระบุ'}
                             </p>
                           </div>
                           {hasPending && (

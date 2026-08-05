@@ -171,6 +171,32 @@ describe('editEraOverride', () => {
   it('rejects removing the only byLaw entry when no flat tiers fallback exists', () => {
     expect(() => editEraOverride(fixture(), 'A1.1-3', 'm1', 'MHT_2548', null)).toThrow(ChecklistTemplateValidationError)
   })
+
+  // 2026-08-05 — same invariant as applyEraOverrides (era-overrides.ts): a byLaw entry means
+  // "this law gives this item a value", which contradicts isItemApplicable redacting the item
+  // below that law. A1.1-1 starts with no lawRefs at all (untagged), so this also covers the
+  // "lawRefs array doesn't exist yet" branch, not just the append-to-existing-array case.
+  it('adds the law code onto the node lawRefs when setting a new byLaw entry', () => {
+    const { definition } = editEraOverride(fixture(), 'A1.1-1', 'm1', 'MHT_2564', { value: 800 })
+    const node = definition.groups[0]!.items[0]!.subItems![0]!
+    expect(node.lawRefs).toEqual(['MHT_2564'])
+  })
+
+  it('does not duplicate an already-present lawRef', () => {
+    // A1.1-2 already carries MHT_2548 via its byLaw fixture entry — but nothing has unioned it
+    // into lawRefs yet in this synthetic fixture, so exercise it directly first.
+    const once = editEraOverride(fixture(), 'A1.1-2', 'm1', 'MHT_2548', { tiers: [{ min: 10, max: 50, required: 1 }] })
+    const twice = editEraOverride(once.definition, 'A1.1-2', 'm1', 'MHT_2548', { tiers: [{ min: 10, max: 60, required: 1 }] })
+    const node = twice.definition.groups[0]!.items[0]!.subItems![1]!
+    expect(node.lawRefs).toEqual(['MHT_2548'])
+  })
+
+  it('removing a byLaw entry does not strip its lawRef (may still be intentionally gated)', () => {
+    const withRef = editEraOverride(fixture(), 'A1.1-1', 'm1', 'MHT_2564', { value: 800 })
+    const removed = editEraOverride(withRef.definition, 'A1.1-1', 'm1', 'MHT_2564', null)
+    const node = removed.definition.groups[0]!.items[0]!.subItems![0]!
+    expect(node.lawRefs).toEqual(['MHT_2564'])
+  })
 })
 
 describe('editGuidance', () => {

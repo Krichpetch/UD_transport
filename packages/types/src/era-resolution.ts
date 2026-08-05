@@ -9,8 +9,9 @@
 //
 // Resolution rule: for each byLaw group, pick the latest law whose effective year is <= the
 // station's build year. "Effective year" is LawReference.effectiveYear when set, falling back to
-// buddhistYear — see the TODO below; every LawReference row currently seeded has effectiveYear
-// null, so resolution is provisional today by construction, not by exception.
+// buddhistYear — see the TODO below. As of 2026-08-05, PSD_2555/MOT_2556/MHT_2564 carry real
+// effectiveYear values (see facility-catalog.ts); MHT_2548 still falls back to its buddhistYear
+// pending an exact enforcement date.
 import type {
   ChecklistTemplateDefinition,
   TemplateMeasurement,
@@ -45,6 +46,7 @@ export interface EraLawRef {
   code: string
   buddhistYear: number
   effectiveYear?: number | null
+  effectiveDate?: string | null   // ISO yyyy-mm-dd, Gregorian — see facility-catalog.ts
 }
 
 export class EraResolutionError extends Error {}
@@ -55,18 +57,36 @@ function lawYear(law: EraLawRef): number {
   return law.effectiveYear ?? law.buddhistYear
 }
 
+// 2026-08-05 — a station's build "instant" is now either a Buddhist YEAR (as always) or, when the
+// auditor captured it, an exact Gregorian DATE (Station.yearBuiltDate). Compares a law's
+// enforcement start against whichever precision the station actually has. Prefers a true
+// date-to-date comparison when BOTH sides carry one — this is what resolves same-Buddhist-year
+// law collisions, e.g. PSD_2555 (16 ม.ค. 2556) vs MOT_2556 (3 เม.ย. 2556), both พ.ศ. 2556 (see
+// facility-catalog.ts's file-level note) — and falls back to the pre-existing year-only comparison
+// whenever either side lacks that precision. Never synthesizes a date that wasn't actually
+// supplied: a yearBuilt-only station compares exactly as it always has, byte-for-byte.
+function isLawInForce(law: EraLawRef, yearBuilt: number | null | undefined, buildDate?: string | null): boolean {
+  if (buildDate && law.effectiveDate) return law.effectiveDate <= buildDate
+  if (yearBuilt == null) return false
+  return lawYear(law) <= yearBuilt
+}
+
 // Pure function — no DB access, no template awareness. `registry` defaults to the shared seed
 // data so callers don't need to thread it through, but tests / a future DB-backed registry can
-// override it.
+// override it. `buildDate` (ISO yyyy-mm-dd, Gregorian) is optional and refines resolution only
+// when both it and a candidate law's effectiveDate are present — see isLawInForce.
 export function resolveEra(
   yearBuilt: number | null | undefined,
   candidateLawCodes: readonly string[],
   registry: readonly EraLawRef[] = LAW_REFERENCE_SEED,
+  buildDate?: string | null,
 ): EraResolution {
   const candidates = registry
     .filter((l) => candidateLawCodes.includes(l.code))
-    .map((l) => ({ code: l.code, year: lawYear(l) }))
-    .sort((a, b) => a.year - b.year)
+    .map((l) => ({ code: l.code, year: lawYear(l), law: l }))
+    // Same-year ties (only possible via effectiveDate-bearing laws today) break by exact date —
+    // pure tie-break, never changes order for the common case of one law per distinct year.
+    .sort((a, b) => a.year - b.year || (a.law.effectiveDate ?? '').localeCompare(b.law.effectiveDate ?? ''))
 
   if (candidates.length === 0) {
     throw new EraResolutionError(`no LawReference in the registry matches any of [${candidateLawCodes.join(', ')}]`)
@@ -79,9 +99,9 @@ export function resolveEra(
     return { lawCode: latest.code, eraUnresolved: true }
   }
 
-  let picked: { code: string; year: number } | null = null
+  let picked: { code: string; year: number; law: EraLawRef } | null = null
   for (const c of candidates) {
-    if (c.year <= yearBuilt) picked = c
+    if (isLawInForce(c.law, yearBuilt, buildDate)) picked = c
   }
   // Build year predates every law in this group — apply the oldest, flagged provisional.
   if (!picked) return { lawCode: candidates[0]!.code, eraUnresolved: true }
@@ -104,10 +124,11 @@ function resolveMeasurement(
   yearBuilt: number | null | undefined,
   registry: readonly EraLawRef[],
   appliedLawRefs: Record<string, string>,
+  buildDate?: string | null,
 ): { measurement: TemplateMeasurement; eraUnresolved: boolean } {
   if (!m.byLaw) return { measurement: m, eraUnresolved: false }
 
-  const { lawCode, eraUnresolved } = resolveEra(yearBuilt, Object.keys(m.byLaw), registry)
+  const { lawCode, eraUnresolved } = resolveEra(yearBuilt, Object.keys(m.byLaw), registry, buildDate)
   const entry = m.byLaw[lawCode]
   if (!entry) {
     throw new EraResolutionError(`resolved law code ${lawCode} has no byLaw entry on measurement ${leafCode}#${m.key}`)
@@ -135,33 +156,36 @@ function resolveNode(
   registry: readonly EraLawRef[],
   appliedLawRefs: Record<string, string>,
   unresolvedFlag: { value: boolean },
+  buildDate?: string | null,
 ): TemplateNode {
   let measurements = node.measurements
   if (measurements) {
     measurements = measurements.map((m) => {
-      const { measurement, eraUnresolved } = resolveMeasurement(m, node.code, yearBuilt, registry, appliedLawRefs)
+      const { measurement, eraUnresolved } = resolveMeasurement(m, node.code, yearBuilt, registry, appliedLawRefs, buildDate)
       if (eraUnresolved) unresolvedFlag.value = true
       return measurement
     })
   }
-  const subItems = node.subItems?.map((c) => resolveNode(c, yearBuilt, registry, appliedLawRefs, unresolvedFlag))
+  const subItems = node.subItems?.map((c) => resolveNode(c, yearBuilt, registry, appliedLawRefs, unresolvedFlag, buildDate))
   return { ...node, ...(measurements ? { measurements } : {}), ...(subItems ? { subItems } : {}) }
 }
 
 // Walks the whole template, resolving every byLaw-wrapped measurement against `yearBuilt`.
 // Non-era-varying measurements (the ~95% majority, per the data dictionary) pass through
 // untouched. Safe to call with yearBuilt = null/undefined (resolves everything provisionally to
-// the latest law in each group, per resolveEra).
+// the latest law in each group, per resolveEra). `buildDate` (ISO yyyy-mm-dd, Gregorian) is
+// optional — only refines resolution where a candidate law also carries an effectiveDate.
 export function resolveTemplateEras(
   def: ChecklistTemplateDefinition,
   yearBuilt: number | null | undefined,
   registry: readonly EraLawRef[] = LAW_REFERENCE_SEED,
+  buildDate?: string | null,
 ): ResolvedTemplateResult {
   const appliedLawRefs: Record<string, string> = {}
   const unresolvedFlag = { value: false }
   const groups: ChecklistTemplateGroupDef[] = def.groups.map((g) => ({
     ...g,
-    items: g.items.map((item) => resolveNode(item, yearBuilt, registry, appliedLawRefs, unresolvedFlag)),
+    items: g.items.map((item) => resolveNode(item, yearBuilt, registry, appliedLawRefs, unresolvedFlag, buildDate)),
   }))
   return {
     resolved: { ...def, groups },
@@ -194,6 +218,7 @@ function isItemApplicable(
   node: TemplateNode,
   yearBuilt: number | null | undefined,
   registry: readonly EraLawRef[],
+  buildDate?: string | null,
 ): boolean {
   if (yearBuilt == null) return true
   // Session F3, Part D — checked BEFORE the lawRefs tests: a neverEraGated facility survives every
@@ -204,7 +229,7 @@ function isItemApplicable(
   return node.lawRefs.some((code) => {
     const law = registry.find((l) => l.code === code)
     if (!law) return true
-    return lawYear(law) <= yearBuilt
+    return isLawInForce(law, yearBuilt, buildDate)
   })
 }
 
@@ -219,13 +244,14 @@ function filterNodeApplicability(
   node: TemplateNode,
   yearBuilt: number | null | undefined,
   registry: readonly EraLawRef[],
+  buildDate?: string | null,
 ): TemplateNode | null {
-  if (node.answerType && !isItemApplicable(node, yearBuilt, registry)) return null
+  if (node.answerType && !isItemApplicable(node, yearBuilt, registry, buildDate)) return null
 
   const result: TemplateNode = { ...node }
   if (node.subItems) {
     const survivors = node.subItems
-      .map((c) => filterNodeApplicability(c, yearBuilt, registry))
+      .map((c) => filterNodeApplicability(c, yearBuilt, registry, buildDate))
       .filter((c): c is TemplateNode => c !== null)
     if (survivors.length > 0) {
       result.subItems = survivors
@@ -246,11 +272,12 @@ export function filterApplicableItems(
   def: ChecklistTemplateDefinition,
   yearBuilt: number | null | undefined,
   registry: readonly EraLawRef[] = LAW_REFERENCE_SEED,
+  buildDate?: string | null,
 ): ChecklistTemplateDefinition {
   const groups: ChecklistTemplateGroupDef[] = def.groups
     .map((g) => {
       const items = g.items
-        .map((item) => filterNodeApplicability(item, yearBuilt, registry))
+        .map((item) => filterNodeApplicability(item, yearBuilt, registry, buildDate))
         .filter((n): n is TemplateNode => n !== null)
       return items.length > 0 ? { ...g, items } : null
     })
@@ -279,12 +306,13 @@ function markNode(
   yearBuilt: number | null | undefined,
   registry: readonly EraLawRef[],
   forcedInapplicable: boolean,
+  buildDate?: string | null,
 ): TemplateNode {
   const ownApplicable = node.answerType
-    ? (!forcedInapplicable && isItemApplicable(node, yearBuilt, registry))
+    ? (!forcedInapplicable && isItemApplicable(node, yearBuilt, registry, buildDate))
     : undefined
   const childForced = forcedInapplicable || ownApplicable === false
-  const subItems = node.subItems?.map((c) => markNode(c, yearBuilt, registry, childForced))
+  const subItems = node.subItems?.map((c) => markNode(c, yearBuilt, registry, childForced, buildDate))
   return {
     ...node,
     ...(node.answerType ? { applicable: ownApplicable } : {}),
@@ -296,10 +324,11 @@ export function markApplicability(
   def: ChecklistTemplateDefinition,
   yearBuilt: number | null | undefined,
   registry: readonly EraLawRef[] = LAW_REFERENCE_SEED,
+  buildDate?: string | null,
 ): ChecklistTemplateDefinition {
   const groups: ChecklistTemplateGroupDef[] = def.groups.map((g) => ({
     ...g,
-    items: g.items.map((item) => markNode(item, yearBuilt, registry, false)),
+    items: g.items.map((item) => markNode(item, yearBuilt, registry, false, buildDate)),
   }))
   return { ...def, groups }
 }
@@ -316,6 +345,26 @@ export function isValidYearBuilt(yearBuilt: number, now: Date = new Date()): boo
   return Number.isInteger(yearBuilt) && yearBuilt >= YEAR_BUILT_MIN && yearBuilt <= yearBuiltMax(now)
 }
 
+// 2026-08-05 — an ISO yyyy-mm-dd (Gregorian) date's Buddhist year, i.e. the same year a Thai
+// auditor would read off that same calendar date. Parsed as UTC midnight so the result never
+// shifts with the server's local timezone (a date-only value has no "time of day" to begin with).
+export function buddhistYearOfIsoDate(isoDate: string): number {
+  return new Date(isoDate).getUTCFullYear() + 543
+}
+
+// Sanity + internal-consistency check for Station.yearBuiltDate: must be a real calendar date
+// within the same overall range as yearBuilt, and — when yearBuilt is also supplied — must name
+// the SAME Buddhist year as yearBuilt. A mismatch means the auditor typed a year that disagrees
+// with the exact date they picked; reject rather than silently trust one over the other.
+export function isValidYearBuiltDate(isoDate: string, yearBuilt?: number | null, now: Date = new Date()): boolean {
+  const parsed = new Date(isoDate)
+  if (Number.isNaN(parsed.getTime())) return false
+  const impliedYear = buddhistYearOfIsoDate(isoDate)
+  if (!isValidYearBuilt(impliedYear, now)) return false
+  if (yearBuilt != null && impliedYear !== yearBuilt) return false
+  return true
+}
+
 // Session F1 follow-up — derives the actual era BRACKETS from the real law registry, so an admin
 // picking a "test build year" for preview redaction can choose a bracket by name (e.g. "ก่อน พ.ศ.
 // 2548" / "2548–2554") instead of guessing a raw year and hoping it lands on the right side of an
@@ -327,6 +376,12 @@ export function isValidYearBuilt(yearBuilt: number, now: Date = new Date()): boo
 export interface EraYearBracket {
   label: string             // e.g. "ก่อน พ.ศ. 2548" or "พ.ศ. 2548–2554"
   representativeYear: number // the value to send as yearBuiltOverride for this bracket
+  // 2026-08-05 — ISO yyyy-mm-dd (Gregorian), the value to send as a companion buildDateOverride,
+  // present ONLY when this bracket's boundary law itself has an effectiveDate. Two laws can share
+  // a representativeYear (PSD_2555/MOT_2556 both พ.ศ. 2556) and still be distinct brackets once
+  // dates are known — see the boundary-key note below. Omitted (not null) when no exact date
+  // marks this boundary, so existing year-only callers/tests are unaffected.
+  representativeDate?: string
 }
 
 // Structural subset (code/buddhistYear/effectiveYear + a real-vs-PROJECT flag), same looseness
@@ -337,25 +392,53 @@ export interface EraBracketLawRef extends EraLawRef {
   code: string
 }
 
+// A boundary's sort/dedup key, always a Gregorian ISO date string so law rows with and without an
+// exact effectiveDate compare correctly against each other (mixing a raw Buddhist year like 2548
+// into the same lexicographic sort as a Gregorian ISO date like 2013-01-16 would sort backwards —
+// 2548 as a string outranks every real Gregorian year in this app's lifetime). Falls back to
+// Jan 1 of the law's Gregorian year when no exact date is known, which preserves the pre-date
+// year-level boundary/dedup behaviour exactly for every law that still only has a year.
+function boundaryKey(law: EraBracketLawRef): string {
+  if (law.effectiveDate) return law.effectiveDate
+  const gregorianYear = (law.effectiveYear ?? law.buddhistYear) - 543
+  return `${String(gregorianYear).padStart(4, '0')}-01-01`
+}
+
 export function eraYearBrackets(
   registry: readonly EraBracketLawRef[] = LAW_REFERENCE_SEED,
   now: Date = new Date(),
 ): EraYearBracket[] {
-  const years = [...new Set(
-    registry.filter((l) => l.code !== 'PROJECT').map((l) => l.effectiveYear ?? l.buddhistYear),
-  )].sort((a, b) => a - b)
+  // One entry per distinct boundary key — two laws sharing a key (year-only laws with the same
+  // year, or a genuine same-date coincidence) collapse to one boundary, same as before dates
+  // existed; two laws sharing only a Buddhist YEAR but distinct exact dates (PSD_2555/MOT_2556,
+  // both พ.ศ. 2556) now correctly stay separate boundaries.
+  const boundaries = [...new Map(
+    registry.filter((l) => l.code !== 'PROJECT').map((l) => [boundaryKey(l), l] as const),
+  ).values()].sort((a, b) => boundaryKey(a).localeCompare(boundaryKey(b)))
 
-  if (years.length === 0) return []
+  if (boundaries.length === 0) return []
+
+  const displayYear = (l: EraBracketLawRef) => l.effectiveYear ?? l.buddhistYear
 
   const brackets: EraYearBracket[] = [
-    { label: `ก่อน พ.ศ. ${years[0]}`, representativeYear: YEAR_BUILT_MIN },
+    { label: `ก่อน พ.ศ. ${displayYear(boundaries[0]!)}`, representativeYear: YEAR_BUILT_MIN },
   ]
-  for (let i = 0; i < years.length; i++) {
-    const start = years[i]!
-    const end = years[i + 1] // undefined for the last (open-ended) bracket
+  for (let i = 0; i < boundaries.length; i++) {
+    const law = boundaries[i]!
+    const start = displayYear(law)
+    const next = boundaries[i + 1] // undefined for the last (open-ended) bracket
+    const end = next ? displayYear(next) : undefined
+    const label = end === undefined
+      ? `พ.ศ. ${start} เป็นต้นไป`
+      // Same-year boundary split (e.g. PSD_2555 -> MOT_2556, both พ.ศ. 2556) — only distinguishable
+      // by exact date, so name the law rather than print a backwards/empty "2556–2555" range.
+      : start === end
+        ? `พ.ศ. ${start} (${law.code} เป็นต้นไป)`
+        : `พ.ศ. ${start}–${end - 1}`
     brackets.push({
-      label: end !== undefined ? `พ.ศ. ${start}–${end - 1}` : `พ.ศ. ${start} เป็นต้นไป`,
+      label,
       representativeYear: start,
+      ...(law.effectiveDate ? { representativeDate: law.effectiveDate } : {}),
     })
   }
   // Clamp the very last bracket's representative year to the valid range in case `now` has

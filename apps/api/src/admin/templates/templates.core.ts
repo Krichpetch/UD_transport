@@ -135,6 +135,15 @@ export function editEraOverride(
     }
   } else {
     measurement.byLaw = { ...(measurement.byLaw ?? {}), [lawCode]: entry }
+    // A byLaw entry asserts "this law gives this item a value" — isItemApplicable
+    // (era-resolution.ts) redacts the whole item below any law missing from node.lawRefs, so a
+    // byLaw code absent from lawRefs is a standing contradiction (2026-08-05, see
+    // era-overrides.ts's applyEraOverrides, the same invariant enforced at seed time). Only
+    // ADDS here — removing a byLaw entry never strips its lawRef, since the item may still be
+    // legitimately gated by that law for reasons independent of this one measurement.
+    if (!node.lawRefs?.includes(lawCode)) {
+      node.lawRefs = [...(node.lawRefs ?? []), lawCode]
+    }
   }
   measurement.confirmed = true
 

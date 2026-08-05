@@ -29,6 +29,13 @@ function toJson(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue
 }
 
+// 2026-08-05 — era-resolution.ts's date-aware comparison (isLawInForce) works in ISO yyyy-mm-dd
+// strings; Prisma reads/writes a real Date object for a @db.Date column. One narrow conversion
+// point rather than scattering .toISOString().slice(0, 10) across every call site below.
+function toIsoDate(d: Date | null | undefined): string | null {
+  return d ? d.toISOString().slice(0, 10) : null
+}
+
 const PROXIMITY_RADIUS_M = 1000
 // Part C — explicit size bound on the items payload, rather than relying solely on the global
 // 10mb body cap (main.ts) which is shared across every route.
@@ -203,18 +210,23 @@ export class ChecklistsService {
   // come from the exact same resolution (never two separate passes that could disagree).
   // `templateDef` may be undefined (no ACTIVE template yet) — degrades to an empty stamp,
   // matching every other getActiveTemplate() call site's graceful-degradation convention.
-  private resolveEraStamp(templateDef: ChecklistTemplateDefinition | undefined, yearBuilt: number | null) {
+  //
+  // 2026-08-05 — `buildDate` (ISO yyyy-mm-dd, Gregorian) is the optional exact-date refinement;
+  // passed straight through to markApplicability/resolveTemplateEras, which fall back to the
+  // pre-existing year-only comparison whenever it's absent (the overwhelmingly common case).
+  private resolveEraStamp(templateDef: ChecklistTemplateDefinition | undefined, yearBuilt: number | null, buildDate?: string | null) {
     if (!templateDef) {
-      return { resolvedDef: undefined, appliedYearBuilt: yearBuilt, appliedLawRefs: null as Record<string, string> | null }
+      return { resolvedDef: undefined, appliedYearBuilt: yearBuilt, appliedYearBuiltDate: buildDate ?? null, appliedLawRefs: null as Record<string, string> | null }
     }
     // Part C — item redaction marked BEFORE value resolution, same ordering/schemaVersion gate as
     // getTemplateForAudit, so submit's score/persisted-flags and the audit-time template the
     // auditor actually saw always agree on which leaves applied.
-    const marked = templateDef.schemaVersion === 1 ? templateDef : markApplicability(templateDef, yearBuilt)
-    const { resolved, appliedLawRefs } = resolveTemplateEras(marked, yearBuilt)
+    const marked = templateDef.schemaVersion === 1 ? templateDef : markApplicability(templateDef, yearBuilt, undefined, buildDate)
+    const { resolved, appliedLawRefs } = resolveTemplateEras(marked, yearBuilt, undefined, buildDate)
     return {
       resolvedDef: resolved,
       appliedYearBuilt: yearBuilt,
+      appliedYearBuiltDate: buildDate ?? null,
       appliedLawRefs: Object.keys(appliedLawRefs).length > 0 ? appliedLawRefs : null,
     }
   }
@@ -253,8 +265,11 @@ export class ChecklistsService {
   // `yearBuiltOverride` (Session F1 follow-up) — ADMIN preview-only (controller rejects it outside
   // `preview` mode): lets the admin pick any build year to see era redaction/value resolution
   // react live, WITHOUT touching the real station's yearBuilt or writing anything anywhere — this
-  // is purely a resolution-input substitution for one read, never persisted.
-  async getTemplateForAudit(stationId: string, auditorId: string, preview?: boolean, versionOverride?: number, yearBuiltOverride?: number) {
+  // is purely a resolution-input substitution for one read, never persisted. `buildDateOverride`
+  // (2026-08-05, ISO yyyy-mm-dd Gregorian) is its exact-date companion — lets an admin preview the
+  // two same-Buddhist-year law cutovers (PSD_2555 vs MOT_2556, both พ.ศ. 2556) separately; same
+  // preview-only, never-persisted contract as yearBuiltOverride.
+  async getTemplateForAudit(stationId: string, auditorId: string, preview?: boolean, versionOverride?: number, yearBuiltOverride?: number, buildDateOverride?: string) {
     const station = await this.stations.findOne(stationId)
     const template = versionOverride != null
       ? await this.prisma.checklistTemplate.findFirst({
@@ -265,6 +280,9 @@ export class ChecklistsService {
 
     const draft = preview ? null : await this.prisma.checklist.findFirst({ where: { stationId, auditorId, status: 'DRAFT' } })
     const yearBuilt = preview && yearBuiltOverride != null ? yearBuiltOverride : (draft?.appliedYearBuilt ?? station.yearBuilt ?? null)
+    const buildDate = preview && yearBuiltOverride != null
+      ? (buildDateOverride ?? null)
+      : (draft ? toIsoDate(draft.appliedYearBuiltDate) : toIsoDate(station.yearBuiltDate))
     const templateDef = template.definition as unknown as ChecklistTemplateDefinition
     // Item redaction (Session F1, Part C) BEFORE value resolution: a criterion the build year
     // predates is flagged applicable:false rather than removed (see @repo/types#markApplicability —
@@ -272,14 +290,15 @@ export class ChecklistsService {
     // dumb and renders the flagged items as a collapsed footer note, never an answerable row).
     // Scope is v2/v3 templates only (Part C.2) — v1 live forms render full and unfiltered, gated
     // here by schemaVersion rather than relying on v1 templates simply never carrying lawRefs tags.
-    const marked = templateDef.schemaVersion === 1 ? templateDef : markApplicability(templateDef, yearBuilt)
-    const { resolved, appliedLawRefs, eraUnresolved } = resolveTemplateEras(marked, yearBuilt)
+    const marked = templateDef.schemaVersion === 1 ? templateDef : markApplicability(templateDef, yearBuilt, undefined, buildDate)
+    const { resolved, appliedLawRefs, eraUnresolved } = resolveTemplateEras(marked, yearBuilt, undefined, buildDate)
 
     return {
       template: resolved,
       templateId: template.id,
       templateVersion: template.version,
       appliedYearBuilt: yearBuilt,
+      appliedYearBuiltDate: buildDate,
       appliedLawRefs: Object.keys(appliedLawRefs).length > 0 ? appliedLawRefs : null,
       eraUnresolved,
       preview: !!preview,
@@ -383,9 +402,10 @@ export class ChecklistsService {
     } else {
       // Stamped once at creation and never touched again — see Checklist.templateId /
       // appliedYearBuilt doc. Meaningful even with no ACTIVE template (appliedYearBuilt alone).
-      const { appliedYearBuilt, appliedLawRefs } = this.resolveEraStamp(
+      const { appliedYearBuilt, appliedYearBuiltDate, appliedLawRefs } = this.resolveEraStamp(
         template?.definition as ChecklistTemplateDefinition | undefined,
         station.yearBuilt,
+        toIsoDate(station.yearBuiltDate),
       )
       try {
         checklist = await this.prisma.checklist.create({
@@ -398,6 +418,7 @@ export class ChecklistsService {
             templateId: template?.id,
             templateVersion: template?.version,
             appliedYearBuilt,
+            appliedYearBuiltDate: appliedYearBuiltDate ? new Date(appliedYearBuiltDate) : null,
             appliedLawRefs: appliedLawRefs === null ? Prisma.JsonNull : toJson(appliedLawRefs),
             finalThoughts: finalThoughts ?? null,
             // Session F3, Part H.3 — the start-time GPS audit trail, stamped once here. This
@@ -540,9 +561,10 @@ export class ChecklistsService {
     // actually use (the existing draft's frozen stamp, or the station's current year when
     // submitting fresh with no prior draft).
     this.assertYearBuiltPresent(existingDraft?.appliedYearBuilt ?? station.yearBuilt)
-    const { resolvedDef, appliedYearBuilt, appliedLawRefs } = this.resolveEraStamp(
+    const { resolvedDef, appliedYearBuilt, appliedYearBuiltDate, appliedLawRefs } = this.resolveEraStamp(
       templateDef,
       existingDraft?.appliedYearBuilt ?? station.yearBuilt,
+      existingDraft ? toIsoDate(existingDraft.appliedYearBuiltDate) : toIsoDate(station.yearBuiltDate),
     )
 
     // Part C.4/C.5 — bake redaction flags onto the STORED items ONCE here, using this checklist's
@@ -598,6 +620,7 @@ export class ChecklistsService {
           auditorId,
           items: toJson(taggedGroups),
           appliedYearBuilt,
+          appliedYearBuiltDate: appliedYearBuiltDate ? new Date(appliedYearBuiltDate) : null,
           appliedLawRefs: appliedLawRefs === null ? Prisma.JsonNull : toJson(appliedLawRefs),
           score,
           // Part A.2 — a training submission auto-finalizes straight to APPROVED, never resting

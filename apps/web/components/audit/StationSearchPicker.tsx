@@ -7,16 +7,21 @@ import type { TransportMode, RailSubtype } from '@repo/types'
 import { searchStations, getNearbyStations, getStationLines } from '@/lib/api/stations'
 import type { StationSearchResult, NearbyStation } from '@/lib/api/stations'
 import { getCurrentPosition } from '@/lib/geolocation'
+import { getLineColor } from '@/lib/line-colors'
 
 // Session F3, Part A.3 — the line/route badge. Station identity is (mode, nameTh, line), so two
 // same-named stations on different lines are ONLY distinguishable by this: it must be visible on
 // every row and on the selected-station chip, without the auditor having to open the station.
 // Renders nothing for the empty-string "no line" case (the deliberate sentinel, never null).
+// Uses the operator's own brand color when one is known (getLineColor), falling back to the
+// generic primary-tint badge for lines outside that fixed palette.
 export function LineBadge({ line, className = '' }: { line?: string | null; className?: string }) {
   if (!line) return null
+  const color = getLineColor(line)
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold leading-tight text-primary ${className}`}
+      className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold leading-tight ${color ? '' : 'bg-primary/10 text-primary'} ${className}`}
+      style={color ? { backgroundColor: `${color}1a`, color } : undefined}
     >
       {line}
     </span>
@@ -35,16 +40,19 @@ const MODE_TABS: ModeTab[] = [
   { label: 'ทางอากาศ', value: 'ทางอากาศ' },
 ]
 
-export function ModeIcon({ mode, railSubtype, size = 14 }: {
-  mode: string; railSubtype?: string; size?: number
+export function ModeIcon({ mode, railSubtype, line, size = 14 }: {
+  mode: string; railSubtype?: string; line?: string | null; size?: number
 }) {
   const cls = 'shrink-0'
-  if (mode === 'ทางอากาศ') return <Plane      size={size} className={cls} />
-  if (mode === 'ทางน้ำ')   return <Ship       size={size} className={cls} />
+  // Colored via inline style (overriding the wrapping span's text color) only when the line
+  // has a known brand color — otherwise it inherits the caller's default icon color as before.
+  const style = { color: getLineColor(line) }
+  if (mode === 'ทางอากาศ') return <Plane      size={size} className={cls} style={style} />
+  if (mode === 'ทางน้ำ')   return <Ship       size={size} className={cls} style={style} />
   if (mode === 'ทางราง')   return railSubtype === 'รถไฟฟ้า'
-    ? <TrainFront size={size} className={cls} />
-    : <Train      size={size} className={cls} />
-  return <Bus size={size} className={cls} />
+    ? <TrainFront size={size} className={cls} style={style} />
+    : <Train      size={size} className={cls} style={style} />
+  return <Bus size={size} className={cls} style={style} />
 }
 
 // ── Public interface ───────────────────────────────────────────────────────────
@@ -145,10 +153,16 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
   // Part A.4 — refresh the available lines whenever the mode/railSubtype scope changes, and drop
   // any line selection that the new scope can't satisfy (mirrors the mode-chip's railSubtype
   // reset). One bounded query per scope change, never derived from a page of results.
+  // Under ทางราง, lines only make sense for รถไฟฟ้า (metro) — รถไฟ intercity stations aren't
+  // line-tagged in this dataset, so mixing them in before a subtype is picked read as noise.
   React.useEffect(() => {
     if (!open) return
     let cancelled = false
     setLine('')
+    if (mode === 'ทางราง' && railSubtype !== 'รถไฟฟ้า') {
+      setLineOptions([])
+      return
+    }
     getStationLines({
       mode: mode || undefined,
       railSubtype: mode === 'ทางราง' ? (railSubtype || undefined) : undefined,
@@ -234,7 +248,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
           {selectedStation ? (
             <>
               <span className="text-gray-500">
-                <ModeIcon mode={selectedStation.mode} railSubtype={selectedStation.railSubtype} size={15} />
+                <ModeIcon mode={selectedStation.mode} railSubtype={selectedStation.railSubtype} line={selectedStation.line} size={15} />
               </span>
               <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
                 {selectedStation.nameTh}
@@ -431,7 +445,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
                       }`}
                     >
                       <span className="shrink-0 text-muted-foreground">
-                        <ModeIcon mode={r.mode} railSubtype={r.railSubtype} size={16} />
+                        <ModeIcon mode={r.mode} railSubtype={r.railSubtype} line={r.line} size={16} />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5">
@@ -473,7 +487,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
                     }`}
                   >
                     <span className="shrink-0 text-muted-foreground">
-                      <ModeIcon mode={r.mode} railSubtype={r.railSubtype} size={16} />
+                      <ModeIcon mode={r.mode} railSubtype={r.railSubtype} line={r.line} size={16} />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-1.5">

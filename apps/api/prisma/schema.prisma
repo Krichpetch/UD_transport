@@ -112,6 +112,14 @@ model Station {
   // resolution — see @repo/types#resolveEra. Every change writes an AuditLog entry.
   yearBuilt         Int?
 
+  // 2026-08-05 — exact building-permit-application date, GREGORIAN, when the auditor can find it
+  // (e.g. on a permit placard at the station). Optional REFINEMENT over yearBuilt, never a
+  // replacement: yearBuilt alone stays sufficient and required to start an audit (see
+  // ChecklistsService.assertYearBuiltPresent). Only resolves era comparisons more precisely when
+  // both this AND a LawReference.effectiveDate are present for the laws in question — see
+  // @repo/types#isLawInForce. Null is the overwhelmingly common case and must stay silently fine.
+  yearBuiltDate     DateTime? @db.Date
+
   // Session S3b, Part A — marks a station as a practice/tutorial fixture, never a real
   // inspection target. Always OUT_OF_SCOPE (seed-training-stations.ts enforces this), so most
   // aggregates already exclude it via `scope`; queries that don't scope by IN_SCOPE (map nodes,
@@ -164,6 +172,11 @@ model LawReference {
   ministry      String
   buddhistYear  Int
   effectiveYear Int?
+  // 2026-08-05 — exact enforcement date, GREGORIAN, when known (see facility-catalog.ts's
+  // LAW_REFERENCE_SEED for the 3 rows that currently carry one). Refines effectiveYear only for
+  // era comparisons where a Station also carries an exact yearBuiltDate — see
+  // @repo/types#isLawInForce. Nullable, never guessed, same rule as effectiveYear.
+  effectiveDate DateTime? @db.Date
   notes         String?
   createdAt     DateTime @default(now())
 }
@@ -211,6 +224,11 @@ model Checklist {
   // same graceful-degradation as a null templateId.
   appliedYearBuilt Int?
   appliedLawRefs   Json?
+  // 2026-08-05 — frozen alongside appliedYearBuilt, from the station's yearBuiltDate AT THAT
+  // MOMENT (same never-changes-afterward rule). Null whenever the station had no exact date
+  // captured yet — the overwhelmingly common case — in which case resolution used (and this
+  // checklist is forever pinned to) the year-only comparison.
+  appliedYearBuiltDate DateTime? @db.Date
 
   // Admin review outcome — set when an ADMIN rejects a SUBMITTED checklist and
   // sends it back to the auditor with feedback. Null until a reject happens.

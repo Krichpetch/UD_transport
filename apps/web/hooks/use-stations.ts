@@ -114,7 +114,8 @@ export function useUpdateStation() {
 export function useUpdateYearBuilt() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, yearBuilt }: { id: string; yearBuilt: number }) => updateStationYearBuilt(id, yearBuilt),
+    mutationFn: ({ id, yearBuilt, yearBuiltDate }: { id: string; yearBuilt: number; yearBuiltDate?: string }) =>
+      updateStationYearBuilt(id, yearBuilt, yearBuiltDate),
     onSuccess: (_data, vars) => {
       void qc.invalidateQueries({ queryKey: ['station', vars.id] })
       void qc.invalidateQueries({ queryKey: ['checklist', vars.id, 'template'] })

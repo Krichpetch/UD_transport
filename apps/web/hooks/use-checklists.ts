@@ -41,10 +41,11 @@ export function useMyDraft(stationId: string) {
 // a background refetch must never race the in-progress form's hydration (Part D P0 fix).
 // `yearBuiltOverride` (Session F1 follow-up) is included in the query key so picking a different
 // preview year re-fetches and re-hydrates rather than reusing a stale cached resolution.
-export function useTemplateForAudit(stationId: string, preview?: boolean, version?: number, yearBuiltOverride?: number) {
+// `buildDateOverride` (2026-08-05) is its exact-date companion, same reasoning.
+export function useTemplateForAudit(stationId: string, preview?: boolean, version?: number, yearBuiltOverride?: number, buildDateOverride?: string) {
   return useQuery({
-    queryKey: ['checklist', stationId, 'template', preview ?? false, version ?? null, yearBuiltOverride ?? null],
-    queryFn:  () => getTemplateForAudit(stationId, { preview, version, yearBuilt: yearBuiltOverride }),
+    queryKey: ['checklist', stationId, 'template', preview ?? false, version ?? null, yearBuiltOverride ?? null, buildDateOverride ?? null],
+    queryFn:  () => getTemplateForAudit(stationId, { preview, version, yearBuilt: yearBuiltOverride, buildDate: buildDateOverride }),
     enabled:  !!stationId,
     staleTime: Infinity,
     refetchOnWindowFocus: false,

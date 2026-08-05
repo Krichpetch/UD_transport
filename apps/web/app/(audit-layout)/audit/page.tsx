@@ -24,7 +24,7 @@ import { ApiError } from '@/lib/api'
 import { getCurrentPosition, haversineMeters, PROXIMITY_BYPASS } from '@/lib/geolocation'
 import type { SubmitGps } from '@/lib/geolocation'
 import type { ChecklistRecord } from '@/lib/api/checklists'
-import { YEAR_BUILT_MIN, yearBuiltMax, eraYearBrackets, type TemplateNode, type ChecklistTemplateGroupDef } from '@repo/types'
+import { YEAR_BUILT_MIN, yearBuiltMax, eraYearBrackets, buddhistYearOfIsoDate, type TemplateNode, type ChecklistTemplateGroupDef } from '@repo/types'
 
 const PROXIMITY_RADIUS_M = 1000
 const AUTOSAVE_DEBOUNCE_MS = 4000
@@ -56,9 +56,13 @@ function MyWorkLink() {
 // getTemplateForAudit) is unchanged, this only changes how the admin supplies the year.
 const ERA_BRACKETS = eraYearBrackets()
 
+// 2026-08-05 — `value`/`onChange` operate on the bracket's INDEX, not its representativeYear:
+// PSD_2555 and MOT_2556 are now two distinct brackets sharing the same พ.ศ. 2556 (only their exact
+// effectiveDate tells them apart, see eraYearBrackets), so representativeYear alone can no longer
+// uniquely identify a <select> option.
 function PreviewYearControl({ value, onChange, appliedYearBuilt }: {
   value: number | undefined
-  onChange: (v: number) => void
+  onChange: (index: number) => void
   appliedYearBuilt: number | null
 }) {
   return (
@@ -71,8 +75,8 @@ function PreviewYearControl({ value, onChange, appliedYearBuilt }: {
           onChange={(e) => onChange(Number(e.target.value))}
           className="flex-1 rounded-lg border border-purple-200 bg-white px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-purple-300"
         >
-          {ERA_BRACKETS.map((b) => (
-            <option key={b.representativeYear} value={b.representativeYear}>{b.label}</option>
+          {ERA_BRACKETS.map((b, i) => (
+            <option key={`${b.representativeYear}-${b.representativeDate ?? ''}`} value={i}>{b.label}</option>
           ))}
         </select>
       </label>
@@ -196,7 +200,10 @@ export default function AuditPage() {
   // era bracket (see ERA_BRACKETS/PreviewYearControl above) and see era redaction/value resolution
   // react live, without touching the real station's yearBuilt. Seeded to whichever bracket the
   // station's own real yearBuilt falls into (see the seed effect below), never persisted anywhere.
-  const [previewYearBuiltOverrideRaw, setPreviewYearBuiltOverrideRaw] = React.useState<number | undefined>(undefined)
+  //
+  // 2026-08-05 — tracks the bracket INDEX (not representativeYear directly): two brackets can now
+  // share a พ.ศ. year (PSD_2555 vs MOT_2556, both 2556), distinguished only by representativeDate.
+  const [previewBracketIndex, setPreviewBracketIndex] = React.useState<number | undefined>(undefined)
   const previewYearSeededForRef = React.useRef<string | null>(null)
   React.useEffect(() => {
     if (!v2PreviewAllowed || !station || previewYearSeededForRef.current === station.id) return
@@ -204,16 +211,20 @@ export default function AuditPage() {
     // Same "latest bracket whose year <= yearBuilt" rule resolveEra itself uses — picks the
     // bracket the station's real year would actually resolve into, not just the nearest one.
     const yb = station.yearBuilt
-    const matched = yb != null ? [...ERA_BRACKETS].reverse().find((b) => b.representativeYear <= yb) : undefined
-    setPreviewYearBuiltOverrideRaw((matched ?? ERA_BRACKETS[ERA_BRACKETS.length - 1])?.representativeYear)
+    const matchedIndex = yb != null
+      ? [...ERA_BRACKETS].map((b, i) => ({ b, i })).reverse().find(({ b }) => b.representativeYear <= yb)?.i
+      : undefined
+    setPreviewBracketIndex(matchedIndex ?? ERA_BRACKETS.length - 1)
   }, [v2PreviewAllowed, station])
-  const previewYearBuiltOverride = v2PreviewAllowed ? previewYearBuiltOverrideRaw : undefined
+  const previewBracket = previewBracketIndex != null ? ERA_BRACKETS[previewBracketIndex] : undefined
+  const previewYearBuiltOverride = v2PreviewAllowed ? previewBracket?.representativeYear : undefined
+  const previewBuildDateOverride = v2PreviewAllowed ? previewBracket?.representativeDate : undefined
   // v2 preview never reads or writes a real draft (getTemplateForAudit skips the draft lookup
   // server-side too when previewing — see checklists.service.ts) — and the /draft endpoint is
   // AUDITOR-only, so an ADMIN previewing v2 would otherwise get a needless 403 on every station
   // pick. Passing '' disables the query via its existing `enabled: !!stationId` guard.
   const { data: draft, isLoading: draftLoading } = useMyDraft(v2PreviewAllowed ? '' : selectedId)
-  const { data: templateResp, isLoading: templateLoading } = useTemplateForAudit(selectedId, v2PreviewAllowed, previewVersion, previewYearBuiltOverride)
+  const { data: templateResp, isLoading: templateLoading } = useTemplateForAudit(selectedId, v2PreviewAllowed, previewVersion, previewYearBuiltOverride, previewBuildDateOverride)
   const saveDraftMutation = useSaveDraft(selectedId)
   const submitMutation = useSubmitChecklist(selectedId)
   const updateYearBuiltMutation = useUpdateYearBuilt()
@@ -238,6 +249,10 @@ export default function AuditPage() {
   const [locationUnverifiedMessage, setLocationUnverifiedMessage] = React.useState('')
   const [rejectionBannerDismissed, setRejectionBannerDismissed] = React.useState(false)
   const [yearBuiltInput, setYearBuiltInput] = React.useState('')
+  // 2026-08-05 — optional exact-date refinement (native <input type="date">, ISO yyyy-mm-dd). When
+  // set, it DRIVES yearBuiltInput (derived, read-only) rather than the two being independently
+  // editable — guarantees they can never disagree, since the server rejects a mismatch anyway.
+  const [yearBuiltDateInput, setYearBuiltDateInput] = React.useState('')
 
   // Part D — Zustand audit-form store: single source of truth for answers/finalThoughts once
   // hydrated. Server data hydrates it ONCE per (station, preview-mode) via the guard below;
@@ -275,6 +290,7 @@ export default function AuditPage() {
     setLocationUnverifiedMessage('')
     setRejectionBannerDismissed(false)
     setYearBuiltInput('')
+    setYearBuiltDateInput('')
     resetForm()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [station?.id])
@@ -285,7 +301,7 @@ export default function AuditPage() {
   // template (redaction/applicable flags) instead of reusing the previous year's render.
   React.useEffect(() => {
     if (!station || draftLoading || templateLoading || !templateResp?.template) return
-    const key = `${station.id}:${v2PreviewAllowed}:${previewVersion ?? ''}:${previewYearBuiltOverride ?? ''}`
+    const key = `${station.id}:${v2PreviewAllowed}:${previewVersion ?? ''}:${previewYearBuiltOverride ?? ''}:${previewBuildDateOverride ?? ''}`
     if (seededForRef.current === key) return
     seededForRef.current = key
     hydrate({
@@ -299,11 +315,14 @@ export default function AuditPage() {
       checklistId: draft?.id ?? null,
     })
     setYearBuiltInput(station.yearBuilt != null ? String(station.yearBuilt) : '')
+    // yearBuiltDate arrives as a full ISO datetime (Prisma DateTime -> JSON), truncate to the
+    // date-only value a native <input type="date"> expects.
+    setYearBuiltDateInput(station.yearBuiltDate ? station.yearBuiltDate.slice(0, 10) : '')
     // A changed preview year can change v2Pages' length/order (redacted pages drop out) —
     // reset paging so currentPage never points past the end of the freshly-hydrated page set.
     setCurrentPage(0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [station, draftLoading, templateLoading, draft, templateResp, v2PreviewAllowed, previewVersion, previewYearBuiltOverride])
+  }, [station, draftLoading, templateLoading, draft, templateResp, v2PreviewAllowed, previewVersion, previewYearBuiltOverride, previewBuildDateOverride])
 
   // Debounced autosave — fires AUTOSAVE_DEBOUNCE_MS after the last edit, once checked in and
   // dirty. Skipped entirely in v2 preview (v2 is not activated — nothing to persist for real).
@@ -357,19 +376,25 @@ export default function AuditPage() {
     ? `โหมดตัวอย่าง — เทมเพลตเวอร์ชัน ${templateResp.templateVersion}`
     : 'โหมดตัวอย่าง'
 
+  // 2026-08-05 — when the auditor has entered an exact permit date, it DRIVES the effective year
+  // (derived, not independently typed) — see the yearBuiltDateInput state doc above. Falls back to
+  // the manually-typed year field exactly as before whenever no date is set.
+  const effectiveYearBuiltInput = yearBuiltDateInput ? String(buddhistYearOfIsoDate(yearBuiltDateInput)) : yearBuiltInput
+
   // Session F1, Part B.1 — the client-side lock: this is what actually gates the "เริ่มการตรวจ
   // ประเมิน" button (see the disabled prop below), not just a save-side no-op. The server check
   // (ChecklistsService.assertYearBuiltPresent) is the real guarantee; this is UX only.
-  const yearBuiltNum = Number(yearBuiltInput)
+  const yearBuiltNum = Number(effectiveYearBuiltInput)
   const yearBuiltValid = v2PreviewAllowed
-    || (yearBuiltInput !== '' && !Number.isNaN(yearBuiltNum) && yearBuiltNum >= YEAR_BUILT_MIN && yearBuiltNum <= yearBuiltMax())
+    || (effectiveYearBuiltInput !== '' && !Number.isNaN(yearBuiltNum) && yearBuiltNum >= YEAR_BUILT_MIN && yearBuiltNum <= yearBuiltMax())
 
   async function saveYearBuilt(): Promise<void> {
     if (!station || v2PreviewAllowed) return
-    const n = Number(yearBuiltInput)
-    if (!yearBuiltInput || Number.isNaN(n) || n < YEAR_BUILT_MIN || n > yearBuiltMax()) return
-    if (station.yearBuilt === n) return
-    await updateYearBuiltMutation.mutateAsync({ id: station.id, yearBuilt: n })
+    const n = Number(effectiveYearBuiltInput)
+    if (!effectiveYearBuiltInput || Number.isNaN(n) || n < YEAR_BUILT_MIN || n > yearBuiltMax()) return
+    const currentDate = station.yearBuiltDate ? station.yearBuiltDate.slice(0, 10) : ''
+    if (station.yearBuilt === n && currentDate === yearBuiltDateInput) return
+    await updateYearBuiltMutation.mutateAsync({ id: station.id, yearBuilt: n, yearBuiltDate: yearBuiltDateInput || undefined })
   }
 
   // ── Check-in (Screen B "เริ่มการตรวจประเมิน") — client-side pre-check only. The
@@ -582,8 +607,8 @@ export default function AuditPage() {
               <span>{previewLabel} — สำหรับผู้ดูแลระบบเท่านั้น ไม่มีการบันทึกจริง</span>
             </div>
             <PreviewYearControl
-              value={previewYearBuiltOverrideRaw}
-              onChange={setPreviewYearBuiltOverrideRaw}
+              value={previewBracketIndex}
+              onChange={setPreviewBracketIndex}
               appliedYearBuilt={templateResp?.appliedYearBuilt ?? null}
             />
             {!isV1 && templateDef && <PreviewRedactionSummary groups={templateDef.groups} />}
@@ -633,14 +658,38 @@ export default function AuditPage() {
               <input
                 type="number"
                 inputMode="numeric"
-                value={yearBuiltInput}
+                value={effectiveYearBuiltInput}
                 onChange={(e) => setYearBuiltInput(e.target.value)}
                 onBlur={saveYearBuilt}
-                disabled={v2PreviewAllowed}
+                disabled={v2PreviewAllowed || !!yearBuiltDateInput}
                 placeholder="เช่น 2555"
                 className="border-border focus:ring-ring mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 disabled:opacity-50"
               />
             </label>
+            {/* 2026-08-05 — optional exact date, only when the auditor can find one (e.g. on a
+                permit placard). Drives the year field above instead of being independently typed —
+                two laws in the same พ.ศ. year (16 ม.ค. 2556 vs 3 เม.ย. 2556) can only be told apart
+                with the exact date. */}
+            <label className="mt-2.5 block text-xs font-medium text-foreground">
+              วันที่ยื่นขออนุญาตก่อสร้าง (ถ้าทราบ)
+              <input
+                type="date"
+                value={yearBuiltDateInput}
+                onChange={(e) => setYearBuiltDateInput(e.target.value)}
+                onBlur={saveYearBuilt}
+                disabled={v2PreviewAllowed}
+                max={new Date().toISOString().slice(0, 10)}
+                className="border-border focus:ring-ring mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 disabled:opacity-50"
+              />
+            </label>
+            {yearBuiltDateInput && (
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                = พ.ศ. {buddhistYearOfIsoDate(yearBuiltDateInput)} —{' '}
+                <button type="button" onClick={() => setYearBuiltDateInput('')} className="underline">
+                  ล้างวันที่ แล้วระบุเฉพาะปี
+                </button>
+              </p>
+            )}
             {eraUnresolved && (
               <p className="mt-1.5 text-[10px] text-amber-600">
                 ⚠ ยังไม่สามารถระบุปีก่อสร้างที่แน่ชัดได้ — ระบบใช้เกณฑ์ตามกฎหมายฉบับล่าสุดเป็นการชั่วคราว
@@ -728,8 +777,8 @@ export default function AuditPage() {
             <span>{previewLabel} (DRAFT) — สำหรับผู้ดูแลระบบเท่านั้น ไม่มีการบันทึกจริง</span>
           </div>
           <PreviewYearControl
-            value={previewYearBuiltOverrideRaw}
-            onChange={setPreviewYearBuiltOverrideRaw}
+            value={previewBracketIndex}
+            onChange={setPreviewBracketIndex}
             appliedYearBuilt={templateResp?.appliedYearBuilt ?? null}
           />
           {/* Always visible, unlike RedactedFooter (summary-page-only) — this is what actually

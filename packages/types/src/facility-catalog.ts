@@ -18,9 +18,22 @@ export interface LawReferenceSeed {
   ministry: string
   buddhistYear: number
   effectiveYear?: number | null  // nullable — enforcement start dates need สนข. confirmation; never guessed
+  // ISO yyyy-mm-dd, GREGORIAN (not Buddhist) — matches a DB DateTime column and compares
+  // lexicographically against Station.yearBuiltDate (also ISO). Buddhist-year math (-543) happens
+  // only at the UI/display layer, never here. Refines effectiveYear when both an exact station
+  // build date AND an exact law date are known (era-resolution.ts#isLawInForce); falls back to
+  // effectiveYear/buddhistYear otherwise, same nullable-never-guessed rule as effectiveYear.
+  effectiveDate?: string | null
   notes?: string
 }
 
+// Effective-date cutovers below (2026-08-05, user-supplied). PSD_2555's cutover (16 ม.ค. 2556) and
+// MOT_2556's cutover (3 เม.ย. 2556) both land in the same พ.ศ. 2556 — collapsed to the same
+// effectiveYear (2556) since that field only has year resolution. Resolving which of the two
+// actually applies for a station permitted somewhere in 2556 needs the exact effectiveDate here
+// AND an exact Station.yearBuiltDate (optional — auditor-captured when known, see
+// era-resolution.ts#isLawInForce); with only a year on either side, the two stay indistinguishable
+// and resolution falls back to the coarser effectiveYear comparison, same as before this field existed.
 export const LAW_REFERENCE_SEED: LawReferenceSeed[] = [
   {
     code: 'MHT_2548',
@@ -28,27 +41,35 @@ export const LAW_REFERENCE_SEED: LawReferenceSeed[] = [
     ministry: 'กระทรวงมหาดไทย',
     buddhistYear: 2548,
     effectiveYear: null,
+    effectiveDate: null,
+    notes: 'Base law — already in force before the 2556 cutovers below. No exact enforcement date supplied yet; buddhistYear fallback (2548) stands.',
   },
   {
     code: 'PSD_2555',
     nameTh: 'กฎกระทรวงฯ กระทรวงการพัฒนาสังคมและความมั่นคงของมนุษย์ พ.ศ. 2555',
     ministry: 'กระทรวงการพัฒนาสังคมและความมั่นคงของมนุษย์',
     buddhistYear: 2555,
-    effectiveYear: null,
+    effectiveYear: 2556,
+    effectiveDate: '2013-01-16', // 16 มกราคม 2556 (Gregorian: 2556 - 543 = 2013)
+    notes: 'Effective 16 มกราคม 2556 (not พ.ศ. 2555, the law\'s own year — enforcement lagged promulgation by about a year). Collides at year granularity with MOT_2556\'s cutover, both in 2556 — see file-level note.',
   },
   {
     code: 'MOT_2556',
     nameTh: 'กฎกระทรวงฯ กระทรวงคมนาคม พ.ศ. 2556',
     ministry: 'กระทรวงคมนาคม',
     buddhistYear: 2556,
-    effectiveYear: null,
+    effectiveYear: 2556,
+    effectiveDate: '2013-04-03', // 3 เมษายน 2556
+    notes: 'Effective 3 เมษายน 2556.',
   },
   {
     code: 'MHT_2564',
     nameTh: 'กฎกระทรวงฯ กระทรวงมหาดไทย พ.ศ. 2564',
     ministry: 'กระทรวงมหาดไทย',
     buddhistYear: 2564,
-    effectiveYear: null,
+    effectiveYear: 2564,
+    effectiveDate: '2021-05-03', // 3 พฤษภาคม 2564
+    notes: 'Effective 3 พฤษภาคม 2564.',
   },
   {
     code: 'PROJECT',

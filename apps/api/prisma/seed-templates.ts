@@ -243,10 +243,12 @@ async function main() {
 
   // ---- 1. LawReference ----
   for (const law of LAW_REFERENCE_SEED) {
+    // effectiveDate is ISO yyyy-mm-dd (Gregorian) in the seed source, DateTime in the DB.
+    const effectiveDate = law.effectiveDate ? new Date(law.effectiveDate) : null
     await prisma.lawReference.upsert({
       where: { code: law.code },
-      update: { nameTh: law.nameTh, ministry: law.ministry, buddhistYear: law.buddhistYear, effectiveYear: law.effectiveYear ?? null, notes: law.notes ?? null },
-      create: { code: law.code, nameTh: law.nameTh, ministry: law.ministry, buddhistYear: law.buddhistYear, effectiveYear: law.effectiveYear ?? null, notes: law.notes ?? null },
+      update: { nameTh: law.nameTh, ministry: law.ministry, buddhistYear: law.buddhistYear, effectiveYear: law.effectiveYear ?? null, effectiveDate, notes: law.notes ?? null },
+      create: { code: law.code, nameTh: law.nameTh, ministry: law.ministry, buddhistYear: law.buddhistYear, effectiveYear: law.effectiveYear ?? null, effectiveDate, notes: law.notes ?? null },
     })
   }
   report.push(`LawReference: seeded ${LAW_REFERENCE_SEED.length} rows`)

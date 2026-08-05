@@ -79,6 +79,10 @@ export interface Station {
   // E-form redesign (Session E2, Part A) — Buddhist year, auditor-entered at confirm-to-start.
   // Nullable until an auditor first captures it; drives era resolution (see era-resolution.ts).
   yearBuilt?: number | null
+  // 2026-08-05 — exact building-permit-application date, ISO yyyy-mm-dd, GREGORIAN (matches a
+  // native <input type="date">). Optional refinement over yearBuilt, captured only when the
+  // auditor can find one — see era-resolution.ts#isLawInForce.
+  yearBuiltDate?: string | null
   // Session S3b, Part A — practice/tutorial fixture, never a real inspection target. Drives the
   // client-side proximity-gate bypass (server-enforced regardless — see ChecklistsService.submit).
   isTraining?: boolean

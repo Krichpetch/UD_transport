@@ -184,8 +184,12 @@ export function updateStation(id: string, data: UpdateStationInput) {
 
 // E-form redesign (Session E2, Part A/C.6) — auditor-editable build year, captured at
 // confirm-to-start. Open to AUDITOR as well as ADMIN — see stations.controller.ts.
-export function updateStationYearBuilt(id: string, yearBuilt: number) {
-  return api.patch<Station>(`/stations/${id}/year-built`, { yearBuilt })
+//
+// 2026-08-05 — yearBuiltDate is an OPTIONAL exact-date refinement (ISO yyyy-mm-dd, from a native
+// <input type="date">), full-replace like yearBuilt itself: omitting it clears any previously-set
+// date server-side (see StationsService.updateYearBuilt's doc).
+export function updateStationYearBuilt(id: string, yearBuilt: number, yearBuiltDate?: string) {
+  return api.patch<Station>(`/stations/${id}/year-built`, { yearBuilt, yearBuiltDate })
 }
 
 export function getPendingReviews() {

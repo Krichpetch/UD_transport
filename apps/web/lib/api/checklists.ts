@@ -65,6 +65,9 @@ export interface TemplateForAudit {
   templateId: string | null
   templateVersion: number | null
   appliedYearBuilt: number | null
+  // 2026-08-05 — the exact-date companion to appliedYearBuilt, ISO yyyy-mm-dd, present whenever
+  // resolution used one (a real capture, or a preview buildDateOverride) — see checklists.service.ts.
+  appliedYearBuiltDate?: string | null
   appliedLawRefs: Record<string, string> | null
   eraUnresolved: boolean
   preview: boolean
@@ -75,11 +78,15 @@ export interface TemplateForAudit {
 // pins a specific template version instead (e.g. an un-activated DRAFT), also ADMIN-only.
 // `yearBuilt` (Session F1 follow-up) substitutes any build year for era resolution/redaction —
 // preview-only (the server rejects it without `preview`/`version`), never persists anything.
-export function getTemplateForAudit(stationId: string, opts?: { preview?: boolean; version?: number; yearBuilt?: number }) {
+// `buildDate` (2026-08-05, ISO yyyy-mm-dd) is its exact-date companion — only meaningful alongside
+// `yearBuilt` (server rejects it standalone), lets a preview distinguish the two same-พ.ศ.-year law
+// cutovers (PSD_2555 vs MOT_2556, both 2556).
+export function getTemplateForAudit(stationId: string, opts?: { preview?: boolean; version?: number; yearBuilt?: number; buildDate?: string }) {
   const params = new URLSearchParams()
   if (opts?.version != null) params.set('version', String(opts.version))
   else if (opts?.preview) params.set('preview', '1')
   if (opts?.yearBuilt != null) params.set('yearBuilt', String(opts.yearBuilt))
+  if (opts?.buildDate) params.set('buildDate', opts.buildDate)
   const qs = params.toString()
   return api.get<TemplateForAudit>(`/stations/${stationId}/checklist/template${qs ? `?${qs}` : ''}`)
 }

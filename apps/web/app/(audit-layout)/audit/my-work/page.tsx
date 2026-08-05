@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2, ChevronRight, RotateCcw } from 'lucide-react'
 import { useMyChecklists } from '@/hooks/use-checklists'
 import type { MyChecklistStatus, MyChecklistRow } from '@/lib/api/checklists'
+import { getLineColor } from '@/lib/line-colors'
 
 // Session F1, Part E — "งานของฉัน": every checklist belonging to the logged-in auditor, newest
 // first, filterable by status. Supersedes the auditor home's inline "งานที่ถูกตีกลับ" list (see
@@ -114,7 +115,12 @@ export default function MyWorkPage() {
                 </div>
                 <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                   {modeLabel(row.station.mode, row.station.railSubtype)}
-                  {row.station.line ? ` · ${row.station.line}` : ''}
+                  {row.station.line && (
+                    <>
+                      {' · '}
+                      <span style={{ color: getLineColor(row.station.line) }}>{row.station.line}</span>
+                    </>
+                  )}
                   {row.station.province ? ` · ${row.station.province}` : ''}
                 </p>
                 <div className="mt-1 flex items-center gap-2">

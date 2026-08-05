@@ -7,7 +7,7 @@ import { CreateStationDto } from './dto/create-station.dto'
 import { UpdateStationDto } from './dto/update-station.dto'
 import { OtpRowDto } from './dto/otp-row.dto'
 import { computeScoreFromItems, scoreToStatus, hasReviewFlag } from '../checklists/scoring'
-import { computeFacilityMetrics, parseChecklistItems, isValidYearBuilt, deriveRegion, UNSPECIFIED_REGION, RESPONSIBLE_AGENCIES, OTHER_AGENCY } from '@repo/types'
+import { computeFacilityMetrics, parseChecklistItems, isValidYearBuilt, isValidYearBuiltDate, deriveRegion, UNSPECIFIED_REGION, RESPONSIBLE_AGENCIES, OTHER_AGENCY } from '@repo/types'
 import type { ParsedChecklistGroup, StoredChecklistNode } from '@repo/types'
 import { resolveStationMatch, type MasterlistStation } from './masterlist-match'
 import { applyOtpRowToStation } from './import-otp-row'
@@ -537,18 +537,33 @@ export class StationsService {
   // AUDITOR role (PM-confirmed: captured in the field, not master data) as well as ADMIN. Drives
   // era resolution for future checklists only (see @repo/types#resolveTemplateEras) — an
   // in-progress checklist's stamp never changes retroactively. Every change is audit-logged.
-  async updateYearBuilt(id: string, yearBuilt: number, userId: string) {
+  //
+  // 2026-08-05 — yearBuiltDate is an OPTIONAL exact-date refinement (ISO yyyy-mm-dd, Gregorian),
+  // captured by the auditor only when they can find the real building-permit-application date.
+  // Full-replace, same as yearBuilt itself (not a partial patch): omitting it clears any
+  // previously-set date, so a corrected year never leaves a stale, now-inconsistent date behind.
+  async updateYearBuilt(id: string, yearBuilt: number, userId: string, yearBuiltDate?: string | null) {
     if (!isValidYearBuilt(yearBuilt)) {
       throw new BadRequestException({ code: 'INVALID_YEAR_BUILT', message: 'ปี พ.ศ. ที่ก่อสร้างไม่ถูกต้อง' })
+    }
+    if (yearBuiltDate != null && !isValidYearBuiltDate(yearBuiltDate, yearBuilt)) {
+      throw new BadRequestException({
+        code: 'INVALID_YEAR_BUILT_DATE',
+        message: 'วันที่ยื่นขออนุญาตก่อสร้างไม่ถูกต้อง หรือปี พ.ศ. ไม่ตรงกับปีที่ก่อสร้างที่ระบุ',
+      })
     }
     const before = await this.prisma.station.findUnique({ where: { id } })
     if (!before) throw new NotFoundException()
 
-    const after = await this.prisma.station.update({ where: { id }, data: { yearBuilt } })
+    const after = await this.prisma.station.update({
+      where: { id },
+      data: { yearBuilt, yearBuiltDate: yearBuiltDate ? new Date(yearBuiltDate) : null },
+    })
 
     await this.auditLog.log({
       userId, action: 'UPDATE_YEAR_BUILT', entityType: 'Station', entityId: id,
-      before: { yearBuilt: before.yearBuilt }, after: { yearBuilt: after.yearBuilt },
+      before: { yearBuilt: before.yearBuilt, yearBuiltDate: before.yearBuiltDate },
+      after: { yearBuilt: after.yearBuilt, yearBuiltDate: after.yearBuiltDate },
     })
     return after
   }
