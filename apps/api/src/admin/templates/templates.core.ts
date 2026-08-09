@@ -633,6 +633,26 @@ export function editLawRefs(
   return { definition: validated, before, after: { lawRefs: after.lawRefs ?? [], beyondLaw: after.beyondLaw ?? false } }
 }
 
+// ---- Session S4a, Part C — hidden-node editing (any status; not gated behind the DRAFT-only
+// structural editor, same reasoning as lawRefs above: this is applicability data, not structure) --
+
+export interface EditHiddenResult {
+  definition: ChecklistTemplateDefinition
+  before: boolean
+  after: boolean
+}
+
+export function editHidden(def: ChecklistTemplateDefinition, nodeCode: string, hidden: boolean): EditHiddenResult {
+  const clone = cloneDefinition(def)
+  const node = findNode(clone, nodeCode)
+  const before = node.hidden ?? false
+  node.hidden = hidden ? true : undefined
+
+  const validated = parseTemplateDefinition(clone)
+  const after = findNode(validated, nodeCode).hidden ?? false
+  return { definition: validated, before, after }
+}
+
 // ---- export (Part C.3 round-trip guard) ----
 
 // Derives an era_overrides_{mode}.json-shaped extract (see @repo/types#applyEraOverrides'

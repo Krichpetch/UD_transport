@@ -9,7 +9,7 @@
  * pass byte-for-byte, proving these additions never touched the v1 (flat, no subItems, no
  * templateDef) code path.
  */
-import { computeScoreFromItems, buildHistogram, computeFacilityMetrics, deriveMeasuredStandard, ratioLengthKey, ratioHeightKey } from '../scoring'
+import { computeScoreFromItems, buildHistogram, computeFacilityMetrics, deriveMeasuredStandard, ratioLengthKey, ratioHeightKey, ratioRiseKey, ratioHypotenuseKey } from '../scoring'
 import type { ChecklistTemplateDefinition } from '@repo/types'
 
 describe('deriveMeasuredStandard', () => {
@@ -77,6 +77,50 @@ describe('deriveMeasuredStandard', () => {
     const percent = [{ key: 'm1', operator: 'lte' as const, value: 10, unit: 'percent', autoGrade: true }]
     expect(deriveMeasuredStandard(percent, { [ratioHeightKey('m1')]: 100 })).toBeNull()
     expect(deriveMeasuredStandard(percent, { [ratioLengthKey('m1')]: 0, [ratioHeightKey('m1')]: 100 })).toBeNull()
+  })
+
+  // Session S4a, Part A (2026-08-09) — slope capture redesigned to rise (แนวดิ่ง) + hypotenuse
+  // (ความยาวตามแนวลาด). run is derived via Pythagoras (run = sqrt(hyp² − rise²)) and graded
+  // exactly as the old length/height path was — same formulas, a derived run instead of an
+  // entered one. The length/height tests above are UNCHANGED and must keep passing: they now
+  // exercise the legacy fallback for checklists submitted before this redesign.
+  it('ratio_1_x derives run via Pythagoras from rise + hypotenuse (5-12-13 triangle: rise 5, hyp 13 -> run 12 -> ratio 12/5 = 2.4)', () => {
+    const ratio = [{ key: 'm1', operator: 'gte' as const, value: 2.4, unit: 'ratio_1_x', autoGrade: true }]
+    expect(deriveMeasuredStandard(ratio, { [ratioRiseKey('m1')]: 5, [ratioHypotenuseKey('m1')]: 13 })).toBe(true)
+    // Same rise, a shorter hypotenuse -> a smaller run -> a steeper (smaller) ratio -> fails a 2.4 gte.
+    const steeper = { [ratioRiseKey('m1')]: 5, [ratioHypotenuseKey('m1')]: 12 }
+    expect(deriveMeasuredStandard(ratio, steeper)).toBe(false)
+  })
+
+  it('matches the worked example (rise 100, hypotenuse 1300 -> run ~1296.15 -> ~1:12.96)', () => {
+    const values = { [ratioRiseKey('m1')]: 100, [ratioHypotenuseKey('m1')]: 1300 }
+    const passesAt12 = [{ key: 'm1', operator: 'gte' as const, value: 12, unit: 'ratio_1_x', autoGrade: true }]
+    const failsAt13 = [{ key: 'm1', operator: 'gte' as const, value: 13, unit: 'ratio_1_x', autoGrade: true }]
+    expect(deriveMeasuredStandard(passesAt12, values)).toBe(true)
+    expect(deriveMeasuredStandard(failsAt13, values)).toBe(false)
+  })
+
+  it('percent also derives from rise + hypotenuse (rise 5, hyp 13 -> run 12 -> 5/12*100 ~= 41.67%)', () => {
+    const percent = [{ key: 'm1', operator: 'lte' as const, value: 42, unit: 'percent', autoGrade: true }]
+    const values = { [ratioRiseKey('m1')]: 5, [ratioHypotenuseKey('m1')]: 13 }
+    expect(deriveMeasuredStandard(percent, values)).toBe(true)
+    expect(deriveMeasuredStandard([{ ...percent[0]!, value: 41 }], values)).toBe(false)
+  })
+
+  it('invalid geometry (hypotenuse <= rise) is rejected as ungraded, never NaN', () => {
+    const ratio = [{ key: 'm1', operator: 'gte' as const, value: 12, unit: 'ratio_1_x', autoGrade: true }]
+    expect(deriveMeasuredStandard(ratio, { [ratioRiseKey('m1')]: 100, [ratioHypotenuseKey('m1')]: 100 })).toBeNull()
+    expect(deriveMeasuredStandard(ratio, { [ratioRiseKey('m1')]: 100, [ratioHypotenuseKey('m1')]: 50 })).toBeNull()
+    expect(deriveMeasuredStandard(ratio, { [ratioRiseKey('m1')]: 0, [ratioHypotenuseKey('m1')]: 100 })).toBeNull()
+  })
+
+  it('rise/hypotenuse present takes priority over any stray legacy length/height on the same values map', () => {
+    const ratio = [{ key: 'm1', operator: 'gte' as const, value: 2.4, unit: 'ratio_1_x', autoGrade: true }]
+    const values = {
+      [ratioRiseKey('m1')]: 5, [ratioHypotenuseKey('m1')]: 13, // -> ratio 2.4, passes
+      [ratioLengthKey('m1')]: 1, [ratioHeightKey('m1')]: 100,  // legacy pair that would fail if read
+    }
+    expect(deriveMeasuredStandard(ratio, values)).toBe(true)
   })
 
   it('unit:degree is left alone (not treated as a slope) — direct entry, not length/height-derived', () => {

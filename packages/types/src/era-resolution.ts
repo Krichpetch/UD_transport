@@ -312,6 +312,55 @@ export function filterApplicableItems(
   return { ...def, groups }
 }
 
+// ---- Admin-authored absolute hiding (Session S4a, Part C) ------------------------------------
+//
+// Distinct from BOTH mechanisms above: redaction is year-dependent and MARKS (isItemApplicable/
+// markApplicability); `optional` (ChecklistTemplateGroupDef) leaves a group visible but lets
+// submit proceed incomplete. `hidden` is a template-authored, non-era-dependent, unconditional
+// deletion — an admin decided this node should never appear on the auditor form at all, full
+// stop, not even as a collapsed footer note (contrast RedactedFooter's rendering of applicable:
+// false leaves). Deleted wholesale (node + whole subtree) from the RESOLVED definition before it
+// is ever sent to a client or walked for submit-time scoring — same delete-based shape as the
+// legacy filterApplicableItems, just with no year/registry input since there is nothing to
+// resolve. Because nothing is baked onto already-stored Checklist.items (unlike `applicable`,
+// which freezes per-checklist at submit time), toggling `hidden` on a template has ZERO effect on
+// checklists submitted before the toggle — every scoring call site that reads an EXISTING
+// checklist's score does so from the stored items blob alone, never a live template (verified
+// against every computeScoreFromItems/computeFacilityMetrics call site in apps/api).
+function filterHiddenNode(node: TemplateNode): TemplateNode | null {
+  if (node.hidden === true) return null
+  const result: TemplateNode = { ...node }
+  if (node.subItems) {
+    const survivors = node.subItems
+      .map(filterHiddenNode)
+      .filter((c): c is TemplateNode => c !== null)
+    if (survivors.length > 0) {
+      result.subItems = survivors
+    } else if (!node.answerType) {
+      // Pure container, every child hidden — nothing left to show under this heading.
+      return null
+    } else {
+      delete result.subItems
+    }
+  }
+  return result
+}
+
+// Filters a whole template's groups/items, removing every `hidden: true` node (and its subtree).
+// Groups left with zero items after filtering are dropped too. Apply BEFORE era marking/resolution
+// (hidden nodes have nothing to resolve) — see checklists.service.ts#resolveEraStamp.
+export function filterHiddenItems(def: ChecklistTemplateDefinition): ChecklistTemplateDefinition {
+  const groups: ChecklistTemplateGroupDef[] = def.groups
+    .map((g) => {
+      const items = g.items
+        .map(filterHiddenNode)
+        .filter((n): n is TemplateNode => n !== null)
+      return items.length > 0 ? { ...g, items } : null
+    })
+    .filter((g): g is ChecklistTemplateGroupDef => g !== null)
+  return { ...def, groups }
+}
+
 // Session F1, Part C — MARKS applicability instead of deleting (closes the A2 gap left open by
 // filterApplicableItems above, per the same isItemApplicable rule). The template-for-audit
 // endpoint uses this now, not filterApplicableItems: the client stays "dumb" and admin/debug views

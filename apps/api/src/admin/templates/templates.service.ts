@@ -16,6 +16,7 @@ import type { AddChildDto } from './dto/add-child.dto'
 import type { ReorderNodeDto } from './dto/reorder-node.dto'
 import type { EditLawRefsDto } from './dto/edit-law-refs.dto'
 import type { EditLabelDto } from './dto/edit-label.dto'
+import type { EditHiddenDto } from './dto/edit-hidden.dto'
 
 // Three audit-action names for W2-S3a (Parts B/C/E): value edits and guidance text share
 // TEMPLATE_THRESHOLD_EDIT (Part E: "audit-logged under the threshold-edit action family"), era
@@ -28,6 +29,8 @@ export const TEMPLATE_IMAGE_EDIT = 'TEMPLATE_IMAGE_EDIT'
 export const TEMPLATE_CLONE_TO_DRAFT = 'TEMPLATE_CLONE_TO_DRAFT'
 export const TEMPLATE_STRUCTURE_EDIT = 'TEMPLATE_STRUCTURE_EDIT'
 export const TEMPLATE_LAWREFS_EDIT = 'TEMPLATE_LAWREFS_EDIT'
+// Session S4a, Part C — admin-authored absolute hide (see @repo/types#filterHiddenItems).
+export const TEMPLATE_HIDDEN_EDIT = 'TEMPLATE_HIDDEN_EDIT'
 // 2026-08-05 — DRAFT -> ACTIVE, the UI counterpart to apps/api/prisma/activate-template.ts.
 // Same action names as that script so audit-log history reads as one continuous trail regardless
 // of which path (CLI or UI) performed a given activation.
@@ -366,6 +369,22 @@ export class TemplatesAdminService {
       nodeCode,
       { field: 'lawRefs' },
       (def) => core.editLawRefs(def, nodeCode, dto.lawRefs, dto.beyondLaw),
+    )
+  }
+
+  // Session S4a, Part C — hide/unhide a node (any status — applicability data, not structure,
+  // same RETIRED-only gate as lawRefs above). Effective immediately for every NEW audit/preview
+  // fetch (getTemplateForAudit re-resolves live); has zero effect on checklists already submitted,
+  // since nothing about scoring an existing row re-consults the template — see
+  // @repo/types#filterHiddenItems' doc.
+  async editHidden(templateId: string, nodeCode: string, dto: EditHiddenDto, actorId: string) {
+    return this.applyEdit(
+      templateId,
+      actorId,
+      TEMPLATE_HIDDEN_EDIT,
+      nodeCode,
+      { field: 'hidden' },
+      (def) => core.editHidden(def, nodeCode, dto.hidden),
     )
   }
 

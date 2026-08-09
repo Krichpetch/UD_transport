@@ -134,6 +134,17 @@ export interface TemplateNode {
   // not this shape check.
   imageKeys?: string[]
 
+  // Session S4a, Part C — admin-authored ABSOLUTE hide, distinct from both `applicable` (era/year-
+  // dependent, marks rather than deletes, still shown to the auditor as a collapsed footer note)
+  // and a group's `optional` (still shown, just non-blocking at submit). `hidden: true` means an
+  // admin decided this node (and its whole subtree) should never appear on the auditor form at
+  // all, unconditionally — not even as a footer note — see era-resolution.ts#filterHiddenItems,
+  // which deletes it from the resolved tree before the client ever sees it. May be set on a
+  // container OR a leaf; hiding a container hides everything beneath it. Never serialized as an
+  // explicit `false` (dropped instead, like beyondLaw) so an untouched node round-trips byte-
+  // identically through the admin editor (S3a's parity gate).
+  hidden?: boolean
+
   // Session S3b, Part C.4 — admin bookkeeping only, never read by scoring/the auditor E-form.
   // The high-water mark of child sequence numbers ever assigned under THIS node via the
   // structural editor's "เพิ่มข้อย่อย" action — never decremented, including on delete, so a
@@ -406,6 +417,7 @@ function parseNode(raw: unknown, path: string): TemplateNode {
     node.imageKeys = o.imageKeys as string[]
   }
   if (typeof o.childSeq === 'number') node.childSeq = o.childSeq
+  if (typeof o.hidden === 'boolean') node.hidden = o.hidden
 
   return node
 }

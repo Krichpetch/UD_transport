@@ -8,6 +8,7 @@ import { MeasurementEditor } from './MeasurementEditor'
 import { TemplateNodeImages } from './TemplateNodeImages'
 import { GuidanceEditor } from './GuidanceEditor'
 import { LawRefsEditor } from './LawRefsEditor'
+import { HiddenToggle } from './HiddenToggle'
 import { StructuralEditor } from './StructuralEditor'
 
 // Centered modal (same Dialog + fixed header/footer, scrollable middle pattern as
@@ -110,6 +111,9 @@ export function TemplateNodeEditorDialog({
 
               {/* Session S3b, Part D — editable on items AND leaves, DRAFT and ACTIVE both. */}
               <LawRefsEditor templateId={templateId} node={node} readOnly={retired} />
+
+              {/* Session S4a, Part C — editable on items AND leaves, any status (RETIRED-only gate). */}
+              <HiddenToggle templateId={templateId} node={node} readOnly={retired} />
 
               {/* Session S3b, Part C.1 — structural editing is DRAFT-only; the server enforces
                   this independently (STRUCTURE_EDIT_REQUIRES_DRAFT), this is just the UI gate. */}

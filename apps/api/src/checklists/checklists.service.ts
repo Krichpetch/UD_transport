@@ -11,6 +11,7 @@ import {
   ChecklistItemsParseError,
   resolveTemplateEras,
   markApplicability,
+  filterHiddenItems,
   resolveVariantKey,
   STANDARD_VARIANT_KEY,
   walkTemplateLeaves,
@@ -218,10 +219,16 @@ export class ChecklistsService {
     if (!templateDef) {
       return { resolvedDef: undefined, appliedYearBuilt: yearBuilt, appliedYearBuiltDate: buildDate ?? null, appliedLawRefs: null as Record<string, string> | null }
     }
+    // Session S4a, Part C — hidden nodes pruned FIRST, before era marking/resolution even runs
+    // (nothing to resolve on a node that will never be shown). Same call this function makes for
+    // every caller (submit's score derivation included), so an admin-hidden node is excluded from
+    // a NEW submission's score without anything being baked onto already-stored checklists — see
+    // filterHiddenItems' doc.
+    const unhidden = filterHiddenItems(templateDef)
     // Part C — item redaction marked BEFORE value resolution, same ordering/schemaVersion gate as
     // getTemplateForAudit, so submit's score/persisted-flags and the audit-time template the
     // auditor actually saw always agree on which leaves applied.
-    const marked = templateDef.schemaVersion === 1 ? templateDef : markApplicability(templateDef, yearBuilt, undefined, buildDate)
+    const marked = unhidden.schemaVersion === 1 ? unhidden : markApplicability(unhidden, yearBuilt, undefined, buildDate)
     const { resolved, appliedLawRefs } = resolveTemplateEras(marked, yearBuilt, undefined, buildDate)
     return {
       resolvedDef: resolved,
@@ -283,7 +290,11 @@ export class ChecklistsService {
     const buildDate = preview && yearBuiltOverride != null
       ? (buildDateOverride ?? null)
       : (draft ? toIsoDate(draft.appliedYearBuiltDate) : toIsoDate(station.yearBuiltDate))
-    const templateDef = template.definition as unknown as ChecklistTemplateDefinition
+    const rawTemplateDef = template.definition as unknown as ChecklistTemplateDefinition
+    // Session S4a, Part C — admin-hidden nodes deleted wholesale before anything else sees this
+    // template: unlike redaction below, hidden has no footer/collapsed-note affordance at all, so
+    // the node must be gone before the client (or submit-time scoring) ever encounters it.
+    const templateDef = filterHiddenItems(rawTemplateDef)
     // Item redaction (Session F1, Part C) BEFORE value resolution: a criterion the build year
     // predates is flagged applicable:false rather than removed (see @repo/types#markApplicability —
     // supersedes the older delete-based filterApplicableItems for THIS endpoint; the client stays

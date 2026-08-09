@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { CheckCircle2, CheckSquare, Square, StickyNote, Ruler } from 'lucide-react'
 import type { TemplateNode, ChecklistValue, ChecklistPhoto } from '@repo/types'
-import { deriveMeasuredStandard, ratioLengthKey, ratioHeightKey } from '@repo/types'
+import { deriveMeasuredStandard, ratioRiseKey, ratioHypotenuseKey } from '@repo/types'
 import { isLeafAnswered, collectLeafCodes, collectLeaves, absentPatchFor } from '@/lib/audit-form'
 import { useAuditFormStore } from '@/stores/audit-form.store'
 import { PhotoPicker } from '@/components/audit/PhotoPicker'
@@ -349,49 +349,58 @@ function MeasurementInput({ code, measurement, values, setAnswer }: {
     )
   }
 
-  // Slope convention (Session E2 follow-up) — ความชัน is entered as raw ความยาว/ความสูง (mm) for
-  // BOTH slope encodings seeded today (ratio_1_x and percent — the same physical quantity, rise ÷
-  // run, just formatted differently by the source form); deriveMeasuredStandard (scoring.ts)
-  // computes and grades the derived value server-side against the SAME keys. The readout here is
-  // a live, non-editable preview only. NOT used for unit:'degree' — those mix genuine slope
-  // angles with door hinge-opening angles that have no length/height to derive from at all.
+  // Slope convention, revised 2026-08-09 (Session S4a, Part A) — pilot feedback: a ramp's
+  // horizontal run has no fixed endpoint an auditor can hook a tape on, so ความชัน is now entered
+  // as raw แนวดิ่ง (rise) + ความยาวตามแนวลาด (hypotenuse, the length measured along the sloped
+  // surface itself) for BOTH slope encodings seeded today (ratio_1_x and percent — the same
+  // physical quantity, rise ÷ run, just formatted differently). run is derived here via
+  // Pythagoras for the live preview only; deriveMeasuredStandard (scoring.ts) re-derives and
+  // grades server-side from the SAME two raw values, never trusting this preview. NOT used for
+  // unit:'degree' — those mix genuine slope angles with door hinge-opening angles that have no
+  // rise/hypotenuse to derive from at all.
   if (measurement.unit === 'ratio_1_x' || measurement.unit === 'percent') {
-    const lengthKey = ratioLengthKey(measurement.key)
-    const heightKey = ratioHeightKey(measurement.key)
-    const length = values[lengthKey]
-    const height = values[heightKey]
-    const hasBoth = typeof length === 'number' && typeof height === 'number' && length !== 0
-    const preview = hasBoth
-      ? measurement.unit === 'percent' ? `ร้อยละ ${((height! / length!) * 100).toFixed(1)}` : `1 : ${(length! / height!).toFixed(1)}`
+    const riseKey = ratioRiseKey(measurement.key)
+    const hypotenuseKey = ratioHypotenuseKey(measurement.key)
+    const rise = values[riseKey]
+    const hypotenuse = values[hypotenuseKey]
+    const bothEntered = typeof rise === 'number' && typeof hypotenuse === 'number'
+    const invalid = bothEntered && (rise! <= 0 || hypotenuse! <= rise!)
+    const run = bothEntered && !invalid ? Math.sqrt(hypotenuse! * hypotenuse! - rise! * rise!) : null
+    const preview = run !== null
+      ? measurement.unit === 'percent' ? `ร้อยละ ${((rise! / run) * 100).toFixed(1)}` : `1 : ${(run / rise!).toFixed(1)}`
       : '-'
     return (
       <div className="space-y-1.5">
         {measurement.sourceText && <p className="text-[11px] text-muted-foreground">{measurement.sourceText}</p>}
         <div className="flex gap-2">
           <label className="flex-1 text-[11px] text-muted-foreground">
-            ความยาว (มม.)
+            แนวดิ่ง (มม.)
             <input
               type="number"
               inputMode="decimal"
-              value={length ?? ''}
-              onChange={(e) => setValue(lengthKey, e.target.value)}
+              value={rise ?? ''}
+              onChange={(e) => setValue(riseKey, e.target.value)}
               className="border-border focus:ring-ring mt-1 w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1"
             />
           </label>
           <label className="flex-1 text-[11px] text-muted-foreground">
-            ความสูง (มม.)
+            ความยาวตามแนวลาด (มม.)
             <input
               type="number"
               inputMode="decimal"
-              value={height ?? ''}
-              onChange={(e) => setValue(heightKey, e.target.value)}
+              value={hypotenuse ?? ''}
+              onChange={(e) => setValue(hypotenuseKey, e.target.value)}
               className="border-border focus:ring-ring mt-1 w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1"
             />
           </label>
         </div>
-        <p className="text-[11px] text-muted-foreground">
-          {measurement.unit === 'percent' ? 'ความลาดชัน' : 'อัตราส่วน'}: <span className="font-medium text-foreground">{preview}</span>
-        </p>
+        {invalid ? (
+          <p className="text-[11px] text-red-600">ความยาวตามแนวลาดต้องมากกว่าแนวดิ่ง — ตรวจสอบตัวเลขอีกครั้ง</p>
+        ) : (
+          <p className="text-[11px] text-muted-foreground">
+            {measurement.unit === 'percent' ? 'ความลาดชัน' : 'อัตราส่วน'}: <span className="font-medium text-foreground">{preview}</span>
+          </p>
+        )}
       </div>
     )
   }

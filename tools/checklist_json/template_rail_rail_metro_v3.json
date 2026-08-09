@@ -1757,7 +1757,7 @@
    "items": [
     {
      "code": "A3.1",
-     "labelTh": "ลิฟต์ภายในสถานีรถไฟฟ้าสำหรับคนพิการ",
+     "labelTh": "ลิฟต์ภายนอกสถานีรถไฟฟ้าสำหรับคนพิการ",
      "subItems": [
       {
        "answerType": "presence",
@@ -3651,20 +3651,11 @@
          "confirmed": false,
          "extracted": true,
          "key": "m1",
-         "operator": "gte",
-         "sourceText": "ไม่น้อยกว่า 700 มิลลิเมตร",
+         "operator": "range",
+         "sourceText": "ไม่น้อยกว่า 700 มิลลิเมตร และไม่เกิน 750 มิลลิเมตร",
          "unit": "mm",
-         "value": 700
-        },
-        {
-         "autoGrade": true,
-         "confirmed": false,
-         "extracted": true,
-         "key": "m2",
-         "operator": "lte",
-         "sourceText": "ไม่เกิน 750 มิลลิเมตร",
-         "unit": "mm",
-         "value": 750
+         "value": 700,
+         "value2": 750
         }
        ],
        "num": "4"
@@ -7281,21 +7272,11 @@
          "confirmed": false,
          "extracted": true,
          "key": "m1",
-         "operator": "gte",
-         "sourceText": "ไม่น้อยกว่า 600 มิลลิเมตร",
+         "operator": "range",
+         "sourceText": "ไม่น้อยกว่า 600 มิลลิเมตร แต่ไม่เกินกว่า 650 มิลลิเมตร",
          "unit": "mm",
-         "value": 600
-        },
-        {
-         "autoGrade": true,
-         "confirmed": false,
-         "extracted": true,
-         "key": "m2",
-         "note": "bare spec (no qualifier in text) — verify operator during review",
-         "operator": "gte",
-         "sourceText": "650 มิลลิเมตร",
-         "unit": "mm",
-         "value": 650
+         "value": 600,
+         "value2": 650
         }
        ],
        "num": "4"

@@ -407,6 +407,52 @@ function markOptionalGroups(def: ChecklistTemplateDefinition): number {
   return marked
 }
 
+// ---- Session S4a, Part C — initial hidden-node seeding (v3 only) ---------------------------
+//
+// Three admin-decided absolute hides, identified by exact (whitespace-normalized) label text —
+// stable across a reseed the same way facility-catalog matching is, and self-verifying: if a
+// label ever changes, the matcher reports fewer hits instead of silently hiding the wrong node.
+// Applied AFTER tagContainers (facility tagging doesn't need to see these nodes) and BEFORE
+// markOptionalGroups (independent flags, order doesn't matter between them, but keeping seed
+// passes in a consistent read-once-report-once order).
+const POSITIONING_TACTILE_LABEL = 'พื้นผิวต่างสัมผัสชนิดเปลี่ยนทิศทาง (Positioning Tactile/Block)*'
+const WARNING_TACTILE_600_LABEL = 'ติดตั้งพื้นผิวต่างสัมผัสเตือนที่ริมขอบจุดพักทางข้ามความกว้าง 600 มิลลิเมตร'
+const HIDDEN_GROUP_CODES: readonly string[] = ['C1', 'C2']
+
+interface HiddenStats { positioningContainers: number; warningLeaves: number; groupCContainers: number; groupCLeaves: number }
+
+function countLeaves(node: TemplateNode): number {
+  if (!node.subItems || node.subItems.length === 0) return 1
+  return node.subItems.reduce((sum, c) => sum + countLeaves(c), 0)
+}
+
+function markInitialHidden(def: ChecklistTemplateDefinition): HiddenStats {
+  const stats: HiddenStats = { positioningContainers: 0, warningLeaves: 0, groupCContainers: 0, groupCLeaves: 0 }
+  const norm = (s: string) => s.replace(/\s+/g, ' ').trim()
+  for (const g of def.groups) {
+    const hideWholeGroup = HIDDEN_GROUP_CODES.includes(g.code)
+    for (const container of g.items) {
+      if (hideWholeGroup) {
+        container.hidden = true
+        stats.groupCContainers++
+        stats.groupCLeaves += countLeaves(container)
+        continue
+      }
+      if (norm(container.labelTh) === POSITIONING_TACTILE_LABEL) {
+        container.hidden = true
+        stats.positioningContainers++
+        continue
+      }
+      const visit = (node: TemplateNode): void => {
+        if (node.subItems && node.subItems.length > 0) { node.subItems.forEach(visit); return }
+        if (norm(node.labelTh) === WARNING_TACTILE_600_LABEL) { node.hidden = true; stats.warningLeaves++ }
+      }
+      visit(container)
+    }
+  }
+  return stats
+}
+
 // ---- v1 definition construction ------------------------------------------------------------
 
 function buildV1Definition(mode: Mode): ChecklistTemplateDefinition {
@@ -515,9 +561,11 @@ async function main() {
       // doc). v1/v2 still use the original per-leaf tagLeaves() — out of scope, both superseded.
       const v3stats = tagContainers(v3def, mode, variant.variantKey)
       const v3optional = markOptionalGroups(v3def)
+      const v3hidden = markInitialHidden(v3def)
       await upsertTemplate(mode, variant.variantKey, 3, 'DRAFT', v3def, 'PROVISIONAL — checklist-migration pipeline candidate; NOT activated')
       report.push(`v3 ${mode} [${variant.variantKey}]: ${v3stats.total} leaves, ${v3stats.tagged}/${v3stats.total} facility-tagged, ${v3optional} optional group(s), ${countByLawLeaves(v3def)} byLaw leaf(ves)`)
       report.push(`  v3 ${mode} [${variant.variantKey}] container-level: ${v3stats.containersOverridden} overridden, ${v3stats.containersAutoMatched} auto-matched, ${v3stats.containersFallenBackToLeaf} fell back to per-leaf matching`)
+      report.push(`  v3 ${mode} [${variant.variantKey}] hidden (S4a): ${v3hidden.positioningContainers} Positioning container(s), ${v3hidden.warningLeaves} Warning-600 leaf(ves), ${v3hidden.groupCContainers} group-C container(s)/${v3hidden.groupCLeaves} leaves`)
       if (v3stats.unmatched.length) {
         report.push(`  v3 ${mode} [${variant.variantKey}] unmatched (${v3stats.unmatched.length}): ${v3stats.unmatched.slice(0, 30).join(' | ')}${v3stats.unmatched.length > 30 ? ' ...' : ''}`)
       }

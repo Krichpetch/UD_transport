@@ -26,6 +26,7 @@ import { ReorderNodeDto } from './dto/reorder-node.dto'
 import { EditLawRefsDto } from './dto/edit-law-refs.dto'
 import { EditLabelDto } from './dto/edit-label.dto'
 import { ActivateTemplateDto } from './dto/activate-template.dto'
+import { EditHiddenDto } from './dto/edit-hidden.dto'
 
 interface AuthRequest extends Request {
   user: { id: string; username: string; role: string }
@@ -241,5 +242,18 @@ export class TemplatesAdminController {
   ) {
     if (req.user.role !== 'ADMIN') throw new ForbiddenException()
     return this.templates.editLawRefs(id, nodeCode, body, req.user.id)
+  }
+
+  // ---- Session S4a, Part C — hide/unhide a node (any status). ----
+
+  @Patch(':id/nodes/:nodeCode/hidden')
+  editHidden(
+    @Param('id') id: string,
+    @Param('nodeCode') nodeCode: string,
+    @Body() body: EditHiddenDto,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.templates.editHidden(id, nodeCode, body, req.user.id)
   }
 }

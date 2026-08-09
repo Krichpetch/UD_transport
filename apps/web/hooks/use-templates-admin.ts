@@ -185,3 +185,14 @@ export function useEditLawRefs(templateId: string) {
     onSuccess: invalidate,
   })
 }
+
+// ---- Session S4a, Part C — hide/unhide a node (any status) ----
+
+export function useEditHidden(templateId: string) {
+  const invalidate = useInvalidateAfterEdit(templateId)
+  return useMutation({
+    mutationFn: ({ nodeCode, hidden }: { nodeCode: string; hidden: boolean }) =>
+      templatesApi.editHidden(templateId, nodeCode, hidden),
+    onSuccess: invalidate,
+  })
+}

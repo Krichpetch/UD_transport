@@ -103,17 +103,34 @@ export function deriveMeasuredStandard(
     if (m.value == null) return null // byLaw not resolved
     let v: number | undefined
     if (m.unit === 'ratio_1_x' || m.unit === 'percent') {
-      // Slope convention (Session E2 follow-up) — the auditor enters raw ความยาว/ความสูง (mm) for
-      // EVERY seeded slope criterion, whether the source form expresses the threshold as a ratio
-      // (1:X) or a percent grade — both are the same physical quantity (rise ÷ run), just
-      // formatted differently. NOT extended to unit:'degree': the seeded degree measurements mix
-      // genuine slope angles (one criterion, convertible the same way) with door hinge-opening
-      // angles (three criteria) that have no length/height to derive from at all — see
-      // ratioLengthKey/ratioHeightKey's doc.
-      const length = values[ratioLengthKey(m.key)]
-      const height = values[ratioHeightKey(m.key)]
-      if (typeof length !== 'number' || typeof height !== 'number' || length === 0 || height === 0) return null
-      v = m.unit === 'percent' ? (height / length) * 100 : length / height
+      // Slope convention, revised 2026-08-09 (Session S4a, Part A) — pilot feedback: auditors
+      // cannot physically measure a ramp's horizontal run (it's the one dimension with no fixed
+      // endpoint to hook a tape on), but CAN measure the vertical rise (แนวดิ่ง) and the length
+      // along the sloped surface itself (ความยาวตามแนวลาด, the hypotenuse). run is derived via
+      // Pythagoras: run = sqrt(hypotenuse² − rise²), then graded exactly as before — ratio_1_x's
+      // X = run ÷ rise (unchanged formula, just a derived run instead of an entered one), percent
+      // = (rise ÷ run) × 100. NOT extended to unit:'degree' — see ratioRiseKey's doc.
+      const rise = values[ratioRiseKey(m.key)]
+      const hypotenuse = values[ratioHypotenuseKey(m.key)]
+      let run: number, riseValue: number
+      if (typeof rise === 'number' && typeof hypotenuse === 'number' && rise > 0 && hypotenuse > rise) {
+        run = Math.sqrt(hypotenuse * hypotenuse - rise * rise)
+        riseValue = rise
+      } else if (typeof rise === 'number' && typeof hypotenuse === 'number') {
+        // hypotenuse <= rise (or rise <= 0) is not a valid right triangle — ungraded, never NaN.
+        return null
+      } else {
+        // Legacy fallback — checklists submitted before this redesign (2026-08-09) stored raw
+        // ความยาว/ความสูง (run/rise) directly under the old key pair; re-deriving their score must
+        // keep working exactly as it always did. Never used by the current auditor form, which
+        // only ever writes the rise/hypotenuse keys from now on.
+        const length = values[ratioLengthKey(m.key)]
+        const height = values[ratioHeightKey(m.key)]
+        if (typeof length !== 'number' || typeof height !== 'number' || length === 0 || height === 0) return null
+        run = length
+        riseValue = height
+      }
+      v = m.unit === 'percent' ? (riseValue / run) * 100 : run / riseValue
     } else {
       v = values[m.key]
     }
@@ -127,13 +144,25 @@ export function deriveMeasuredStandard(
   return true
 }
 
-// Slope convention (Session E2 follow-up) — ความชัน measurements (unit 'ratio_1_x' or 'percent')
-// are entered as raw length/height (mm) rather than the ratio/percent itself; deriveMeasuredStandard
-// computes length ÷ height (ratio) or (height ÷ length) × 100 (percent) and compares it against
-// the threshold like any other gte/lte/range value. Keys are scoped per-measurement so two slope
-// measurements on the same leaf (none currently seeded, but not structurally forbidden) can't
-// collide. Exported so the entry form and the scoring path always agree on the exact key names —
-// never two independent guesses at the same convention.
+// Slope convention, revised 2026-08-09 (Session S4a, Part A) — ความชัน measurements (unit
+// 'ratio_1_x' or 'percent') are entered as raw rise/hypotenuse (mm); deriveMeasuredStandard
+// derives run = sqrt(hypotenuse² − rise²) via Pythagoras, then computes run ÷ rise (ratio) or
+// (rise ÷ run) × 100 (percent) and compares it against the threshold like any other gte/lte/range
+// value. Keys are scoped per-measurement so two slope measurements on the same leaf (none
+// currently seeded, but not structurally forbidden) can't collide. Exported so the entry form and
+// the scoring path always agree on the exact key names — never two independent guesses at the
+// same convention.
+export function ratioRiseKey(measurementKey: string): string {
+  return `${measurementKey}__rise`
+}
+export function ratioHypotenuseKey(measurementKey: string): string {
+  return `${measurementKey}__hypotenuse`
+}
+
+// Legacy key pair (pre-2026-08-09) — the auditor form entered raw run/rise directly under these
+// names (labelled ความยาว/ความสูง). Kept ONLY so deriveMeasuredStandard can still re-derive the
+// score of a checklist submitted before the rise/hypotenuse redesign; never written by the current
+// form. Do not use these for new capture — see ratioRiseKey/ratioHypotenuseKey above.
 export function ratioLengthKey(measurementKey: string): string {
   return `${measurementKey}__length`
 }

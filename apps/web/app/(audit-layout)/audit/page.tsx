@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useSearchParams } from 'next/navigation'
-import { getStationTypeLabel } from '@/lib/constants'
+import { getStationTypeLabel, CHECKLIST_CATEGORIES } from '@/lib/constants'
 import { useStation } from '@/hooks/use-stations'
 import { useSaveDraft, useSubmitChecklist, useMyDraft, useTemplateForAudit } from '@/hooks/use-checklists'
 import { restampDraftEra } from '@/lib/api/checklists'
@@ -840,10 +840,19 @@ export default function AuditPage() {
   // Navigator (jump-to) — one entry per page, v1 = group-level, v2 = item-level, matching each
   // pager's own granularity. Progress figures reuse the exact same countProgressForNodes tally
   // the header/summary page already use, so the navigator can never disagree with them.
+  // Session S4a, Part D.2 (live-tested follow-up) — v1 groups use the exact same A1/A2/B1.../C1
+  // code scheme as v3's containers (see apps/api/prisma/v1-template-groups.ts), so the same
+  // leading-letter grouping applies here too — v1 is what a real auditor sees for every mode
+  // except rail_metro today, so this is the navigator most auditors actually use.
+  function categoryLabel(code: string): { groupKey: string; groupLabel: string } {
+    const letter = code[0] ?? code
+    return { groupKey: letter, groupLabel: CHECKLIST_CATEGORIES.find((c) => c.value === letter)?.label ?? letter }
+  }
+
   const navPages: NavigatorPage[] = isV1
     ? groups.map((g) => {
         const p = countProgressForNodes(g.items, answers)
-        return { code: g.code, label: groupDisplayName(g), answered: p.answered, total: p.total }
+        return { code: g.code, label: groupDisplayName(g), answered: p.answered, total: p.total, ...categoryLabel(g.code) }
       })
     : v2Pages.map(({ group, item }) => {
         const p = countProgressForNodes([item], answers)
@@ -853,6 +862,7 @@ export default function AuditPage() {
           sublabel: groupDisplayName(group),
           answered: p.answered,
           total: p.total,
+          ...categoryLabel(group.code),
         }
       })
 
@@ -1072,7 +1082,13 @@ export default function AuditPage() {
         )}
         {!isSummaryPage && (
           <button
-            onClick={() => setCurrentPage((p) => p + 1)}
+            onClick={() => {
+              setCurrentPage((p) => p + 1)
+              // Session S4a, Part D.1 — live feedback: the pager used to stay scrolled wherever
+              // the auditor left off on the PREVIOUS page, so ถัดไป could land them mid-page on
+              // the next item with its first rows off-screen above the fold.
+              window.scrollTo({ top: 0 })
+            }}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground"
           >
             ถัดไป →

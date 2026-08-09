@@ -244,3 +244,12 @@ export function editLawRefs(templateId: string, nodeCode: string, body: { lawRef
     body,
   )
 }
+
+// ---- Session S4a, Part C — hide/unhide a node (any status). ----
+
+export function editHidden(templateId: string, nodeCode: string, hidden: boolean) {
+  return api.patch<{ id: string; definition: ChecklistTemplateDefinition }>(
+    `/admin/templates/${templateId}/nodes/${encodeURIComponent(nodeCode)}/hidden`,
+    { hidden },
+  )
+}
