@@ -145,6 +145,19 @@ export interface TemplateNode {
   // identically through the admin editor (S3a's parity gate).
   hidden?: boolean
 
+  // Session S4b, Part 2 — the facility-grouped editor's conflict-resolution pass (§7b of
+  // facility-type-redundancy-report.md: item texts that are identical across templates but carry
+  // DIFFERENT answerType/measurements). Set ONLY via the grouped editor's "leave split — these are
+  // genuinely different" action, never auto-computed: it tells detectConflicts() this divergence
+  // was a deliberate admin decision, not an unreviewed data bug, so it stops surfacing in the
+  // conflict queue. It is NOT a propagation gate by itself — a canonical item with any data
+  // divergence never offers a propagate action regardless of this flag (there is nothing to
+  // propagate when instances are legitimately different); this only silences the "needs review"
+  // signal. Picking a WINNER instead (the other resolution path) needs no flag at all: the
+  // propagate write makes every instance identical, so the next detectConflicts() run finds no
+  // divergence on its own.
+  conflictSplitAcknowledged?: boolean
+
   // Session S3b, Part C.4 — admin bookkeeping only, never read by scoring/the auditor E-form.
   // The high-water mark of child sequence numbers ever assigned under THIS node via the
   // structural editor's "เพิ่มข้อย่อย" action — never decremented, including on delete, so a
@@ -418,6 +431,7 @@ function parseNode(raw: unknown, path: string): TemplateNode {
   }
   if (typeof o.childSeq === 'number') node.childSeq = o.childSeq
   if (typeof o.hidden === 'boolean') node.hidden = o.hidden
+  if (typeof o.conflictSplitAcknowledged === 'boolean') node.conflictSplitAcknowledged = o.conflictSplitAcknowledged
 
   return node
 }

@@ -3,12 +3,14 @@ import { ChecklistTemplateValidationError } from '@repo/types'
 import {
   MAX_IMAGES_PER_NODE,
   TemplateEditError,
+  acknowledgeConflictSplit,
   addImageKey,
   confirmMeasurement,
   deriveEraOverridesExtract,
   editEraOverride,
   editGuidance,
   editMeasurementValue,
+  overwriteLeafData,
   removeImageKey,
   summarizeTemplate,
   unconfirmedMeasurementRows,
@@ -225,6 +227,19 @@ describe('image keys', () => {
     expect(after).toEqual([])
     expect(() => removeImageKey(definition, 'A1.1-1', 'template-images/never-added.jpg')).toThrow(TemplateEditError)
   })
+
+  // Session S4b — re-adding an ALREADY-attached key is a no-op, not a duplicate push or an error.
+  // Needed because the grouped editor's image propagation calls addImageKey once per instance with
+  // the same already-uploaded key, including the instance the file was originally uploaded to.
+  it('adding an already-attached key is a no-op — never pushes a duplicate, even at the cap', () => {
+    let def = fixture()
+    for (let i = 0; i < MAX_IMAGES_PER_NODE; i++) {
+      def = addImageKey(def, 'A1.1-1', `template-images/img${i}.jpg`).definition
+    }
+    const { after } = addImageKey(def, 'A1.1-1', 'template-images/img0.jpg') // already attached, node is at the cap
+    expect(after).toHaveLength(MAX_IMAGES_PER_NODE)
+    expect(after.filter((k) => k === 'template-images/img0.jpg')).toHaveLength(1)
+  })
 })
 
 describe('summarizeTemplate', () => {
@@ -256,5 +271,52 @@ describe('deriveEraOverridesExtract', () => {
     const extract = deriveEraOverridesExtract(fixture())
     expect(Object.keys(extract.overrides).sort()).toEqual(['A1.1-2', 'A1.1-3'].sort())
     expect(extract.overrides['A1.1-2']!.measurements).toHaveLength(1)
+  })
+})
+
+// Session S4b, Part 2 — the facility-grouped editor's conflict-resolution actions.
+describe('acknowledgeConflictSplit', () => {
+  it('sets conflictSplitAcknowledged:true and never mutates the input', () => {
+    const original = fixture()
+    const { before, after, definition } = acknowledgeConflictSplit(original, 'A1.1-1')
+    expect(before).toBe(false)
+    expect(after).toBe(true)
+    expect(definition.groups[0]!.items[0]!.subItems![0]!.conflictSplitAcknowledged).toBe(true)
+    expect(original.groups[0]!.items[0]!.subItems![0]!.conflictSplitAcknowledged).toBeUndefined()
+  })
+
+  it('throws TemplateEditError for an unknown node code', () => {
+    expect(() => acknowledgeConflictSplit(fixture(), 'nope')).toThrow(TemplateEditError)
+  })
+})
+
+describe('overwriteLeafData', () => {
+  it('replaces answerType and measurements wholesale, and confirms every copied measurement', () => {
+    const target = fixture()
+    const source = {
+      answerType: 'presence_standard' as const,
+      measurements: [{ key: 'm9', operator: 'gte' as const, value: 500, unit: 'mm', autoGrade: true, confirmed: false }],
+    }
+    const { before, after, definition } = overwriteLeafData(target, 'A1.1-1', source)
+    expect(before.answerType).toBe('presence_standard')
+    expect(before.measurements).toHaveLength(1)
+    expect(after.measurements).toHaveLength(1)
+    expect(after.measurements![0]!.key).toBe('m9')
+    expect(after.measurements![0]!.confirmed).toBe(true) // a winning copy is admin-reviewed by definition
+
+    const leaf = definition.groups[0]!.items[0]!.subItems![0]!
+    expect(leaf.measurements![0]!.value).toBe(500)
+  })
+
+  it('never lets the target row share object references with the source', () => {
+    const target = fixture()
+    const source = { answerType: 'presence_standard' as const, measurements: [{ key: 'm1', operator: 'gte' as const, value: 900, unit: 'mm', autoGrade: true }] }
+    const { definition } = overwriteLeafData(target, 'A1.1-1', source)
+    definition.groups[0]!.items[0]!.subItems![0]!.measurements![0]!.value = 12345
+    expect(source.measurements[0]!.value).toBe(900) // unaffected by mutating the written-back tree
+  })
+
+  it('throws TemplateEditError for an unknown node code', () => {
+    expect(() => overwriteLeafData(fixture(), 'nope', { answerType: 'presence' })).toThrow(TemplateEditError)
   })
 })

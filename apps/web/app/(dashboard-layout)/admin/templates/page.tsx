@@ -6,7 +6,7 @@ import { RequireRole } from '@/components/auth/require-role'
 import { useTemplateList } from '@/hooks/use-templates-admin'
 import { TemplateStatusBadge } from '@/components/admin/templates/TemplateStatusBadge'
 import { TransportBadge } from '@/components/shared/badges'
-import { ListChecks } from 'lucide-react'
+import { LayoutGrid, ListChecks } from 'lucide-react'
 import type { TemplateListRow } from '@/lib/api/templates'
 
 export default function TemplatesAdminPage() {
@@ -64,23 +64,34 @@ function TemplatesAdminContent() {
             แก้ไขเกณฑ์ตัวเลข ข้อยกเว้นตามยุคกฎหมาย รูปภาพประกอบ และคำอธิบายของแบบประเมินแต่ละเวอร์ชัน
           </p>
         </div>
-        {unconfirmedTotal > 0 ? (
+        <div className="flex items-center gap-2">
+          {/* Session S4b — the facility-grouped editor: same checklist item repeated across up to
+              51 places (see facility-type-redundancy-report.md), edited once instead of per-copy. */}
           <Link
-            href="/admin/templates/review-queue"
-            className="bg-primary text-primary-foreground inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
-          >
-            <ListChecks size={15} />
-            ยืนยันเกณฑ์ ({unconfirmedTotal} รายการรอ)
-          </Link>
-        ) : (
-          <Link
-            href="/admin/templates/review-queue"
+            href="/admin/templates/groups"
             className="border-border bg-card hover:bg-secondary/60 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
           >
-            <ListChecks size={14} />
-            คิวรอตรวจสอบเกณฑ์
+            <LayoutGrid size={14} />
+            แก้ไขตามกลุ่มสิ่งอำนวยความสะดวก
           </Link>
-        )}
+          {unconfirmedTotal > 0 ? (
+            <Link
+              href="/admin/templates/review-queue"
+              className="bg-primary text-primary-foreground inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+            >
+              <ListChecks size={15} />
+              ยืนยันเกณฑ์ ({unconfirmedTotal} รายการรอ)
+            </Link>
+          ) : (
+            <Link
+              href="/admin/templates/review-queue"
+              className="border-border bg-card hover:bg-secondary/60 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
+            >
+              <ListChecks size={14} />
+              คิวรอตรวจสอบเกณฑ์
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="space-y-6">

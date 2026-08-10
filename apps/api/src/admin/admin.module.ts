@@ -4,9 +4,11 @@ import { AdminService } from './admin.service'
 import { ReimportService } from './reimport/reimport.service'
 import { TemplatesAdminController } from './templates/templates.controller'
 import { TemplatesAdminService } from './templates/templates.service'
+import { FacilityGroupsController } from './templates/facility-groups.controller'
+import { FacilityGroupsService } from './templates/facility-groups.service'
 
 @Module({
-  controllers: [AdminController, TemplatesAdminController],
-  providers: [AdminService, ReimportService, TemplatesAdminService],
+  controllers: [AdminController, TemplatesAdminController, FacilityGroupsController],
+  providers: [AdminService, ReimportService, TemplatesAdminService, FacilityGroupsService],
 })
 export class AdminModule {}

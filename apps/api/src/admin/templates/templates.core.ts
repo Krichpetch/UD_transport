@@ -181,10 +181,17 @@ export interface EditImagesResult {
   after: string[]
 }
 
+// Idempotent on an already-attached key (Session S4b addition): the grouped editor's image
+// propagation calls this once per instance with the SAME already-uploaded key, including the
+// instance the file was originally uploaded to — without this check that instance would gain the
+// same key twice (MAX_IMAGES_PER_NODE has no duplicate-detection of its own) on every propagate.
 export function addImageKey(def: ChecklistTemplateDefinition, nodeCode: string, key: string): EditImagesResult {
   const clone = cloneDefinition(def)
   const node = findNode(clone, nodeCode)
   const before = node.imageKeys ? [...node.imageKeys] : []
+  if (before.includes(key)) {
+    return { definition: clone, before, after: before }
+  }
   if (before.length >= MAX_IMAGES_PER_NODE) {
     throw new TemplateEditError(`node "${nodeCode}" already has the maximum of ${MAX_IMAGES_PER_NODE} images`)
   }
@@ -651,6 +658,67 @@ export function editHidden(def: ChecklistTemplateDefinition, nodeCode: string, h
   const validated = parseTemplateDefinition(clone)
   const after = findNode(validated, nodeCode).hidden ?? false
   return { definition: validated, before, after }
+}
+
+// ---- Session S4b, Part 2 — the facility-grouped editor's conflict-resolution "leave split"
+// action. See @repo/types#TemplateNode.conflictSplitAcknowledged's doc: this only silences the
+// conflict queue for a canonical item the admin has reviewed and deliberately decided stays
+// divergent across templates; it never gates propagation by itself (see
+// facility-grouping.core.ts#isPropagatable). facility-groups.service.ts calls this once per
+// divergent instance (one Prisma row per call, same as every other edit here). ----
+
+export interface EditConflictSplitAcknowledgedResult {
+  definition: ChecklistTemplateDefinition
+  before: boolean
+  after: boolean
+}
+
+export function acknowledgeConflictSplit(def: ChecklistTemplateDefinition, nodeCode: string): EditConflictSplitAcknowledgedResult {
+  const clone = cloneDefinition(def)
+  const node = findNode(clone, nodeCode)
+  const before = node.conflictSplitAcknowledged ?? false
+  node.conflictSplitAcknowledged = true
+
+  const validated = parseTemplateDefinition(clone)
+  const after = findNode(validated, nodeCode).conflictSplitAcknowledged ?? false
+  return { definition: validated, before, after }
+}
+
+// ---- Session S4b, Part 2 — "pick a winner" conflict resolution. Replaces a leaf's ENTIRE
+// answerType + measurements[] with another instance's (the admin-chosen authoritative copy) in one
+// shot — deliberately coarser than editMeasurementValue (which only ever touches one measurement
+// slot the caller already knows the key of): a conflict can diverge in answerType itself
+// (presence vs presence_standard, report §7b) or in which measurement keys exist at all, so a
+// single-slot edit can't always reconcile two divergent leaves. facility-groups.service.ts calls
+// this once per divergent instance; instances already matching the winner are skipped by the
+// caller before this is ever invoked. ----
+
+export interface OverwriteLeafDataResult {
+  definition: ChecklistTemplateDefinition
+  before: { answerType?: TemplateAnswerType; measurements?: TemplateMeasurement[] }
+  after: { answerType?: TemplateAnswerType; measurements?: TemplateMeasurement[] }
+}
+
+export function overwriteLeafData(
+  def: ChecklistTemplateDefinition,
+  nodeCode: string,
+  source: { answerType?: TemplateAnswerType; measurements?: TemplateMeasurement[] },
+): OverwriteLeafDataResult {
+  const clone = cloneDefinition(def)
+  const node = findNode(clone, nodeCode)
+  const before = { answerType: node.answerType, measurements: node.measurements }
+
+  node.answerType = source.answerType
+  // Deep-clone via the same JSON round-trip cloneDefinition uses, so the target row never shares
+  // object references with whichever OTHER template's in-memory tree `source` was read from.
+  node.measurements = source.measurements ? (JSON.parse(JSON.stringify(source.measurements)) as TemplateMeasurement[]) : undefined
+  // A winning copy is, by definition, an admin-reviewed value — same "editing sets confirmed:true"
+  // rule editMeasurementValue already follows.
+  for (const m of node.measurements ?? []) m.confirmed = true
+
+  const validated = parseTemplateDefinition(clone)
+  const after = findNode(validated, nodeCode)
+  return { definition: validated, before, after: { answerType: after.answerType, measurements: after.measurements } }
 }
 
 // ---- export (Part C.3 round-trip guard) ----
