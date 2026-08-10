@@ -196,3 +196,20 @@ export function useEditHidden(templateId: string) {
     onSuccess: invalidate,
   })
 }
+
+// ---- Session S4b-fix, Fix 4 — detach/re-attach a leaf from the grouped editor's pooling ----
+
+export function useEditStandalone(templateId: string) {
+  const invalidate = useInvalidateAfterEdit(templateId)
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ nodeCode, standalone }: { nodeCode: string; standalone: boolean }) =>
+      templatesApi.editStandalone(templateId, nodeCode, standalone),
+    onSuccess: () => {
+      invalidate()
+      // Standalone status changes what the grouped editor's canonical pooling looks like —
+      // invalidate its cache too, not just this template's own detail/list.
+      void qc.invalidateQueries({ queryKey: ['admin', 'template-groups'] })
+    },
+  })
+}

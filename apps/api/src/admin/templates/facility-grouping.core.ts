@@ -256,7 +256,11 @@ interface InstanceKeyed {
 function buildCanonicalItemsForGroup(group: FacilityContainerGroup): CanonicalItem[] {
   const allLeaves: (ItemInstance & InstanceKeyed)[] = []
   for (const inst of group.instances) {
-    const leaves = walkLeaves(inst.node)
+    // Fix 4 — a leaf marked `standalone` opted out of canonical pooling (see TemplateNode.standalone's
+    // doc in @repo/types); it still exists in the container and still counts toward the container's
+    // own instance/breakdown numbers, it just never becomes part of a CanonicalItem, so it can never
+    // be a propagate/confirm target and its own edits never fan out.
+    const leaves = walkLeaves(inst.node).filter((l) => l.standalone !== true)
     leaves.forEach((leaf, position) => {
       allLeaves.push({
         templateId: inst.templateId,

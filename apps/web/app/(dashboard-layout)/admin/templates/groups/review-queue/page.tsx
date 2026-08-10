@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
 import { useConfirmGroupedMeasurement, useGroupedReviewQueue } from '@/hooks/use-facility-groups'
+import { sortByNodeCode } from '@/lib/template-code-order'
 
 const VERSION = 3
 
@@ -71,6 +72,7 @@ function GroupedReviewQueueContent() {
         <table className="w-full text-sm">
           <thead className="bg-secondary/40 text-muted-foreground">
             <tr>
+              <th className="px-3 py-2.5 text-left font-medium">รหัส</th>
               <th className="px-3 py-2.5 text-left font-medium">รายการ</th>
               <th className="px-3 py-2.5 text-left font-medium">เกณฑ์</th>
               <th className="px-3 py-2.5 text-left font-medium">ค่า</th>
@@ -79,10 +81,11 @@ function GroupedReviewQueueContent() {
             </tr>
           </thead>
           <tbody className="divide-border divide-y">
-            {data.rows.map((row) => {
+            {sortByNodeCode(data.rows, (r) => r.sampleNodeCode).map((row) => {
               const key = `${row.canonicalItemId}::${row.measurementKey}`
               return (
                 <tr key={key} className="hover:bg-secondary/20">
+                  <td className="text-muted-foreground px-3 py-2.5 font-mono text-xs">{row.sampleNodeCode}</td>
                   <td className="text-foreground max-w-xs truncate px-3 py-2.5">{row.labelTh}</td>
                   <td className="text-muted-foreground px-3 py-2.5">
                     {row.measurementKey} ({row.operator})

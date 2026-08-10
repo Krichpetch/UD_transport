@@ -6,14 +6,9 @@ import { LAW_REFERENCE_SEED } from '@repo/types'
 import { ArrowDown, ArrowUp, Check, Loader2, Plus, Trash2 } from 'lucide-react'
 import { INPUT_CLS, SELECT_CLS } from '@/lib/ui-classes'
 import { useConfirmMeasurement, useEditEra, useEditMeasurement, useReorderMeasurement } from '@/hooks/use-templates-admin'
+import { OPERATOR_LABEL } from '@/lib/template-format'
 
 const OPERATORS: ThresholdOperator[] = ['gte', 'lte', 'range', 'tiered']
-const OPERATOR_LABEL: Record<ThresholdOperator, string> = {
-  gte: 'ไม่น้อยกว่า (gte)',
-  lte: 'ไม่เกิน (lte)',
-  range: 'ช่วง (range)',
-  tiered: 'ตารางขั้นบันได (tiered)',
-}
 
 function TierRowsEditor({ tiers, onChange }: { tiers: TemplateTier[]; onChange: (tiers: TemplateTier[]) => void }) {
   function update(i: number, patch: Partial<TemplateTier>) {

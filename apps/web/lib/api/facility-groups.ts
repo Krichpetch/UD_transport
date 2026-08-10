@@ -12,6 +12,11 @@ import type { TemplateTier, ThresholdOperator } from '@repo/types'
 
 export type TemplateRowStatus = 'DRAFT' | 'ACTIVE' | 'RETIRED'
 
+// The grouped editor is pinned to v3 (see facility-groups.service.ts's VersionScope doc) — one
+// shared constant so every caller (the groups pages, and Fix 4's individual-editor provenance
+// lookup) agrees on it rather than each hardcoding `3`.
+export const GROUPED_EDITOR_VERSION = 3
+
 // ---- Part 1 addition — impact counts (mode -> variant -> version breakdown) ------------------
 
 export interface VersionCount {
@@ -127,6 +132,7 @@ export interface GroupedReviewQueueRow {
   canonicalItemId: string
   containerGroupId: string
   labelTh: string
+  sampleNodeCode: string
   measurementKey: string
   operator: ThresholdOperator
   unit: string
@@ -213,3 +219,61 @@ export function resolveConflict(version: number, itemId: string, body: ResolveCo
 // representative instance (reuses the existing per-item upload endpoint), returning the MinIO
 // key the caller then propagates via propagateItemEdit({ field: 'image', imageKey, imageOp: 'add' }).
 export { uploadTemplateImage, presignTemplateImage } from './templates'
+
+// ---- Session S4b-fix, Fix 3 — add-and-place ---------------------------------------------------
+
+export interface AddAndPlaceContent {
+  labelTh: string
+  type: 'presence' | 'presence_standard' | 'measured'
+  threshold?: {
+    operator: ThresholdOperator
+    value?: number | null
+    value2?: number | null
+    tiers?: TemplateTier[]
+    inputs?: { key: string; labelTh: string }[]
+    unit: string
+    autoGrade: boolean
+    sourceText?: string
+  }
+  lawRefs?: string[]
+  facilityCode?: number
+}
+
+export interface AddAndPlaceRequest {
+  // Exactly one — see AddAndPlaceDto's doc (api side) for why an anchor is sometimes a leaf
+  // (canonical item) and sometimes a whole container group (a top-level item like TTRS, which is
+  // itself a container-group entry, not nested inside one).
+  anchorItemId?: string
+  anchorContainerGroupId?: string
+  side: 'before' | 'after'
+  targetTemplateIds: string[]
+  content: AddAndPlaceContent
+  confirm: boolean
+}
+
+export interface AddAndPlaceResolved {
+  templateId: string
+  mode: string
+  variantKey: string
+  containerCode: string
+  anchorCode: string
+  code?: string
+}
+
+export interface AddAndPlaceSkipped {
+  templateId: string
+  mode: string | null
+  variantKey: string | null
+  reason: string
+}
+
+export interface AddAndPlaceResponse {
+  correlationId: string | null
+  wroteCount: number
+  resolved: AddAndPlaceResolved[]
+  skipped: AddAndPlaceSkipped[]
+}
+
+export function addAndPlace(version: number, body: AddAndPlaceRequest) {
+  return api.post<AddAndPlaceResponse>(`/admin/template-groups/add-and-place?version=${version}`, body)
+}

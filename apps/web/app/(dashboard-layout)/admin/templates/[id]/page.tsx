@@ -8,6 +8,8 @@ import { indexTemplateNodesByCode } from '@repo/types'
 import { ArrowLeft, Copy, Download, Loader2, Rocket } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
 import { useActivateTemplate, useCloneToDraft, useTemplateDetail } from '@/hooks/use-templates-admin'
+import { useFacilityGroups } from '@/hooks/use-facility-groups'
+import { GROUPED_EDITOR_VERSION } from '@/lib/api/facility-groups'
 import { exportTemplate } from '@/lib/api/templates'
 import { ApiError } from '@/lib/api'
 import { DIALOG_HEADER_CLS, DIALOG_TITLE_CLS } from '@/lib/ui-classes'
@@ -37,6 +39,19 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
   const [exporting, setExporting] = React.useState(false)
   const [activateOpen, setActivateOpen] = React.useState(false)
   const [atRisk, setAtRisk] = React.useState<{ stations: string[]; count: number } | null>(null)
+
+  // Session S4b-fix, Fix 4 — the grouped editor is v3-only, so this lookup is only meaningful (and
+  // only fired) when the open template actually IS v3; the provenance banner simply doesn't show
+  // otherwise. Reuses the same react-query cache the /admin/templates/groups pages populate.
+  const groupsQuery = useFacilityGroups(GROUPED_EDITOR_VERSION, { enabled: data?.version === GROUPED_EDITOR_VERSION })
+  const groupMembership = React.useMemo(() => {
+    if (!groupsQuery.data || !selected || !data) return null
+    return (
+      groupsQuery.data.canonicalItems.find(
+        (it) => it.classification === 'SHARED' && it.instances.some((i) => i.templateId === data.id && i.nodeCode === selected.node.code),
+      ) ?? null
+    )
+  }, [groupsQuery.data, selected, data])
 
   // 2026-08-05 — activation was previously CLI-only (apps/api/prisma/activate-template.ts,
   // Notion "Feedback after first meeting" Open decision #19). This mirrors the script's own
@@ -247,6 +262,7 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
         stampedChecklistCount={data.stampedChecklistCount}
         node={selected?.node ?? null}
         breadcrumb={selected?.breadcrumb ?? []}
+        groupMembership={groupMembership}
         onClose={() => setSelected(null)}
       />
 

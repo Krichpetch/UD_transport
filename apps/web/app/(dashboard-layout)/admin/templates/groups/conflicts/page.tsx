@@ -6,6 +6,8 @@ import { ArrowLeft, Loader2 } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
 import { useGroupConflicts, useResolveConflict } from '@/hooks/use-facility-groups'
 import { TransportBadge } from '@/components/shared/badges'
+import { describeAnswerSpec } from '@/lib/template-format'
+import { sortByNodeCode } from '@/lib/template-code-order'
 
 const VERSION = 3
 
@@ -82,10 +84,12 @@ function ConflictQueueContent() {
             <div className="grid gap-2 sm:grid-cols-2">
               {conflict.variants.map((v) => (
                 <div key={v.signature} className="border-border rounded-lg border p-3">
-                  <p className="text-muted-foreground mb-1.5 font-mono text-xs break-all">{v.signature}</p>
+                  <p className="text-foreground mb-1.5 text-sm font-medium">
+                    {describeAnswerSpec(v.instances[0]?.answerType, v.instances[0]?.measurements ?? [])}
+                  </p>
                   <p className="text-foreground mb-2 text-sm">{v.instances.length} จุด</p>
                   <div className="mb-2 flex flex-wrap gap-1">
-                    {v.instances.slice(0, 8).map((i) => (
+                    {sortByNodeCode(v.instances, (i) => i.nodeCode).slice(0, 8).map((i) => (
                       <span key={`${i.templateId}-${i.nodeCode}`} className="bg-secondary/60 flex items-center gap-1 rounded px-1.5 py-0.5 text-xs">
                         <TransportBadge type={i.mode} />
                         <span className="font-mono">{i.nodeCode}</span>

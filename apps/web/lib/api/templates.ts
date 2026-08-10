@@ -253,3 +253,12 @@ export function editHidden(templateId: string, nodeCode: string, hidden: boolean
     { hidden },
   )
 }
+
+// ---- Session S4b-fix, Fix 4 — detach/re-attach a leaf from the grouped editor's pooling. ----
+
+export function editStandalone(templateId: string, nodeCode: string, standalone: boolean) {
+  return api.patch<{ id: string; definition: ChecklistTemplateDefinition }>(
+    `/admin/templates/${templateId}/nodes/${encodeURIComponent(nodeCode)}/standalone`,
+    { standalone },
+  )
+}

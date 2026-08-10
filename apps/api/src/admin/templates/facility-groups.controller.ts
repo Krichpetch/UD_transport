@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
 import { FacilityGroupsService, type VersionScope } from './facility-groups.service'
 import { GroupedEditDto } from './dto/grouped-edit.dto'
 import { ResolveConflictDto } from './dto/resolve-conflict.dto'
+import { AddAndPlaceDto } from './dto/add-and-place.dto'
 
 interface AuthRequest extends Request {
   user: { id: string; username: string; role: string }
@@ -87,5 +88,19 @@ export class FacilityGroupsController {
   ) {
     if (req.user.role !== 'ADMIN') throw new ForbiddenException()
     return this.groups.resolveConflict(parseScope(scope, version), itemId, req.user.id, body)
+  }
+
+  // Session S4b-fix, Fix 3 — add-and-place. Must be registered after 'items/:itemId/...' routes
+  // above (it is — Nest matches literal segments before catch-alls, and 'add-and-place' can never
+  // collide with an ':itemId' value since that's always a canonical-item id like "cg-3-item-5").
+  @Post('add-and-place')
+  addAndPlace(
+    @Query('version') version: string | undefined,
+    @Query('scope') scope: string | undefined,
+    @Body() body: AddAndPlaceDto,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.groups.addAndPlace(parseScope(scope, version), body, req.user.id)
   }
 }

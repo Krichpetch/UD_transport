@@ -158,6 +158,20 @@ export interface TemplateNode {
   // divergence on its own.
   conflictSplitAcknowledged?: boolean
 
+  // Session S4b-fix, Fix 4 — admin-authored opt-out from the facility-grouped editor's canonical
+  // pooling (facility-grouping.core.ts#buildCanonicalItemsForGroup). Grouping is COMPUTED by fuzzy
+  // label match, not stored — so excluding one instance from a shared canonical item needs a
+  // PERSISTED marker the engine can honor, or the very next groups computation just re-pools it.
+  // true = this leaf is edited standalone even though its text matches a shared canonical item
+  // elsewhere; the grouped editor's propagate/confirm targets never include it, and its own edits
+  // never fan out. Never serialized as an explicit `false` (same convention as `hidden`), so an
+  // untouched node round-trips byte-identically through the admin editor (S3a's parity gate).
+  // Re-attaching (clearing this) is deliberately a plain field clear, not a bespoke merge: once
+  // cleared, the NEXT groups computation naturally re-pools the leaf, and if its data has diverged
+  // from the rest, the EXISTING conflict queue (detectConflicts/isPropagatable) surfaces that the
+  // same way it would for any other divergence — no separate re-attach-time check needed.
+  standalone?: boolean
+
   // Session S3b, Part C.4 — admin bookkeeping only, never read by scoring/the auditor E-form.
   // The high-water mark of child sequence numbers ever assigned under THIS node via the
   // structural editor's "เพิ่มข้อย่อย" action — never decremented, including on delete, so a
@@ -186,6 +200,16 @@ export interface ChecklistTemplateGroupDef {
   // `present !== true` both skip), so a blank optional group scores exactly like an absent one.
   optional?: boolean
   items: TemplateNode[]
+
+  // Session S4b-fix, Fix 3 — mirrors TemplateNode.childSeq exactly, one level up: the high-water
+  // mark of TOP-LEVEL item sequence numbers ever assigned directly under this GROUP via
+  // add-and-place. Needed because some real anchors (e.g. "TTRS") are themselves top-level group
+  // items, not nested inside another item's subItems — addChildNode/addPositionedChildNode's
+  // existing append-only counter lives on TemplateNode and has no equivalent at the group level
+  // until this field. Absent on every group from before this feature existed; the editor derives
+  // a starting value from existing items' own codes the first time it's needed and persists it
+  // here from then on, same fallback templates.core.ts#currentChildSeq already uses for nodes.
+  childSeq?: number
 }
 
 // Session F3, Part C.1 — the group codes สนข. has declared optional to complete before submitting
@@ -432,6 +456,7 @@ function parseNode(raw: unknown, path: string): TemplateNode {
   if (typeof o.childSeq === 'number') node.childSeq = o.childSeq
   if (typeof o.hidden === 'boolean') node.hidden = o.hidden
   if (typeof o.conflictSplitAcknowledged === 'boolean') node.conflictSplitAcknowledged = o.conflictSplitAcknowledged
+  if (typeof o.standalone === 'boolean') node.standalone = o.standalone
 
   return node
 }
@@ -448,7 +473,16 @@ function parseGroup(raw: unknown, path: string): ChecklistTemplateGroupDef {
   if (o.optional !== undefined && typeof o.optional !== 'boolean') {
     fail(`${path}.optional`, 'must be a boolean when present')
   }
-  return { code, labelTh, ...(o.optional === true && { optional: true as const }), items }
+  if (o.childSeq !== undefined && typeof o.childSeq !== 'number') {
+    fail(`${path}.childSeq`, 'must be a number when present')
+  }
+  return {
+    code,
+    labelTh,
+    ...(o.optional === true && { optional: true as const }),
+    ...(typeof o.childSeq === 'number' && { childSeq: o.childSeq }),
+    items,
+  }
 }
 
 const VALID_MODES: readonly string[] = ['ทางบก', 'ทางราง', 'ทางน้ำ', 'ทางอากาศ']

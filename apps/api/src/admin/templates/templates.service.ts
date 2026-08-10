@@ -17,6 +17,7 @@ import type { ReorderNodeDto } from './dto/reorder-node.dto'
 import type { EditLawRefsDto } from './dto/edit-law-refs.dto'
 import type { EditLabelDto } from './dto/edit-label.dto'
 import type { EditHiddenDto } from './dto/edit-hidden.dto'
+import type { EditStandaloneDto } from './dto/edit-standalone.dto'
 
 // Three audit-action names for W2-S3a (Parts B/C/E): value edits and guidance text share
 // TEMPLATE_THRESHOLD_EDIT (Part E: "audit-logged under the threshold-edit action family"), era
@@ -31,6 +32,8 @@ export const TEMPLATE_STRUCTURE_EDIT = 'TEMPLATE_STRUCTURE_EDIT'
 export const TEMPLATE_LAWREFS_EDIT = 'TEMPLATE_LAWREFS_EDIT'
 // Session S4a, Part C — admin-authored absolute hide (see @repo/types#filterHiddenItems).
 export const TEMPLATE_HIDDEN_EDIT = 'TEMPLATE_HIDDEN_EDIT'
+// Session S4b-fix, Fix 4 — detach/re-attach a leaf from the facility-grouped editor's pooling.
+export const TEMPLATE_DETACH = 'TEMPLATE_DETACH'
 // 2026-08-05 — DRAFT -> ACTIVE, the UI counterpart to apps/api/prisma/activate-template.ts.
 // Same action names as that script so audit-log history reads as one continuous trail regardless
 // of which path (CLI or UI) performed a given activation.
@@ -385,6 +388,21 @@ export class TemplatesAdminService {
       nodeCode,
       { field: 'hidden' },
       (def) => core.editHidden(def, nodeCode, dto.hidden),
+    )
+  }
+
+  // Session S4b-fix, Fix 4 — see TemplateNode.standalone's doc (@repo/types) for why re-attach
+  // (standalone: false) needs no bespoke conflict check of its own here: it's a plain field clear,
+  // and the existing facility-grouped conflict queue (detectConflicts/isPropagatable) picks up any
+  // divergence the next time it computes groups, exactly as it would for any other conflict.
+  async editStandalone(templateId: string, nodeCode: string, dto: EditStandaloneDto, actorId: string) {
+    return this.applyEdit(
+      templateId,
+      actorId,
+      TEMPLATE_DETACH,
+      nodeCode,
+      { field: 'standalone' },
+      (def) => core.editStandalone(def, nodeCode, dto.standalone),
     )
   }
 

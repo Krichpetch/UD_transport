@@ -476,6 +476,104 @@ export function addChildNode(
   return { definition: validated, code }
 }
 
+// ---- Session S4b-fix, Fix 3 — add-and-place: insert a new sibling at a chosen POSITION relative
+// to a named anchor, rather than always at the end (addChildNode above). Code assignment is
+// UNCHANGED — still append-only via currentChildSeq/childSeparator, so the new code is never
+// visually adjacent to its anchor's code, only adjacent in DISPLAY order. Same invariant
+// reorderNode's doc already establishes: codes and position are orthogonal. ----
+
+export interface AddPositionedChildPatch {
+  labelTh: string
+  type: QuestionTypeSelector
+  threshold?: NewMeasurementPatch
+  lawRefs?: string[]
+  facilityCode?: number
+  cabinetResolution?: boolean
+  beyondLaw?: boolean
+}
+
+function buildPositionedChild(code: string, patch: AddPositionedChildPatch): TemplateNode {
+  const child: TemplateNode = { code, labelTh: patch.labelTh }
+  child.answerType = patch.type === 'presence' ? 'presence' : 'presence_standard'
+  if (patch.lawRefs && patch.lawRefs.length > 0) child.lawRefs = patch.lawRefs
+  if (patch.facilityCode !== undefined) child.facilityCode = patch.facilityCode
+  if (patch.cabinetResolution) child.cabinetResolution = true
+  if (patch.beyondLaw) child.beyondLaw = true
+  return child
+}
+
+function currentGroupChildSeq(group: ChecklistTemplateDefinition['groups'][number]): number {
+  if (typeof group.childSeq === 'number') return group.childSeq
+  return group.items.reduce((max, item) => Math.max(max, parseLastCodeSegment(item.code)), 0)
+}
+
+// Session S4b-fix, Fix 3 — like addChildNode, but inserts the new sibling at a chosen POSITION
+// relative to a named anchor, rather than always at the end. Code assignment is UNCHANGED — still
+// append-only (currentChildSeq/currentGroupChildSeq), so the new code is never visually adjacent
+// to its anchor's code, only adjacent in DISPLAY order (same invariant reorderNode's doc already
+// establishes: codes and position are orthogonal).
+//
+// `containerCode` may name either an ordinary TemplateNode (inserts into its `subItems`) OR a
+// GROUP's own code (inserts into that group's top-level `items[]`) — real anchors are not always
+// nested inside another item. "เครื่องบริการถ่ายทอดการสื่อสารสาธารณะ (TTRS)" (Fix 5's anchor) is
+// itself a top-level item directly under its group, a peer of other top-level items, not a child
+// of one — see the group branch below, which addChildNode (item-nesting only) has no equivalent
+// for. Group code is checked FIRST since group codes ('B1') and node codes ('B1.1') never collide
+// (node codes always carry a '.' or '-' segment a bare group code never has).
+export function addPositionedChildNode(
+  def: ChecklistTemplateDefinition,
+  containerCode: string,
+  anchorCode: string,
+  side: 'before' | 'after',
+  patch: AddPositionedChildPatch,
+): AddChildResult {
+  const clone = cloneDefinition(def)
+
+  const group = clone.groups.find((g) => g.code === containerCode)
+  if (group) {
+    const anchorIndex = group.items.findIndex((n) => n.code === anchorCode)
+    if (anchorIndex === -1) {
+      throw new TemplateEditError(`anchor node "${anchorCode}" not found as a top-level item of group "${containerCode}"`)
+    }
+    const seq = currentGroupChildSeq(group) + 1
+    group.childSeq = seq
+    const code = `${containerCode}${childSeparator(containerCode)}${seq}`
+    const child = buildPositionedChild(code, patch)
+
+    const insertAt = side === 'before' ? anchorIndex : anchorIndex + 1
+    const nextItems = [...group.items]
+    nextItems.splice(insertAt, 0, child)
+    group.items = nextItems
+
+    let validated = parseTemplateDefinition(clone)
+    if (patch.threshold) validated = addMeasurement(validated, code, patch.threshold).definition
+    return { definition: validated, code }
+  }
+
+  const parent = findNode(clone, containerCode)
+  const siblings = parent.subItems ?? []
+  const anchorIndex = siblings.findIndex((n) => n.code === anchorCode)
+  if (anchorIndex === -1) {
+    throw new TemplateEditError(`anchor node "${anchorCode}" not found under container "${containerCode}"`)
+  }
+
+  const seq = currentChildSeq(parent) + 1
+  parent.childSeq = seq
+  const code = `${containerCode}${childSeparator(containerCode)}${seq}`
+  const child = buildPositionedChild(code, patch)
+
+  const insertAt = side === 'before' ? anchorIndex : anchorIndex + 1
+  const nextSiblings = [...siblings]
+  nextSiblings.splice(insertAt, 0, child)
+  parent.subItems = nextSiblings
+
+  let validated = parseTemplateDefinition(clone)
+  if (patch.threshold) {
+    validated = addMeasurement(validated, code, patch.threshold).definition
+  }
+  return { definition: validated, code }
+}
+
 export interface DeleteNodeResult {
   definition: ChecklistTemplateDefinition
   deletedCode: string
@@ -657,6 +755,29 @@ export function editHidden(def: ChecklistTemplateDefinition, nodeCode: string, h
 
   const validated = parseTemplateDefinition(clone)
   const after = findNode(validated, nodeCode).hidden ?? false
+  return { definition: validated, before, after }
+}
+
+// ---- Session S4b-fix, Fix 4 — detach-to-standalone (any status, same RETIRED-only gate as
+// hidden/lawRefs above: this is grouping metadata, not structure). Setting standalone:true opts
+// this ONE instance out of the facility-grouped editor's canonical pooling even though its text
+// still matches a shared item elsewhere; clearing it lets the next groups computation re-pool it —
+// see TemplateNode.standalone's doc in @repo/types for why re-attach needs no bespoke merge here. --
+
+export interface EditStandaloneResult {
+  definition: ChecklistTemplateDefinition
+  before: boolean
+  after: boolean
+}
+
+export function editStandalone(def: ChecklistTemplateDefinition, nodeCode: string, standalone: boolean): EditStandaloneResult {
+  const clone = cloneDefinition(def)
+  const node = findNode(clone, nodeCode)
+  const before = node.standalone ?? false
+  node.standalone = standalone ? true : undefined
+
+  const validated = parseTemplateDefinition(clone)
+  const after = findNode(validated, nodeCode).standalone ?? false
   return { definition: validated, before, after }
 }
 

@@ -2,12 +2,15 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, ListChecks } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, ListChecks, Plus } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
 import { useFacilityGroups } from '@/hooks/use-facility-groups'
 import { ClassificationBadge, ConflictBadge } from '@/components/admin/templates/GroupedItemBadges'
 import { InstanceBreakdownChips } from '@/components/admin/templates/InstanceBreakdownChips'
 import { GroupedItemEditDialog } from '@/components/admin/templates/GroupedItemEditDialog'
+import { AddAndPlaceDialog } from '@/components/admin/templates/AddAndPlaceDialog'
+import { describeAnswerSpec } from '@/lib/template-format'
+import { sortByNodeCode } from '@/lib/template-code-order'
 import type { CanonicalItemRow } from '@/lib/api/facility-groups'
 
 // Session S4b, Part 3.1 — browse the facility-grouped view of the v3 template candidates.
@@ -29,6 +32,7 @@ function TemplateGroupsContent() {
   const { data, isLoading, error } = useFacilityGroups(VERSION)
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set())
   const [editing, setEditing] = React.useState<CanonicalItemRow | null>(null)
+  const [addingNew, setAddingNew] = React.useState(false)
 
   function toggle(groupId: string) {
     setExpanded((prev) => {
@@ -84,6 +88,14 @@ function TemplateGroupsContent() {
             <ListChecks size={15} />
             คิวยืนยันเกณฑ์ (แบบกลุ่ม)
           </Link>
+          <button
+            type="button"
+            onClick={() => setAddingNew(true)}
+            className="bg-primary text-primary-foreground flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium hover:opacity-90"
+          >
+            <Plus size={15} />
+            เพิ่มรายการ / เพิ่มกลุ่มข้อย่อย
+          </button>
         </div>
       </div>
 
@@ -120,10 +132,18 @@ function TemplateGroupsContent() {
                 </button>
                 {isOpen && (
                   <div className="border-border divide-border divide-y border-t">
-                    {items.map((item) => (
+                    {sortByNodeCode(items, (item) => item.instances[0]?.nodeCode ?? '').map((item) => (
                       <div key={item.id} className="flex items-center justify-between gap-3 px-4 py-3">
                         <div className="min-w-0 flex-1">
-                          <p className="text-foreground truncate text-sm">{item.labelTh}</p>
+                          <div className="flex items-center gap-1.5">
+                            <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 font-mono text-[10px]">
+                              {item.instances[0]?.nodeCode}
+                            </span>
+                            <p className="text-foreground truncate text-sm">{item.labelTh}</p>
+                          </div>
+                          <p className="text-muted-foreground mt-0.5 text-xs">
+                            {describeAnswerSpec(item.instances[0]?.answerType, item.instances[0]?.measurements ?? [])}
+                          </p>
                           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                             <ClassificationBadge item={item} />
                             <ConflictBadge item={item} />
@@ -158,6 +178,9 @@ function TemplateGroupsContent() {
       </div>
 
       <GroupedItemEditDialog version={VERSION} item={editing} onClose={() => setEditing(null)} />
+      {addingNew && data && (
+        <AddAndPlaceDialog version={VERSION} groups={data.containerGroups} items={data.canonicalItems} onClose={() => setAddingNew(false)} />
+      )}
     </div>
   )
 }

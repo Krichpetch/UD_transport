@@ -26,18 +26,21 @@
  *     silently undo the override.
  *   - `byLaw` itself is never taken from the backup, for the same reason.
  *
- * THE MERGE RULE — node-level fields (2026-08-06)
+ * THE MERGE RULE — node-level fields (2026-08-06, extended 2026-08-11 for `standalone`)
  * -------------------------------------------------
- * `imageKeys` (admin-attached reference photos, W2-S3a) and `guidance` (คู่มือการตรวจประเมิน text)
- * live on the NODE, not a measurement, and — unlike threshold scalars — are NEVER set by
- * seed-templates.ts at all (grep confirms zero references). There is no seed-vs-admin conflict to
- * resolve for these: any value found on a node in the backup is purely admin-authored and always
- * safe to replay onto the same node code in the current tree. Keyed by leaf `code` alone (not a
- * measurement key). `labelTh`/`num` renames and admin-added `lawRefs`/`beyondLaw` are a KNOWN,
- * NOT-YET-COVERED gap in the same family — those two overlap with content the seed itself can
- * legitimately change (a JSON source typo fix, or the byLaw→lawRefs union fix), so blindly
- * replaying an old backup value risks undoing a real, intentional content fix. Left alone
- * deliberately rather than guessed at; flag to a human before extending this further.
+ * `imageKeys` (admin-attached reference photos, W2-S3a), `guidance` (คู่มือการตรวจประเมิน text), and
+ * `standalone` (Session S4b-fix, Fix 4 — detach-to-standalone) all live on the NODE, not a
+ * measurement, and — unlike threshold scalars — are NEVER set by seed-templates.ts at all (grep
+ * confirms zero references for any of the three). There is no seed-vs-admin conflict to resolve:
+ * any value found on a node in the backup is purely admin-authored and always safe to replay onto
+ * the same node code in the current tree. Keyed by leaf `code` alone (not a measurement key).
+ * `labelTh`/`num` renames, admin-added `lawRefs`/`beyondLaw`, and `conflictSplitAcknowledged` are a
+ * KNOWN, NOT-YET-COVERED gap in the same family — those overlap with content the seed itself can
+ * legitimately change (a JSON source typo fix, the byLaw→lawRefs union fix, or a genuine re-tagging),
+ * so blindly replaying an old backup value risks undoing a real, intentional content fix.
+ * `standalone` carries no such risk (the seed never touches it, same as imageKeys/guidance), which
+ * is why it joins those two rather than the left-alone list. Left alone deliberately rather than
+ * guessed at; flag to a human before extending this further.
  *
  * Slots/nodes present in only one side are reported and skipped, never guessed at.
  *
@@ -83,6 +86,7 @@ interface NodeLike {
   code?: string
   imageKeys?: string[]
   guidance?: { text?: string; reference?: string }
+  standalone?: boolean
   [k: string]: unknown
 }
 
@@ -107,6 +111,7 @@ interface MergeStats {
   byLawPreserved: number
   imageKeysRestored: number
   guidanceRestored: number
+  standaloneRestored: number
   onlyInBackup: string[]
   onlyInCurrent: string[]
 }
@@ -127,6 +132,7 @@ export function mergeEdits(currentDef: unknown, backupDef: unknown): { merged: u
     byLawPreserved: 0,
     imageKeysRestored: 0,
     guidanceRestored: 0,
+    standaloneRestored: 0,
     onlyInBackup: [],
     onlyInCurrent: [],
   }
@@ -182,6 +188,10 @@ export function mergeEdits(currentDef: unknown, backupDef: unknown): { merged: u
         curNode.guidance = oldNode.guidance
         stats.guidanceRestored++
       }
+    }
+    if (oldNode.standalone === true && curNode.standalone !== true) {
+      curNode.standalone = true
+      stats.standaloneRestored++
     }
   }
 
@@ -245,6 +255,7 @@ async function main(): Promise<void> {
       `byLawKept=${stats.byLawPreserved}`,
       `imageKeys+${stats.imageKeysRestored}`,
       `guidance+${stats.guidanceRestored}`,
+      `standalone+${stats.standaloneRestored}`,
     ]
     if (stats.onlyInBackup.length) parts.push(`backupOnly=${stats.onlyInBackup.length}`)
     if (stats.onlyInCurrent.length) parts.push(`currentOnly=${stats.onlyInCurrent.length}`)
@@ -254,7 +265,14 @@ async function main(): Promise<void> {
       console.log(`    note: ${stats.onlyInBackup.length} slot(s) exist only in the backup and were skipped: ${stats.onlyInBackup.slice(0, 5).join(', ')}${stats.onlyInBackup.length > 5 ? ' …' : ''}`)
     }
 
-    if (confirm && (stats.confirmedRestored > 0 || stats.scalarsRestored > 0 || stats.imageKeysRestored > 0 || stats.guidanceRestored > 0)) {
+    if (
+      confirm &&
+      (stats.confirmedRestored > 0 ||
+        stats.scalarsRestored > 0 ||
+        stats.imageKeysRestored > 0 ||
+        stats.guidanceRestored > 0 ||
+        stats.standaloneRestored > 0)
+    ) {
       await prisma.checklistTemplate.update({
         where: { id: current.id },
         data: { definition: merged as Prisma.InputJsonValue },

@@ -1,15 +1,83 @@
 'use client'
 
 import * as React from 'react'
+import Link from 'next/link'
 import type { TemplateNode } from '@repo/types'
+import { Layers, Loader2, Unlink } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { DIALOG_HEADER_CLS, DIALOG_TITLE_CLS } from '@/lib/ui-classes'
+import { useEditStandalone } from '@/hooks/use-templates-admin'
+import type { CanonicalItemRow } from '@/lib/api/facility-groups'
 import { MeasurementEditor } from './MeasurementEditor'
 import { TemplateNodeImages } from './TemplateNodeImages'
 import { GuidanceEditor } from './GuidanceEditor'
 import { LawRefsEditor } from './LawRefsEditor'
 import { HiddenToggle } from './HiddenToggle'
 import { StructuralEditor } from './StructuralEditor'
+
+// Session S4b-fix, Fix 4 — provenance banner: tells the admin this node's text is shared with
+// other templates via the grouped editor BEFORE they edit it here in isolation, and offers the
+// detach/re-attach action. Two distinct cases since a detached node is invisible to the grouping
+// engine by design (see TemplateNode.standalone's doc) — `groupMembership` can never resolve for
+// an already-standalone node, so "is it detached" is read straight off the node itself, not off
+// the membership lookup.
+function GroupProvenanceBanner({
+  templateId,
+  node,
+  groupMembership,
+  readOnly,
+}: {
+  templateId: string
+  node: TemplateNode
+  groupMembership: CanonicalItemRow | null
+  readOnly: boolean
+}) {
+  const editStandalone = useEditStandalone(templateId)
+  const isStandalone = node.standalone === true
+
+  if (readOnly) return null
+  if (!isStandalone && !groupMembership) return null
+
+  if (isStandalone) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <span className="flex items-center gap-1.5">
+          <Unlink size={14} /> แยกออกจากกลุ่มแล้ว — แก้ไขแยกจากรายการอื่นโดยเฉพาะ
+        </span>
+        <button
+          type="button"
+          onClick={() => editStandalone.mutate({ nodeCode: node.code, standalone: false })}
+          disabled={editStandalone.isPending}
+          className="flex items-center gap-1 rounded-lg bg-amber-800/10 px-2.5 py-1 text-xs font-medium hover:bg-amber-800/20 disabled:opacity-50"
+        >
+          {editStandalone.isPending ? <Loader2 size={12} className="animate-spin" /> : null}
+          ผูกกลับเข้ากลุ่ม
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+      <span className="flex items-center gap-1.5">
+        <Layers size={14} />
+        ส่วนหนึ่งของกลุ่ม &ldquo;{groupMembership!.labelTh}&rdquo; — ใช้ร่วมกัน {groupMembership!.instanceCount} ที่{' '}
+        <Link href="/admin/templates/groups" className="underline">
+          ดูกลุ่ม
+        </Link>
+      </span>
+      <button
+        type="button"
+        onClick={() => editStandalone.mutate({ nodeCode: node.code, standalone: true })}
+        disabled={editStandalone.isPending}
+        className="flex items-center gap-1 rounded-lg bg-blue-800/10 px-2.5 py-1 text-xs font-medium hover:bg-blue-800/20 disabled:opacity-50"
+      >
+        {editStandalone.isPending ? <Loader2 size={12} className="animate-spin" /> : null}
+        แก้เป็นรายการเดี่ยว
+      </button>
+    </div>
+  )
+}
 
 // Centered modal (same Dialog + fixed header/footer, scrollable middle pattern as
 // EditStationModal / the stations bulk-import dialog in stations/page.tsx) rather than a
@@ -20,6 +88,7 @@ export function TemplateNodeEditorDialog({
   stampedChecklistCount,
   node,
   breadcrumb,
+  groupMembership,
   onClose,
 }: {
   templateId: string
@@ -27,6 +96,7 @@ export function TemplateNodeEditorDialog({
   stampedChecklistCount: number
   node: TemplateNode | null
   breadcrumb: string[]
+  groupMembership?: CanonicalItemRow | null
   onClose: () => void
 }) {
   // Part B.4 — "no silent re-grades": editing a measurement on an ACTIVE template requires an
@@ -58,6 +128,8 @@ export function TemplateNodeEditorDialog({
                   แบบประเมินนี้เลิกใช้แล้ว — ดูได้อย่างเดียว ไม่สามารถแก้ไขได้
                 </div>
               )}
+
+              <GroupProvenanceBanner templateId={templateId} node={node} groupMembership={groupMembership ?? null} readOnly={retired} />
 
               {!node.answerType && (
                 <div className="bg-secondary/60 text-muted-foreground rounded-lg p-2.5 text-sm">

@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import type { ChecklistTemplateDefinition, TransportMode } from '@repo/types'
-import { ChecklistTemplateValidationError } from '@repo/types'
+import { ChecklistTemplateValidationError, FACILITY_CATALOG } from '@repo/types'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditLogService } from '../../audit/audit.service'
 import * as core from './templates.core'
@@ -19,6 +19,7 @@ import {
 } from './facility-grouping.core'
 import type { GroupedEditDto } from './dto/grouped-edit.dto'
 import type { ResolveConflictDto } from './dto/resolve-conflict.dto'
+import type { AddAndPlaceDto } from './dto/add-and-place.dto'
 
 // Session S4b — three audit-action names for the grouped editor, distinct from S3a/S3b's
 // TEMPLATE_THRESHOLD_EDIT/TEMPLATE_STRUCTURE_EDIT/etc (templates.service.ts): every row a
@@ -28,6 +29,8 @@ import type { ResolveConflictDto } from './dto/resolve-conflict.dto'
 export const TEMPLATE_CONFLICT_RESOLVE = 'TEMPLATE_CONFLICT_RESOLVE'
 export const TEMPLATE_GROUPED_EDIT = 'TEMPLATE_GROUPED_EDIT'
 export const TEMPLATE_GROUPED_CONFIRM = 'TEMPLATE_GROUPED_CONFIRM'
+// Session S4b-fix, Fix 3 — add-and-place: one NEW item, written to N templates at a chosen position.
+export const TEMPLATE_GROUPED_ADD = 'TEMPLATE_GROUPED_ADD'
 
 // Session S4b, Part 5 — which ChecklistTemplate rows the grouping/impact/conflict engine pools.
 // 'exact' (a single version number) is the grouped editor's actual default — the v1/v2 -> v3
@@ -38,6 +41,28 @@ export const TEMPLATE_GROUPED_CONFIRM = 'TEMPLATE_GROUPED_CONFIRM'
 // question — see facility-grouping.spec.ts's 'all'-scope comparison test. 'active' and 'all' exist
 // for that comparison/analysis use case, not as alternate defaults.
 export type VersionScope = { kind: 'exact'; version: number } | { kind: 'active' } | { kind: 'all' }
+
+// Session S4b-fix, Fix 3 — module-level (not method-local) so they're nameable in the emitted
+// .d.ts; a method-local `interface` inside addAndPlace compiled fine under jest's transpile-only
+// path but failed `tsc --noEmit`'s declaration check (TS4053/4055) since a public method's return
+// type can never reference a name private to its own function body.
+export interface AddAndPlaceResolved {
+  templateId: string
+  mode: TransportMode
+  variantKey: string
+  containerCode: string
+  anchorCode: string
+  // Present only once actually written (confirm:true) — absent on a confirm:false preview, so the
+  // return shape is the SAME object type either way rather than two shapes union-inferred from
+  // addAndPlace's two return statements.
+  code?: string
+}
+export interface AddAndPlaceSkipped {
+  templateId: string
+  mode: string | null
+  variantKey: string | null
+  reason: string
+}
 
 function toInstanceDto(i: ItemInstance) {
   return {
@@ -327,12 +352,157 @@ export class FacilityGroupsService {
   // an instance count. Per-template confirmed/total counters (Part 4.2) still come from
   // templates.service.ts#reviewQueue unchanged — this is the additional grouped VIEW, not a
   // replacement for the activation-gate metric.
+  // Session S4b-fix, Fix 3 — add-and-place: create ONE new item and apply it to N templates at a
+  // chosen position, resolving the insertion point + anchor PER TARGET rather than requiring the
+  // caller to know each template's own codes. `dto.confirm: false` resolves and reports without
+  // writing (the frontend's preview step); `true` performs the writes, gated exactly like the
+  // individual structural editor (DRAFT-only — see templates.service.ts#applyStructuralEdit's doc)
+  // since this IS a structural add, just fanned out. A target where the anchor has no instance in
+  // that template, or the template isn't a DRAFT, is SKIPPED with a reason — never guessed at.
+  async addAndPlace(scope: VersionScope, dto: AddAndPlaceDto, actorId: string) {
+    const { result } = await this.computeGroups(scope)
+
+    // Resolves, per target templateId, which node/group to insert INTO (`intoCode`) and which
+    // sibling to insert before/after (`anchorCode`) — see AddAndPlaceDto's doc for why the anchor
+    // can be either a canonical (leaf) item or a container group (a top-level item in its own
+    // right, like TTRS). Both instance shapes already carry a (parent, own) code pair; this just
+    // picks the right one, once, rather than duplicating the whole resolve loop per anchor kind.
+    let anchorLabel: string
+    let instanceFor: (templateId: string) => { intoCode: string; anchorCode: string } | undefined
+    if (dto.anchorItemId) {
+      const anchorItem = result.canonicalItems.find((it) => it.id === dto.anchorItemId)
+      if (!anchorItem) throw new NotFoundException(`unknown anchorItemId "${dto.anchorItemId}"`)
+      anchorLabel = anchorItem.labelTh
+      instanceFor = (templateId) => {
+        const inst = anchorItem.instances.find((i) => i.templateId === templateId)
+        return inst ? { intoCode: inst.containerCode, anchorCode: inst.nodeCode } : undefined
+      }
+    } else if (dto.anchorContainerGroupId) {
+      const anchorGroup = result.containerGroups.find((g) => g.id === dto.anchorContainerGroupId)
+      if (!anchorGroup) throw new NotFoundException(`unknown anchorContainerGroupId "${dto.anchorContainerGroupId}"`)
+      anchorLabel = anchorGroup.labelTh
+      instanceFor = (templateId) => {
+        const inst = anchorGroup.instances.find((i) => i.templateId === templateId)
+        return inst ? { intoCode: inst.groupCode, anchorCode: inst.containerCode } : undefined
+      }
+    } else {
+      throw new BadRequestException('either anchorItemId or anchorContainerGroupId is required')
+    }
+
+    const rows = await this.prisma.checklistTemplate.findMany({ where: { id: { in: dto.targetTemplateIds } } })
+    const rowById = new Map(rows.map((r) => [r.id, r]))
+
+    const resolved: AddAndPlaceResolved[] = []
+    const skipped: AddAndPlaceSkipped[] = []
+
+    for (const templateId of dto.targetTemplateIds) {
+      const row = rowById.get(templateId)
+      if (!row) {
+        skipped.push({ templateId, mode: null, variantKey: null, reason: 'ไม่พบแบบประเมินนี้' })
+        continue
+      }
+      const inst = instanceFor(templateId)
+      if (!inst) {
+        skipped.push({ templateId, mode: row.mode, variantKey: row.variantKey, reason: `ไม่พบรายการอ้างอิง "${anchorLabel}" ในแบบประเมินนี้ (ไม่แน่ใจตำแหน่ง)` })
+        continue
+      }
+      if (row.status !== 'DRAFT') {
+        skipped.push({ templateId, mode: row.mode, variantKey: row.variantKey, reason: 'ไม่ใช่เวอร์ชันร่าง — สร้างเวอร์ชันร่างใหม่ก่อน' })
+        continue
+      }
+      resolved.push({ templateId, mode: row.mode as TransportMode, variantKey: row.variantKey, containerCode: inst.intoCode, anchorCode: inst.anchorCode })
+    }
+
+    // facilityCode -> lawRefs/cabinetResolution/beyondLaw, same resolution tagContainers would do —
+    // unless the caller already supplied lawRefs explicitly, which wins.
+    let lawRefs = dto.content.lawRefs
+    let cabinetResolution: boolean | undefined
+    let beyondLaw: boolean | undefined
+    if (dto.content.facilityCode !== undefined) {
+      const entry = FACILITY_CATALOG.find((e) => e.code === dto.content.facilityCode)
+      if (!entry) throw new BadRequestException(`unknown facilityCode ${dto.content.facilityCode}`)
+      if (!lawRefs) lawRefs = [...entry.lawRefs]
+      cabinetResolution = entry.cabinetResolution
+      beyondLaw = entry.beyondLaw
+    }
+
+    if (!dto.confirm) {
+      return { correlationId: null as string | null, wroteCount: 0, resolved, skipped }
+    }
+    if (resolved.length === 0) {
+      throw new BadRequestException('ไม่มีเป้าหมายที่เขียนได้ — ทุกแบบประเมินถูกข้าม ดูเหตุผลใน skipped[]')
+    }
+
+    const correlationId = randomUUID()
+    const written: AddAndPlaceResolved[] = []
+    for (const target of resolved) {
+      const code = await this.writeStructuralAdd(target.templateId, actorId, correlationId, {
+        containerCode: target.containerCode,
+        anchorCode: target.anchorCode,
+        side: dto.side,
+        content: { ...dto.content, lawRefs, cabinetResolution, beyondLaw },
+      })
+      written.push({ ...target, code })
+    }
+
+    return { correlationId: correlationId as string | null, wroteCount: written.length, resolved: written, skipped }
+  }
+
+  // Structural-add write for ONE target, gated exactly like TemplatesAdminService#applyStructuralEdit
+  // (DRAFT-only — a bare ForbiddenException with the same error code so the frontend can render the
+  // same message it already has for that gate). Kept local to this service rather than reused from
+  // TemplatesAdminService since that service has no notion of a fan-out correlationId.
+  private async writeStructuralAdd(
+    templateId: string,
+    actorId: string,
+    correlationId: string,
+    spec: { containerCode: string; anchorCode: string; side: 'before' | 'after'; content: core.AddPositionedChildPatch },
+  ): Promise<string> {
+    const row = await this.prisma.checklistTemplate.findUnique({ where: { id: templateId } })
+    if (!row) throw new NotFoundException(`template ${templateId} not found`)
+    if (row.status !== 'DRAFT') {
+      throw new ForbiddenException({ code: 'STRUCTURE_EDIT_REQUIRES_DRAFT', message: 'โครงสร้างแก้ไขได้ในเวอร์ชันร่างเท่านั้น' })
+    }
+    const def = row.definition as unknown as ChecklistTemplateDefinition
+
+    let result: { definition: ChecklistTemplateDefinition; code: string }
+    try {
+      result = core.addPositionedChildNode(def, spec.containerCode, spec.anchorCode, spec.side, spec.content)
+    } catch (err) {
+      if (err instanceof TemplateEditError || err instanceof ChecklistTemplateValidationError) {
+        throw new BadRequestException(`${templateId}: ${(err as Error).message}`)
+      }
+      throw err
+    }
+
+    await this.prisma.checklistTemplate.update({
+      where: { id: templateId },
+      data: { definition: result.definition as unknown as Prisma.InputJsonValue },
+    })
+
+    await this.auditLog.log({
+      userId: actorId,
+      action: TEMPLATE_GROUPED_ADD,
+      entityType: 'ChecklistTemplate',
+      entityId: templateId,
+      before: { correlationId, containerCode: spec.containerCode, anchorCode: spec.anchorCode, side: spec.side },
+      after: { correlationId, newCode: result.code, labelTh: spec.content.labelTh },
+    })
+
+    return result.code
+  }
+
   async getGroupedReviewQueue(scope: VersionScope) {
     const { result } = await this.computeGroups(scope)
     const rows: {
       canonicalItemId: string
       containerGroupId: string
       labelTh: string
+      // Fix 2 — a representative code (lowest by the frontend's natural-sort order among the
+      // instances carrying this measurement) so the queue can be read/sorted in checklist order
+      // instead of grouping-engine order; purely a display aid, never used to identify a write
+      // target (propagation still fans out to every instance via canonicalItemId, unchanged).
+      sampleNodeCode: string
       measurementKey: string
       operator: string
       unit: string
@@ -354,6 +524,7 @@ export class FacilityGroupsService {
           canonicalItemId: item.id,
           containerGroupId: item.containerGroupId,
           labelTh: item.labelTh,
+          sampleNodeCode: unconfirmed[0]!.nodeCode,
           measurementKey: key,
           operator: sample.operator,
           unit: sample.unit,

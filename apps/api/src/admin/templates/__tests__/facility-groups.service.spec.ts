@@ -225,4 +225,117 @@ describe('FacilityGroupsService', () => {
     expect(row!.instanceCount).toBe(2)
     expect(row!.unconfirmedCount).toBe(2)
   })
+
+  // Session S4b-fix, Fix 3 — add-and-place.
+  describe('addAndPlace', () => {
+    async function resolveTargets() {
+      const groups = await service.getGroups({ kind: 'exact', version: 3 })
+      const group = groups.containerGroups.find((g) => g.labelTh === 'ทางลาดสำหรับคนพิการ')!
+      const anchor = groups.canonicalItems.find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
+      return { group, anchor }
+    }
+
+    it('confirm:false previews both targets with no writes', async () => {
+      const { anchor } = await resolveTargets()
+      const result = await service.addAndPlace(
+        { kind: 'exact', version: 3 },
+        {
+          anchorItemId: anchor.id,
+          side: 'before',
+          targetTemplateIds: [LAND_ROW.id, WATER_ROW.id],
+          content: { labelTh: 'ถังขยะแบบยกเคลื่อนที่ได้', type: 'presence', facilityCode: 27 },
+          confirm: false,
+        },
+        'admin1',
+      )
+      expect(result.wroteCount).toBe(0)
+      expect(result.resolved).toHaveLength(2)
+      expect(result.skipped).toHaveLength(0)
+      expect(update).not.toHaveBeenCalled()
+    })
+
+    it('confirm:true writes both targets, shares one correlationId, assigns distinct new codes, and stamps facilityCode/lawRefs from the catalog', async () => {
+      const { anchor } = await resolveTargets()
+      const result = await service.addAndPlace(
+        { kind: 'exact', version: 3 },
+        {
+          anchorItemId: anchor.id,
+          side: 'before',
+          targetTemplateIds: [LAND_ROW.id, WATER_ROW.id],
+          content: { labelTh: 'ถังขยะแบบยกเคลื่อนที่ได้', type: 'presence', facilityCode: 27 },
+          confirm: true,
+        },
+        'admin1',
+      )
+      expect(result.wroteCount).toBe(2)
+      expect(update).toHaveBeenCalledTimes(2)
+      // Both fixtures share identical existing structure (A1.1-1, A1.1-2), so both independently
+      // compute the SAME next free code ("A1.1-3") — that's correct, not a collision: each
+      // template's code is derived from ONLY that template's own existing siblings (see
+      // addPositionedChildNode's doc). The invariant that matters is per-template, not global.
+      for (const r of result.resolved) {
+        expect(r.code).toBeTruthy()
+        expect(r.code).not.toBe('A1.1-1')
+        expect(r.code).not.toBe('A1.1-2')
+      }
+      for (const call of auditLog.mock.calls) expect(call[0].action).toBe('TEMPLATE_GROUPED_ADD')
+      const correlationIds = auditLog.mock.calls.map((c) => (c[0].before as { correlationId: string }).correlationId)
+      expect(new Set(correlationIds).size).toBe(1)
+      expect(correlationIds[0]).toBe(result.correlationId)
+
+      for (const call of update.mock.calls) {
+        const container = call[0].data.definition.groups[0].items[0]
+        const inserted = container.subItems.find((n: { labelTh: string }) => n.labelTh === 'ถังขยะแบบยกเคลื่อนที่ได้')
+        expect(inserted.facilityCode).toBe(27)
+        expect(inserted.lawRefs).toEqual(['PSD_2555'])
+        expect(container.subItems[0].code).toBe(inserted.code) // inserted BEFORE the anchor -> first position
+      }
+    })
+
+    it('an unknown target templateId is skipped and reported, the valid target still writes', async () => {
+      const { anchor } = await resolveTargets()
+      const result = await service.addAndPlace(
+        { kind: 'exact', version: 3 },
+        {
+          anchorItemId: anchor.id,
+          side: 'after',
+          targetTemplateIds: [LAND_ROW.id, 'does-not-exist'],
+          content: { labelTh: 'x', type: 'presence' },
+          confirm: true,
+        },
+        'admin1',
+      )
+      expect(result.wroteCount).toBe(1)
+      expect(result.skipped).toHaveLength(1)
+      expect(result.skipped[0]!.templateId).toBe('does-not-exist')
+      expect(result.skipped[0]!.reason).toContain('ไม่พบแบบประเมิน')
+    })
+
+    it('a target whose template row is not DRAFT is skipped, never silently written', async () => {
+      // Three findMany calls happen in sequence: resolveTargets()'s own getGroups (1), addAndPlace's
+      // internal computeGroups (2), then addAndPlace's own rowById lookup (3) — only the LAST one's
+      // status is what the DRAFT gate actually reads (see addAndPlace's doc), so only it needs the
+      // ACTIVE override; the first two just need normal, resolvable rows.
+      findMany
+        .mockResolvedValueOnce([LAND_ROW, WATER_ROW])
+        .mockResolvedValueOnce([LAND_ROW, WATER_ROW])
+        .mockResolvedValueOnce([LAND_ROW, { ...WATER_ROW, status: 'ACTIVE' }])
+      const { anchor } = await resolveTargets()
+      const result = await service.addAndPlace(
+        { kind: 'exact', version: 3 },
+        {
+          anchorItemId: anchor.id,
+          side: 'before',
+          targetTemplateIds: [LAND_ROW.id, WATER_ROW.id],
+          content: { labelTh: 'x', type: 'presence' },
+          confirm: true,
+        },
+        'admin1',
+      )
+      expect(result.wroteCount).toBe(1)
+      expect(result.skipped).toHaveLength(1)
+      expect(result.skipped[0]!.templateId).toBe(WATER_ROW.id)
+      expect(result.skipped[0]!.reason).toContain('ไม่ใช่เวอร์ชันร่าง')
+    })
+  })
 })

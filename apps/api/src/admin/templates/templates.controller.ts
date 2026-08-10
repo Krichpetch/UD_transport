@@ -27,6 +27,7 @@ import { EditLawRefsDto } from './dto/edit-law-refs.dto'
 import { EditLabelDto } from './dto/edit-label.dto'
 import { ActivateTemplateDto } from './dto/activate-template.dto'
 import { EditHiddenDto } from './dto/edit-hidden.dto'
+import { EditStandaloneDto } from './dto/edit-standalone.dto'
 
 interface AuthRequest extends Request {
   user: { id: string; username: string; role: string }
@@ -255,5 +256,18 @@ export class TemplatesAdminController {
   ) {
     if (req.user.role !== 'ADMIN') throw new ForbiddenException()
     return this.templates.editHidden(id, nodeCode, body, req.user.id)
+  }
+
+  // ---- Session S4b-fix, Fix 4 — detach/re-attach a leaf from the grouped editor's pooling. ----
+
+  @Patch(':id/nodes/:nodeCode/standalone')
+  editStandalone(
+    @Param('id') id: string,
+    @Param('nodeCode') nodeCode: string,
+    @Body() body: EditStandaloneDto,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.templates.editStandalone(id, nodeCode, body, req.user.id)
   }
 }

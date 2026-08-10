@@ -13,6 +13,7 @@ import {
   useReorderNode,
   useSetQuestionType,
 } from '@/hooks/use-templates-admin'
+import { OPERATOR_LABEL } from '@/lib/template-format'
 
 // Session S3b, Part C follow-up (live feedback) — the question text itself. `code` stays locked
 // (see templates.core.ts#editNodeLabel's doc) — only labelTh/num are editable here.
@@ -68,9 +69,6 @@ function countLeaves(node: TemplateNode): number {
 }
 
 const OPERATORS: ThresholdOperator[] = ['gte', 'lte', 'range', 'tiered']
-const OPERATOR_LABEL: Record<ThresholdOperator, string> = {
-  gte: 'ไม่น้อยกว่า (gte)', lte: 'ไม่เกิน (lte)', range: 'ช่วง (range)', tiered: 'ตารางขั้นบันได (tiered)',
-}
 
 // Session S3b, Part C.3 — the new-measurement (threshold creation) form: anchor + operator +
 // value(s)/tiers + unit. Simpler than MeasurementEditor's era-fork section since a brand-new
