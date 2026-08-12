@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, ListChecks, Plus } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, ChevronUp, ListChecks, Plus } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
 import { useFacilityGroups } from '@/hooks/use-facility-groups'
 import { ClassificationBadge, ConflictBadge } from '@/components/admin/templates/GroupedItemBadges'
@@ -10,8 +10,7 @@ import { InstanceBreakdownChips } from '@/components/admin/templates/InstanceBre
 import { GroupedItemEditDialog } from '@/components/admin/templates/GroupedItemEditDialog'
 import { AddAndPlaceDialog } from '@/components/admin/templates/AddAndPlaceDialog'
 import { describeAnswerSpec } from '@/lib/template-format'
-import { sortByNodeCode } from '@/lib/template-code-order'
-import type { CanonicalItemRow } from '@/lib/api/facility-groups'
+import { flattenLeafNodes, type GroupNodeRow } from '@/lib/api/facility-groups'
 
 // Session S4b, Part 3.1 — browse the facility-grouped view of the v3 template candidates.
 // Hardcoded to version 3: the whole grouped-editor feature (facility-type-redundancy-report.md)
@@ -19,6 +18,15 @@ import type { CanonicalItemRow } from '@/lib/api/facility-groups'
 // — see the session brief's "Out of scope" list. (Part 5 added a VersionScope capability to the
 // API for retirement-planning comparisons, but the EDITOR itself stays pinned to v3.)
 const VERSION = 3
+
+// Session S5-fix (round 5) — same column-grid shape the station checklist page
+// (stations/[id]/page.tsx#ChecklistRow) uses: one fixed grid template shared by the header row
+// and every data row, so columns stay aligned regardless of a row's depth in the tree (hierarchy
+// is expressed INSIDE the "รายการ" cell via indent + chevron, never by shifting the whole row).
+// Session S5-fix (round 6) — รหัส widened (real node codes like "B6.10-4.8" were wrapping onto a
+// second line in the old 3.5rem column); ใช้ร่วมกัน narrowed to match InstanceBreakdownChips'
+// new single-badge-plus-tooltip rendering, which no longer needs the old multi-chip width.
+const TABLE_GRID_COLS = 'grid-cols-[6rem_1fr_7rem_9rem_11rem]'
 
 export default function TemplateGroupsPage() {
   return (
@@ -28,19 +36,33 @@ export default function TemplateGroupsPage() {
   )
 }
 
+function byDocOrder(a: GroupNodeRow, b: GroupNodeRow): number {
+  return a.sortKey - b.sortKey
+}
+
+// Session S5-fix (round 3) — depth-0 groups sort by their FACILITY_CATALOG number (1-33,
+// @repo/types), not by document position or id: "ประตูสำหรับคนพิการ" (1) before "ทางลาด" (3)
+// before "ห้องน้ำสำหรับคนพิการ" (9), etc., matching the source catalog's own ordering. A group
+// with no facilityCode tag at all sorts to the bottom, after every tagged one — never guessed at.
+function byFacilityCatalogOrder(a: GroupNodeRow, b: GroupNodeRow): number {
+  const aCode = a.facilityCode ?? Infinity
+  const bCode = b.facilityCode ?? Infinity
+  if (aCode !== bCode) return aCode - bCode
+  return byDocOrder(a, b)
+}
+
+function countLeaves(node: GroupNodeRow): number {
+  return node.children.reduce((sum, c) => sum + countLeaves(c), 0) + (node.isLeaf ? 1 : 0)
+}
+
 function TemplateGroupsContent() {
   const { data, isLoading, error } = useFacilityGroups(VERSION)
-  const [expanded, setExpanded] = React.useState<Set<string>>(new Set())
-  const [editing, setEditing] = React.useState<CanonicalItemRow | null>(null)
+  const [editing, setEditing] = React.useState<GroupNodeRow | null>(null)
   const [addingNew, setAddingNew] = React.useState(false)
+  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({})
 
-  function toggle(groupId: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(groupId)) next.delete(groupId)
-      else next.add(groupId)
-      return next
-    })
+  function toggleGroup(id: string) {
+    setOpenGroups((cur) => ({ ...cur, [id]: !(cur[id] ?? false) }))
   }
 
   if (isLoading) return <div className="text-muted-foreground flex items-center justify-center p-16 text-sm">กำลังโหลด…</div>
@@ -52,12 +74,8 @@ function TemplateGroupsContent() {
     )
   }
 
-  const itemsByGroup = new Map<string, CanonicalItemRow[]>()
-  for (const item of data.canonicalItems) {
-    if (!itemsByGroup.has(item.containerGroupId)) itemsByGroup.set(item.containerGroupId, [])
-    itemsByGroup.get(item.containerGroupId)!.push(item)
-  }
-  const conflictCount = data.canonicalItems.filter((it) => it.hasConflict && !it.conflictAcknowledged).length
+  const roots = [...data.containerGroups].sort(byFacilityCatalogOrder)
+  const conflictCount = flattenLeafNodes(data.containerGroups).filter((it) => it.hasConflict && !it.conflictAcknowledged).length
 
   return (
     <div className="space-y-4">
@@ -68,7 +86,7 @@ function TemplateGroupsContent() {
           </Link>
           <div>
             <h1 className="text-foreground text-xl font-bold">แก้ไขตามกลุ่มสิ่งอำนวยความสะดวก</h1>
-            <p className="text-muted-foreground text-sm">แก้ไขรายการที่ซ้ำกันข้ามแบบประเมินครั้งเดียว แล้วเผยแพร่ไปยังทุกจุดที่ใช้ร่วมกัน</p>
+            <p className="text-muted-foreground text-sm">แก้ไขรายการที่ซ้ำกันข้ามแบบประเมินครั้งเดียว แล้วเผยแพร่ไปยังทุกจุดที่ใช้ร่วมกัน — เหมือนหน้าแก้ไขทีละแบบประเมิน แต่แก้ครั้งเดียวได้ทุกจุด</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -106,80 +124,165 @@ function TemplateGroupsContent() {
         <StatCard label="ลดงานแก้ไขลง" value={`${Math.round((1 - data.stats.editUnits / data.stats.totalLeaves) * 100)}%`} />
       </div>
 
-      <div className="space-y-2">
-        {[...itemsByGroup.entries()]
-          .sort((a, b) => b[1].length - a[1].length)
-          .map(([groupId, items]) => {
-            const group = data.containerGroups.find((g) => g.id === groupId)!
-            const isOpen = expanded.has(groupId)
-            const sharedCount = items.filter((it) => it.classification === 'SHARED').length
-            const conflicted = items.filter((it) => it.hasConflict).length
-            return (
-              <div key={groupId} className="bg-card border-border rounded-xl border">
-                <button type="button" onClick={() => toggle(groupId)} className="flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3.5 text-left">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                    <span className="text-foreground text-base font-semibold">{group.labelTh}</span>
-                    {!group.facilityTagged && (
-                      <span className="bg-secondary text-muted-foreground rounded-full px-2 py-0.5 text-xs">ไม่มีหมวดหมู่สิ่งอำนวยความสะดวก</span>
-                    )}
-                    <InstanceBreakdownChips breakdown={group.breakdown} compact />
-                  </div>
-                  <div className="flex items-center gap-2.5 text-sm">
-                    <span className="text-muted-foreground">{items.length} รายการ ({sharedCount} ใช้ร่วมกัน)</span>
-                    {conflicted > 0 && <span className="font-medium text-red-600">{conflicted} ขัดแย้ง</span>}
-                  </div>
-                </button>
-                {isOpen && (
-                  <div className="border-border divide-border divide-y border-t">
-                    {sortByNodeCode(items, (item) => item.instances[0]?.nodeCode ?? '').map((item) => (
-                      <div key={item.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 font-mono text-[10px]">
-                              {item.instances[0]?.nodeCode}
-                            </span>
-                            <p className="text-foreground truncate text-sm">{item.labelTh}</p>
-                          </div>
-                          <p className="text-muted-foreground mt-0.5 text-xs">
-                            {describeAnswerSpec(item.instances[0]?.answerType, item.instances[0]?.measurements ?? [])}
-                          </p>
-                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                            <ClassificationBadge item={item} />
-                            <ConflictBadge item={item} />
-                            <InstanceBreakdownChips breakdown={item.breakdown} compact />
-                          </div>
-                        </div>
-                        {item.propagatable ? (
-                          <button
-                            type="button"
-                            onClick={() => setEditing(item)}
-                            className="border-border hover:bg-secondary/60 shrink-0 rounded-lg border px-3 py-1.5 text-sm font-medium"
-                          >
-                            แก้ไข & เผยแพร่
-                          </button>
-                        ) : item.hasConflict ? (
-                          <Link
-                            href="/admin/templates/groups/conflicts"
-                            className="shrink-0 rounded-lg bg-red-500/10 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-500/20"
-                          >
-                            แก้ไขความขัดแย้งก่อน
-                          </Link>
-                        ) : (
-                          <span className="text-muted-foreground shrink-0 text-sm">แก้ไขทีละแบบประเมิน</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+      <div className="space-y-3">
+        {roots.map((root, i) => {
+          const isOpen = openGroups[root.id] ?? false
+          const leafCount = countLeaves(root)
+          return (
+            <div key={root.id} className="bg-card border-border overflow-hidden rounded-xl border">
+              {/* Session S5-fix (round 5) — the "dropdown group" header, one per main facility
+                  type, kept exactly like stations/[id]/page.tsx's own group header: a single
+                  clickable bar that toggles the table below open/closed. The top-level node is
+                  still a real editable entity here (round 2) — its own "แก้ไข & เผยแพร่" button
+                  sits inside the same header as a SIBLING, stopPropagation'd, never nested inside
+                  the toggle (an interactive element inside a <button> is invalid HTML and breaks
+                  on hydration — the header itself is a div with button semantics instead). */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => toggleGroup(root.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    toggleGroup(root.id)
+                  }
+                }}
+                className="bg-secondary/40 hover:bg-secondary/60 flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3 text-left transition-colors"
+              >
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="text-foreground shrink-0 text-sm font-bold">{i + 1}.</span>
+                  <span className="text-foreground text-sm font-semibold">{root.labelTh}</span>
+                  {!root.facilityTagged && (
+                    <span className="bg-secondary text-muted-foreground rounded-full px-2 py-0.5 text-xs">ไม่มีหมวดหมู่สิ่งอำนวยความสะดวก</span>
+                  )}
+                  <span className="text-muted-foreground text-xs">({leafCount} รายการ)</span>
+                  <InstanceBreakdownChips breakdown={root.breakdown} compact />
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {root.hasConflict && <ConflictBadge item={root} />}
+                  {root.propagatable && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setEditing(root)
+                      }}
+                      className="border-border bg-card hover:bg-secondary/60 rounded-lg border px-3 py-1.5 text-xs font-medium"
+                    >
+                      แก้ไข & เผยแพร่
+                    </button>
+                  )}
+                  {isOpen ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
+                </div>
               </div>
-            )
-          })}
+
+              {isOpen && (
+                <>
+                  <TableHeaderRow />
+                  {[...root.children].sort(byDocOrder).map((child) => (
+                    <TableRow key={child.id} node={child} depth={1} onEdit={setEditing} />
+                  ))}
+                  {root.children.length === 0 && (
+                    <div className="text-muted-foreground px-4 py-3 text-sm">รายการนี้ไม่มีรายการย่อย</div>
+                  )}
+                </>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       <GroupedItemEditDialog version={VERSION} item={editing} onClose={() => setEditing(null)} />
-      {addingNew && data && (
-        <AddAndPlaceDialog version={VERSION} groups={data.containerGroups} items={data.canonicalItems} onClose={() => setAddingNew(false)} />
+      {addingNew && data && <AddAndPlaceDialog version={VERSION} roots={data.containerGroups} onClose={() => setAddingNew(false)} />}
+    </div>
+  )
+}
+
+function TableHeaderRow() {
+  return (
+    <div className={`border-border bg-secondary/20 grid ${TABLE_GRID_COLS} border-b`}>
+      {['รหัส', 'รายการ', 'ใช้ร่วมกัน', 'สถานะ', 'การดำเนินการ'].map((label) => (
+        <div key={label} className="text-muted-foreground px-3 py-2 text-[10px] font-medium tracking-wide uppercase">
+          {label}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Session S5-fix (round 5) — one table row per node, ANY depth: mirrors TemplateTree.tsx's own
+// "every node is selectable, chevron is its own click target" pattern, now laid out in the same
+// grid-column format as the station checklist table instead of a stacked card. A container's own
+// length-tier sub-groups (e.g. the ramp's ≤2500mm/2500-6000mm/≥6000mm cases) still render as their
+// own expandable rows — hierarchy lives entirely inside the "รายการ" cell (indent + chevron), so
+// the รหัส/ใช้ร่วมกัน/สถานะ/การดำเนินการ columns stay aligned no matter how deep a row sits.
+function TableRow({ node, depth, onEdit }: { node: GroupNodeRow; depth: number; onEdit: (n: GroupNodeRow) => void }) {
+  const [open, setOpen] = React.useState(true)
+  const hasChildren = node.children.length > 0
+  const sortedChildren = React.useMemo(() => [...node.children].sort(byDocOrder), [node.children])
+  const representative = node.instances[0]
+
+  return (
+    <div>
+      <div className={`border-border grid ${TABLE_GRID_COLS} items-center border-b last:border-0`}>
+        <div className="px-2 py-2.5">
+          {representative && (
+            <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 font-mono text-[10px] whitespace-nowrap">{representative.nodeCode}</span>
+          )}
+        </div>
+
+        <div className="flex min-w-0 items-start gap-1.5 py-2.5 pr-3" style={{ paddingLeft: `${depth * 20 + 12}px` }}>
+          {hasChildren ? (
+            <button type="button" onClick={() => setOpen((o) => !o)} className="hover:bg-secondary mt-0.5 shrink-0 rounded p-0.5">
+              <ChevronRight size={14} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
+            </button>
+          ) : (
+            <span className="w-[22px] shrink-0" />
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-foreground text-sm leading-snug">{node.labelTh}</p>
+            {node.isLeaf && representative && (
+              <p className="text-muted-foreground mt-0.5 text-xs">{describeAnswerSpec(representative.answerType, representative.measurements)}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="px-3 py-2.5">
+          <InstanceBreakdownChips breakdown={node.breakdown} compact />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1 px-3 py-2.5">
+          <ClassificationBadge item={node} />
+          <ConflictBadge item={node} />
+        </div>
+
+        <div className="px-3 py-2.5">
+          {node.propagatable ? (
+            <button
+              type="button"
+              onClick={() => onEdit(node)}
+              className="border-border hover:bg-secondary/60 rounded-lg border px-3 py-1.5 text-xs font-medium"
+            >
+              แก้ไข & เผยแพร่
+            </button>
+          ) : node.hasConflict ? (
+            <Link
+              href="/admin/templates/groups/conflicts"
+              className="rounded-lg bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-500/20"
+            >
+              แก้ไขความขัดแย้งก่อน
+            </Link>
+          ) : (
+            <span className="text-muted-foreground text-xs">แก้ไขทีละแบบประเมิน</span>
+          )}
+        </div>
+      </div>
+      {hasChildren && open && (
+        <div>
+          {sortedChildren.map((child) => (
+            <TableRow key={child.id} node={child} depth={depth + 1} onEdit={onEdit} />
+          ))}
+        </div>
       )}
     </div>
   )

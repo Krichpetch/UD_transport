@@ -7,13 +7,14 @@ import { Layers, Loader2, Unlink } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { DIALOG_HEADER_CLS, DIALOG_TITLE_CLS } from '@/lib/ui-classes'
 import { useEditStandalone } from '@/hooks/use-templates-admin'
-import type { CanonicalItemRow } from '@/lib/api/facility-groups'
+import type { GroupNodeRow } from '@/lib/api/facility-groups'
 import { MeasurementEditor } from './MeasurementEditor'
 import { TemplateNodeImages } from './TemplateNodeImages'
 import { GuidanceEditor } from './GuidanceEditor'
 import { LawRefsEditor } from './LawRefsEditor'
 import { HiddenToggle } from './HiddenToggle'
 import { StructuralEditor } from './StructuralEditor'
+import { MasterAttachedBanner } from './MasterAttachedBanner'
 
 // Session S4b-fix, Fix 4 — provenance banner: tells the admin this node's text is shared with
 // other templates via the grouped editor BEFORE they edit it here in isolation, and offers the
@@ -29,7 +30,7 @@ function GroupProvenanceBanner({
 }: {
   templateId: string
   node: TemplateNode
-  groupMembership: CanonicalItemRow | null
+  groupMembership: GroupNodeRow | null
   readOnly: boolean
 }) {
   const editStandalone = useEditStandalone(templateId)
@@ -96,7 +97,7 @@ export function TemplateNodeEditorDialog({
   stampedChecklistCount: number
   node: TemplateNode | null
   breadcrumb: string[]
-  groupMembership?: CanonicalItemRow | null
+  groupMembership?: GroupNodeRow | null
   onClose: () => void
 }) {
   // Part B.4 — "no silent re-grades": editing a measurement on an ACTIVE template requires an
@@ -129,6 +130,7 @@ export function TemplateNodeEditorDialog({
                 </div>
               )}
 
+              <MasterAttachedBanner templateId={templateId} node={node} readOnly={retired} />
               <GroupProvenanceBanner templateId={templateId} node={node} groupMembership={groupMembership ?? null} readOnly={retired} />
 
               {!node.answerType && (

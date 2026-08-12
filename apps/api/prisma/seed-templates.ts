@@ -34,6 +34,8 @@ import {
   OPTIONAL_GROUP_CODES,
   tagLeaves,
   tagContainers,
+  parseMasterCriteriaBlock,
+  type MasterCriterionExport,
 } from '@repo/types'
 import { V1_TEMPLATE_GROUPS } from './v1-template-groups'
 
@@ -228,15 +230,19 @@ function buildV1Definition(mode: Mode): ChecklistTemplateDefinition {
   return { schemaVersion: 1, mode, provisional: false, groups }
 }
 
-// 2026-08-06 — `status` is deliberately absent from `update`, present only in `create`. Found via
-// a real report: an admin activated rail_metro v3, then a later reseed silently reset it back to
-// DRAFT — because this upsert used to write `status` unconditionally on EVERY run, from the
-// caller's hardcoded per-version default (v1→ACTIVE, v2/v3→DRAFT, always). That default is only
-// correct for a row's very first insert; once a row exists, its status is an ADMIN DECISION
-// (activateTemplate.ts / the admin activate endpoint / a manual retirement) that seeding has no
-// business overwriting — seeding's job is refreshing CONTENT, never making activation calls. This
-// bug was silent and total: it affected every mode, not just rail, and would have reverted
-// tomorrow's activation the moment anyone reseeded afterward for any reason.
+// Session S5, Part 0 — SOURCE-OF-TRUTH INVERSION. During this pilot the DATABASE is canonical, not
+// the tools/checklist_json/ files: this function used to REBUILD `definition` unconditionally on
+// every run (the `update` branch below wrote `definition`+`notes` no matter what), discarding any
+// admin-authored state not captured by restore-template-approvals.ts's narrow allowlist — the
+// entire reason that script and dump-template-backup.ts exist. That model is now local-dev-only.
+//
+// A populated row (mode, variantKey, version already exists) is left COMPLETELY untouched —
+// definition, notes, status, and every admin edit/confirmation/masterId link inside it — unless
+// `force` is explicitly passed, in which case it's overwritten with a printed warning naming
+// exactly what's being replaced. Result: running this on a populated DB (including a real deploy
+// target) is a safe no-op; a fresh/empty DB still seeds fully, since every row is a first-time
+// create there. `status` stays create-only even under `force` — reactivating/retiring is always an
+// admin decision (2026-08-06 fix above), never something a forced reseed should touch either.
 async function upsertTemplate(
   mode: Mode,
   variantKey: string,
@@ -244,15 +250,80 @@ async function upsertTemplate(
   status: 'ACTIVE' | 'DRAFT',
   def: ChecklistTemplateDefinition,
   notes: string,
-) {
-  await prisma.checklistTemplate.upsert({
+  force: boolean,
+): Promise<'created' | 'skipped' | 'forced'> {
+  const existing = await prisma.checklistTemplate.findUnique({
     where: { mode_variantKey_version: { mode, variantKey, version } },
-    update: { definition: def as unknown as Prisma.InputJsonValue, notes },
-    create: { mode, variantKey, version, status, definition: def as unknown as Prisma.InputJsonValue, notes },
   })
+
+  if (existing && !force) return 'skipped'
+
+  if (existing && force) {
+    console.warn(
+      `⚠ --force: overwriting ${mode} ${variantKey} v${version} (row ${existing.id}, currently ${existing.status}) — ` +
+        `definition/notes will be replaced from tools/checklist_json/; any admin edit not captured by ` +
+        `restore-template-approvals.ts (or a masterId link not present in this file's masterCriteria block) will be lost.`,
+    )
+    await prisma.checklistTemplate.update({
+      where: { id: existing.id },
+      data: { definition: def as unknown as Prisma.InputJsonValue, notes },
+    })
+    return 'forced'
+  }
+
+  await prisma.checklistTemplate.create({
+    data: { mode, variantKey, version, status, definition: def as unknown as Prisma.InputJsonValue, notes },
+  })
+  return 'created'
+}
+
+// Session S5, Part 1 — the import side of the export/import round-trip: recreates MasterCriterion
+// rows from a template file's `masterCriteria` sibling block. Same idempotent-unless-force policy
+// as upsertTemplate, applied per master row (keyed by its own `id`, independent of which template
+// file it was read from) — two v3 files that both reference the SAME master (the whole point of a
+// shared criterion) each try to create it; the second becomes a no-op skip rather than a conflict.
+async function upsertMasterCriteria(entries: MasterCriterionExport[], force: boolean, report: string[]): Promise<void> {
+  if (entries.length === 0) return
+  let created = 0
+  let skipped = 0
+  let forced = 0
+  for (const m of entries) {
+    const existing = await prisma.masterCriterion.findUnique({ where: { id: m.id } })
+    if (existing && !force) {
+      skipped++
+      continue
+    }
+    const data = {
+      labelTh: m.labelTh,
+      answerType: m.answerType ?? null,
+      measurements: (m.measurements as unknown as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+      guidance: (m.guidance as unknown as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+      imageKeys: m.imageKeys ?? [],
+      lawRefs: m.lawRefs ?? [],
+      cabinetResolution: m.cabinetResolution ?? null,
+      beyondLaw: m.beyondLaw ?? null,
+      facilityCode: m.facilityCode ?? null,
+      updatedBy: m.updatedBy ?? null,
+    }
+    if (existing) {
+      console.warn(`⚠ --force: overwriting existing MasterCriterion ${m.id} ("${m.labelTh}")`)
+      await prisma.masterCriterion.update({ where: { id: m.id }, data })
+      forced++
+    } else {
+      await prisma.masterCriterion.create({ data: { id: m.id, ...data } })
+      created++
+    }
+  }
+  report.push(`  masterCriteria: ${created} created, ${forced} forced, ${skipped} skipped (of ${entries.length} referenced)`)
 }
 
 async function main() {
+  // Session S5, Part 0 — the ONLY way to overwrite a row that already exists. Absent, every
+  // upsertTemplate/upsertMasterCriteria call is a pure create-if-absent no-op against a populated
+  // DB (the deploy-safety guarantee); passed, every existing row this run touches is replaced,
+  // loudly, one warning line per row (see upsertTemplate's doc).
+  const FORCE = process.argv.includes('--force')
+
   const report: string[] = []
   // Session F3, Part G.1 — collected separately from `report` so declared-but-missing override
   // files are re-printed as a block at the very end. Inline warnings scroll past in a seed run
@@ -278,8 +349,12 @@ async function main() {
     const v1optional = markOptionalGroups(v1def)
     // v1 is NOT split by variant (Session E3, Part A decision) — the live parity anchor stays at
     // variantKey='standard' for every mode, rail included, until v2 activation.
-    await upsertTemplate(mode, STANDARD_VARIANT_KEY, 1, 'ACTIVE', v1def, 'v1 parity anchor — item-for-item, code-for-code with the pre-E1 in-code form (apps/web/lib/constants.ts)')
-    report.push(`v1 ${mode}: ${v1stats.total} items, ${v1stats.tagged}/${v1stats.total} facility-tagged, ${v1optional} optional group(s)`)
+    const v1Outcome = await upsertTemplate(
+      mode, STANDARD_VARIANT_KEY, 1, 'ACTIVE', v1def,
+      'v1 parity anchor — item-for-item, code-for-code with the pre-E1 in-code form (apps/web/lib/constants.ts)',
+      FORCE,
+    )
+    report.push(`v1 ${mode} [${v1Outcome}]: ${v1stats.total} items, ${v1stats.tagged}/${v1stats.total} facility-tagged, ${v1optional} optional group(s)`)
     if (v1stats.unmatched.length) report.push(`  v1 ${mode} unmatched: ${v1stats.unmatched.join(' | ')}`)
 
     // v2 DRAFT(s) — one per declared variant; a missing source file is a logged no-op (Session
@@ -301,8 +376,12 @@ async function main() {
 
       const v2stats = tagLeaves(v2def)
       const v2optional = markOptionalGroups(v2def)
-      await upsertTemplate(mode, variant.variantKey, 2, 'DRAFT', v2def, 'PROVISIONAL — see apps/docs/Checklist_Utils/DATA_DICTIONARY_v2.md; NOT activated in Session E1')
-      report.push(`v2 ${mode} [${variant.variantKey}]: ${v2stats.total} leaves, ${v2stats.tagged}/${v2stats.total} facility-tagged, ${v2optional} optional group(s), ${countByLawLeaves(v2def)} byLaw leaf(ves)`)
+      const v2Outcome = await upsertTemplate(
+        mode, variant.variantKey, 2, 'DRAFT', v2def,
+        'PROVISIONAL — see apps/docs/Checklist_Utils/DATA_DICTIONARY_v2.md; NOT activated in Session E1',
+        FORCE,
+      )
+      report.push(`v2 ${mode} [${variant.variantKey}] [${v2Outcome}]: ${v2stats.total} leaves, ${v2stats.tagged}/${v2stats.total} facility-tagged, ${v2optional} optional group(s), ${countByLawLeaves(v2def)} byLaw leaf(ves)`)
       if (v2stats.unmatched.length) {
         report.push(`  v2 ${mode} [${variant.variantKey}] unmatched (${v2stats.unmatched.length}): ${v2stats.unmatched.slice(0, 30).join(' | ')}${v2stats.unmatched.length > 30 ? ' ...' : ''}`)
       }
@@ -326,8 +405,18 @@ async function main() {
       const v3stats = tagContainers(v3def, mode, variant.variantKey)
       const v3optional = markOptionalGroups(v3def)
       const v3hidden = markInitialHidden(v3def)
-      await upsertTemplate(mode, variant.variantKey, 3, 'DRAFT', v3def, 'PROVISIONAL — checklist-migration pipeline candidate; NOT activated')
-      report.push(`v3 ${mode} [${variant.variantKey}]: ${v3stats.total} leaves, ${v3stats.tagged}/${v3stats.total} facility-tagged, ${v3optional} optional group(s), ${countByLawLeaves(v3def)} byLaw leaf(ves)`)
+      const v3Outcome = await upsertTemplate(
+        mode, variant.variantKey, 3, 'DRAFT', v3def,
+        'PROVISIONAL — checklist-migration pipeline candidate; NOT activated',
+        FORCE,
+      )
+      report.push(`v3 ${mode} [${variant.variantKey}] [${v3Outcome}]: ${v3stats.total} leaves, ${v3stats.tagged}/${v3stats.total} facility-tagged, ${v3optional} optional group(s), ${countByLawLeaves(v3def)} byLaw leaf(ves)`)
+      // Session S5, Part 1 — the masterCriteria sibling block (see MasterCriterionExport's doc in
+      // @repo/types). Imported independent of v3Outcome: a template row can be SKIPPED while its
+      // master rows still need creating on a fresh DB (they're a separate resource keyed by their
+      // own id, not owned by any one template row).
+      const masterCriteriaRaw = parseMasterCriteriaBlock((raw as { masterCriteria?: unknown }).masterCriteria)
+      await upsertMasterCriteria(masterCriteriaRaw, FORCE, report)
       report.push(`  v3 ${mode} [${variant.variantKey}] container-level: ${v3stats.containersOverridden} overridden, ${v3stats.containersAutoMatched} auto-matched, ${v3stats.containersFallenBackToLeaf} fell back to per-leaf matching`)
       report.push(`  v3 ${mode} [${variant.variantKey}] hidden (S4a): ${v3hidden.positioningContainers} Positioning container(s), ${v3hidden.warningLeaves} Warning-600 leaf(ves), ${v3hidden.groupCContainers} group-C container(s)/${v3hidden.groupCLeaves} leaves`)
       if (v3stats.unmatched.length) {

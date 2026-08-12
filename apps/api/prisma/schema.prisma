@@ -162,6 +162,32 @@ model ChecklistTemplate {
   @@unique([mode, variantKey, version])
 }
 
+// Session S5, Part A — master/reference criterion nodes for the facility-grouped editor's pilot
+// source-of-truth inversion (see apps/api/src/admin/templates/master-criteria.core.ts's module doc
+// for the full design). A MasterCriterion holds the write-through payload for ONE canonical item
+// shared across N TemplateNode leaves (identified by TemplateNode.masterId, a plain string
+// reference — not a Prisma relation, since TemplateNode lives inside ChecklistTemplate.definition's
+// JSON blob, never a row of its own, same as how LawReference.code is already referenced from
+// inside that JSON without an FK).
+//
+// Deliberately NO code/num/position fields: those stay per-instance always (a master describes
+// CONTENT — what the item asks and requires — never WHERE it sits in any one template's tree).
+model MasterCriterion {
+  id                String   @id @default(cuid())
+  labelTh           String
+  answerType        String?
+  measurements      Json?
+  guidance          Json?
+  imageKeys         String[]
+  lawRefs           String[]
+  cabinetResolution Boolean?
+  beyondLaw         Boolean?
+  facilityCode      Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  updatedBy         String?
+}
+
 // E-form redesign (Session E1, Part A2.1) — PROVISIONAL law registry seeded from the สนข. draft
 // comparison table "Checklist ตามปี" (2566-04 revision). `code` is a stable identifier — do not
 // rename; only nameTh/ministry corrections are expected. effectiveYear is nullable: enforcement

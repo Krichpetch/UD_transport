@@ -6,9 +6,11 @@ import { TemplatesAdminController } from './templates/templates.controller'
 import { TemplatesAdminService } from './templates/templates.service'
 import { FacilityGroupsController } from './templates/facility-groups.controller'
 import { FacilityGroupsService } from './templates/facility-groups.service'
+import { MasterCriteriaController } from './templates/master-criteria.controller'
+import { MasterCriteriaService } from './templates/master-criteria.service'
 
 @Module({
-  controllers: [AdminController, TemplatesAdminController, FacilityGroupsController],
-  providers: [AdminService, ReimportService, TemplatesAdminService, FacilityGroupsService],
+  controllers: [AdminController, TemplatesAdminController, FacilityGroupsController, MasterCriteriaController],
+  providers: [AdminService, ReimportService, TemplatesAdminService, FacilityGroupsService, MasterCriteriaService],
 })
 export class AdminModule {}

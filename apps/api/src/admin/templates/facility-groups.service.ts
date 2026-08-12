@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import type { ChecklistTemplateDefinition, TransportMode } from '@repo/types'
-import { ChecklistTemplateValidationError, FACILITY_CATALOG } from '@repo/types'
+import { ChecklistTemplateValidationError, FACILITY_CATALOG, indexTemplateNodesByCode } from '@repo/types'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditLogService } from '../../audit/audit.service'
 import * as core from './templates.core'
@@ -10,16 +10,60 @@ import { TemplateEditError } from './templates.core'
 import {
   buildFacilityGroups,
   detectConflicts,
+  extendedFieldsAgree,
+  flattenTree,
   isPropagatable,
   type CanonicalItem,
   type FacilityLoadedTemplate,
+  type InstanceBreakdown,
   type ItemConflict,
   type ItemInstance,
   type TemplateRowStatus,
 } from './facility-grouping.core'
+import { pushMasterToInstance, snapshotWriteThroughFields, type MasterCriterionPayload, type WriteThroughFields } from './master-criteria.core'
+import { TEMPLATE_MASTER_CREATE, TEMPLATE_MASTER_EDIT } from './master-criteria.service'
 import type { GroupedEditDto } from './dto/grouped-edit.dto'
 import type { ResolveConflictDto } from './dto/resolve-conflict.dto'
 import type { AddAndPlaceDto } from './dto/add-and-place.dto'
+
+// Json columns need the JsonNull sentinel for "set SQL NULL" — see master-criteria.service.ts's
+// own copy of this helper for why a bare JS null/undefined isn't enough.
+function jsonInput(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
+  return value === null || value === undefined ? Prisma.JsonNull : (value as Prisma.InputJsonValue)
+}
+
+// Normalizes a WriteThroughFields snapshot (optional arrays, TemplateNode-shaped) into a full
+// MasterCriterionPayload (required imageKeys/lawRefs arrays, master-row-shaped) — the same
+// coercion applyMasterToNode's caller-side already assumes (master-criteria.core.ts).
+function toMasterPayload(id: string, fields: WriteThroughFields): MasterCriterionPayload {
+  return {
+    id,
+    labelTh: fields.labelTh,
+    answerType: fields.answerType ?? null,
+    measurements: fields.measurements ?? null,
+    guidance: fields.guidance ?? null,
+    imageKeys: fields.imageKeys ?? [],
+    lawRefs: fields.lawRefs ?? [],
+    cabinetResolution: fields.cabinetResolution ?? null,
+    beyondLaw: fields.beyondLaw ?? null,
+    facilityCode: fields.facilityCode ?? null,
+  }
+}
+
+function masterRowData(payload: MasterCriterionPayload, actorId: string) {
+  return {
+    labelTh: payload.labelTh,
+    answerType: payload.answerType ?? null,
+    measurements: jsonInput(payload.measurements),
+    guidance: jsonInput(payload.guidance),
+    imageKeys: payload.imageKeys,
+    lawRefs: payload.lawRefs,
+    cabinetResolution: payload.cabinetResolution ?? null,
+    beyondLaw: payload.beyondLaw ?? null,
+    facilityCode: payload.facilityCode ?? null,
+    updatedBy: actorId,
+  }
+}
 
 // Session S4b — three audit-action names for the grouped editor, distinct from S3a/S3b's
 // TEMPLATE_THRESHOLD_EDIT/TEMPLATE_STRUCTURE_EDIT/etc (templates.service.ts): every row a
@@ -64,6 +108,32 @@ export interface AddAndPlaceSkipped {
   reason: string
 }
 
+// Session S5-fix (round 2) — the recursive DTO shape getGroups() returns. Declared explicitly
+// (rather than inferred) since a recursive `children: GroupNodeDto[]` needs a named type for
+// TypeScript to resolve the self-reference.
+export interface GroupNodeDto {
+  id: string
+  parentId: string | null
+  depth: number
+  labelTh: string
+  isLeaf: boolean
+  classification: 'SHARED' | 'MODE_SPECIFIC'
+  instanceCount: number
+  breakdown: InstanceBreakdown
+  facilityTagged: boolean
+  // Session S5-fix (round 3) — this node's own FACILITY_CATALOG code (@repo/types), undefined if
+  // untagged. Used by the frontend to sort depth-0 groups by catalog order instead of document
+  // order; untagged groups sort to the bottom.
+  facilityCode?: number
+  masterId?: string
+  sortKey: number
+  instances: ReturnType<typeof toInstanceDto>[]
+  hasConflict: boolean
+  conflictAcknowledged: boolean
+  propagatable: boolean
+  children: GroupNodeDto[]
+}
+
 function toInstanceDto(i: ItemInstance) {
   return {
     templateId: i.templateId,
@@ -71,13 +141,15 @@ function toInstanceDto(i: ItemInstance) {
     variantKey: i.variantKey,
     version: i.version,
     status: i.status,
-    containerCode: i.containerCode,
+    parentCode: i.parentCode,
     nodeCode: i.nodeCode,
     labelTh: i.labelTh,
     // Session S4b follow-up — prefill data for the grouped editor's lawRefs/era/image/hidden
     // forms. Read from THIS instance's own current node (the caller picks which instance to treat
     // as "representative" for prefill, typically instances[0]; every OTHER instance's own value
-    // is available too via this same shape, for a divergence check before propagating).
+    // is available too via this same shape, for a divergence check before propagating). Meaningful
+    // for a container instance too (round 2) — answerType/measurements just come back
+    // empty/undefined, exactly reflecting that this node has nothing of its own to answer.
     answerType: i.node.answerType,
     facilityCode: i.node.facilityCode,
     lawRefs: i.node.lawRefs ?? [],
@@ -136,38 +208,38 @@ export class FacilityGroupsService {
     return { templates, result, conflicts }
   }
 
+  // Session S5-fix (round 2) — the response is now the RECURSIVE tree itself (depth-0 roots, each
+  // carrying its own subtree via `children`), not a flat container-list + flat leaf-list. A leaf
+  // and a container are the same DTO shape (isLeaf discriminates); the frontend renders/edits both
+  // uniformly, matching TemplateTree.tsx's own "every node is selectable" behavior. `sortKey`
+  // orders siblings by where they actually appear in the source checklist, not by id or count.
   async getGroups(scope: VersionScope) {
     const { result, conflicts } = await this.computeGroups(scope)
     const conflictByItem = new Map(conflicts.map((c) => [c.canonicalItemId, c]))
+    const toDto = (node: CanonicalItem): GroupNodeDto => {
+      return {
+        id: node.id,
+        parentId: node.parentId,
+        depth: node.depth,
+        labelTh: node.labelTh,
+        isLeaf: node.isLeaf,
+        classification: node.classification,
+        instanceCount: node.instances.length,
+        breakdown: node.breakdown,
+        facilityTagged: node.facilityTagged,
+        facilityCode: node.facilityCode,
+        masterId: node.masterId,
+        sortKey: node.sortKey,
+        instances: node.instances.map(toInstanceDto),
+        hasConflict: conflictByItem.has(node.id),
+        conflictAcknowledged: conflictByItem.get(node.id)?.acknowledged ?? false,
+        propagatable: isPropagatable(node),
+        children: node.children.map(toDto),
+      }
+    }
     return {
       stats: result.stats,
-      containerGroups: result.containerGroups.map((g) => ({
-        id: g.id,
-        labelTh: g.labelTh,
-        facilityTagged: g.facilityTagged,
-        instanceCount: g.instances.length,
-        breakdown: g.breakdown,
-        instances: g.instances.map((i) => ({
-          templateId: i.templateId,
-          mode: i.mode,
-          variantKey: i.variantKey,
-          version: i.version,
-          status: i.status,
-          containerCode: i.containerCode,
-        })),
-      })),
-      canonicalItems: result.canonicalItems.map((item) => ({
-        id: item.id,
-        containerGroupId: item.containerGroupId,
-        labelTh: item.labelTh,
-        classification: item.classification,
-        instanceCount: item.instances.length,
-        breakdown: item.breakdown,
-        instances: item.instances.map(toInstanceDto),
-        hasConflict: conflictByItem.has(item.id),
-        conflictAcknowledged: conflictByItem.get(item.id)?.acknowledged ?? false,
-        propagatable: isPropagatable(item),
-      })),
+      containerGroups: result.containerGroups.map(toDto),
     }
   }
 
@@ -182,9 +254,12 @@ export class FacilityGroupsService {
     }))
   }
 
+  // Session S5-fix (round 2) — searches the WHOLE tree (any depth, leaf or container), not just
+  // the old flat leaf list, since every node (not only leaves) is now an independent edit/propagate
+  // target (label/images/lawRefs/hidden at minimum — see propagateItemEdit's doc).
   private async findCanonicalItem(scope: VersionScope, canonicalItemId: string): Promise<{ item: CanonicalItem; conflict?: ItemConflict }> {
     const { result, conflicts } = await this.computeGroups(scope)
-    const item = result.canonicalItems.find((it) => it.id === canonicalItemId)
+    const item = flattenTree(result.containerGroups).find((it) => it.id === canonicalItemId)
     if (!item) {
       throw new NotFoundException(
         `unknown canonical item id "${canonicalItemId}" for scope ${JSON.stringify(scope)} — the grouping may have shifted since it was last fetched (a concurrent edit changed item text/order); refresh and retry`,
@@ -236,10 +311,41 @@ export class FacilityGroupsService {
     })
   }
 
-  // Part 3.2 — edit a canonical item ONCE, write it to every instance. GATED on isPropagatable:
-  // a live conflict or a lone (mode-specific) instance both refuse here, never silently pick a
-  // side. The frontend already has the exact target list from getGroups()'s `instances[]` — this
-  // endpoint performs the write, it doesn't need to hand back a separate preview.
+  // Session S5-fix, Part B — promote-on-edit. The grouped editor is now the ONLY surface for master
+  // criteria (Part A removed the standalone /admin/master-criteria page). Editing a canonical item
+  // that has no master yet transparently creates one — seeded from the group's current, already
+  // conflict-free values (isPropagatable is the SAME gate a plain propagate always used, and still
+  // guards promotion: a live conflict blocks exactly as before, never auto-picks a side) — links
+  // every instance to it, then applies the admin's edit through the master's atomic push. One user
+  // action, two internal steps, in one transaction (mirrors master-criteria.service.ts#update's own
+  // shape). Editing an already-promoted item reuses its existing masterId, no re-fuzzy-match.
+  //
+  // Session S5-fix (round 2) — this now applies at ANY depth, not just leaves: a pure container
+  // node (isLeaf: false, no answerType anywhere) is just as promotable, for its label/images
+  // fields.
+  //
+  // Session S5-fix (round 4) — 'measurement'/'era'/'guidance'/'lawRefs' are ALL leaf-only, rejected
+  // up front on a non-leaf item rather than silently no-op'ing. lawRefs joined this list because
+  // facility-tagging.ts documents it as a leaf-only concept throughout this codebase (a container's
+  // own lawRefs is never seed-tagged and has zero effect on era-resolution.ts#isItemApplicable,
+  // which only ever reads it off a node WITH answerType) — offering it on a container was
+  // misleading (an always-empty checkbox row that looked like "no law enforced" rather than "not
+  // applicable at this level") and, worse, primed the wholesale push below to blast that empty
+  // value over sibling containers the moment ANY other field got edited.
+  //
+  // Also round 4 — extendedFieldsAgree is a SECOND gate alongside isPropagatable, checked for every
+  // non-'hidden' field: isPropagatable/leafDataSignature only compares answerType+measurements, so
+  // a leaf item can be "propagatable" while its instances still diverge in lawRefs/facilityCode/
+  // cabinetResolution/beyondLaw — none of which the fuzzy conflict engine was ever asked to
+  // compare. Without this, editing something as unrelated as the LABEL would wholesale-push
+  // whichever instance happened to be "representative"'s lawRefs over every other instance,
+  // silently discarding real era-override/law-applicability data nobody touched.
+  //
+  // 'hidden' is the one remaining GroupedEditField the master doesn't own (master-criteria.core.ts's
+  // WriteThroughFields is deliberately 9 fields, not 10 — visibility may legitimately differ per
+  // instance even for an otherwise-identical criterion); it always goes through the plain
+  // per-instance write path below, promoted or not, and never creates or touches a master, so
+  // neither gate above applies to it.
   async propagateItemEdit(scope: VersionScope, canonicalItemId: string, actorId: string, dto: GroupedEditDto) {
     const { item } = await this.findCanonicalItem(scope, canonicalItemId)
     if (!isPropagatable(item)) {
@@ -251,7 +357,26 @@ export class FacilityGroupsService {
             : 'รายการนี้มีข้อมูลไม่ตรงกันระหว่างแบบประเมิน ต้องแก้ไขความขัดแย้งก่อนจึงจะเผยแพร่การแก้ไขพร้อมกันได้',
       })
     }
+    if ((dto.field === 'measurement' || dto.field === 'era' || dto.field === 'guidance' || dto.field === 'lawRefs') && !item.isLeaf) {
+      throw new BadRequestException(`field "${dto.field}" only applies to a leaf item — this node is a container with its own sub-items`)
+    }
 
+    if (dto.field === 'hidden') {
+      return this.propagateDirectFieldEdit(item, actorId, dto)
+    }
+    if (!extendedFieldsAgree(item)) {
+      throw new BadRequestException({
+        code: 'ITEM_NOT_PROPAGATABLE',
+        message:
+          'ข้อยกเว้นทางกฎหมาย (lawRefs) หรือหมวดหมู่สิ่งอำนวยความสะดวกของรายการนี้ไม่ตรงกันระหว่างแบบประเมิน — การแก้ไขผ่านต้นแบบจะเขียนทับค่าที่ต่างกันนี้ กรุณาแก้ไขให้ตรงกันทีละแบบประเมินก่อน (ผ่านหน้าแก้ไขรายละเอียดแบบประเมิน) แล้วค่อยกลับมาแก้ไขตามกลุ่ม',
+      })
+    }
+    return this.propagateThroughMaster(item, actorId, dto)
+  }
+
+  // Unchanged since before Session S5-fix — every field used to write this way; kept exactly for
+  // 'hidden', the one field the master doesn't model (see propagateItemEdit's doc above).
+  private async propagateDirectFieldEdit(item: CanonicalItem, actorId: string, dto: GroupedEditDto) {
     const correlationId = randomUUID()
     let wrote = 0
 
@@ -263,7 +388,7 @@ export class FacilityGroupsService {
       if (dto.field === 'image' && dto.imageOp === 'remove' && !instance.node.imageKeys?.includes(dto.imageKey ?? '')) {
         continue
       }
-      await this.writeInstance(instance, actorId, TEMPLATE_GROUPED_EDIT, correlationId, { field: dto.field, canonicalItemId }, (def) =>
+      await this.writeInstance(instance, actorId, TEMPLATE_GROUPED_EDIT, correlationId, { field: dto.field, canonicalItemId: item.id }, (def) =>
         applyGroupedPatch(def, instance.nodeCode, dto),
       )
       wrote++
@@ -272,13 +397,154 @@ export class FacilityGroupsService {
     return {
       correlationId,
       field: dto.field,
+      // 'hidden' never touches a master — same result shape as atomicMasterPush's return so
+      // propagateItemEdit's two branches type as one consistent union, not two incompatible ones.
+      masterId: undefined as string | undefined,
+      promoted: false,
+      wroteCount: wrote,
+      targets: item.instances.map(toInstanceDto),
+    }
+  }
+
+  // Session S5-fix, Part B — computes the edit's resulting node state ONCE (by applying it, via the
+  // same field-specific templates.core.ts functions every other edit path already uses, to a
+  // representative instance's OWN current definition — any instance works, isPropagatable already
+  // guarantees they agree on answerType/measurements), then pushes that as the master's new
+  // write-through snapshot to every instance atomically, creating the master on first use. This
+  // necessarily converges every write-through field (not just the one edited) across all instances —
+  // the same "attaching means make me match the master" invariant attachMaster already established
+  // (templates.service.ts), now reached automatically instead of only via a manual attach.
+  private async propagateThroughMaster(item: CanonicalItem, actorId: string, dto: GroupedEditDto) {
+    const representative = item.instances[0]!
+    const repRow = await this.prisma.checklistTemplate.findUnique({ where: { id: representative.templateId } })
+    if (!repRow) throw new NotFoundException(`template ${representative.templateId} not found`)
+    const repDef = repRow.definition as unknown as ChecklistTemplateDefinition
+
+    let patchedDef: ChecklistTemplateDefinition
+    try {
+      patchedDef = applyGroupedPatch(repDef, representative.nodeCode, dto).definition
+    } catch (err) {
+      if (err instanceof TemplateEditError || err instanceof ChecklistTemplateValidationError) {
+        throw new BadRequestException(`${representative.mode} ${representative.variantKey} ${representative.nodeCode}: ${(err as Error).message}`)
+      }
+      throw err
+    }
+    const patchedNode = indexTemplateNodesByCode(patchedDef).get(representative.nodeCode)!
+    const fields = snapshotWriteThroughFields(patchedNode)
+
+    const correlationId = randomUUID()
+    return this.atomicMasterPush(item.masterId ?? null, fields, item, actorId, correlationId, dto.field)
+  }
+
+  // Part B's atomic core: create-or-update the MasterCriterion row, then push it to every instance
+  // of `item`, all inside one $transaction — a bad patch (rejected only once pushMasterToInstance's
+  // parseTemplateDefinition actually runs against a real instance) rolls back everything, including
+  // the master row itself. Same "raw tx client, never AuditLogService" convention
+  // master-criteria.service.ts#update already established for the identical reason (AuditLogService
+  // has no tx-scoped variant).
+  private async atomicMasterPush(
+    existingMasterId: string | null,
+    fields: WriteThroughFields,
+    item: CanonicalItem,
+    actorId: string,
+    correlationId: string,
+    field: string,
+  ) {
+    let wrote = 0
+
+    let masterId: string
+    try {
+      masterId = await this.prisma.$transaction(async (tx) => {
+        const payloadFields = toMasterPayload('', fields)
+        let id: string
+        if (existingMasterId) {
+          const existing = await tx.masterCriterion.findUnique({ where: { id: existingMasterId } })
+          if (!existing) throw new NotFoundException(`master criterion ${existingMasterId} not found`)
+          await tx.masterCriterion.update({ where: { id: existingMasterId }, data: masterRowData(payloadFields, actorId) })
+          await tx.auditLog.create({
+            data: {
+              userId: actorId,
+              action: TEMPLATE_MASTER_EDIT,
+              entityType: 'MasterCriterion',
+              entityId: existingMasterId,
+              before: { correlationId, canonicalItemId: item.id, field } as unknown as Prisma.InputJsonValue,
+              after: { correlationId, canonicalItemId: item.id, field, value: fields } as unknown as Prisma.InputJsonValue,
+            },
+          })
+          id = existingMasterId
+        } else {
+          const created = await tx.masterCriterion.create({ data: masterRowData(payloadFields, actorId) })
+          await tx.auditLog.create({
+            data: {
+              userId: actorId,
+              action: TEMPLATE_MASTER_CREATE,
+              entityType: 'MasterCriterion',
+              entityId: created.id,
+              before: Prisma.JsonNull,
+              after: { correlationId, canonicalItemId: item.id, field, promotedFrom: 'facility-grouped-editor', value: fields } as unknown as Prisma.InputJsonValue,
+            },
+          })
+          id = created.id
+        }
+
+        const payload: MasterCriterionPayload = { ...payloadFields, id }
+
+        const byTemplate = new Map<string, ItemInstance[]>()
+        for (const inst of item.instances) {
+          if (!byTemplate.has(inst.templateId)) byTemplate.set(inst.templateId, [])
+          byTemplate.get(inst.templateId)!.push(inst)
+        }
+        for (const [templateId, instances] of byTemplate) {
+          const row = await tx.checklistTemplate.findUnique({ where: { id: templateId } })
+          if (!row) throw new NotFoundException(`template ${templateId} not found`)
+          if (row.status === 'RETIRED') {
+            throw new ForbiddenException(`template ${instances[0]!.mode} ${instances[0]!.variantKey} is RETIRED; grouped editing is disabled`)
+          }
+          let evolvingDef = row.definition as unknown as ChecklistTemplateDefinition
+          const rowResults: { nodeCode: string; before: unknown; after: unknown }[] = []
+          for (const inst of instances) {
+            const result = pushMasterToInstance(evolvingDef, inst.nodeCode, payload, { setMasterId: true, clearDetached: false })
+            evolvingDef = result.definition
+            rowResults.push({ nodeCode: inst.nodeCode, before: result.before, after: result.after })
+          }
+          await tx.checklistTemplate.update({ where: { id: templateId }, data: { definition: evolvingDef as unknown as Prisma.InputJsonValue } })
+          for (const r of rowResults) {
+            await tx.auditLog.create({
+              data: {
+                userId: actorId,
+                action: TEMPLATE_GROUPED_EDIT,
+                entityType: 'ChecklistTemplate',
+                entityId: templateId,
+                before: { correlationId, nodeCode: r.nodeCode, masterId: id, field, canonicalItemId: item.id, value: r.before } as unknown as Prisma.InputJsonValue,
+                after: { correlationId, nodeCode: r.nodeCode, masterId: id, field, canonicalItemId: item.id, value: r.after } as unknown as Prisma.InputJsonValue,
+              },
+            })
+            wrote++
+          }
+        }
+        return id
+      })
+    } catch (err) {
+      if (err instanceof TemplateEditError || err instanceof ChecklistTemplateValidationError) {
+        throw new BadRequestException(err.message)
+      }
+      throw err
+    }
+
+    return {
+      correlationId,
+      field,
+      masterId,
+      promoted: existingMasterId === null,
       wroteCount: wrote,
       targets: item.instances.map(toInstanceDto),
     }
   }
 
   // Part 4.1 — collapses the confirmed-flag review queue: confirming a canonical measurement
-  // confirms every instance that carries that measurement key in one action.
+  // confirms every instance that carries that measurement key in one action. Never reached for a
+  // pure container node in practice — getGroupedReviewQueue only ever iterates leaf nodes — but the
+  // loop below is naturally a no-op if it were (no instance has that measurement key).
   async confirmGroupedMeasurement(scope: VersionScope, canonicalItemId: string, measurementKey: string, actorId: string) {
     const { item } = await this.findCanonicalItem(scope, canonicalItemId)
     const correlationId = randomUUID()
@@ -359,34 +625,22 @@ export class FacilityGroupsService {
   // individual structural editor (DRAFT-only — see templates.service.ts#applyStructuralEdit's doc)
   // since this IS a structural add, just fanned out. A target where the anchor has no instance in
   // that template, or the template isn't a DRAFT, is SKIPPED with a reason — never guessed at.
+  //
+  // Session S5-fix (round 2) — the anchor is now ONE id (`anchorNodeId`) into the unified tree
+  // instead of two mutually-exclusive fields: since a leaf and a container are the same node type
+  // now, "insert before/after this node" resolves identically regardless of depth — the node's own
+  // `parentCode` is always the code to splice into (addPositionedChildNode already tries a group
+  // lookup before a node lookup, so a depth-0 anchor's parentCode — a GROUP code — and a deeper
+  // anchor's parentCode — a NODE code — both just work).
   async addAndPlace(scope: VersionScope, dto: AddAndPlaceDto, actorId: string) {
     const { result } = await this.computeGroups(scope)
 
-    // Resolves, per target templateId, which node/group to insert INTO (`intoCode`) and which
-    // sibling to insert before/after (`anchorCode`) — see AddAndPlaceDto's doc for why the anchor
-    // can be either a canonical (leaf) item or a container group (a top-level item in its own
-    // right, like TTRS). Both instance shapes already carry a (parent, own) code pair; this just
-    // picks the right one, once, rather than duplicating the whole resolve loop per anchor kind.
-    let anchorLabel: string
-    let instanceFor: (templateId: string) => { intoCode: string; anchorCode: string } | undefined
-    if (dto.anchorItemId) {
-      const anchorItem = result.canonicalItems.find((it) => it.id === dto.anchorItemId)
-      if (!anchorItem) throw new NotFoundException(`unknown anchorItemId "${dto.anchorItemId}"`)
-      anchorLabel = anchorItem.labelTh
-      instanceFor = (templateId) => {
-        const inst = anchorItem.instances.find((i) => i.templateId === templateId)
-        return inst ? { intoCode: inst.containerCode, anchorCode: inst.nodeCode } : undefined
-      }
-    } else if (dto.anchorContainerGroupId) {
-      const anchorGroup = result.containerGroups.find((g) => g.id === dto.anchorContainerGroupId)
-      if (!anchorGroup) throw new NotFoundException(`unknown anchorContainerGroupId "${dto.anchorContainerGroupId}"`)
-      anchorLabel = anchorGroup.labelTh
-      instanceFor = (templateId) => {
-        const inst = anchorGroup.instances.find((i) => i.templateId === templateId)
-        return inst ? { intoCode: inst.groupCode, anchorCode: inst.containerCode } : undefined
-      }
-    } else {
-      throw new BadRequestException('either anchorItemId or anchorContainerGroupId is required')
+    const anchor = flattenTree(result.containerGroups).find((n) => n.id === dto.anchorNodeId)
+    if (!anchor) throw new NotFoundException(`unknown anchorNodeId "${dto.anchorNodeId}"`)
+    const anchorLabel = anchor.labelTh
+    const instanceFor = (templateId: string): { intoCode: string; anchorCode: string } | undefined => {
+      const inst = anchor.instances.find((i) => i.templateId === templateId)
+      return inst ? { intoCode: inst.parentCode, anchorCode: inst.nodeCode } : undefined
     }
 
     const rows = await this.prisma.checklistTemplate.findMany({ where: { id: { in: dto.targetTemplateIds } } })
@@ -492,11 +746,14 @@ export class FacilityGroupsService {
     return result.code
   }
 
+  // Only ever iterates LEAF nodes (result.canonicalItems is already flattenLeaves' output — see
+  // facility-grouping.core.ts) — a container has no measurements to confirm, so it can never
+  // appear here regardless of depth.
   async getGroupedReviewQueue(scope: VersionScope) {
     const { result } = await this.computeGroups(scope)
     const rows: {
       canonicalItemId: string
-      containerGroupId: string
+      containerGroupId: string | null
       labelTh: string
       // Fix 2 — a representative code (lowest by the frontend's natural-sort order among the
       // instances carrying this measurement) so the queue can be read/sorted in checklist order
@@ -522,7 +779,7 @@ export class FacilityGroupsService {
         const sample = unconfirmed[0]!.node.measurements!.find((m) => m.key === key)!
         rows.push({
           canonicalItemId: item.id,
-          containerGroupId: item.containerGroupId,
+          containerGroupId: item.parentId,
           labelTh: item.labelTh,
           sampleNodeCode: unconfirmed[0]!.nodeCode,
           measurementKey: key,

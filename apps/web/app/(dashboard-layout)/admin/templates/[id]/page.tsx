@@ -9,7 +9,7 @@ import { ArrowLeft, Copy, Download, Loader2, Rocket } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
 import { useActivateTemplate, useCloneToDraft, useTemplateDetail } from '@/hooks/use-templates-admin'
 import { useFacilityGroups } from '@/hooks/use-facility-groups'
-import { GROUPED_EDITOR_VERSION } from '@/lib/api/facility-groups'
+import { GROUPED_EDITOR_VERSION, flattenLeafNodes } from '@/lib/api/facility-groups'
 import { exportTemplate } from '@/lib/api/templates'
 import { ApiError } from '@/lib/api'
 import { DIALOG_HEADER_CLS, DIALOG_TITLE_CLS } from '@/lib/ui-classes'
@@ -47,7 +47,7 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
   const groupMembership = React.useMemo(() => {
     if (!groupsQuery.data || !selected || !data) return null
     return (
-      groupsQuery.data.canonicalItems.find(
+      flattenLeafNodes(groupsQuery.data.containerGroups).find(
         (it) => it.classification === 'SHARED' && it.instances.some((i) => i.templateId === data.id && i.nodeCode === selected.node.code),
       ) ?? null
     )

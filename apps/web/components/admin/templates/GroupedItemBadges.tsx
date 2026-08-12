@@ -1,9 +1,10 @@
 // Session S4b, Part 3.4/3.5 — the three badges a canonical item can carry in the grouped editor.
-// Kept as one small file since all three read directly off CanonicalItemRow and are used together
-// everywhere the item appears (group list, item detail, conflict queue).
-import type { CanonicalItemRow } from '@/lib/api/facility-groups'
+// Kept as one small file since all three read directly off GroupNodeRow and are used together
+// everywhere the item appears (group list, item detail, conflict queue) — a container node (round
+// 2) carries these exactly the same way a leaf does.
+import type { GroupNodeRow } from '@/lib/api/facility-groups'
 
-export function ClassificationBadge({ item }: { item: CanonicalItemRow }) {
+export function ClassificationBadge({ item }: { item: GroupNodeRow }) {
   if (item.classification === 'MODE_SPECIFIC') {
     return (
       <span className="bg-secondary text-muted-foreground inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
@@ -18,7 +19,7 @@ export function ClassificationBadge({ item }: { item: CanonicalItemRow }) {
   )
 }
 
-export function ConflictBadge({ item }: { item: CanonicalItemRow }) {
+export function ConflictBadge({ item }: { item: GroupNodeRow }) {
   if (!item.hasConflict) return null
   return (
     <span

@@ -6,37 +6,50 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { DIALOG_HEADER_CLS, DIALOG_TITLE_CLS, INPUT_CLS, SELECT_CLS } from '@/lib/ui-classes'
 import { TransportBadge } from '@/components/shared/badges'
 import { useAddAndPlace } from '@/hooks/use-facility-groups'
-import { sortByNodeCode } from '@/lib/template-code-order'
 import { OPERATOR_LABEL } from '@/lib/template-format'
-import type { CanonicalItemRow, ContainerGroupRow } from '@/lib/api/facility-groups'
+import { flattenGroupNodes, type GroupNodeRow } from '@/lib/api/facility-groups'
 import type { ThresholdOperator } from '@repo/types'
 import { FACILITY_CATALOG } from '@repo/types'
 
 type QuestionType = 'presence' | 'presence_standard' | 'measured'
+
+function byDocOrder(a: GroupNodeRow, b: GroupNodeRow): number {
+  return a.sortKey - b.sortKey
+}
+
+// Session S5-fix (round 3) — same FACILITY_CATALOG-order sort groups/page.tsx uses for its list,
+// applied here to the group picker so both pages read the facility groups in the same order.
+function byFacilityCatalogOrder(a: GroupNodeRow, b: GroupNodeRow): number {
+  const aCode = a.facilityCode ?? Infinity
+  const bCode = b.facilityCode ?? Infinity
+  if (aCode !== bCode) return aCode - bCode
+  return byDocOrder(a, b)
+}
 
 // Session S4b-fix, Fix 3 — "เพิ่มรายการ / เพิ่มกลุ่มข้อย่อย": create one item ONCE and apply it to
 // chosen templates at a chosen position, the additive counterpart to GroupedItemEditDialog's
 // propagate-an-edit flow. Same preview -> confirm two-step (a structural add fanned out across N
 // templates is exactly as broadcast as a propagated edit), same modal chrome as the other admin
 // template dialogs.
+//
+// Session S5-fix (round 2) — the anchor picker is now: choose a top-level facility group, then
+// choose ANY node in its subtree (the group itself, or any depth below it — an intermediate
+// length-tier sub-group is just as valid an anchor as a leaf now, since round 2 no longer
+// flattens that hierarchy away). One id (`anchorNodeId`) replaces the old two-field "is this a
+// group or an item" split.
 export function AddAndPlaceDialog({
   version,
-  groups,
-  items,
+  roots,
   onClose,
 }: {
   version: number
-  groups: ContainerGroupRow[]
-  items: CanonicalItemRow[]
+  roots: GroupNodeRow[]
   onClose: () => void
 }) {
   const addAndPlace = useAddAndPlace(version)
 
   const [groupId, setGroupId] = React.useState('')
-  // A single selected value encodes which KIND of anchor it is — "group:<id>" (insert as a peer
-  // top-level item beside the container itself, e.g. beside TTRS) or "item:<id>" (insert as a
-  // sibling leaf inside one of the container's own items). See AddAndPlaceRequest's doc.
-  const [anchorValue, setAnchorValue] = React.useState('')
+  const [anchorNodeId, setAnchorNodeId] = React.useState('')
   const [side, setSide] = React.useState<'before' | 'after'>('before')
   const [targetIds, setTargetIds] = React.useState<Set<string>>(new Set())
 
@@ -49,22 +62,19 @@ export function AddAndPlaceDialog({
 
   const [previewed, setPreviewed] = React.useState(false)
 
-  const sortedGroups = React.useMemo(() => [...groups].sort((a, b) => a.labelTh.localeCompare(b.labelTh, 'th')), [groups])
-  const group = groups.find((g) => g.id === groupId)
-  const groupItems = React.useMemo(
-    () => sortByNodeCode(items.filter((it) => it.containerGroupId === groupId), (it) => it.instances[0]?.nodeCode ?? ''),
-    [items, groupId],
-  )
-  const anchorIsGroup = anchorValue.startsWith('group:')
-  const anchorLabel = anchorIsGroup ? group?.labelTh : groupItems.find((it) => `item:${it.id}` === anchorValue)?.labelTh
+  const sortedGroups = React.useMemo(() => [...roots].sort(byFacilityCatalogOrder), [roots])
+  const group = roots.find((g) => g.id === groupId)
+  const groupSubtree = React.useMemo(() => (group ? flattenGroupNodes([group]).sort(byDocOrder) : []), [group])
+  const anchor = groupSubtree.find((n) => n.id === anchorNodeId)
+  const anchorLabel = anchor?.labelTh
   const facilityEntry = facilityCode === '' ? undefined : FACILITY_CATALOG.find((e) => e.code === facilityCode)
 
   function onGroupChange(id: string) {
     setGroupId(id)
-    setAnchorValue('')
+    setAnchorNodeId('')
     setPreviewed(false)
     addAndPlace.reset()
-    const g = groups.find((x) => x.id === id)
+    const g = roots.find((x) => x.id === id)
     setTargetIds(new Set(g?.instances.map((i) => i.templateId) ?? []))
   }
 
@@ -87,24 +97,18 @@ export function AddAndPlaceDialog({
     }
   }
 
-  function buildAnchorFields() {
-    return anchorIsGroup
-      ? { anchorContainerGroupId: anchorValue.slice('group:'.length) }
-      : { anchorItemId: anchorValue.slice('item:'.length) }
-  }
-
-  const canPreview = !!groupId && !!anchorValue && targetIds.size > 0 && !!labelTh.trim() && (type !== 'measured' || !!unit)
+  const canPreview = !!groupId && !!anchorNodeId && targetIds.size > 0 && !!labelTh.trim() && (type !== 'measured' || !!unit)
 
   function preview() {
     addAndPlace.mutate(
-      { ...buildAnchorFields(), side, targetTemplateIds: [...targetIds], content: buildContent(), confirm: false },
+      { anchorNodeId, side, targetTemplateIds: [...targetIds], content: buildContent(), confirm: false },
       { onSuccess: () => setPreviewed(true) },
     )
   }
 
   function confirm() {
     addAndPlace.mutate(
-      { ...buildAnchorFields(), side, targetTemplateIds: [...targetIds], content: buildContent(), confirm: true },
+      { anchorNodeId, side, targetTemplateIds: [...targetIds], content: buildContent(), confirm: true },
       { onSuccess: () => setPreviewed(false) },
     )
   }
@@ -138,27 +142,24 @@ export function AddAndPlaceDialog({
                 <label className="text-muted-foreground mb-1 block text-sm">ตำแหน่งอ้างอิง (anchor) — รายการที่จะวางไว้ก่อน/หลัง</label>
                 <select
                   className={`${SELECT_CLS} text-sm`}
-                  value={anchorValue}
+                  value={anchorNodeId}
                   onChange={(e) => {
-                    setAnchorValue(e.target.value)
+                    setAnchorNodeId(e.target.value)
                     setPreviewed(false)
                   }}
                 >
                   <option value="">เลือกรายการอ้างอิง…</option>
-                  <option value={`group:${group.id}`}>— วางเป็นรายการเดียวกับ &ldquo;{group.labelTh}&rdquo; เอง (เช่น ก่อน/หลัง TTRS ทั้งข้อ) —</option>
-                  {groupItems.length > 0 && (
-                    <optgroup label="หรือแทรกในข้อย่อยของรายการเหล่านี้">
-                      {groupItems.map((it) => (
-                        <option key={it.id} value={`item:${it.id}`}>
-                          {it.instances[0]?.nodeCode} — {it.labelTh}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
+                  {groupSubtree.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {'— '.repeat(n.depth)}
+                      {n.depth === 0 ? '(ทั้งกลุ่มนี้เอง) ' : ''}
+                      {n.instances[0]?.nodeCode} — {n.labelTh}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              {anchorValue && (
+              {anchorNodeId && (
                 <div className="flex items-center gap-4">
                   {(['before', 'after'] as const).map((s) => (
                     <label key={s} className="text-foreground flex items-center gap-1.5 text-sm">
@@ -179,7 +180,7 @@ export function AddAndPlaceDialog({
               <div>
                 <p className="text-muted-foreground mb-1 text-sm">แบบประเมินเป้าหมาย ({targetIds.size}/{group.instances.length})</p>
                 <div className="border-border max-h-32 space-y-1 overflow-y-auto rounded-lg border p-2">
-                  {sortByNodeCode(group.instances, (i) => i.containerCode).map((i) => (
+                  {[...group.instances].sort((a, b) => a.parentCode.localeCompare(b.parentCode)).map((i) => (
                     <label key={i.templateId} className="flex items-center gap-1.5 text-sm">
                       <input type="checkbox" checked={targetIds.has(i.templateId)} onChange={() => toggleTarget(i.templateId)} />
                       <TransportBadge type={i.mode} />

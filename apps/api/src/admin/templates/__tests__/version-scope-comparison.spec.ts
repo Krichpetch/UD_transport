@@ -98,7 +98,7 @@ describeIfPresent('VersionScope comparison — exact (v3-only) vs pooled (v1+v3)
     }
   })
 
-  it('pooling v1 into the SAME engine merges it into the v3 ramp group on label text, then pollutes the item list with a granularity-mismatched entry', () => {
+  it('pooling v1 into the SAME engine merges it into the v3 ramp group on label text, producing a hybrid node the conflict gate correctly blocks', () => {
     const pooled = buildFacilityGroups([...loadRealV3Templates(), syntheticV1LandTemplate()])
     const rampGroup = pooled.containerGroups.find((g) => g.labelTh === 'ทางลาดสำหรับคนพิการ')!
     expect(rampGroup).toBeDefined()
@@ -108,26 +108,28 @@ describeIfPresent('VersionScope comparison — exact (v3-only) vs pooled (v1+v3)
     const v1Instance = rampGroup.instances.find((inst) => inst.version === 1)
     expect(v1Instance).toBeDefined()
 
-    // Turns out this does NOT surface as a "conflict" (a conflict requires >1 instance sharing the
-    // SAME item TEXT with divergent data — see detectConflicts). v1's item text is the whole-
-    // facility container label ("ทางลาดสำหรับคนพิการ"), which doesn't textually match any of v3's
-    // 27 fine-grained measurement texts, so it never collides with a real item at all. The actual
-    // failure mode is quieter but still real: it becomes its own spurious canonical item — flagged
-    // MODE_SPECIFIC (correctly "only 1 instance"), but that framing is misleading for it specifically
-    // — it isn't a real per-mode variant of a shared item, it's a different GRANULARITY of question
-    // (whole-facility yes/no vs one measurement) that has no business being counted as an edit unit
-    // of this group at all. This is the concrete cost of pooling versions: not false conflicts, but
-    // silently miscounted "edit units" an admin would see no warning about.
-    const conflicts = detectConflicts(pooled)
-    const v1InConflict = conflicts.some((c) => c.variants.some((v) => v.instances.some((inst) => inst.version === 1)))
-    expect(v1InConflict).toBe(false)
+    // Session S5-fix (round 2) — because a leaf/container distinction is now PER-NODE (isLeaf =
+    // "any instance carries answerType"), merging v1's flat choice leaf into the same depth-0
+    // cluster as v3's 17 pure-container instances makes the MERGED node itself a hybrid: isLeaf
+    // becomes true (v1 has answerType) while it ALSO keeps the 7 children v3's own structure
+    // provides (v1 contributes none, having no subItems of its own). That hybrid node's 18
+    // instances now DO diverge in leafDataSignature (17x empty container signature vs 1x v1's
+    // 'choice' signature) — so round 2 actually CATCHES this version-pooling mismatch as a real,
+    // visible conflict, an improvement over the old model's silent miscount (a spurious
+    // MODE_SPECIFIC entry an admin would never be warned about). The underlying lesson is
+    // unchanged — pooling versions manufactures problems specific to that scope — it just now
+    // surfaces as a conflict instead of a quiet miscount, which is why 'all'/'active' stay
+    // analysis-only rather than becoming the grouped editor's default.
+    expect(rampGroup.isLeaf).toBe(true)
+    expect(rampGroup.instances).toHaveLength(18)
+    expect(rampGroup.children.length).toBeGreaterThan(0) // v3's own hierarchy still built underneath
 
-    const spuriousItem = pooled.canonicalItems.find(
-      (it) => it.containerGroupId === rampGroup.id && it.instances.some((inst) => inst.version === 1),
-    )
-    expect(spuriousItem).toBeDefined()
-    expect(spuriousItem!.instances).toHaveLength(1)
-    expect(spuriousItem!.instances[0]!.node.answerType).toBe('choice') // not presence_standard like every real ramp measurement
+    const conflicts = detectConflicts(pooled)
+    const v1Conflict = conflicts.find((c) => c.variants.some((v) => v.instances.some((inst) => inst.version === 1)))
+    expect(v1Conflict).toBeDefined()
+    expect(v1Conflict!.canonicalItemId).toBe(rampGroup.id)
+    const variantSizes = v1Conflict!.variants.map((v) => v.instances.length).sort((a, b) => a - b)
+    expect(variantSizes).toEqual([1, 17]) // v1 alone vs all 17 v3 containers
   })
 
   it('breakdown.byMode carries version+status so a mixed-scope computation stays legible (Part 1 addition)', () => {

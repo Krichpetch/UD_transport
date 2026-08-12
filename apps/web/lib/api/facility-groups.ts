@@ -1,5 +1,5 @@
 // Session S4b — the facility-grouped editor's API client. Mirrors lib/api/templates.ts's
-// conventions exactly, just against the separate admin/template-groups base path (see
+// conventions, against the separate admin/template-groups base path (see
 // facility-groups.controller.ts's doc for why it's not nested under admin/templates/:id).
 //
 // Part 5 — the backend also accepts ?scope=active|all (VersionScope) instead of ?version=N, for
@@ -7,6 +7,12 @@
 // (`version: number`) since the grouped EDITOR itself always targets one version at a time (see
 // facility-groups.service.ts's VersionScope doc for why 'active'/'all' are analysis-only, not
 // alternate defaults for editing).
+//
+// Session S5-fix (round 2) — the response is now a RECURSIVE TREE (`GroupNodeRow`, any depth),
+// not a flat container-list + flat leaf-list. A leaf and a container are the same row shape —
+// `isLeaf` discriminates — matching the individual per-node editor's own "every node is
+// selectable" tree (TemplateTree.tsx). flattenGroupNodes/flattenLeafNodes below replace what used
+// to be the separate top-level `canonicalItems` array.
 import { api } from '@/lib/api'
 import type { TemplateTier, ThresholdOperator } from '@repo/types'
 
@@ -39,24 +45,6 @@ export interface InstanceBreakdown {
   byMode: ModeCount[]
 }
 
-export interface GroupInstanceRef {
-  templateId: string
-  mode: string
-  variantKey: string
-  version: number
-  status: TemplateRowStatus
-  containerCode: string
-}
-
-export interface ContainerGroupRow {
-  id: string
-  labelTh: string
-  facilityTagged: boolean
-  instanceCount: number
-  breakdown: InstanceBreakdown
-  instances: GroupInstanceRef[]
-}
-
 export interface InstanceMeasurement {
   key: string
   operator: ThresholdOperator
@@ -76,12 +64,16 @@ export interface ItemInstanceRow {
   variantKey: string
   version: number
   status: TemplateRowStatus
-  containerCode: string
+  // Code of this instance's immediate parent — the enclosing GROUP's code at depth 0 (e.g. 'A1'),
+  // or the immediate parent NODE's own code at any deeper level.
+  parentCode: string
   nodeCode: string
   labelTh: string
   // Prefill data (Session S4b follow-up) — this instance's OWN current value for every field the
   // grouped editor can propagate. Used to seed the edit dialog's form (from instances[0] by
-  // convention) and to detect a since-fetch divergence before writing.
+  // convention) and to detect a since-fetch divergence before writing. Meaningful for a container
+  // instance too (round 2) — answerType/measurements just come back empty, reflecting that this
+  // node has nothing of its own to answer.
   answerType?: string
   facilityCode?: number
   lawRefs: string[]
@@ -91,17 +83,32 @@ export interface ItemInstanceRow {
   measurements: InstanceMeasurement[]
 }
 
-export interface CanonicalItemRow {
+export type GroupNodeClassification = 'SHARED' | 'MODE_SPECIFIC'
+
+// The one recursive row type — a depth-0 container ("ทางลาดสำหรับคนพิการ"), an intermediate
+// hierarchy level (a length-tier sub-container), and a leaf measurement item are all the SAME
+// shape; `isLeaf`/`children.length` discriminate what's actually editable/nested.
+export interface GroupNodeRow {
   id: string
-  containerGroupId: string
+  parentId: string | null
+  depth: number
   labelTh: string
-  classification: 'SHARED' | 'MODE_SPECIFIC'
+  isLeaf: boolean
+  classification: GroupNodeClassification
   instanceCount: number
   breakdown: InstanceBreakdown
+  facilityTagged: boolean
+  // Session S5-fix (round 3) — this node's own FACILITY_CATALOG code (@repo/types, 1-33),
+  // undefined if untagged — the sort key groups/page.tsx uses for depth-0 ordering (catalog order,
+  // not document order); untagged groups sort to the bottom.
+  facilityCode?: number
+  masterId?: string
+  sortKey: number
   instances: ItemInstanceRow[]
   hasConflict: boolean
   conflictAcknowledged: boolean
   propagatable: boolean
+  children: GroupNodeRow[]
 }
 
 export interface FacilityGroupsResponse {
@@ -111,8 +118,26 @@ export interface FacilityGroupsResponse {
     distinctContainerGroups: number
     editUnits: number
   }
-  containerGroups: ContainerGroupRow[]
-  canonicalItems: CanonicalItemRow[]
+  containerGroups: GroupNodeRow[]
+}
+
+// Every node, any depth, in the given subtree(s) — no particular guaranteed order (sort by
+// sortKey for "reads in checklist order" display, same field the backend already sorted roots by).
+export function flattenGroupNodes(nodes: GroupNodeRow[]): GroupNodeRow[] {
+  const out: GroupNodeRow[] = []
+  const walk = (ns: GroupNodeRow[]) => {
+    for (const n of ns) {
+      out.push(n)
+      walk(n.children)
+    }
+  }
+  walk(nodes)
+  return out
+}
+
+// Every LEAF node (isLeaf === true), any depth — replaces the old top-level `canonicalItems` list.
+export function flattenLeafNodes(nodes: GroupNodeRow[]): GroupNodeRow[] {
+  return flattenGroupNodes(nodes).filter((n) => n.isLeaf)
 }
 
 export interface ConflictVariantRow {
@@ -122,7 +147,7 @@ export interface ConflictVariantRow {
 
 export interface ItemConflictRow {
   canonicalItemId: string
-  containerGroupId: string
+  containerGroupId: string | null
   labelTh: string
   acknowledged: boolean
   variants: ConflictVariantRow[]
@@ -130,7 +155,7 @@ export interface ItemConflictRow {
 
 export interface GroupedReviewQueueRow {
   canonicalItemId: string
-  containerGroupId: string
+  containerGroupId: string | null
   labelTh: string
   sampleNodeCode: string
   measurementKey: string
@@ -172,6 +197,10 @@ export interface GroupedEditBody {
 export interface PropagateResult {
   correlationId: string
   field: string
+  // Session S5-fix, Part B — set once this edit ran through the master (every field except
+  // 'hidden'); `promoted: true` means this specific call is the one that just created the master.
+  masterId?: string
+  promoted: boolean
   wroteCount: number
   targets: ItemInstanceRow[]
 }
@@ -240,11 +269,10 @@ export interface AddAndPlaceContent {
 }
 
 export interface AddAndPlaceRequest {
-  // Exactly one — see AddAndPlaceDto's doc (api side) for why an anchor is sometimes a leaf
-  // (canonical item) and sometimes a whole container group (a top-level item like TTRS, which is
-  // itself a container-group entry, not nested inside one).
-  anchorItemId?: string
-  anchorContainerGroupId?: string
+  // Session S5-fix (round 2) — a single id into the unified recursive tree (any depth — a leaf and
+  // a container are the same node type now, so "insert before/after this node" resolves the same
+  // regardless of whether the anchor is a top-level item like TTRS or a deeply-nested leaf).
+  anchorNodeId: string
   side: 'before' | 'after'
   targetTemplateIds: string[]
   content: AddAndPlaceContent

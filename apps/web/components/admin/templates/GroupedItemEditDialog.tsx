@@ -10,7 +10,7 @@ import { useTemplateImageUrls } from '@/hooks/use-template-image-urls'
 import { uploadTemplateImage } from '@/lib/api/facility-groups'
 import { sortByNodeCode } from '@/lib/template-code-order'
 import { OPERATOR_LABEL } from '@/lib/template-format'
-import type { CanonicalItemRow, GroupedEditBody, InstanceMeasurement, ItemInstanceRow } from '@/lib/api/facility-groups'
+import type { GroupNodeRow, GroupedEditBody, InstanceMeasurement, ItemInstanceRow } from '@/lib/api/facility-groups'
 import type { ThresholdOperator } from '@repo/types'
 import { LAW_REFERENCE_SEED, isNeverEraGated } from '@repo/types'
 
@@ -30,14 +30,14 @@ export function GroupedItemEditDialog({
   onClose,
 }: {
   version: number
-  item: CanonicalItemRow | null
+  item: GroupNodeRow | null
   onClose: () => void
 }) {
   if (!item) return null
   return <GroupedItemEditDialogContent version={version} item={item} onClose={onClose} />
 }
 
-function GroupedItemEditDialogContent({ version, item, onClose }: { version: number; item: CanonicalItemRow; onClose: () => void }) {
+function GroupedItemEditDialogContent({ version, item, onClose }: { version: number; item: GroupNodeRow; onClose: () => void }) {
   const sortedInstances = React.useMemo(() => sortByNodeCode(item.instances, (i) => i.nodeCode), [item.instances])
   const representative: ItemInstanceRow = sortedInstances[0]!
 
@@ -52,7 +52,26 @@ function GroupedItemEditDialogContent({ version, item, onClose }: { version: num
         <div className="themed-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4">
           <InstanceListPanel instances={sortedInstances} />
 
-          {representative.measurements.length > 0 && (
+          {/* Session S5-fix (round 4) — facilityCode/lawRefs are a LEAF-ONLY concept throughout
+              this codebase (facility-tagging.ts's own doc: "preserving the facilityCode/lawRefs
+              live on leaves only invariant every other reader — era-resolution.ts, the admin
+              lawRefs editor, summarizeTemplate — already assumes"). isItemApplicable
+              (era-resolution.ts) only ever reads lawRefs off a node WITH answerType, so a
+              container's own lawRefs field has ZERO effect on scoring/redaction even if set. A
+              container was never seed-tagged with lawRefs in the first place (tagContainers only
+              stamps facilityCode there, tagLeaves stamps lawRefs onto leaves) — showing an
+              editable, always-empty lawRefs section on a container was misleading (looked like
+              "no law enforced" when really "not applicable at this level") and, worse, would
+              wholesale-push that empty value over sibling instances the moment ANY other field on
+              that container got edited. Measurements/guidance/lawRefs are ALL leaf-only here now. */}
+          {!item.isLeaf && (
+            <div className="bg-secondary/60 text-muted-foreground rounded-lg p-2.5 text-sm">
+              รายการนี้เป็นหมวดหมู่ (ไม่มีคำตอบของตัวเอง) — แก้ไขได้เฉพาะข้อความ รูปภาพ และการซ่อน/แสดง
+              ข้อยกเว้นทางกฎหมายกำหนดที่รายการย่อย (leaf) เท่านั้น
+            </div>
+          )}
+
+          {item.isLeaf && representative.measurements.length > 0 && (
             <div className="space-y-2">
               <p className="text-foreground text-sm font-semibold">เกณฑ์ตัวเลข</p>
               {representative.measurements.map((m) => (
@@ -61,8 +80,8 @@ function GroupedItemEditDialogContent({ version, item, onClose }: { version: num
             </div>
           )}
 
-          <GroupedGuidanceSection version={version} item={item} />
-          <GroupedLawRefsSection version={version} item={item} representative={representative} />
+          {item.isLeaf && <GroupedGuidanceSection version={version} item={item} />}
+          {item.isLeaf && <GroupedLawRefsSection version={version} item={item} representative={representative} />}
           <GroupedHiddenSection version={version} item={item} representative={representative} />
           <GroupedLabelSection version={version} item={item} initialLabel={item.labelTh} />
           <GroupedImageEditor version={version} item={item} representative={representative} />
@@ -171,7 +190,7 @@ function GroupedMeasurementCard({
   facilityCode,
 }: {
   version: number
-  item: CanonicalItemRow
+  item: GroupNodeRow
   measurementKey: string
   initial: InstanceMeasurement
   facilityCode?: number
@@ -262,7 +281,7 @@ function GroupedEraSection({
   facilityCode,
 }: {
   version: number
-  item: CanonicalItemRow
+  item: GroupNodeRow
   measurementKey: string
   operator: ThresholdOperator
   byLaw: InstanceMeasurement['byLaw']
@@ -339,7 +358,7 @@ function GroupedEraSection({
 
 // ---- Guidance / LawRefs / Hidden / Label --------------------------------------------------------
 
-function GroupedGuidanceSection({ version, item }: { version: number; item: CanonicalItemRow }) {
+function GroupedGuidanceSection({ version, item }: { version: number; item: GroupNodeRow }) {
   const propagate = usePropagateItemEdit(version)
   const [text, setText] = React.useState('')
 
@@ -366,7 +385,7 @@ function GroupedGuidanceSection({ version, item }: { version: number; item: Cano
   )
 }
 
-function GroupedLawRefsSection({ version, item, representative }: { version: number; item: CanonicalItemRow; representative: ItemInstanceRow }) {
+function GroupedLawRefsSection({ version, item, representative }: { version: number; item: GroupNodeRow; representative: ItemInstanceRow }) {
   const propagate = usePropagateItemEdit(version)
   const [lawRefs, setLawRefs] = React.useState<string[]>(representative.lawRefs)
   const [beyondLaw, setBeyondLaw] = React.useState(representative.beyondLaw)
@@ -411,7 +430,7 @@ function GroupedLawRefsSection({ version, item, representative }: { version: num
   )
 }
 
-function GroupedHiddenSection({ version, item, representative }: { version: number; item: CanonicalItemRow; representative: ItemInstanceRow }) {
+function GroupedHiddenSection({ version, item, representative }: { version: number; item: GroupNodeRow; representative: ItemInstanceRow }) {
   const propagate = usePropagateItemEdit(version)
   const [hidden, setHidden] = React.useState(representative.hidden)
 
@@ -436,7 +455,7 @@ function GroupedHiddenSection({ version, item, representative }: { version: numb
   )
 }
 
-function GroupedLabelSection({ version, item, initialLabel }: { version: number; item: CanonicalItemRow; initialLabel: string }) {
+function GroupedLabelSection({ version, item, initialLabel }: { version: number; item: GroupNodeRow; initialLabel: string }) {
   const propagate = usePropagateItemEdit(version)
   const [labelTh, setLabelTh] = React.useState(initialLabel)
 
@@ -466,7 +485,7 @@ function GroupedImageEditor({
   representative,
 }: {
   version: number
-  item: CanonicalItemRow
+  item: GroupNodeRow
   representative: ItemInstanceRow
 }) {
   const propagate = usePropagateItemEdit(version)

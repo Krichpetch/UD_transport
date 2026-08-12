@@ -16,15 +16,14 @@ export class AddAndPlaceContentDto {
 }
 
 export class AddAndPlaceDto {
-  // Exactly ONE of these two identifies the anchor — both come from GET /admin/template-groups.
-  // A real anchor is not always nested inside another item: "เครื่องบริการถ่ายทอดการสื่อสารสาธารณะ
-  // (TTRS)" (Fix 5's own anchor) is itself a top-level item directly under its GROUP, a peer of
-  // other top-level items, so it surfaces as a `containerGroups[]` entry, not a `canonicalItems[]`
-  // (leaf) entry. anchorItemId (a canonical/leaf item id) inserts as a sibling LEAF inside that
-  // item's own container; anchorContainerGroupId (a container-group id) inserts as a sibling
-  // TOP-LEVEL ITEM inside that container's own group.
-  @IsOptional() @IsString() anchorItemId?: string
-  @IsOptional() @IsString() anchorContainerGroupId?: string
+  // Session S5-fix (round 2) — a single id into the unified recursive tree GET
+  // /admin/template-groups now returns (facility-grouping.core.ts's CanonicalItem, any depth — a
+  // leaf and a container are the same node type). "Insert before/after this node" resolves
+  // identically regardless of depth: the node's own parentCode is always the code to splice into
+  // (addPositionedChildNode already tries a group-code lookup before a node-code lookup), so a
+  // depth-0 anchor (a top-level item like TTRS) and a deeper leaf/container anchor both just work
+  // through the same field — no more "which kind of anchor is this" split.
+  @IsString() anchorNodeId: string
 
   @IsIn(['before', 'after']) side: 'before' | 'after'
 

@@ -172,6 +172,27 @@ export interface TemplateNode {
   // same way it would for any other divergence — no separate re-attach-time check needed.
   standalone?: boolean
 
+  // Session S5, Part A — master/reference criterion linkage (see @repo/types' sibling doc on
+  // MasterCriterion in apps/api/prisma/schema.prisma for the full design). Orthogonal to
+  // `standalone` above: `standalone` opts a leaf OUT of the grouping engine's fuzzy pooling,
+  // while `masterId` is an EXPLICIT, admin-created link — a leaf can never carry both (Part E
+  // excludes masterId'd leaves from pooling the same way it already excludes standalone ones).
+  //
+  // `masterId` present means this leaf's write-through fields (answerType/measurements/guidance/
+  // imageKeys/lawRefs/labelTh) are owned by that MasterCriterion row and populated by its auto-push
+  // (Part D) — they are ALWAYS physically present on this node (Part B's write-through invariant),
+  // never looked up live, so every read path (scoring/era-resolution/the E-form) stays exactly as
+  // fast and exactly as independent of the MasterCriterion table as before this feature existed.
+  // A direct single-node edit on an attached leaf is rejected server-side (Part C) — detach first.
+  masterId?: string
+
+  // Set ONLY when a previously-attached leaf is detached (Part C.2) — a breadcrumb naming the
+  // master it came FROM, so the master facility editor can list it under "แยกออกแล้ว" (Part D2/F.3)
+  // even though `masterId` itself is now cleared. Cleared again on re-attach (Part C.3/D3), which
+  // also resets `masterId` and overwrites the node's values from the master's CURRENT state.
+  // A node never carries both `masterId` and `detachedFromMasterId` at once.
+  detachedFromMasterId?: string
+
   // Session S3b, Part C.4 — admin bookkeeping only, never read by scoring/the auditor E-form.
   // The high-water mark of child sequence numbers ever assigned under THIS node via the
   // structural editor's "เพิ่มข้อย่อย" action — never decremented, including on delete, so a
@@ -457,6 +478,8 @@ function parseNode(raw: unknown, path: string): TemplateNode {
   if (typeof o.hidden === 'boolean') node.hidden = o.hidden
   if (typeof o.conflictSplitAcknowledged === 'boolean') node.conflictSplitAcknowledged = o.conflictSplitAcknowledged
   if (typeof o.standalone === 'boolean') node.standalone = o.standalone
+  if (typeof o.masterId === 'string') node.masterId = o.masterId
+  if (typeof o.detachedFromMasterId === 'string') node.detachedFromMasterId = o.detachedFromMasterId
 
   return node
 }

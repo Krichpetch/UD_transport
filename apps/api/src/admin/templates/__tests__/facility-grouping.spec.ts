@@ -106,15 +106,36 @@ describeIfPresent('buildFacilityGroups — reproduces facility-type-redundancy-r
     expect(ramp!.instances).toHaveLength(17)
   })
 
-  it('collapses the ramp\'s 27-item document to a small number of canonical items despite the 4 OCR typos (report §4)', () => {
+  it('collapses the ramp\'s 27-item document to a small number of leaf edit units despite the 4 OCR typos (report §4)', () => {
     const ramp = result.containerGroups.find((g) => g.labelTh === 'ทางลาดสำหรับคนพิการ')!
-    const rampItems = result.canonicalItems.filter((it) => it.containerGroupId === ramp.id)
+    // Session S5-fix (round 2) — leaves under this container can now sit at ANY depth (the ramp
+    // has an intermediate length-tier hierarchy — see the round-2 hierarchy test below), so
+    // matching by rootId (this leaf's depth-0 ancestor) replaces the old direct containerGroupId
+    // match, which only ever worked because the old model had no intermediate level to skip past.
+    const rampItems = result.canonicalItems.filter((it) => it.rootId === ramp.id)
     // 27 positions per copy, 4 OCR-typo rows fuzzy-merged back down -> expect at or near 27
     // canonical items, NOT the ~31 a naive exact-text grouping would produce (27 + up to 4 split
-    // positions). Every canonical item in this group should be near-fully shared (17 or close).
+    // positions). Every canonical item in this group should be near-fully shared (17 or close) —
+    // the round-2 hierarchy fix makes every one of them fully shared now (occurrence-split no
+    // longer collides across length-tiers), so this is tighter than before, not looser.
     expect(rampItems.length).toBeLessThanOrEqual(29)
     const fullyShared = rampItems.filter((it) => it.instances.length === 17)
     expect(fullyShared.length).toBeGreaterThan(20)
+  })
+
+  it('round 2 — the ramp\'s length-tier hierarchy (case ≤2500mm / 2500-6000mm / ≥6000mm) is preserved as its OWN editable containers, not flattened into the leaf list', () => {
+    const ramp = result.containerGroups.find((g) => g.labelTh === 'ทางลาดสำหรับคนพิการ')!
+    // Real structure (verified against tools/checklist_json/template_land_v3.json's A2.2 node):
+    // 7 direct children — 3 length-tier case containers, 1 handrail sub-container, 3 direct leaves.
+    expect(ramp.children.length).toBe(7)
+    const tiers = ramp.children.filter((c) => !c.isLeaf && c.labelTh.startsWith('กรณี'))
+    expect(tiers.length).toBe(3)
+    for (const tier of tiers) {
+      expect(tier.instances.length).toBe(17) // shared across every instance of the ramp itself
+      expect(tier.children.length).toBeGreaterThan(0) // has its own sub-leaves, not flattened away
+    }
+    const directLeaves = ramp.children.filter((c) => c.isLeaf)
+    expect(directLeaves.length).toBe(3)
   })
 
   it('has a highest-fan-out canonical item in the low-to-mid 30s, not report §2\'s unscoped 51x', () => {
@@ -147,17 +168,21 @@ describeIfPresent('buildFacilityGroups — reproduces facility-type-redundancy-r
     const containerSizes = new Set(warning!.instances.map((inst) => walkLeafCodes(inst.node).length))
     expect(containerSizes.size).toBeGreaterThan(3) // genuinely varying item counts (2..12 per §7c), not a fixed shape
 
-    const warningItems = result.canonicalItems.filter((it) => it.containerGroupId === warning!.id)
+    const warningItems = result.canonicalItems.filter((it) => it.rootId === warning!.id)
     const itemInstanceCounts = new Set(warningItems.map((it) => it.instances.length))
     expect(itemInstanceCounts.size).toBeGreaterThan(1) // NOT every item shared by all 34 — subsets preserved
 
     // The leak-prevention proof: every instance a canonical item claims must be a leaf that ACTUALLY
     // exists, by code, under that exact container instance's own subtree — never synthesized/padded.
+    // Matched by templateId + "this container instance's subtree contains the code" rather than by
+    // immediate parentCode, since round 2's leaves can now sit at any depth below the matched
+    // container (parentCode alone would only identify the immediate — possibly intermediate — parent,
+    // not the top container instance itself); a template's own node codes are unique, so this stays
+    // unambiguous even though one template can carry several separate warning-tactile containers.
     for (const item of warningItems) {
       for (const inst of item.instances) {
-        const container = warning!.instances.find((c) => c.mode === inst.mode && c.variantKey === inst.variantKey && c.containerCode === inst.containerCode)
+        const container = warning!.instances.find((c) => c.templateId === inst.templateId && walkLeafCodes(c.node).includes(inst.nodeCode))
         expect(container).toBeDefined()
-        expect(walkLeafCodes(container!.node)).toContain(inst.nodeCode)
       }
     }
   })

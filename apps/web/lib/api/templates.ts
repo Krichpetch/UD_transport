@@ -1,6 +1,6 @@
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
-import type { ChecklistTemplateDefinition, TemplateTier, ThresholdOperator } from '@repo/types'
+import type { ChecklistTemplateDefinition, MasterCriterionExport, TemplateTier, ThresholdOperator } from '@repo/types'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -82,6 +82,9 @@ export interface TemplateExport {
   version: number
   definition: ChecklistTemplateDefinition
   eraOverridesExtract: { overrides: Record<string, { measurements: unknown[] }> }
+  // Session S5, Part 1 — every MasterCriterion this definition's nodes reference (via masterId/
+  // detachedFromMasterId), so the downloaded file is self-contained and round-trips master state.
+  masterCriteria: MasterCriterionExport[]
 }
 
 export function listTemplates() {

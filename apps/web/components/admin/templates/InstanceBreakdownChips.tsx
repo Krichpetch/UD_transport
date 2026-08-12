@@ -1,32 +1,35 @@
 'use client'
 
-import { TransportBadge } from '@/components/shared/badges'
 import type { InstanceBreakdown } from '@/lib/api/facility-groups'
 
 const STATUS_LABEL: Record<string, string> = { DRAFT: 'ร่าง', ACTIVE: 'ใช้งานอยู่', RETIRED: 'เลิกใช้' }
 
 // Session S4b, Part 1 addition — "blast radius" breakdown, shown on the browse cards/rows
 // themselves (not only in the write-time fan-out preview), so an admin sees impact before
-// deciding to edit. version+status both surface (via the title tooltip) so pre/post v1/v2
-// retirement state stays legible when a mixed-scope view is ever used (Part 5).
+// deciding to edit.
+//
+// Session S5-fix (round 6) — used to render one badge PER MODE (icon + count), which in a
+// table cell (round 5's column layout) wrapped awkwardly for anything shared across several
+// modes. Now a single "N จุด" badge with the full mode/variant/version/status breakdown moved
+// into its hover tooltip — same information, just not fighting the row for horizontal space.
 export function InstanceBreakdownChips({ breakdown, compact }: { breakdown: InstanceBreakdown; compact?: boolean }) {
+  const tooltip = breakdown.byMode
+    .flatMap((m) =>
+      m.byVariant.flatMap((v) =>
+        v.byVersion.map(
+          (ver) => `${m.mode}${v.variantKey === 'standard' ? '' : ' ' + v.variantKey} v${ver.version} (${STATUS_LABEL[ver.status] ?? ver.status}): ${ver.count}`,
+        ),
+      ),
+    )
+    .join('\n')
+
   return (
-    <div className="flex flex-wrap items-center gap-1">
-      {breakdown.byMode.map((m) => {
-        const tooltip = m.byVariant
-          .flatMap((v) => v.byVersion.map((ver) => `${v.variantKey === 'standard' ? '' : v.variantKey + ' '}v${ver.version} (${STATUS_LABEL[ver.status] ?? ver.status}): ${ver.count}`))
-          .join('\n')
-        return (
-          <span
-            key={m.mode}
-            title={tooltip}
-            className={`inline-flex items-center gap-1 rounded-full ${compact ? 'px-1.5 py-0.5' : 'px-2 py-1'}`}
-          >
-            <TransportBadge type={m.mode} />
-            <span className="text-foreground text-xs font-semibold">{m.total}</span>
-          </span>
-        )
-      })}
-    </div>
+    <span
+      title={tooltip}
+      className={`bg-secondary/60 text-foreground inline-flex items-center gap-1 rounded-full font-semibold ${compact ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-1 text-sm'}`}
+    >
+      {breakdown.total}
+      <span className="text-muted-foreground font-normal">จุด</span>
+    </span>
   )
 }

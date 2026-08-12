@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto'
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
-import type { ChecklistTemplateDefinition, TransportMode } from '@repo/types'
+import type { ChecklistTemplateDefinition, TemplateAnswerType, TransportMode } from '@repo/types'
 import { ChecklistTemplateValidationError, resolveVariantKey } from '@repo/types'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditLogService } from '../../audit/audit.service'
@@ -18,6 +18,31 @@ import type { EditLawRefsDto } from './dto/edit-law-refs.dto'
 import type { EditLabelDto } from './dto/edit-label.dto'
 import type { EditHiddenDto } from './dto/edit-hidden.dto'
 import type { EditStandaloneDto } from './dto/edit-standalone.dto'
+import type { AttachMasterDto } from './dto/attach-master.dto'
+import {
+  collectReferencedMasterIds,
+  detachFromMaster,
+  isNodeAttached,
+  pushMasterToInstance,
+  toMasterCriterionExport,
+  type MasterCriterionPayload,
+} from './master-criteria.core'
+import type { MasterCriterion } from '@prisma/client'
+
+function toMasterPayload(master: MasterCriterion): MasterCriterionPayload {
+  return {
+    id: master.id,
+    labelTh: master.labelTh,
+    answerType: master.answerType as TemplateAnswerType | null,
+    measurements: master.measurements as MasterCriterionPayload['measurements'],
+    guidance: master.guidance as MasterCriterionPayload['guidance'],
+    imageKeys: master.imageKeys,
+    lawRefs: master.lawRefs,
+    cabinetResolution: master.cabinetResolution,
+    beyondLaw: master.beyondLaw,
+    facilityCode: master.facilityCode,
+  }
+}
 
 // Three audit-action names for W2-S3a (Parts B/C/E): value edits and guidance text share
 // TEMPLATE_THRESHOLD_EDIT (Part E: "audit-logged under the threshold-edit action family"), era
@@ -34,6 +59,13 @@ export const TEMPLATE_LAWREFS_EDIT = 'TEMPLATE_LAWREFS_EDIT'
 export const TEMPLATE_HIDDEN_EDIT = 'TEMPLATE_HIDDEN_EDIT'
 // Session S4b-fix, Fix 4 — detach/re-attach a leaf from the facility-grouped editor's pooling.
 export const TEMPLATE_DETACH = 'TEMPLATE_DETACH'
+// Session S5, Part C — detach/(re)attach a leaf from an EXPLICIT master criterion link. Distinct
+// action names and distinct mechanism from TEMPLATE_DETACH/standalone above — that pair opts a leaf
+// OUT of the grouping engine's FUZZY pooling; this pair breaks/makes an EXPLICIT masterId link. A
+// leaf can carry standalone and masterId independently; the two systems coexist (see
+// facility-grouping.core.ts's Part E exclusion, which now checks both).
+export const TEMPLATE_MASTER_DETACH = 'TEMPLATE_MASTER_DETACH'
+export const TEMPLATE_MASTER_REATTACH = 'TEMPLATE_MASTER_REATTACH'
 // 2026-08-05 — DRAFT -> ACTIVE, the UI counterpart to apps/api/prisma/activate-template.ts.
 // Same action names as that script so audit-log history reads as one continuous trail regardless
 // of which path (CLI or UI) performed a given activation.
@@ -74,6 +106,7 @@ export class TemplatesAdminService {
     const row = await this.loadRow(templateId)
     if (row.status === 'RETIRED') throw new ForbiddenException('template is RETIRED; editing is disabled')
     const def = row.definition as unknown as ChecklistTemplateDefinition
+    this.assertNotAttached(def, nodeCode)
 
     let result: T
     try {
@@ -102,6 +135,20 @@ export class TemplatesAdminService {
     return { id: templateId, definition: result.definition }
   }
 
+  // Session S5, Part C.1 — mirrors the RETIRED-status guard directly above, just node-scoped
+  // instead of row-scoped: an attached leaf's write-through fields are owned by its master (Part
+  // B) and populated ONLY by the master's auto-push (Part D), never by a direct node edit. The
+  // detach endpoint below is the one legitimate way past this — it does NOT call applyEdit/
+  // applyStructuralEdit, so it is never blocked by its own guard.
+  private assertNotAttached(def: ChecklistTemplateDefinition, nodeCode: string): void {
+    if (isNodeAttached(def, nodeCode)) {
+      throw new ForbiddenException({
+        code: 'NODE_IS_ATTACHED',
+        message: 'รายการนี้เชื่อมโยงกับรายการต้นแบบ กรุณาแยกออกก่อนแก้ไข',
+      })
+    }
+  }
+
   // Session S3b, Part C.1 — the structural gate: everything routed through this (clone/type
   // switch/add-child/reorder/delete) requires the target template to be a DRAFT. Value edits
   // above keep using applyEdit's RETIRED-only gate, unchanged — structural mutation is strictly
@@ -110,6 +157,7 @@ export class TemplatesAdminService {
     templateId: string,
     actorId: string,
     action: string,
+    nodeCode: string,
     extra: Record<string, unknown>,
     edit: (def: ChecklistTemplateDefinition) => T,
   ): Promise<T> {
@@ -121,6 +169,7 @@ export class TemplatesAdminService {
       })
     }
     const def = row.definition as unknown as ChecklistTemplateDefinition
+    this.assertNotAttached(def, nodeCode)
 
     let result: T
     try {
@@ -280,6 +329,7 @@ export class TemplatesAdminService {
       templateId,
       actorId,
       TEMPLATE_STRUCTURE_EDIT,
+      nodeCode,
       { nodeCode, op: 'editLabel' },
       (def) => core.editNodeLabel(def, nodeCode, dto.labelTh, dto.num),
     )
@@ -290,6 +340,7 @@ export class TemplatesAdminService {
       templateId,
       actorId,
       TEMPLATE_STRUCTURE_EDIT,
+      nodeCode,
       { nodeCode, measurementKey, op: 'reorderMeasurement', direction: dto.direction },
       (def) => ({ ...core.reorderMeasurement(def, nodeCode, measurementKey, dto.direction), before: null, after: null }),
     )
@@ -300,6 +351,7 @@ export class TemplatesAdminService {
       templateId,
       actorId,
       TEMPLATE_STRUCTURE_EDIT,
+      nodeCode,
       { nodeCode, op: 'setQuestionType' },
       (def) => core.setNodeQuestionType(def, nodeCode, dto.type, dto.confirmDowngrade ?? false),
     )
@@ -310,6 +362,7 @@ export class TemplatesAdminService {
       templateId,
       actorId,
       TEMPLATE_STRUCTURE_EDIT,
+      nodeCode,
       { nodeCode, op: 'addMeasurement' },
       (def) => {
         const r = core.addMeasurement(def, nodeCode, dto)
@@ -324,6 +377,7 @@ export class TemplatesAdminService {
       templateId,
       actorId,
       TEMPLATE_STRUCTURE_EDIT,
+      parentCode,
       { parentCode, op: 'addChild' },
       (def) => {
         const r = core.addChildNode(def, parentCode, dto)
@@ -338,6 +392,7 @@ export class TemplatesAdminService {
       templateId,
       actorId,
       TEMPLATE_STRUCTURE_EDIT,
+      nodeCode,
       { nodeCode, op: 'reorder', direction: dto.direction },
       (def) => ({ ...core.reorderNode(def, nodeCode, dto.direction), before: null, after: null }),
     )
@@ -348,6 +403,7 @@ export class TemplatesAdminService {
       templateId,
       actorId,
       TEMPLATE_STRUCTURE_EDIT,
+      nodeCode,
       { nodeCode, op: 'delete' },
       (def) => {
         const r = core.deleteNode(def, nodeCode)
@@ -404,6 +460,86 @@ export class TemplatesAdminService {
       { field: 'standalone' },
       (def) => core.editStandalone(def, nodeCode, dto.standalone),
     )
+  }
+
+  // Session S5, Part C.2 — detach a node from its master. Deliberately does NOT go through
+  // applyEdit (which would immediately reject via assertNotAttached — the whole point of this
+  // endpoint is to be the one legitimate way past that guard). Values are already physically
+  // present on the node (Part B's write-through invariant), so this is a plain masterId-clear +
+  // detachedFromMasterId-set; the node becomes an ordinary independent node, editable as today.
+  async detachMaster(templateId: string, nodeCode: string, actorId: string) {
+    const row = await this.loadRow(templateId)
+    if (row.status === 'RETIRED') throw new ForbiddenException('template is RETIRED; editing is disabled')
+    const def = row.definition as unknown as ChecklistTemplateDefinition
+
+    let result: ReturnType<typeof detachFromMaster>
+    try {
+      result = detachFromMaster(def, nodeCode)
+    } catch (err) {
+      if (err instanceof TemplateEditError || err instanceof ChecklistTemplateValidationError) {
+        throw new BadRequestException(err.message)
+      }
+      throw err
+    }
+
+    await this.prisma.checklistTemplate.update({
+      where: { id: templateId },
+      data: { definition: result.definition as unknown as Prisma.InputJsonValue },
+    })
+    await this.auditLog.log({
+      userId: actorId,
+      action: TEMPLATE_MASTER_DETACH,
+      entityType: 'ChecklistTemplate',
+      entityId: templateId,
+      before: { nodeCode, masterId: result.masterId },
+      after: { nodeCode, detachedFromMasterId: result.masterId },
+    })
+
+    return { id: templateId, definition: result.definition }
+  }
+
+  // Session S5, Part C.3 (D3) — attach a node to a master, wholesale-overwriting its write-through
+  // values from the master's CURRENT state (no diff prompt — attaching means "make me match the
+  // master"). Deliberately handles BOTH a node's first-ever attach and D3's re-attach of a
+  // previously-detached node with the same action: mechanically identical (look up the named
+  // master, overwrite, link), and D3's "re-link a detached node to its master" doesn't need the
+  // node's OWN detachedFromMasterId breadcrumb to already agree with the caller's chosen masterId
+  // — an admin re-pointing a detached node at a DIFFERENT master is a valid use of the same action.
+  async attachMaster(templateId: string, nodeCode: string, dto: AttachMasterDto, actorId: string) {
+    const row = await this.loadRow(templateId)
+    if (row.status === 'RETIRED') throw new ForbiddenException('template is RETIRED; editing is disabled')
+    const def = row.definition as unknown as ChecklistTemplateDefinition
+    if (isNodeAttached(def, nodeCode)) {
+      throw new BadRequestException(`node "${nodeCode}" is already attached to a master — detach first`)
+    }
+
+    const master = await this.prisma.masterCriterion.findUnique({ where: { id: dto.masterId } })
+    if (!master) throw new NotFoundException(`master criterion ${dto.masterId} not found`)
+
+    let result: ReturnType<typeof pushMasterToInstance>
+    try {
+      result = pushMasterToInstance(def, nodeCode, toMasterPayload(master), { setMasterId: true, clearDetached: true })
+    } catch (err) {
+      if (err instanceof TemplateEditError || err instanceof ChecklistTemplateValidationError) {
+        throw new BadRequestException(err.message)
+      }
+      throw err
+    }
+
+    await this.prisma.checklistTemplate.update({
+      where: { id: templateId },
+      data: { definition: result.definition as unknown as Prisma.InputJsonValue },
+    })
+    await this.auditLog.log({
+      userId: actorId,
+      action: TEMPLATE_MASTER_REATTACH,
+      entityType: 'ChecklistTemplate',
+      entityId: templateId,
+      before: { nodeCode, masterId: dto.masterId, value: result.before },
+      after: { nodeCode, masterId: dto.masterId, value: result.after },
+    })
+
+    return { id: templateId, definition: result.definition }
   }
 
   async list() {
@@ -579,9 +715,18 @@ export class TemplatesAdminService {
     return result
   }
 
+  // Session S5, Part 1 — extends the existing export to round-trip master state. `definition`
+  // already carries masterId/detachedFromMasterId on its nodes for free (ordinary TemplateNode
+  // fields, Part A); what's new is `masterCriteria`, the full payload of every MasterCriterion this
+  // definition's nodes reference, so the emitted file is self-contained and Part 0's import can
+  // recreate those rows rather than leaving masterId as a dangling pointer into a table the fresh
+  // DB has never heard of. Server-side (this whole method already was) — the download button just
+  // gets a new field to pass through, no client-side MasterCriterion read needed.
   async exportTemplate(templateId: string) {
     const row = await this.loadRow(templateId)
     const def = row.definition as unknown as ChecklistTemplateDefinition
+    const masterIds = collectReferencedMasterIds(def)
+    const masters = masterIds.length > 0 ? await this.prisma.masterCriterion.findMany({ where: { id: { in: masterIds } } }) : []
     return {
       id: row.id,
       mode: row.mode,
@@ -589,6 +734,7 @@ export class TemplatesAdminService {
       version: row.version,
       definition: def,
       eraOverridesExtract: core.deriveEraOverridesExtract(def),
+      masterCriteria: masters.map((m) => toMasterCriterionExport(toMasterPayload(m))),
     }
   }
 }

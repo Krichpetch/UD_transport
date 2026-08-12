@@ -4,9 +4,25 @@
 // mocking convention as templates-service-structural.spec.ts.
 import { BadRequestException, NotFoundException } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
-import { FacilityGroupsService } from '../facility-groups.service'
+import { Prisma } from '@prisma/client'
+import { FacilityGroupsService, type GroupNodeDto } from '../facility-groups.service'
 import { PrismaService } from '../../../prisma/prisma.service'
 import { AuditLogService } from '../../../audit/audit.service'
+
+// Session S5-fix (round 2) — getGroups() now returns a recursive tree (containerGroups only, no
+// separate flat canonicalItems list); tests that need to find a specific LEAF by label flatten it
+// themselves the same way the frontend does.
+function flattenLeaves(nodes: GroupNodeDto[]): GroupNodeDto[] {
+  const out: GroupNodeDto[] = []
+  const walk = (ns: GroupNodeDto[]) => {
+    for (const n of ns) {
+      if (n.isLeaf) out.push(n)
+      walk(n.children)
+    }
+  }
+  walk(nodes)
+  return out
+}
 
 // Two v3-shaped templates sharing one container ("ทางลาดสำหรับคนพิการ") with two leaves:
 //   A1.1-1 — identical text AND data in both -> SHARED, no conflict, propagatable.
@@ -87,6 +103,24 @@ describe('FacilityGroupsService', () => {
   const update = jest.fn()
   const auditLog = jest.fn()
 
+  // Session S5-fix, Part B — propagateItemEdit routes every field except 'hidden' through an
+  // atomic $transaction (promote-on-edit + master push). Same tx-mocking convention as
+  // master-criteria.service.spec.ts: a fake $transaction that just invokes the callback with a
+  // tx client exposing its own mocks, so "nothing ever escapes to the root client" is checkable.
+  const txMasterFindUnique = jest.fn()
+  const txMasterCreate = jest.fn()
+  const txMasterUpdate = jest.fn()
+  const txAuditCreate = jest.fn()
+  const txTemplateFindUnique = jest.fn()
+  const txTemplateUpdate = jest.fn()
+  const transactionMock = jest.fn(async (cb: (tx: unknown) => Promise<unknown>) =>
+    cb({
+      masterCriterion: { findUnique: txMasterFindUnique, create: txMasterCreate, update: txMasterUpdate },
+      auditLog: { create: txAuditCreate },
+      checklistTemplate: { findUnique: txTemplateFindUnique, update: txTemplateUpdate },
+    }),
+  )
+
   beforeEach(async () => {
     jest.clearAllMocks()
     findMany.mockResolvedValue([LAND_ROW, WATER_ROW])
@@ -95,10 +129,22 @@ describe('FacilityGroupsService', () => {
     )
     update.mockResolvedValue({})
 
+    txTemplateFindUnique.mockImplementation(({ where: { id } }: { where: { id: string } }) =>
+      Promise.resolve(id === LAND_ROW.id ? LAND_ROW : id === WATER_ROW.id ? WATER_ROW : null),
+    )
+    txTemplateUpdate.mockResolvedValue({})
+    txMasterCreate.mockResolvedValue({ id: 'new-master-1' })
+    txMasterUpdate.mockResolvedValue({})
+    txMasterFindUnique.mockResolvedValue({ id: 'new-master-1' })
+    txAuditCreate.mockResolvedValue({})
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         FacilityGroupsService,
-        { provide: PrismaService, useValue: { checklistTemplate: { findMany, findUnique, update } } },
+        {
+          provide: PrismaService,
+          useValue: { checklistTemplate: { findMany, findUnique, update }, $transaction: transactionMock },
+        },
         { provide: AuditLogService, useValue: { log: auditLog } },
       ],
     }).compile()
@@ -107,21 +153,21 @@ describe('FacilityGroupsService', () => {
 
   it('getGroups reports one SHARED non-conflicted item and one SHARED conflicted item', async () => {
     const result = await service.getGroups({ kind: 'exact', version: 3 })
-    expect(result.canonicalItems).toHaveLength(2)
+    expect(flattenLeaves(result.containerGroups)).toHaveLength(2)
 
-    const clean = result.canonicalItems.find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
+    const clean = flattenLeaves(result.containerGroups).find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
     expect(clean.classification).toBe('SHARED')
     expect(clean.hasConflict).toBe(false)
     expect(clean.propagatable).toBe(true)
 
-    const conflicted = result.canonicalItems.find((it) => it.labelTh.includes('ขัดแย้ง'))!
+    const conflicted = flattenLeaves(result.containerGroups).find((it) => it.labelTh.includes('ขัดแย้ง'))!
     expect(conflicted.hasConflict).toBe(true)
     expect(conflicted.propagatable).toBe(false)
   })
 
-  it('propagateItemEdit writes to every instance and shares one correlationId across audit rows', async () => {
+  it('propagateItemEdit (measurement field) promotes on first edit, writes every instance via the tx client, and shares one correlationId', async () => {
     const groups = await service.getGroups({ kind: 'exact', version: 3 })
-    const clean = groups.canonicalItems.find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
+    const clean = flattenLeaves(groups.containerGroups).find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
 
     const result = await service.propagateItemEdit({ kind: 'exact', version: 3 }, clean.id, 'admin1', {
       field: 'measurement',
@@ -130,19 +176,98 @@ describe('FacilityGroupsService', () => {
     })
 
     expect(result.wroteCount).toBe(2)
+    expect(result.promoted).toBe(true)
+    expect(result.masterId).toBe('new-master-1')
+    expect(transactionMock).toHaveBeenCalledTimes(1)
+    expect(txMasterCreate).toHaveBeenCalledTimes(1)
+    expect(txTemplateUpdate).toHaveBeenCalledTimes(2)
+    // Nothing escapes to the root client — that's what makes the promote+push atomic.
+    expect(update).not.toHaveBeenCalled()
+    expect(auditLog).not.toHaveBeenCalled()
+
+    const correlationIds = txAuditCreate.mock.calls.map((c) => (c[0].data.before === Prisma.JsonNull ? c[0].data.after : c[0].data.before).correlationId)
+    expect(new Set(correlationIds).size).toBe(1) // one shared correlationId across master-create + both instance pushes
+    expect(correlationIds[0]).toBe(result.correlationId)
+    expect(txAuditCreate).toHaveBeenCalledTimes(3) // 1 MasterCriterion create + 2 ChecklistTemplate pushes
+    expect(txAuditCreate.mock.calls.filter((c) => c[0].data.action === 'TEMPLATE_MASTER_CREATE')).toHaveLength(1)
+    expect(txAuditCreate.mock.calls.filter((c) => c[0].data.action === 'TEMPLATE_GROUPED_EDIT')).toHaveLength(2)
+
+    for (const call of txTemplateUpdate.mock.calls) {
+      const leaf = call[0].data.definition.groups[0].items[0].subItems[0]
+      expect(leaf.masterId).toBe('new-master-1') // every instance now linked to the same new master
+      expect(leaf.measurements[0].value).toBe(950) // the edit landed
+      expect(leaf.measurements[0].confirmed).toBe(true)
+    }
+  })
+
+  it('a second edit of the now-promoted item reuses the same master — no duplicate master row, updates not creates', async () => {
+    const groups = await service.getGroups({ kind: 'exact', version: 3 })
+    const clean = flattenLeaves(groups.containerGroups).find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
+
+    const first = await service.propagateItemEdit({ kind: 'exact', version: 3 }, clean.id, 'admin1', {
+      field: 'measurement',
+      measurementKey: 'm1',
+      measurement: { operator: 'gte', value: 950, unit: 'mm', autoGrade: true },
+    })
+    expect(first.promoted).toBe(true)
+
+    // Simulate persistence: both rows now carry the masterId the first edit just linked.
+    const promotedLand = { ...LAND_ROW, definition: JSON.parse(JSON.stringify(landDef())) }
+    promotedLand.definition.groups[0].items[0].subItems[0].masterId = first.masterId
+    const promotedWater = { ...WATER_ROW, definition: JSON.parse(JSON.stringify(waterDef())) }
+    promotedWater.definition.groups[0].items[0].subItems[0].masterId = first.masterId
+    findMany.mockResolvedValue([promotedLand, promotedWater])
+    findUnique.mockImplementation(({ where: { id } }: { where: { id: string } }) =>
+      Promise.resolve(id === promotedLand.id ? promotedLand : id === promotedWater.id ? promotedWater : null),
+    )
+    txTemplateFindUnique.mockImplementation(({ where: { id } }: { where: { id: string } }) =>
+      Promise.resolve(id === promotedLand.id ? promotedLand : id === promotedWater.id ? promotedWater : null),
+    )
+
+    const groups2 = await service.getGroups({ kind: 'exact', version: 3 })
+    const clean2 = flattenLeaves(groups2.containerGroups).find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
+    const second = await service.propagateItemEdit({ kind: 'exact', version: 3 }, clean2.id, 'admin1', {
+      field: 'measurement',
+      measurementKey: 'm1',
+      measurement: { operator: 'gte', value: 1000, unit: 'mm', autoGrade: true },
+    })
+
+    expect(second.promoted).toBe(false)
+    expect(second.masterId).toBe(first.masterId)
+    expect(txMasterCreate).toHaveBeenCalledTimes(1) // still just the ONE call, from the first edit
+    expect(txMasterUpdate).toHaveBeenCalledTimes(1) // the second edit updates the existing row instead
+    for (const call of txTemplateUpdate.mock.calls.slice(-2)) {
+      const leaf = call[0].data.definition.groups[0].items[0].subItems[0]
+      expect(leaf.masterId).toBe(first.masterId)
+      expect(leaf.measurements[0].value).toBe(1000)
+    }
+  })
+
+  it("the 'hidden' field always writes directly per-instance and never creates or touches a master", async () => {
+    const groups = await service.getGroups({ kind: 'exact', version: 3 })
+    const clean = flattenLeaves(groups.containerGroups).find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
+
+    const result = await service.propagateItemEdit({ kind: 'exact', version: 3 }, clean.id, 'admin1', {
+      field: 'hidden',
+      hidden: { hidden: true },
+    })
+
+    expect(result.wroteCount).toBe(2)
+    expect(transactionMock).not.toHaveBeenCalled()
+    expect(txMasterCreate).not.toHaveBeenCalled()
     expect(update).toHaveBeenCalledTimes(2)
     expect(auditLog).toHaveBeenCalledTimes(2)
-    const correlationIds = auditLog.mock.calls.map((c) => (c[0].before as { correlationId: string }).correlationId)
-    expect(new Set(correlationIds).size).toBe(1) // one shared correlationId across the fan-out
-    expect(correlationIds[0]).toBe(result.correlationId)
-    for (const call of auditLog.mock.calls) {
-      expect(call[0].action).toBe('TEMPLATE_GROUPED_EDIT')
+    for (const call of auditLog.mock.calls) expect(call[0].action).toBe('TEMPLATE_GROUPED_EDIT')
+    for (const call of update.mock.calls) {
+      const leaf = call[0].data.definition.groups[0].items[0].subItems[0]
+      expect(leaf.masterId).toBeUndefined() // hidden edits never promote
+      expect(leaf.hidden).toBe(true)
     }
   })
 
   it('propagateItemEdit refuses a conflicted canonical item — the gate holds', async () => {
     const groups = await service.getGroups({ kind: 'exact', version: 3 })
-    const conflicted = groups.canonicalItems.find((it) => it.labelTh.includes('ขัดแย้ง'))!
+    const conflicted = flattenLeaves(groups.containerGroups).find((it) => it.labelTh.includes('ขัดแย้ง'))!
 
     await expect(
       service.propagateItemEdit({ kind: 'exact', version: 3 }, conflicted.id, 'admin1', {
@@ -163,7 +288,7 @@ describe('FacilityGroupsService', () => {
   describe('resolveConflict', () => {
     it('"split" only stamps conflictSplitAcknowledged on every instance — no data changes, and it is audit-logged', async () => {
       const groups = await service.getGroups({ kind: 'exact', version: 3 })
-      const conflicted = groups.canonicalItems.find((it) => it.labelTh.includes('ขัดแย้ง'))!
+      const conflicted = flattenLeaves(groups.containerGroups).find((it) => it.labelTh.includes('ขัดแย้ง'))!
 
       const result = await service.resolveConflict({ kind: 'exact', version: 3 }, conflicted.id, 'admin1', { resolution: 'split', notes: 'genuinely different by mode' })
       expect(result.resolution).toBe('split')
@@ -180,7 +305,7 @@ describe('FacilityGroupsService', () => {
 
     it('"winner" copies the chosen variant\'s data onto every OTHER instance and skips the instance that already matches', async () => {
       const groups = await service.getGroups({ kind: 'exact', version: 3 })
-      const conflicted = groups.canonicalItems.find((it) => it.labelTh.includes('ขัดแย้ง'))!
+      const conflicted = flattenLeaves(groups.containerGroups).find((it) => it.labelTh.includes('ขัดแย้ง'))!
       const conflicts = await service.getConflicts({ kind: 'exact', version: 3 })
       const conflictEntry = conflicts.find((c) => c.canonicalItemId === conflicted.id)!
       const landVariant = conflictEntry.variants.find((v) => v.instances.some((i) => i.mode === 'ทางบก'))!
@@ -198,14 +323,14 @@ describe('FacilityGroupsService', () => {
 
     it('rejects resolving a conflict that no longer exists', async () => {
       const groups = await service.getGroups({ kind: 'exact', version: 3 })
-      const clean = groups.canonicalItems.find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
+      const clean = flattenLeaves(groups.containerGroups).find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
       await expect(service.resolveConflict({ kind: 'exact', version: 3 }, clean.id, 'admin1', { resolution: 'split' })).rejects.toThrow(BadRequestException)
     })
   })
 
   it('confirmGroupedMeasurement confirms the measurement on every instance that carries it, sharing one correlationId', async () => {
     const groups = await service.getGroups({ kind: 'exact', version: 3 })
-    const clean = groups.canonicalItems.find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
+    const clean = flattenLeaves(groups.containerGroups).find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
 
     const result = await service.confirmGroupedMeasurement({ kind: 'exact', version: 3 }, clean.id, 'm1', 'admin1')
     expect(result.wroteCount).toBe(2)
@@ -231,7 +356,7 @@ describe('FacilityGroupsService', () => {
     async function resolveTargets() {
       const groups = await service.getGroups({ kind: 'exact', version: 3 })
       const group = groups.containerGroups.find((g) => g.labelTh === 'ทางลาดสำหรับคนพิการ')!
-      const anchor = groups.canonicalItems.find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
+      const anchor = flattenLeaves(groups.containerGroups).find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
       return { group, anchor }
     }
 
@@ -240,7 +365,7 @@ describe('FacilityGroupsService', () => {
       const result = await service.addAndPlace(
         { kind: 'exact', version: 3 },
         {
-          anchorItemId: anchor.id,
+          anchorNodeId: anchor.id,
           side: 'before',
           targetTemplateIds: [LAND_ROW.id, WATER_ROW.id],
           content: { labelTh: 'ถังขยะแบบยกเคลื่อนที่ได้', type: 'presence', facilityCode: 27 },
@@ -259,7 +384,7 @@ describe('FacilityGroupsService', () => {
       const result = await service.addAndPlace(
         { kind: 'exact', version: 3 },
         {
-          anchorItemId: anchor.id,
+          anchorNodeId: anchor.id,
           side: 'before',
           targetTemplateIds: [LAND_ROW.id, WATER_ROW.id],
           content: { labelTh: 'ถังขยะแบบยกเคลื่อนที่ได้', type: 'presence', facilityCode: 27 },
@@ -297,7 +422,7 @@ describe('FacilityGroupsService', () => {
       const result = await service.addAndPlace(
         { kind: 'exact', version: 3 },
         {
-          anchorItemId: anchor.id,
+          anchorNodeId: anchor.id,
           side: 'after',
           targetTemplateIds: [LAND_ROW.id, 'does-not-exist'],
           content: { labelTh: 'x', type: 'presence' },
@@ -324,7 +449,7 @@ describe('FacilityGroupsService', () => {
       const result = await service.addAndPlace(
         { kind: 'exact', version: 3 },
         {
-          anchorItemId: anchor.id,
+          anchorNodeId: anchor.id,
           side: 'before',
           targetTemplateIds: [LAND_ROW.id, WATER_ROW.id],
           content: { labelTh: 'x', type: 'presence' },

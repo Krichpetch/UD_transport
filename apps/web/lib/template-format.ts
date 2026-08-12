@@ -29,16 +29,25 @@ interface FormatMeasurementInput {
   tiers?: { min: number; max?: number | null; required: number }[] | null
 }
 
-// One measurement -> "≥300 มม." / "≤300 มม." / "300–500 มม." / "ตารางขั้นบันได (3 ขั้น)".
+// Session S5-fix, Part D — a threshold that never got extracted (both value slots null/missing)
+// used to render as "≥- mm" / "-–- mm", which reads as a broken number rather than an honest "we
+// don't have this one yet". Shown wherever a measurement never had a value extracted from source —
+// never invented, never silently treated as 0.
+export const NO_THRESHOLD_LABEL = 'ไม่มีเกณฑ์ที่ระบุ'
+
+// One measurement -> "≥300 มม." / "≤300 มม." / "300–500 มม." / "ตารางขั้นบันได (3 ขั้น)" /
+// "ไม่มีเกณฑ์ที่ระบุ" (value(s) never extracted).
 export function formatMeasurementValue(m: FormatMeasurementInput): string {
   if (m.operator === 'tiered') {
     const n = m.tiers?.length ?? 0
     return `ตารางขั้นบันได (${n} ขั้น)`
   }
   if (m.operator === 'range') {
+    if (m.value == null && m.value2 == null) return NO_THRESHOLD_LABEL
     return `${m.value ?? '-'}–${m.value2 ?? '-'} ${m.unit}`
   }
-  return `${OPERATOR_SYMBOL[m.operator]}${m.value ?? '-'} ${m.unit}`
+  if (m.value == null) return NO_THRESHOLD_LABEL
+  return `${OPERATOR_SYMBOL[m.operator]}${m.value} ${m.unit}`
 }
 
 const ANSWER_TYPE_LABEL: Record<string, string> = {
