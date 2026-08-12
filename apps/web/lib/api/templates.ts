@@ -4,6 +4,10 @@ import type { ChecklistTemplateDefinition, MasterCriterionExport, TemplateTier, 
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
+// Mirrors MAX_IMAGES_PER_NODE in apps/api/src/admin/templates/templates.core.ts — the server is
+// the real enforcement point (this only drives the picker UI / early client-side stop).
+export const MAX_TEMPLATE_IMAGES_PER_NODE = 8
+
 export interface TemplateSummary {
   itemCount: number
   leafCount: number
@@ -162,6 +166,27 @@ export function removeTemplateImage(templateId: string, nodeCode: string, key: s
 // evidence photos already go through (uploads.controller.ts's PRESIGN_KEY_PREFIXES).
 export function presignTemplateImage(key: string) {
   return api.get<{ url: string }>(`/uploads/presign?key=${encodeURIComponent(key)}`)
+}
+
+// Upload-only, no nodeCode — used by the grouped/master editor (GroupedImageEditor), NOT the
+// individual editor above. uploadTemplateImage's endpoint commits the key onto one node through a
+// guard that rejects nodes already attached to a master; the grouped editor's representative
+// instance is very often already attached, so it uploads bytes here and lets propagateItemEdit's
+// 'image' field (master-aware, no attach guard) write the key to every instance instead.
+export async function uploadGroupedImage(file: File) {
+  const token = useAuthStore.getState().token
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${BASE_URL}/admin/template-groups/images`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { message?: string }
+    throw new Error(body.message ?? `HTTP ${res.status}`)
+  }
+  return res.json() as Promise<{ key: string }>
 }
 
 // ---- Session S3b, Part C — structural editing (DRAFT-only, enforced server-side). ----

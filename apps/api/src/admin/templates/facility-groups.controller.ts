@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common'
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Post, Query, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common'
+import { FileInterceptor } from '@nestjs/platform-express'
 import { Request } from 'express'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
 import { FacilityGroupsService, type VersionScope } from './facility-groups.service'
@@ -52,6 +53,16 @@ export class FacilityGroupsController {
   getReviewQueue(@Query('version') version: string | undefined, @Query('scope') scope: string | undefined, @Req() req: AuthRequest) {
     if (req.user.role !== 'ADMIN') throw new ForbiddenException()
     return this.groups.getGroupedReviewQueue(parseScope(scope, version))
+  }
+
+  // Upload-only (no nodeCode/version — see FacilityGroupsService#uploadImage's doc for why this
+  // is a separate route from templates.controller.ts's per-node one). Front end calls this to get
+  // a key, then propagates it via 'items/:itemId/propagate' below with field 'image'.
+  @Post('images')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  uploadImage(@UploadedFile() file: Express.Multer.File, @Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.groups.uploadImage(file)
   }
 
   @Post('items/:itemId/propagate')

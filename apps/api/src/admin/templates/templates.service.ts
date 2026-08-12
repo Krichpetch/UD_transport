@@ -72,9 +72,6 @@ export const TEMPLATE_MASTER_REATTACH = 'TEMPLATE_MASTER_REATTACH'
 export const TEMPLATE_ACTIVATE = 'TEMPLATE_ACTIVATE'
 export const TEMPLATE_RETIRE = 'TEMPLATE_RETIRE'
 
-const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
-export const TEMPLATE_IMAGE_KEY_PREFIX = 'template-images/'
-
 @Injectable()
 export class TemplatesAdminService {
   constructor(
@@ -683,9 +680,9 @@ export class TemplatesAdminService {
   }
 
   async addImage(templateId: string, nodeCode: string, file: Express.Multer.File, actorId: string) {
-    if (!IMAGE_MIME_TYPES.has(file.mimetype)) throw new BadRequestException('Invalid file type')
+    if (!core.IMAGE_MIME_TYPES.has(file.mimetype)) throw new BadRequestException('Invalid file type')
     const ext = file.originalname.split('.').pop() ?? 'jpg'
-    const key = `${TEMPLATE_IMAGE_KEY_PREFIX}${randomBytes(16).toString('hex')}.${ext}`
+    const key = `${core.TEMPLATE_IMAGE_KEY_PREFIX}${randomBytes(16).toString('hex')}.${ext}`
 
     const result = await this.applyEdit(
       templateId,
@@ -702,7 +699,7 @@ export class TemplatesAdminService {
   }
 
   async removeImage(templateId: string, nodeCode: string, key: string, actorId: string) {
-    if (!key.startsWith(TEMPLATE_IMAGE_KEY_PREFIX)) throw new BadRequestException('Invalid key')
+    if (!key.startsWith(core.TEMPLATE_IMAGE_KEY_PREFIX)) throw new BadRequestException('Invalid key')
     const result = await this.applyEdit(
       templateId,
       actorId,

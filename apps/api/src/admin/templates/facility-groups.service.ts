@@ -1,10 +1,11 @@
-import { randomUUID } from 'crypto'
+import { randomBytes, randomUUID } from 'crypto'
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import type { ChecklistTemplateDefinition, TransportMode } from '@repo/types'
 import { ChecklistTemplateValidationError, FACILITY_CATALOG, indexTemplateNodesByCode } from '@repo/types'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditLogService } from '../../audit/audit.service'
+import { MinioService } from '../../minio/minio.service'
 import * as core from './templates.core'
 import { TemplateEditError } from './templates.core'
 import {
@@ -176,7 +177,24 @@ export class FacilityGroupsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
+    private readonly minio: MinioService,
   ) {}
+
+  // Upload-only — no node write. The per-node endpoint (templates.service.ts#addImage) commits the
+  // key onto ONE node via applyEdit, which is guarded by assertNotAttached: fine for the individual
+  // editor (a direct edit on an attached leaf should be rejected), but wrong here, since a group's
+  // representative instance is very often ALREADY attached to a master by the time an admin adds a
+  // picture to it. propagateItemEdit's 'image' field already writes the resulting key to every
+  // instance through the master-aware path (propagateThroughMaster/atomicMasterPush, which reads/
+  // writes the definition directly and never calls assertNotAttached) — this endpoint only needs to
+  // get the bytes into MinIO and hand back the key for that call to use.
+  async uploadImage(file: Express.Multer.File) {
+    if (!core.IMAGE_MIME_TYPES.has(file.mimetype)) throw new BadRequestException('Invalid file type')
+    const ext = file.originalname.split('.').pop() ?? 'jpg'
+    const key = `${core.TEMPLATE_IMAGE_KEY_PREFIX}${randomBytes(16).toString('hex')}.${ext}`
+    await this.minio.upload(file.buffer, key, file.mimetype)
+    return { key }
+  }
 
   // Session S4b, Part 5 — resolves a VersionScope into the ChecklistTemplate rows to pool. 'exact'
   // (the grouped editor's real default) behaves exactly as before this addition. 'active' reads

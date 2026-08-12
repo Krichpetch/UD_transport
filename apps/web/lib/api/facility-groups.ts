@@ -247,7 +247,7 @@ export function resolveConflict(version: number, itemId: string, body: ResolveCo
 // Image upload for the grouped editor's image field: uploads the file ONCE against a single
 // representative instance (reuses the existing per-item upload endpoint), returning the MinIO
 // key the caller then propagates via propagateItemEdit({ field: 'image', imageKey, imageOp: 'add' }).
-export { uploadTemplateImage, presignTemplateImage } from './templates'
+export { uploadGroupedImage, presignTemplateImage, MAX_TEMPLATE_IMAGES_PER_NODE } from './templates'
 
 // ---- Session S4b-fix, Fix 3 — add-and-place ---------------------------------------------------
 

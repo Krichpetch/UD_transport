@@ -14,6 +14,7 @@ import { Test } from '@nestjs/testing'
 import { FacilityGroupsService } from '../facility-groups.service'
 import { PrismaService } from '../../../prisma/prisma.service'
 import { AuditLogService } from '../../../audit/audit.service'
+import { MinioService } from '../../../minio/minio.service'
 
 function leafDef(templateId: string, mode: 'ทางบก' | 'ทางน้ำ', lawRefs: string[] | undefined) {
   return {
@@ -82,6 +83,7 @@ describe('extendedFieldsAgree — round 4 gate', () => {
         FacilityGroupsService,
         { provide: PrismaService, useValue: { checklistTemplate: { findMany, findUnique, update }, $transaction: transactionMock } },
         { provide: AuditLogService, useValue: { log: auditLog } },
+        { provide: MinioService, useValue: { upload: jest.fn(), getPresignedUrl: jest.fn(), remove: jest.fn() } },
       ],
     }).compile()
     service = moduleRef.get(FacilityGroupsService)

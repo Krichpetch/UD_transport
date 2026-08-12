@@ -11,6 +11,7 @@ import { buildFacilityGroups, detectConflicts, isPropagatable, type FacilityLoad
 import { FacilityGroupsService, type GroupNodeDto } from '../facility-groups.service'
 import { PrismaService } from '../../../prisma/prisma.service'
 import { AuditLogService } from '../../../audit/audit.service'
+import { MinioService } from '../../../minio/minio.service'
 
 // Session S5-fix (round 2) — service.getGroups() returns a recursive tree, not a flat
 // canonicalItems list; flatten it the same way the frontend does to find a specific leaf.
@@ -107,6 +108,7 @@ describe('null-threshold divergence — Part D.2', () => {
           FacilityGroupsService,
           { provide: PrismaService, useValue: { checklistTemplate: { findMany, findUnique }, $transaction: transactionMock } },
           { provide: AuditLogService, useValue: { log: jest.fn() } },
+          { provide: MinioService, useValue: { upload: jest.fn(), getPresignedUrl: jest.fn(), remove: jest.fn() } },
         ],
       }).compile()
       service = moduleRef.get(FacilityGroupsService)

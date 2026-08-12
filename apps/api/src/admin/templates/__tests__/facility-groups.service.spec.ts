@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client'
 import { FacilityGroupsService, type GroupNodeDto } from '../facility-groups.service'
 import { PrismaService } from '../../../prisma/prisma.service'
 import { AuditLogService } from '../../../audit/audit.service'
+import { MinioService } from '../../../minio/minio.service'
 
 // Session S5-fix (round 2) — getGroups() now returns a recursive tree (containerGroups only, no
 // separate flat canonicalItems list); tests that need to find a specific LEAF by label flatten it
@@ -146,6 +147,7 @@ describe('FacilityGroupsService', () => {
           useValue: { checklistTemplate: { findMany, findUnique, update }, $transaction: transactionMock },
         },
         { provide: AuditLogService, useValue: { log: auditLog } },
+        { provide: MinioService, useValue: { upload: jest.fn(), getPresignedUrl: jest.fn(), remove: jest.fn() } },
       ],
     }).compile()
     service = moduleRef.get(FacilityGroupsService)

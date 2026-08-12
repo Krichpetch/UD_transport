@@ -7,7 +7,7 @@ import { DIALOG_HEADER_CLS, DIALOG_TITLE_CLS, INPUT_CLS, SELECT_CLS } from '@/li
 import { TransportBadge } from '@/components/shared/badges'
 import { usePropagateItemEdit } from '@/hooks/use-facility-groups'
 import { useTemplateImageUrls } from '@/hooks/use-template-image-urls'
-import { uploadTemplateImage } from '@/lib/api/facility-groups'
+import { MAX_TEMPLATE_IMAGES_PER_NODE, uploadGroupedImage } from '@/lib/api/facility-groups'
 import { sortByNodeCode } from '@/lib/template-code-order'
 import { OPERATOR_LABEL } from '@/lib/template-format'
 import type { GroupNodeRow, GroupedEditBody, InstanceMeasurement, ItemInstanceRow } from '@/lib/api/facility-groups'
@@ -494,15 +494,20 @@ function GroupedImageEditor({
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const { data: urls } = useTemplateImageUrls(representative.imageKeys)
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
+  async function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
     e.target.value = ''
-    if (!file) return
+    if (files.length === 0) return
+    const toUpload = files.slice(0, MAX_TEMPLATE_IMAGES_PER_NODE - representative.imageKeys.length)
     setUploading(true)
     setError(null)
     try {
-      const uploaded = await uploadTemplateImage(representative.templateId, representative.nodeCode, file)
-      await propagate.mutateAsync({ itemId: item.id, body: { field: 'image', imageKey: uploaded.key, imageOp: 'add' } })
+      // Sequential, not Promise.all — each upload is followed by a propagate write that's a
+      // read-modify-write across every instance sharing this item, so parallel calls would race.
+      for (const file of toUpload) {
+        const uploaded = await uploadGroupedImage(file)
+        await propagate.mutateAsync({ itemId: item.id, body: { field: 'image', imageKey: uploaded.key, imageOp: 'add' } })
+      }
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -542,7 +547,7 @@ function GroupedImageEditor({
             </button>
           </div>
         ))}
-        {representative.imageKeys.length < 3 && (
+        {representative.imageKeys.length < MAX_TEMPLATE_IMAGES_PER_NODE && (
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -553,7 +558,14 @@ function GroupedImageEditor({
             เพิ่มรูป
           </button>
         )}
-        <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => void handleFile(e)} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          className="hidden"
+          onChange={(e) => void handleFiles(e)}
+        />
       </div>
       {error && <p className="text-sm text-red-500">{error}</p>}
       {propagate.isSuccess && !error && (

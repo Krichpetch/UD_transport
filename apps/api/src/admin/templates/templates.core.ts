@@ -14,7 +14,13 @@ import { indexTemplateNodesByCode, parseTemplateDefinition, walkTemplateLeaves }
 
 export class TemplateEditError extends Error {}
 
-export const MAX_IMAGES_PER_NODE = 3
+export const MAX_IMAGES_PER_NODE = 8
+
+// Shared with facility-groups.service.ts's upload-only endpoint (Session S5-fix multi-image
+// follow-up) — one source of truth for what an "image" is and where its bytes live in MinIO,
+// since both the per-node editor and the grouped/master editor upload through it.
+export const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+export const TEMPLATE_IMAGE_KEY_PREFIX = 'template-images/'
 
 function cloneDefinition(def: ChecklistTemplateDefinition): ChecklistTemplateDefinition {
   return JSON.parse(JSON.stringify(def)) as ChecklistTemplateDefinition
