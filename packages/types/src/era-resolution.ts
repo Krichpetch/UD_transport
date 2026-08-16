@@ -188,9 +188,31 @@ function resolveNode(
       return measurement
     })
   }
+  // Container-text era resolution (Session S5-fix follow-up) — a node's OWN labelTh may instead
+  // vary via `labelByLaw`, entirely independent of `measurements` (see the field's doc in
+  // checklist-template.ts). This is the ONLY path that can resolve labelTh on a pure container
+  // (no answerType, no measurements) — the block above never runs for one, since `measurements`
+  // is undefined. Checked after the measurement-driven resolution above; the two are never
+  // expected to coexist on the same node in practice (a leaf's own graded criterion vs. a pure
+  // container's case-condition heading are different node shapes), so there's no real precedence
+  // question, but if they ever did, labelByLaw would win as the more specific, deliberately-authored
+  // override.
+  if (node.labelByLaw) {
+    const { lawCode, eraUnresolved } = resolveEra(yearBuilt, Object.keys(node.labelByLaw), registry, buildDate)
+    const entry = node.labelByLaw[lawCode]
+    if (!entry) {
+      throw new EraResolutionError(`resolved law code ${lawCode} has no labelByLaw entry on node ${node.code}`)
+    }
+    appliedLawRefs[`${node.code}#label`] = lawCode
+    if (eraUnresolved) unresolvedFlag.value = true
+    labelTh = entry.labelTh
+  }
   const subItems = node.subItems?.map((c) => resolveNode(c, yearBuilt, registry, appliedLawRefs, unresolvedFlag, buildDate))
+  // Strip labelByLaw from what the client sees, same as `measurements[].byLaw` — it never picks
+  // between eras itself, only the already-resolved flat labelTh above.
+  const { labelByLaw: _labelByLaw, ...restNode } = node
   return {
-    ...node,
+    ...restNode,
     ...(labelTh !== node.labelTh ? { labelTh } : {}),
     ...(measurements ? { measurements } : {}),
     ...(subItems ? { subItems } : {}),

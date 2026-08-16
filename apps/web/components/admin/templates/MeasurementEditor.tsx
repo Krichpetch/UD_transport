@@ -66,7 +66,9 @@ function TierRowsEditor({ tiers, onChange }: { tiers: TemplateTier[]; onChange: 
 
 // One law's override value block, in the same operator-driven shape as the flat measurement
 // editor above it. `entry` may be a bare {} for a law just added client-side (not yet saved).
-function EraEntryFields({
+// Exported for GroupedItemEditDialog.tsx's era section, which mirrors this same per-lawCode,
+// pre-filled-from-byLaw pattern rather than duplicating the input JSX.
+export function EraEntryFields({
   operator,
   entry,
   onChange,

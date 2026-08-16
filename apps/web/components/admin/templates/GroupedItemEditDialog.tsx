@@ -10,6 +10,7 @@ import { useTemplateImageUrls } from '@/hooks/use-template-image-urls'
 import { MAX_TEMPLATE_IMAGES_PER_NODE, uploadGroupedImage } from '@/lib/api/facility-groups'
 import { sortByNodeCode } from '@/lib/template-code-order'
 import { OPERATOR_LABEL } from '@/lib/template-format'
+import { EraEntryFields } from '@/components/admin/templates/MeasurementEditor'
 import type { GroupNodeRow, GroupedEditBody, InstanceMeasurement, ItemInstanceRow } from '@/lib/api/facility-groups'
 import type { ThresholdOperator } from '@repo/types'
 import { LAW_REFERENCE_SEED, isNeverEraGated } from '@repo/types'
@@ -272,6 +273,14 @@ function GroupedMeasurementCard({
   )
 }
 
+// Mirrors MeasurementEditor.tsx's EraOverridesSection (the individual per-node editor) — one row
+// per EXISTING lawCode, pre-filled from `byLaw[lawCode]` via draftFor, editable and deletable in
+// place, plus a separate "add a law not yet present" picker. The previous version here showed a
+// read-only summary list and a single always-blank input regardless of which law was picked from
+// the dropdown, so opening an already-overridden item never showed its stored value in the
+// editable field — it just prompted for a brand new number. This makes the grouped editor match
+// the individual editor's already-correct UX instead of a second, worse implementation of the
+// same feature.
 function GroupedEraSection({
   version,
   item,
@@ -288,21 +297,27 @@ function GroupedEraSection({
   facilityCode?: number
 }) {
   const propagate = usePropagateItemEdit(version)
-  const [lawCode, setLawCode] = React.useState('')
-  const [value, setValue] = React.useState<number | ''>('')
-  const [value2, setValue2] = React.useState<number | ''>('')
+  const [drafts, setDrafts] = React.useState<Record<string, { value?: number | null; value2?: number | null }>>({})
+  const [addingLaw, setAddingLaw] = React.useState('')
 
-  function save() {
-    if (!lawCode) return
+  const existingCodes = Object.keys(byLaw ?? {})
+  const availableToAdd = LAW_REFERENCE_SEED.filter((l) => !existingCodes.includes(l.code))
+
+  function draftFor(lawCode: string) {
+    return drafts[lawCode] ?? byLaw?.[lawCode] ?? {}
+  }
+
+  function save(lawCode: string, entry: { value?: number | null; value2?: number | null } | null) {
     const body: GroupedEditBody = {
       field: 'era',
       measurementKey,
-      era: { lawCode, entry: { value: value === '' ? null : value, value2: operator === 'range' ? (value2 === '' ? null : value2) : null } },
+      era: {
+        lawCode,
+        entry: entry === null ? null : { value: entry.value ?? null, value2: operator === 'range' ? (entry.value2 ?? null) : null },
+      },
     }
     propagate.mutate({ itemId: item.id, body })
   }
-
-  const existingCodes = Object.keys(byLaw ?? {})
 
   return (
     <div className="border-border mt-1 space-y-1.5 border-t pt-2">
@@ -313,45 +328,66 @@ function GroupedEraSection({
           <span>รายการนี้ไม่ผูกกับปีที่ก่อสร้าง — จะไม่ถูกซ่อนตามปีแม้ระบุกฎหมายไว้ก็ตาม</span>
         </div>
       )}
-      {existingCodes.length > 0 && (
-        <ul className="text-muted-foreground list-inside list-disc text-[11px]">
-          {existingCodes.map((code) => {
-            const law = LAW_REFERENCE_SEED.find((l) => l.code === code)
-            const entry = byLaw![code]!
-            return (
-              <li key={code}>
-                {law?.nameTh ?? code}: {entry.value ?? '-'}
-                {entry.value2 != null ? `–${entry.value2}` : ''} (ของแบบประเมินอ้างอิง — จุดอื่นอาจต่างกัน)
-              </li>
-            )
-          })}
-        </ul>
+      {existingCodes.length === 0 && <p className="text-muted-foreground text-[11px]">ยังไม่มีข้อยกเว้นตามยุคกฎหมายสำหรับเกณฑ์นี้</p>}
+      {existingCodes.map((lawCode) => {
+        const law = LAW_REFERENCE_SEED.find((l) => l.code === lawCode)
+        return (
+          <div key={lawCode} className="bg-secondary/40 rounded-lg p-2">
+            <div className="mb-1.5 flex items-center justify-between">
+              <p className="text-foreground text-[11px] font-medium">{law?.nameTh ?? lawCode}</p>
+              <button
+                type="button"
+                disabled={propagate.isPending}
+                onClick={() => save(lawCode, null)}
+                className="flex items-center gap-1 text-[10px] text-red-500 hover:text-red-600 disabled:opacity-50"
+              >
+                <Trash2 size={11} />
+                ลบ
+              </button>
+            </div>
+            <EraEntryFields operator={operator} entry={draftFor(lawCode)} onChange={(entry) => setDrafts((d) => ({ ...d, [lawCode]: entry }))} />
+            <div className="mt-1.5">
+              <PropagateAction
+                instanceCount={item.instanceCount}
+                canSubmit={true}
+                isPending={propagate.isPending}
+                isError={propagate.isError}
+                errorMessage={propagate.isError ? (propagate.error as Error).message : undefined}
+                isSuccess={propagate.isSuccess}
+                wroteCount={propagate.data?.wroteCount}
+                onConfirm={() => save(lawCode, draftFor(lawCode))}
+              />
+            </div>
+          </div>
+        )
+      })}
+
+      {availableToAdd.length > 0 && (
+        <div className="flex items-center gap-1.5">
+          <select className={`${SELECT_CLS} py-1 text-[11px]`} value={addingLaw} onChange={(e) => setAddingLaw(e.target.value)}>
+            <option value="">+ เพิ่มข้อยกเว้นตามกฎหมาย…</option>
+            {availableToAdd.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.nameTh}
+              </option>
+            ))}
+          </select>
+          {addingLaw && (
+            <button
+              type="button"
+              disabled={propagate.isPending}
+              onClick={() => {
+                setDrafts((d) => ({ ...d, [addingLaw]: { value: 0 } }))
+                save(addingLaw, { value: 0 })
+                setAddingLaw('')
+              }}
+              className="border-border shrink-0 rounded border px-2 py-1 text-[11px] disabled:opacity-50"
+            >
+              เพิ่ม
+            </button>
+          )}
+        </div>
       )}
-      <div className="flex items-center gap-1.5">
-        <select className={`${SELECT_CLS} py-1 text-[11px]`} value={lawCode} onChange={(e) => setLawCode(e.target.value)}>
-          <option value="">เลือกกฎหมาย…</option>
-          {LAW_REFERENCE_SEED.map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.nameTh}
-            </option>
-          ))}
-        </select>
-        <input type="number" className={`${INPUT_CLS} w-20 py-1 text-[11px]`} placeholder="ค่า" value={value} onChange={(e) => setValue(e.target.value === '' ? '' : Number(e.target.value))} />
-        {operator === 'range' && (
-          <input type="number" className={`${INPUT_CLS} w-20 py-1 text-[11px]`} placeholder="ค่าสูงสุด" value={value2} onChange={(e) => setValue2(e.target.value === '' ? '' : Number(e.target.value))} />
-        )}
-      </div>
-      <p className="text-muted-foreground text-[10px]">เว้นค่าแล้วเผยแพร่เพื่อลบข้อยกเว้นตามกฎหมายนี้ออกจากทุกจุด</p>
-      <PropagateAction
-        instanceCount={item.instanceCount}
-        canSubmit={!!lawCode}
-        isPending={propagate.isPending}
-        isError={propagate.isError}
-        errorMessage={propagate.isError ? (propagate.error as Error).message : undefined}
-        isSuccess={propagate.isSuccess}
-        wroteCount={propagate.data?.wroteCount}
-        onConfirm={save}
-      />
     </div>
   )
 }

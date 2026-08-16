@@ -35,6 +35,19 @@ export interface TemplateMeasurementInput {
   labelTh: string
 }
 
+// Session S5-fix follow-up (container-text era resolution) — the text-only sibling of
+// TemplateMeasurementByLawEntry, for nodes that carry an era-varying NUMBER in their own prose
+// but no scored value at all (e.g. a case-condition heading like "กรณีทางลาดที่ความยาวไม่เกิน 2,500
+// มิลลิเมตร" that exists purely to tell the auditor which of several sibling sections applies).
+// Deliberately its own type, not a reuse of TemplateMeasurementByLawEntry — that type's parser
+// requires a numeric value (or tiers), which a pure heading has none of, and forcing one through
+// would mean fabricating a scored criterion that was never in the source document. `labelTh` is
+// required (not optional like the measurement version) because it's the ONLY field this entry
+// carries — an entry with nothing to swap has no reason to exist.
+export interface TemplateLabelByLawEntry {
+  labelTh: string
+}
+
 // The era-varying slice of a measurement's value fields — keyed by LawReference.code inside
 // TemplateMeasurement.byLaw. Only the fields relevant to the measurement's operator are set
 // (value/value2 for gte|lte|range, tiers for tiered).
@@ -117,6 +130,23 @@ export interface TemplateNode {
   lawRefs?: string[]          // LawReference.code values requiring this item
   cabinetResolution?: boolean // one of the 5 มติ ครม. priority items
   beyondLaw?: boolean         // project-added item, not required by any กฎกระทรวง
+
+  // Session S5-fix follow-up (container-text era resolution) — text-only era variance for a
+  // node's OWN labelTh, independent of `measurements`. Optional at EVERY level (unlike
+  // `measurements`, which is leaf-only) — this is precisely the field that lets a pure container
+  // (no answerType, no measurements) carry an era-varying case-condition heading. Deliberately a
+  // SEPARATE field from `measurements[].byLaw`, not folded into it, for two reasons: (1) a pure
+  // container structurally cannot carry `measurements` at all (see the leaf-only comment above),
+  // and (2) giving a container its own answerType just to host a text-only measurement would make
+  // scoring.ts#flattenLeaves treat it as an answerable leaf and count it — a real scoring bug, not
+  // just an awkward workaround. Because this field is never read by applyEraOverrides'/
+  // editEraOverride's lawRefs-union logic (both iterate `measurements[].byLaw` only) or by
+  // isItemApplicable/markApplicability (both gate on `answerType`), a node carrying only
+  // `labelByLaw` is inert to both era-redaction and scoring by construction — never merged into
+  // `lawRefs`, never treated as answerable. Resolved server-side (era-resolution.ts#resolveNode)
+  // before a client ever sees the template, same as `measurements[].byLaw` — stripped from what
+  // GET template-for-audit returns.
+  labelByLaw?: Record<string, TemplateLabelByLawEntry>
 
   // Session F1, Part C — item-level era redaction. Set ONLY by era-resolution.ts#markApplicability
   // (never by parseTemplateDefinition/seed data) on answerType-bearing nodes: false means this
@@ -468,6 +498,15 @@ function parseNode(raw: unknown, path: string): TemplateNode {
   if (Array.isArray(o.lawRefs)) node.lawRefs = o.lawRefs as string[]
   if (typeof o.cabinetResolution === 'boolean') node.cabinetResolution = o.cabinetResolution
   if (typeof o.beyondLaw === 'boolean') node.beyondLaw = o.beyondLaw
+  if (o.labelByLaw !== undefined) {
+    if (!isPlainObject(o.labelByLaw)) fail(`${path}.labelByLaw`, 'must be an object keyed by LawReference code')
+    const labelByLaw: Record<string, TemplateLabelByLawEntry> = {}
+    for (const [lawCode, entry] of Object.entries(o.labelByLaw)) {
+      if (!isPlainObject(entry)) fail(`${path}.labelByLaw.${lawCode}`, 'must be an object')
+      labelByLaw[lawCode] = { labelTh: checkString(entry.labelTh, `${path}.labelByLaw.${lawCode}`, 'labelTh') }
+    }
+    node.labelByLaw = labelByLaw
+  }
   if (o.imageKeys !== undefined) {
     if (!Array.isArray(o.imageKeys) || o.imageKeys.some((k) => typeof k !== 'string')) {
       fail(`${path}.imageKeys`, 'must be a string array')
