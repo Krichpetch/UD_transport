@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from 'crypto'
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
-import type { ChecklistTemplateDefinition, TransportMode } from '@repo/types'
+import { Prisma, type MasterCriterion } from '@prisma/client'
+import type { ChecklistTemplateDefinition, TemplateAnswerType, TransportMode } from '@repo/types'
 import { ChecklistTemplateValidationError, FACILITY_CATALOG, indexTemplateNodesByCode } from '@repo/types'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditLogService } from '../../audit/audit.service'
@@ -21,11 +21,12 @@ import {
   type ItemInstance,
   type TemplateRowStatus,
 } from './facility-grouping.core'
-import { pushMasterToInstance, snapshotWriteThroughFields, type MasterCriterionPayload, type WriteThroughFields } from './master-criteria.core'
+import { isNodeAttached, pushMasterToInstance, snapshotWriteThroughFields, type MasterCriterionPayload, type WriteThroughFields } from './master-criteria.core'
 import { TEMPLATE_MASTER_CREATE, TEMPLATE_MASTER_EDIT } from './master-criteria.service'
 import type { GroupedEditDto } from './dto/grouped-edit.dto'
 import type { ResolveConflictDto } from './dto/resolve-conflict.dto'
 import type { AddAndPlaceDto } from './dto/add-and-place.dto'
+import type { AttachNodeToGroupDto } from './dto/attach-node-to-group.dto'
 
 // Json columns need the JsonNull sentinel for "set SQL NULL" — see master-criteria.service.ts's
 // own copy of this helper for why a bare JS null/undefined isn't enough.
@@ -48,6 +49,29 @@ function toMasterPayload(id: string, fields: WriteThroughFields): MasterCriterio
     cabinetResolution: fields.cabinetResolution ?? null,
     beyondLaw: fields.beyondLaw ?? null,
     facilityCode: fields.facilityCode ?? null,
+  }
+}
+
+// Era-editor safety session, Part E — the master-ROW sibling of toMasterPayload above (which
+// builds a payload from a WriteThroughFields snapshot). Needed because attachNodeToGroup, after
+// atomicMasterPush guarantees the target has a master row, re-reads that row from Prisma and must
+// hand pushMasterToInstance a MasterCriterionPayload, not a raw MasterCriterion. Deliberately its
+// own name (not a second `toMasterPayload` overload) since the two take incompatible argument
+// shapes — mirrors templates.service.ts's own identically-shaped (but not reused, per that file's
+// own doc on why: apps/api's rootDir constraint keeps prisma/ scripts from importing src/) local
+// helper of the same intent.
+function masterRowToPayload(master: MasterCriterion): MasterCriterionPayload {
+  return {
+    id: master.id,
+    labelTh: master.labelTh,
+    answerType: master.answerType as TemplateAnswerType | null,
+    measurements: master.measurements as MasterCriterionPayload['measurements'],
+    guidance: master.guidance as MasterCriterionPayload['guidance'],
+    imageKeys: master.imageKeys,
+    lawRefs: master.lawRefs,
+    cabinetResolution: master.cabinetResolution,
+    beyondLaw: master.beyondLaw,
+    facilityCode: master.facilityCode,
   }
 }
 
@@ -76,6 +100,11 @@ export const TEMPLATE_GROUPED_EDIT = 'TEMPLATE_GROUPED_EDIT'
 export const TEMPLATE_GROUPED_CONFIRM = 'TEMPLATE_GROUPED_CONFIRM'
 // Session S4b-fix, Fix 3 — add-and-place: one NEW item, written to N templates at a chosen position.
 export const TEMPLATE_GROUPED_ADD = 'TEMPLATE_GROUPED_ADD'
+// Era-editor safety session, Part E — a node that WASN'T master-attached moves onto a DIFFERENT
+// existing group. Distinct from TEMPLATE_MASTER_REATTACH (templates.service.ts — "back to the same
+// master you detached from") so the audit trail can tell "moved to a different group" apart from an
+// ordinary reattach.
+export const TEMPLATE_MASTER_MOVE = 'TEMPLATE_MASTER_MOVE'
 
 // Session S4b, Part 5 — which ChecklistTemplate rows the grouping/impact/conflict engine pools.
 // 'exact' (a single version number) is the grouped editor's actual default — the v1/v2 -> v3
@@ -557,6 +586,77 @@ export class FacilityGroupsService {
       wroteCount: wrote,
       targets: item.instances.map(toInstanceDto),
     }
+  }
+
+  // Era-editor safety session, Part E — moves a node that ISN'T currently master-attached onto a
+  // DIFFERENT existing canonical item's group. Reuses atomicMasterPush unchanged to ensure the
+  // TARGET has a masterId (promoting it from its current representative snapshot if this is its
+  // first-ever attach, exactly as an ordinary grouped edit would) — then links the source node to
+  // that resolved masterId via the same pushMasterToInstance primitive attachMaster already uses
+  // (templates.service.ts). Clears `standalone` defensively: a standalone-flagged node is invisible
+  // to ALL grouping (eligible() filters it out before either clustering path runs — see
+  // facility-grouping.core.ts), so leaving it set after attaching would silently vanish the node
+  // from the tree despite the master link existing underneath.
+  //
+  // Scope decision (documented, not asked): offered only for a source node that is NOT currently
+  // master-attached — mirrors the existing UI moment (MasterAttachedBanner's reattach affordance
+  // only shows for a detached node) and keeps attachMaster's existing "already attached — detach
+  // first" guard unchanged rather than adding an implicit detach-then-attach path.
+  async attachNodeToGroup(scope: VersionScope, targetCanonicalItemId: string, sourceTemplateId: string, sourceNodeCode: string, actorId: string) {
+    const sourceRow = await this.prisma.checklistTemplate.findUnique({ where: { id: sourceTemplateId } })
+    if (!sourceRow) throw new NotFoundException(`template ${sourceTemplateId} not found`)
+    if (sourceRow.status === 'RETIRED') throw new ForbiddenException('template is RETIRED; editing is disabled')
+    const sourceDefBefore = sourceRow.definition as unknown as ChecklistTemplateDefinition
+    if (isNodeAttached(sourceDefBefore, sourceNodeCode)) {
+      throw new BadRequestException(`node "${sourceNodeCode}" is already attached to a master — detach first`)
+    }
+
+    const { item: target } = await this.findCanonicalItem(scope, targetCanonicalItemId)
+    if (target.instances.some((i) => i.templateId === sourceTemplateId && i.nodeCode === sourceNodeCode)) {
+      throw new BadRequestException('node is already a member of this group')
+    }
+
+    const correlationId = randomUUID()
+
+    // Ensure the target has a masterId, converging its OWN current members — unchanged reuse.
+    const representative = target.instances[0]!
+    const repRow = await this.prisma.checklistTemplate.findUnique({ where: { id: representative.templateId } })
+    if (!repRow) throw new NotFoundException(`template ${representative.templateId} not found`)
+    const repDef = repRow.definition as unknown as ChecklistTemplateDefinition
+    const repNode = indexTemplateNodesByCode(repDef).get(representative.nodeCode)!
+    const fields = snapshotWriteThroughFields(repNode)
+    const pushResult = await this.atomicMasterPush(target.masterId ?? null, fields, target, actorId, correlationId, 'attach-move')
+
+    // Re-fetch the source row AFTER the target push commits, rather than reusing the pre-push
+    // snapshot above — the real motivating case (an item repeating multiple times within one
+    // template, e.g. rail_metro's A1.4-5) often has the source and target SHARE a template row, so
+    // atomicMasterPush may have already updated this exact row as one of the target's own
+    // instances. Building the source write on a stale snapshot would silently clobber that write
+    // the moment this function does its own separate update below.
+    const freshSourceRow = await this.prisma.checklistTemplate.findUnique({ where: { id: sourceTemplateId } })
+    if (!freshSourceRow) throw new NotFoundException(`template ${sourceTemplateId} not found`)
+    let sourceDef = freshSourceRow.definition as unknown as ChecklistTemplateDefinition
+
+    // Clear standalone (if set) + link the source node to the now-guaranteed master.
+    sourceDef = core.editStandalone(sourceDef, sourceNodeCode, false).definition
+    const master = await this.prisma.masterCriterion.findUnique({ where: { id: pushResult.masterId } })
+    if (!master) throw new NotFoundException(`master criterion ${pushResult.masterId} not found`)
+    const result = pushMasterToInstance(sourceDef, sourceNodeCode, masterRowToPayload(master), { setMasterId: true, clearDetached: true })
+
+    await this.prisma.checklistTemplate.update({
+      where: { id: sourceTemplateId },
+      data: { definition: result.definition as unknown as Prisma.InputJsonValue },
+    })
+    await this.auditLog.log({
+      userId: actorId,
+      action: TEMPLATE_MASTER_MOVE,
+      entityType: 'ChecklistTemplate',
+      entityId: sourceTemplateId,
+      before: { nodeCode: sourceNodeCode, masterId: null, correlationId, targetCanonicalItemId, value: result.before },
+      after: { nodeCode: sourceNodeCode, masterId: pushResult.masterId, correlationId, targetCanonicalItemId, value: result.after },
+    })
+
+    return { id: sourceTemplateId, definition: result.definition, masterId: pushResult.masterId }
   }
 
   // Part 4.1 — collapses the confirmed-flag review queue: confirming a canonical measurement

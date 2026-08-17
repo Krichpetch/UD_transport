@@ -6,6 +6,7 @@ import { FacilityGroupsService, type VersionScope } from './facility-groups.serv
 import { GroupedEditDto } from './dto/grouped-edit.dto'
 import { ResolveConflictDto } from './dto/resolve-conflict.dto'
 import { AddAndPlaceDto } from './dto/add-and-place.dto'
+import { AttachNodeToGroupDto } from './dto/attach-node-to-group.dto'
 
 interface AuthRequest extends Request {
   user: { id: string; username: string; role: string }
@@ -87,6 +88,19 @@ export class FacilityGroupsController {
   ) {
     if (req.user.role !== 'ADMIN') throw new ForbiddenException()
     return this.groups.confirmGroupedMeasurement(parseScope(scope, version), itemId, measurementKey, req.user.id)
+  }
+
+  // Era-editor safety session, Part E — move an unattached node onto a DIFFERENT existing group.
+  @Post('items/:targetItemId/attach-node')
+  attachNode(
+    @Param('targetItemId') targetItemId: string,
+    @Query('version') version: string | undefined,
+    @Query('scope') scope: string | undefined,
+    @Body() body: AttachNodeToGroupDto,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.groups.attachNodeToGroup(parseScope(scope, version), targetItemId, body.templateId, body.nodeCode, req.user.id)
   }
 
   @Post('items/:itemId/resolve-conflict')

@@ -34,7 +34,10 @@ export class GroupedEditDto {
 
   @IsOptional() @IsObject() label?: { labelTh: string; num?: string }
 
-  @IsOptional() @IsObject() era?: { lawCode: string; entry?: { value?: number | null; value2?: number | null; tiers?: unknown[] } | null }
+  @IsOptional() @IsObject() era?: {
+    lawCode: string
+    entry?: { value?: number | null; value2?: number | null; tiers?: unknown[]; sourceText?: string | null; labelTh?: string | null } | null
+  }
 
   // image only — the MinIO key from a single prior upload (POST .../images/:nodeCode against ONE
   // instance), attached to (op:'add') or removed from (op:'remove') every instance via the same

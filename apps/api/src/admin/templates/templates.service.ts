@@ -19,6 +19,7 @@ import type { EditLabelDto } from './dto/edit-label.dto'
 import type { EditHiddenDto } from './dto/edit-hidden.dto'
 import type { EditStandaloneDto } from './dto/edit-standalone.dto'
 import type { AttachMasterDto } from './dto/attach-master.dto'
+import type { EditLabelByLawDto } from './dto/edit-label-by-law.dto'
 import {
   collectReferencedMasterIds,
   detachFromMaster,
@@ -50,6 +51,9 @@ function toMasterPayload(master: MasterCriterion): MasterCriterionPayload {
 // TEMPLATE_IMAGE_EDIT (distinct object, not a "value", but still audit-logged per Part D.2).
 export const TEMPLATE_THRESHOLD_EDIT = 'TEMPLATE_THRESHOLD_EDIT'
 export const TEMPLATE_ERA_EDIT = 'TEMPLATE_ERA_EDIT'
+// Era-editor safety session, Part C — the labelByLaw sibling of TEMPLATE_ERA_EDIT (container-only
+// case-condition text, not a scored criterion).
+export const TEMPLATE_LABEL_BYLAW_EDIT = 'TEMPLATE_LABEL_BYLAW_EDIT'
 export const TEMPLATE_IMAGE_EDIT = 'TEMPLATE_IMAGE_EDIT'
 // Session S3b — structural editing (Part C, DRAFT-only) and lawRefs editing (Part D, DRAFT+ACTIVE).
 export const TEMPLATE_CLONE_TO_DRAFT = 'TEMPLATE_CLONE_TO_DRAFT'
@@ -665,6 +669,26 @@ export class TemplatesAdminService {
       nodeCode,
       { measurementKey, lawCode: dto.lawCode },
       (def) => core.editEraOverride(def, nodeCode, measurementKey, dto.lawCode, entry),
+    )
+  }
+
+  // Era-editor safety session, Part C — container-only labelByLaw editing (individual editor only
+  // this session; see the frontend's LabelByLawEditor.tsx for the `!node.answerType` gate). Uses
+  // the RETIRED-only applyEdit gate, not the DRAFT-only structural gate — this is applicability/
+  // text data, same lifecycle class as editEra/editLawRefs.
+  async editLabelByLaw(templateId: string, nodeCode: string, dto: EditLabelByLawDto, actorId: string) {
+    const entry = (dto.entry ?? null) as core.LabelByLawEntryPatch | null
+    if (entry !== null) {
+      const law = await this.prisma.lawReference.findUnique({ where: { code: dto.lawCode } })
+      if (!law) throw new BadRequestException(`unknown LawReference code "${dto.lawCode}"`)
+    }
+    return this.applyEdit(
+      templateId,
+      actorId,
+      TEMPLATE_LABEL_BYLAW_EDIT,
+      nodeCode,
+      { lawCode: dto.lawCode },
+      (def) => core.editLabelByLawOverride(def, nodeCode, dto.lawCode, entry),
     )
   }
 

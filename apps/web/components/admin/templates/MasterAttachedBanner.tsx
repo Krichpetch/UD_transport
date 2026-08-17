@@ -5,6 +5,7 @@ import Link from 'next/link'
 import type { TemplateNode } from '@repo/types'
 import { Link2, Loader2, Lock, Unlink } from 'lucide-react'
 import { useAttachMasterNode, useDetachMasterNode } from '@/hooks/use-master-criteria'
+import { MoveToGroupPicker } from './MoveToGroupPicker'
 
 // Session S5, Part F.4/F.5 — tells the admin THIS node's content is owned by a master criterion
 // BEFORE they hit the server-side NODE_IS_ATTACHED block (Part C.1), and offers the one legitimate
@@ -99,6 +100,12 @@ export function MasterAttachedBanner({
         </div>
       )}
       {attachMaster.isError && <span className="text-[11px] text-red-600">{(attachMaster.error as Error).message}</span>}
+      {/* Era-editor safety session, Part E — this node isn't master-attached (masterId absent),
+          so besides re-linking to its OLD master above, it can also move onto a DIFFERENT
+          existing group entirely. */}
+      <div className="border-t border-amber-200 pt-1.5">
+        <MoveToGroupPicker templateId={templateId} sourceNodeCode={node.code} />
+      </div>
     </div>
   )
 }

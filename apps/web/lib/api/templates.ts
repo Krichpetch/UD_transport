@@ -71,7 +71,64 @@ export interface EditMeasurementBody {
 
 export interface EditEraBody {
   lawCode: string
-  entry?: { value?: number | null; value2?: number | null; tiers?: TemplateTier[] } | null
+  entry?: { value?: number | null; value2?: number | null; tiers?: TemplateTier[]; sourceText?: string | null; labelTh?: string | null } | null
+}
+
+// ---- Shared patch builders (era + flat measurement) --------------------------------------------
+//
+// The one place that turns a per-law/per-measurement DRAFT into the wire shape the backend
+// expects — both the individual editor (MeasurementEditor.tsx) and the grouped editor
+// (GroupedItemEditDialog.tsx) build their request bodies through these, so the two can't
+// independently re-diverge on "which fields does this operator actually carry" again (that
+// divergence — the grouped editor hardcoding {value, value2} and dropping tiers/sourceText — is
+// exactly the bug this session fixes). Operator-gated: a tiered draft sends ONLY tiers (+
+// sourceText); a gte/lte/range draft sends ONLY value/value2 (+ sourceText) — never both, since
+// parseByLawEntry/parseMeasurement reject a byLaw/measurement entry that mixes shapes.
+
+export interface EraEntryDraft {
+  value?: number | null
+  value2?: number | null
+  tiers?: TemplateTier[]
+  sourceText?: string | null
+  // The LEAF's own question text for this law era (TemplateMeasurementByLawEntry.labelTh) — a
+  // sibling of sourceText, resolved onto the containing node's labelTh by
+  // era-resolution.ts#resolveMeasurement when set. Distinct from the CONTAINER-only
+  // TemplateNode.labelByLaw mechanism (LabelByLawEditor.tsx) — this is the leaf/measurement
+  // version, for a node that DOES carry the graded measurement itself.
+  labelTh?: string | null
+}
+
+export function buildEraEntryPatch(operator: ThresholdOperator, draft: EraEntryDraft): NonNullable<EditEraBody['entry']> {
+  return {
+    ...(operator === 'tiered'
+      ? { tiers: draft.tiers ?? [] }
+      : { value: draft.value ?? null, value2: operator === 'range' ? (draft.value2 ?? null) : null }),
+    sourceText: draft.sourceText || undefined,
+    labelTh: draft.labelTh || undefined,
+  }
+}
+
+export interface MeasurementDraft {
+  value?: number | ''
+  value2?: number | ''
+  tiers?: TemplateTier[]
+  unit: string
+  sourceText?: string
+}
+
+export function buildMeasurementPatch(
+  operator: ThresholdOperator,
+  draft: MeasurementDraft,
+): NonNullable<import('./facility-groups').GroupedEditBody['measurement']> {
+  return {
+    operator,
+    ...(operator === 'tiered'
+      ? { tiers: draft.tiers ?? [] }
+      : { value: draft.value === '' ? null : (draft.value ?? null), value2: operator === 'range' ? (draft.value2 === '' ? null : (draft.value2 ?? null)) : undefined }),
+    unit: draft.unit,
+    autoGrade: true,
+    sourceText: draft.sourceText || undefined,
+  }
 }
 
 export interface EditGuidanceBody {
@@ -124,6 +181,20 @@ export function confirmMeasurement(templateId: string, nodeCode: string, measure
 export function editEra(templateId: string, nodeCode: string, measurementKey: string, body: EditEraBody) {
   return api.patch<{ id: string; definition: ChecklistTemplateDefinition }>(
     `/admin/templates/${templateId}/era/${encodeURIComponent(nodeCode)}/${encodeURIComponent(measurementKey)}`,
+    body,
+  )
+}
+
+// ---- Era-editor safety session, Part C — container-only labelByLaw editing (any status). ----
+
+export interface EditLabelByLawBody {
+  lawCode: string
+  entry?: { labelTh: string; sourceText?: string | null } | null
+}
+
+export function editLabelByLaw(templateId: string, nodeCode: string, body: EditLabelByLawBody) {
+  return api.patch<{ id: string; definition: ChecklistTemplateDefinition }>(
+    `/admin/templates/${templateId}/nodes/${encodeURIComponent(nodeCode)}/label-by-law`,
     body,
   )
 }

@@ -6,5 +6,5 @@ import { IsObject, IsOptional, IsString } from 'class-validator'
 // service (see TemplatesController.editEra).
 export class EditEraDto {
   @IsString() lawCode: string
-  @IsOptional() @IsObject() entry?: { value?: number | null; value2?: number | null; tiers?: unknown[] } | null
+  @IsOptional() @IsObject() entry?: { value?: number | null; value2?: number | null; tiers?: unknown[]; sourceText?: string | null; labelTh?: string | null } | null
 }

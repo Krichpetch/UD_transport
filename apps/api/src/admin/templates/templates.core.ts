@@ -9,7 +9,15 @@
 // returning — matching era-overrides.ts's "re-validate the merged tree" discipline. A
 // structurally-invalid edit throws ChecklistTemplateValidationError (from @repo/types) rather
 // than silently producing a bad definition.
-import type { ChecklistTemplateDefinition, TemplateAnswerType, TemplateMeasurement, TemplateNode, TemplateTier } from '@repo/types'
+import type {
+  ChecklistTemplateDefinition,
+  TemplateAnswerType,
+  TemplateLabelByLawEntry,
+  TemplateMeasurement,
+  TemplateMeasurementByLawEntry,
+  TemplateNode,
+  TemplateTier,
+} from '@repo/types'
 import { indexTemplateNodesByCode, parseTemplateDefinition, walkTemplateLeaves } from '@repo/types'
 
 export class TemplateEditError extends Error {}
@@ -107,11 +115,10 @@ export function confirmMeasurement(
   return { definition: validated, before, after: { confirmed: true } }
 }
 
-export interface EraEntryPatch {
-  value?: number | null
-  value2?: number | null
-  tiers?: TemplateTier[]
-}
+// Sourced from the real byLaw entry type, not hand-duplicated — any future field added to
+// TemplateMeasurementByLawEntry (@repo/types) is automatically patchable here without a second
+// edit. See editEraOverride's merge below, which relies on this being exactly Partial<...>.
+export type EraEntryPatch = Partial<TemplateMeasurementByLawEntry>
 
 export interface EditEraResult {
   definition: ChecklistTemplateDefinition
@@ -140,7 +147,17 @@ export function editEraOverride(
       measurement.byLaw = Object.keys(rest).length > 0 ? rest : undefined
     }
   } else {
-    measurement.byLaw = { ...(measurement.byLaw ?? {}), [lawCode]: entry }
+    // Merge onto the existing per-law entry, never replace it wholesale — `entry` is often a
+    // PARTIAL patch (e.g. just `{tiers}` from the grouped editor's era save), and a plain replace
+    // would silently delete whatever fields it didn't carry (sourceText/labelTh in particular).
+    // Safe because `entry` always comes from JSON.parse'd HTTP body: a key is either
+    // present-with-a-value (incl. explicit null, which correctly overwrites/clears) or fully
+    // absent (JSON.stringify drops `undefined` keys client-side) — plain object spread does the
+    // right thing with no extra handling.
+    measurement.byLaw = {
+      ...(measurement.byLaw ?? {}),
+      [lawCode]: { ...(measurement.byLaw?.[lawCode] ?? {}), ...entry },
+    }
     // A byLaw entry asserts "this law gives this item a value" — isItemApplicable
     // (era-resolution.ts) redacts the whole item below any law missing from node.lawRefs, so a
     // byLaw code absent from lawRefs is a standing contradiction (2026-08-05, see
@@ -156,6 +173,47 @@ export function editEraOverride(
   const validated = parseTemplateDefinition(clone)
   const after = findMeasurement(findNode(validated, nodeCode), measurementKey).byLaw?.[lawCode] ?? null
 
+  return { definition: validated, before, after }
+}
+
+export interface LabelByLawEntryPatch {
+  labelTh: string
+  sourceText?: string | null
+}
+
+export interface EditLabelByLawResult {
+  definition: ChecklistTemplateDefinition
+  before: TemplateLabelByLawEntry | null
+  after: TemplateLabelByLawEntry | null
+}
+
+// The labelByLaw sibling of editEraOverride above (Era-editor safety session, Part C). Deliberately
+// does NOT union lawCode into node.lawRefs (unlike editEraOverride) — a labelByLaw entry never
+// asserts the container came into existence under a law, it only swaps case-condition heading
+// text; see era-overrides.ts's applyEraOverrides (the seed-time equivalent, same invariant) and
+// era-container-label.spec.ts's inertness tests, which this must not break.
+export function editLabelByLawOverride(
+  def: ChecklistTemplateDefinition,
+  nodeCode: string,
+  lawCode: string,
+  entry: LabelByLawEntryPatch | null,
+): EditLabelByLawResult {
+  const clone = cloneDefinition(def)
+  const node = findNode(clone, nodeCode)
+  const before = node.labelByLaw?.[lawCode] ?? null
+
+  if (entry === null) {
+    if (node.labelByLaw) {
+      const { [lawCode]: _removed, ...rest } = node.labelByLaw
+      node.labelByLaw = Object.keys(rest).length > 0 ? rest : undefined
+    }
+  } else {
+    node.labelByLaw = { ...(node.labelByLaw ?? {}), [lawCode]: { ...(node.labelByLaw?.[lawCode] ?? {}), ...entry } }
+    // No lawRefs union — see doc comment above. Do not add one.
+  }
+
+  const validated = parseTemplateDefinition(clone)
+  const after = findNode(validated, nodeCode).labelByLaw?.[lawCode] ?? null
   return { definition: validated, before, after }
 }
 

@@ -9,10 +9,11 @@ import { usePropagateItemEdit } from '@/hooks/use-facility-groups'
 import { useTemplateImageUrls } from '@/hooks/use-template-image-urls'
 import { MAX_TEMPLATE_IMAGES_PER_NODE, uploadGroupedImage } from '@/lib/api/facility-groups'
 import { sortByNodeCode } from '@/lib/template-code-order'
-import { OPERATOR_LABEL } from '@/lib/template-format'
-import { EraEntryFields } from '@/components/admin/templates/MeasurementEditor'
+import { OPERATOR_LABEL, OPERATORS } from '@/lib/template-format'
+import { EraEntryFields, TierRowsEditor } from '@/components/admin/templates/MeasurementEditor'
+import { buildEraEntryPatch, buildMeasurementPatch, type EraEntryDraft, type MeasurementDraft } from '@/lib/api/templates'
 import type { GroupNodeRow, GroupedEditBody, InstanceMeasurement, ItemInstanceRow } from '@/lib/api/facility-groups'
-import type { ThresholdOperator } from '@repo/types'
+import type { TemplateTier, ThresholdOperator } from '@repo/types'
 import { LAW_REFERENCE_SEED, isNeverEraGated } from '@repo/types'
 
 // Session S4b-fix, Fix 1 — this dialog used to gate every field behind a "ฟิลด์ที่จะแก้ไข" picker,
@@ -200,21 +201,16 @@ function GroupedMeasurementCard({
   const [operator, setOperator] = React.useState<ThresholdOperator>(initial.operator)
   const [value, setValue] = React.useState<number | ''>(initial.value ?? '')
   const [value2, setValue2] = React.useState<number | ''>(initial.value2 ?? '')
+  const [tiers, setTiers] = React.useState<TemplateTier[]>(initial.tiers ?? [])
   const [unit, setUnit] = React.useState(initial.unit)
   const [sourceText, setSourceText] = React.useState(initial.sourceText ?? '')
 
   function save() {
+    const draft: MeasurementDraft = { value, value2, tiers, unit, sourceText }
     const body: GroupedEditBody = {
       field: 'measurement',
       measurementKey,
-      measurement: {
-        operator,
-        value: value === '' ? null : value,
-        value2: operator === 'range' ? (value2 === '' ? null : value2) : undefined,
-        unit,
-        autoGrade: true,
-        sourceText: sourceText || undefined,
-      },
+      measurement: buildMeasurementPatch(operator, draft),
     }
     propagate.mutate({ itemId: item.id, body })
   }
@@ -225,7 +221,7 @@ function GroupedMeasurementCard({
       <div className="space-y-2">
         <div className="grid grid-cols-2 gap-2">
           <select className={`${SELECT_CLS} py-1.5 text-xs`} value={operator} onChange={(e) => setOperator(e.target.value as ThresholdOperator)}>
-            {(['gte', 'lte', 'range'] as ThresholdOperator[]).map((op) => (
+            {OPERATORS.map((op) => (
               <option key={op} value={op}>
                 {OPERATOR_LABEL[op]}
               </option>
@@ -233,24 +229,28 @@ function GroupedMeasurementCard({
           </select>
           <input className={`${INPUT_CLS} py-1.5 text-xs`} value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="หน่วย (mm)" />
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            type="number"
-            className={`${INPUT_CLS} py-1.5 text-xs`}
-            value={value}
-            onChange={(e) => setValue(e.target.value === '' ? '' : Number(e.target.value))}
-            placeholder="ค่า"
-          />
-          {operator === 'range' && (
+        {operator === 'tiered' ? (
+          <TierRowsEditor tiers={tiers} onChange={setTiers} />
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
             <input
               type="number"
               className={`${INPUT_CLS} py-1.5 text-xs`}
-              value={value2}
-              onChange={(e) => setValue2(e.target.value === '' ? '' : Number(e.target.value))}
-              placeholder="ค่าสูงสุด (value2)"
+              value={value}
+              onChange={(e) => setValue(e.target.value === '' ? '' : Number(e.target.value))}
+              placeholder="ค่า"
             />
-          )}
-        </div>
+            {operator === 'range' && (
+              <input
+                type="number"
+                className={`${INPUT_CLS} py-1.5 text-xs`}
+                value={value2}
+                onChange={(e) => setValue2(e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="ค่าสูงสุด (value2)"
+              />
+            )}
+          </div>
+        )}
         <input
           className={`${INPUT_CLS} py-1.5 text-xs`}
           value={sourceText}
@@ -297,7 +297,7 @@ function GroupedEraSection({
   facilityCode?: number
 }) {
   const propagate = usePropagateItemEdit(version)
-  const [drafts, setDrafts] = React.useState<Record<string, { value?: number | null; value2?: number | null }>>({})
+  const [drafts, setDrafts] = React.useState<Record<string, EraEntryDraft>>({})
   const [addingLaw, setAddingLaw] = React.useState('')
 
   const existingCodes = Object.keys(byLaw ?? {})
@@ -307,14 +307,11 @@ function GroupedEraSection({
     return drafts[lawCode] ?? byLaw?.[lawCode] ?? {}
   }
 
-  function save(lawCode: string, entry: { value?: number | null; value2?: number | null } | null) {
+  function save(lawCode: string, entry: EraEntryDraft | null) {
     const body: GroupedEditBody = {
       field: 'era',
       measurementKey,
-      era: {
-        lawCode,
-        entry: entry === null ? null : { value: entry.value ?? null, value2: operator === 'range' ? (entry.value2 ?? null) : null },
-      },
+      era: { lawCode, entry: entry === null ? null : buildEraEntryPatch(operator, entry) },
     }
     propagate.mutate({ itemId: item.id, body })
   }
@@ -377,8 +374,9 @@ function GroupedEraSection({
               type="button"
               disabled={propagate.isPending}
               onClick={() => {
-                setDrafts((d) => ({ ...d, [addingLaw]: { value: 0 } }))
-                save(addingLaw, { value: 0 })
+                const seed: EraEntryDraft = operator === 'tiered' ? { tiers: [] } : { value: 0 }
+                setDrafts((d) => ({ ...d, [addingLaw]: seed }))
+                save(addingLaw, seed)
                 setAddingLaw('')
               }}
               className="border-border shrink-0 rounded border px-2 py-1 text-[11px] disabled:opacity-50"

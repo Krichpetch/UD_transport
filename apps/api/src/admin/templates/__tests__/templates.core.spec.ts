@@ -199,6 +199,122 @@ describe('editEraOverride', () => {
     const node = removed.definition.groups[0]!.items[0]!.subItems![0]!
     expect(node.lawRefs).toEqual(['MHT_2564'])
   })
+
+  // Era-editor safety session, Part A.7 — regression tests for the merge fix (was a wholesale
+  // replace: `measurement.byLaw = {...(byLaw ?? {}), [lawCode]: entry}`, which silently dropped
+  // sourceText/labelTh on any partial patch). Fixture below is parking-shaped (the one real
+  // tiered item, per era-editor-safety planning) but synthetic — not real สนข. data.
+  describe('merge preserves fields not present in a partial patch (A.7)', () => {
+    function tieredWithSourceText(): ChecklistTemplateDefinition {
+      return {
+        schemaVersion: 2,
+        mode: 'ทางบก',
+        groups: [
+          {
+            code: 'A1',
+            labelTh: 'ที่จอดรถ',
+            items: [
+              {
+                code: 'A1.1',
+                labelTh: 'จำนวนที่จอดรถสำหรับคนพิการ',
+                answerType: 'presence_standard',
+                measurements: [
+                  {
+                    key: 'm1',
+                    operator: 'tiered',
+                    unit: 'count',
+                    autoGrade: true,
+                    inputs: [
+                      { key: 'basis', labelTh: 'จำนวนที่จอดรถทั้งหมด' },
+                      { key: 'provided', labelTh: 'จำนวนที่จอดรถสำหรับคนพิการ' },
+                    ],
+                    tiers: [{ min: 1, max: 25, required: 1 }],
+                    byLaw: {
+                      MHT_2564: {
+                        tiers: [{ min: 1, max: 50, required: 1 }],
+                        sourceText: 'ตารางที่ 2 แนบท้ายกฎกระทรวง 2564',
+                        labelTh: 'จำนวนที่จอดรถสำหรับคนพิการ (2564)',
+                      },
+                    },
+                    confirmed: true,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }
+    }
+
+    function gteWithSourceText(): ChecklistTemplateDefinition {
+      return {
+        schemaVersion: 2,
+        mode: 'ทางบก',
+        groups: [
+          {
+            code: 'A1',
+            labelTh: 'ที่จอดรถ',
+            items: [
+              {
+                code: 'A1.1',
+                labelTh: 'ความกว้างทางลาด',
+                answerType: 'presence_standard',
+                measurements: [
+                  {
+                    key: 'm1',
+                    operator: 'gte',
+                    value: 900,
+                    unit: 'mm',
+                    autoGrade: true,
+                    byLaw: { MHT_2564: { value: 900, value2: null, sourceText: 'ข้อ 12 กฎกระทรวง 2564' } },
+                    confirmed: true,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }
+    }
+
+    it('(a) a tiers-only patch — exactly what the fixed GroupedEraSection.save/buildEraEntryPatch sends — preserves sourceText and labelTh', () => {
+      const { definition } = editEraOverride(tieredWithSourceText(), 'A1.1', 'm1', 'MHT_2564', {
+        tiers: [{ min: 1, max: 60, required: 1 }],
+      })
+      const entry = definition.groups[0]!.items[0]!.measurements![0]!.byLaw!.MHT_2564!
+      expect(entry.tiers).toEqual([{ min: 1, max: 60, required: 1, incrementPer: undefined, incrementBy: undefined }])
+      expect(entry.sourceText).toBe('ตารางที่ 2 แนบท้ายกฎกระทรวง 2564')
+      expect(entry.labelTh).toBe('จำนวนที่จอดรถสำหรับคนพิการ (2564)')
+    })
+
+    it('(b) a value-only patch on a gte entry preserves sourceText, on both a fresh add and a subsequent edit', () => {
+      // Fresh add: no prior byLaw entry for this law at all.
+      const added = editEraOverride(gteWithSourceText(), 'A1.1', 'm1', 'MHT_2555', { value: 800 })
+      expect(added.definition.groups[0]!.items[0]!.measurements![0]!.byLaw!.MHT_2555).toEqual({ value: 800, value2: null })
+
+      // Subsequent edit: MHT_2564 already carries sourceText — a value-only patch must not drop it.
+      const edited = editEraOverride(gteWithSourceText(), 'A1.1', 'm1', 'MHT_2564', { value: 850 })
+      const entry = edited.definition.groups[0]!.items[0]!.measurements![0]!.byLaw!.MHT_2564!
+      expect(entry.value).toBe(850)
+      expect(entry.sourceText).toBe('ข้อ 12 กฎกระทรวง 2564')
+    })
+
+    it('(c) two chained partial edits (parking-style) both preserve sourceText — the merge is stable under repeated partial writes', () => {
+      const first = editEraOverride(tieredWithSourceText(), 'A1.1', 'm1', 'MHT_2564', {
+        tiers: [{ min: 1, max: 70, required: 1 }],
+      })
+      let entry = first.definition.groups[0]!.items[0]!.measurements![0]!.byLaw!.MHT_2564!
+      expect(entry.sourceText).toBe('ตารางที่ 2 แนบท้ายกฎกระทรวง 2564')
+
+      const second = editEraOverride(first.definition, 'A1.1', 'm1', 'MHT_2564', {
+        tiers: [{ min: 1, max: 80, required: 1 }],
+      })
+      entry = second.definition.groups[0]!.items[0]!.measurements![0]!.byLaw!.MHT_2564!
+      expect(entry.tiers).toEqual([{ min: 1, max: 80, required: 1, incrementPer: undefined, incrementBy: undefined }])
+      expect(entry.sourceText).toBe('ตารางที่ 2 แนบท้ายกฎกระทรวง 2564')
+      expect(entry.labelTh).toBe('จำนวนที่จอดรถสำหรับคนพิการ (2564)')
+    })
+  })
 })
 
 describe('editGuidance', () => {

@@ -6,11 +6,10 @@ import { LAW_REFERENCE_SEED } from '@repo/types'
 import { ArrowDown, ArrowUp, Check, Loader2, Plus, Trash2 } from 'lucide-react'
 import { INPUT_CLS, SELECT_CLS } from '@/lib/ui-classes'
 import { useConfirmMeasurement, useEditEra, useEditMeasurement, useReorderMeasurement } from '@/hooks/use-templates-admin'
-import { OPERATOR_LABEL } from '@/lib/template-format'
+import { buildEraEntryPatch, type EraEntryDraft } from '@/lib/api/templates'
+import { OPERATOR_LABEL, OPERATORS } from '@/lib/template-format'
 
-const OPERATORS: ThresholdOperator[] = ['gte', 'lte', 'range', 'tiered']
-
-function TierRowsEditor({ tiers, onChange }: { tiers: TemplateTier[]; onChange: (tiers: TemplateTier[]) => void }) {
+export function TierRowsEditor({ tiers, onChange }: { tiers: TemplateTier[]; onChange: (tiers: TemplateTier[]) => void }) {
   function update(i: number, patch: Partial<TemplateTier>) {
     onChange(tiers.map((t, idx) => (idx === i ? { ...t, ...patch } : t)))
   }
@@ -68,36 +67,59 @@ function TierRowsEditor({ tiers, onChange }: { tiers: TemplateTier[]; onChange: 
 // editor above it. `entry` may be a bare {} for a law just added client-side (not yet saved).
 // Exported for GroupedItemEditDialog.tsx's era section, which mirrors this same per-lawCode,
 // pre-filled-from-byLaw pattern rather than duplicating the input JSX.
+//
+// labelTh here matters as much as the value itself: editing ONLY value/tiers for a law changes
+// what the auditor is GRADED against, but the question text they READ (this node's own labelTh)
+// and the reference line under it (sourceText) stay on whatever the base/flat text says — often
+// literally quoting the OLD number — until this law's own labelTh/sourceText are filled in too
+// (era-resolution.ts#resolveMeasurement only swaps them when the resolved entry actually carries
+// one). Leaving either blank isn't an error; it just means that law's stations keep reading the
+// base text, which is wrong whenever this law's number differs from it.
 export function EraEntryFields({
   operator,
   entry,
   onChange,
 }: {
   operator: ThresholdOperator
-  entry: { value?: number | null; value2?: number | null; tiers?: TemplateTier[] }
-  onChange: (entry: { value?: number | null; value2?: number | null; tiers?: TemplateTier[] }) => void
+  entry: EraEntryDraft
+  onChange: (entry: EraEntryDraft) => void
 }) {
-  if (operator === 'tiered') {
-    return <TierRowsEditor tiers={entry.tiers ?? []} onChange={(tiers) => onChange({ ...entry, tiers })} />
-  }
   return (
-    <div className="flex items-center gap-2">
-      <input
-        type="number"
-        className={`${INPUT_CLS} py-1`}
-        value={entry.value ?? ''}
-        placeholder="value"
-        onChange={(e) => onChange({ ...entry, value: e.target.value === '' ? null : Number(e.target.value) })}
-      />
-      {operator === 'range' && (
-        <input
-          type="number"
-          className={`${INPUT_CLS} py-1`}
-          value={entry.value2 ?? ''}
-          placeholder="value2"
-          onChange={(e) => onChange({ ...entry, value2: e.target.value === '' ? null : Number(e.target.value) })}
-        />
+    <div className="space-y-1.5">
+      {operator === 'tiered' ? (
+        <TierRowsEditor tiers={entry.tiers ?? []} onChange={(tiers) => onChange({ ...entry, tiers })} />
+      ) : (
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            className={`${INPUT_CLS} py-1`}
+            value={entry.value ?? ''}
+            placeholder="value"
+            onChange={(e) => onChange({ ...entry, value: e.target.value === '' ? null : Number(e.target.value) })}
+          />
+          {operator === 'range' && (
+            <input
+              type="number"
+              className={`${INPUT_CLS} py-1`}
+              value={entry.value2 ?? ''}
+              placeholder="value2"
+              onChange={(e) => onChange({ ...entry, value2: e.target.value === '' ? null : Number(e.target.value) })}
+            />
+          )}
+        </div>
       )}
+      <input
+        className={`${INPUT_CLS} py-1 text-[11px]`}
+        value={entry.labelTh ?? ''}
+        placeholder="ข้อความคำถามสำหรับกฎหมายนี้ (labelTh) — เว้นว่างถ้าใช้ข้อความเดิมของรายการ"
+        onChange={(e) => onChange({ ...entry, labelTh: e.target.value })}
+      />
+      <input
+        className={`${INPUT_CLS} py-1 text-[11px]`}
+        value={entry.sourceText ?? ''}
+        placeholder="ข้อความอ้างอิงจากเอกสารต้นฉบับ (sourceText) สำหรับกฎหมายนี้"
+        onChange={(e) => onChange({ ...entry, sourceText: e.target.value })}
+      />
     </div>
   )
 }
@@ -112,7 +134,7 @@ function EraOverridesSection({
   measurement: TemplateMeasurement
 }) {
   const editEra = useEditEra(templateId)
-  const [drafts, setDrafts] = React.useState<Record<string, { value?: number | null; value2?: number | null; tiers?: TemplateTier[] }>>({})
+  const [drafts, setDrafts] = React.useState<Record<string, EraEntryDraft>>({})
   const [addingLaw, setAddingLaw] = React.useState('')
 
   const existingCodes = Object.keys(measurement.byLaw ?? {})
@@ -150,7 +172,13 @@ function EraOverridesSection({
             <button
               type="button"
               disabled={editEra.isPending}
-              onClick={() => editEra.mutate({ nodeCode, measurementKey: measurement.key, body: { lawCode, entry: draftFor(lawCode) } })}
+              onClick={() =>
+                editEra.mutate({
+                  nodeCode,
+                  measurementKey: measurement.key,
+                  body: { lawCode, entry: buildEraEntryPatch(measurement.operator, draftFor(lawCode)) },
+                })
+              }
               className="bg-primary text-primary-foreground mt-1.5 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium disabled:opacity-50"
             >
               {editEra.isPending ? <Loader2 size={10} className="animate-spin" /> : null}

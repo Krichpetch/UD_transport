@@ -38,7 +38,7 @@ function parseLabelByLawOverride(raw: Record<string, unknown>, code: string): Re
     if (!isPlainObject(entry) || typeof entry.labelTh !== 'string' || entry.labelTh.length === 0) {
       throw new EraOverrideError(`era override for "${code}" labelByLaw.${lawCode} must be an object with a non-empty labelTh string`)
     }
-    labelByLaw[lawCode] = { labelTh: entry.labelTh }
+    labelByLaw[lawCode] = { labelTh: entry.labelTh, sourceText: typeof entry.sourceText === 'string' ? entry.sourceText : undefined }
   }
   return labelByLaw
 }

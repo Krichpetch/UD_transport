@@ -33,6 +33,9 @@ function realisticFixture(): ChecklistTemplateDefinition {
             lawRefs: ['MHT_2548', 'MHT_2564'],
             cabinetResolution: true,
             imageKeys: ['template-images/abc123.jpg'],
+            // Era-editor safety session, Part C — container-only case-condition text, incl. the
+            // new sourceText field added to TemplateLabelByLawEntry this session.
+            labelByLaw: { MHT_2548: { labelTh: 'ที่จอดรถสำหรับคนพิการ (เดิม)', sourceText: 'ข้อ 3 กฎกระทรวง 2548' } },
             subItems: [
               {
                 code: 'A1.1-1',
@@ -113,6 +116,7 @@ describe('byte-parity — untouched template survives load->save unchanged', () 
     expect(item.lawRefs).toEqual(['MHT_2548', 'MHT_2564'])
     expect(item.cabinetResolution).toBe(true)
     expect(item.imageKeys).toEqual(['template-images/abc123.jpg'])
+    expect(item.labelByLaw).toEqual({ MHT_2548: { labelTh: 'ที่จอดรถสำหรับคนพิการ (เดิม)', sourceText: 'ข้อ 3 กฎกระทรวง 2548' } })
 
     const tieredLeaf = roundTripped.groups[0]!.items[0]!.subItems![1]!
     expect(tieredLeaf.beyondLaw).toBe(true)

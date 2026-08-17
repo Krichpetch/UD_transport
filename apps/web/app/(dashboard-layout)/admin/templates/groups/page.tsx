@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, ChevronUp, ListChecks, Plus } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, ChevronUp, ListChecks, Plus, Search, X } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
 import { useFacilityGroups } from '@/hooks/use-facility-groups'
 import { ClassificationBadge, ConflictBadge } from '@/components/admin/templates/GroupedItemBadges'
@@ -10,6 +10,7 @@ import { InstanceBreakdownChips } from '@/components/admin/templates/InstanceBre
 import { GroupedItemEditDialog } from '@/components/admin/templates/GroupedItemEditDialog'
 import { AddAndPlaceDialog } from '@/components/admin/templates/AddAndPlaceDialog'
 import { describeAnswerSpec } from '@/lib/template-format'
+import { INPUT_CLS } from '@/lib/ui-classes'
 import { flattenLeafNodes, type GroupNodeRow } from '@/lib/api/facility-groups'
 
 // Session S4b, Part 3.1 — browse the facility-grouped view of the v3 template candidates.
@@ -55,11 +56,25 @@ function countLeaves(node: GroupNodeRow): number {
   return node.children.reduce((sum, c) => sum + countLeaves(c), 0) + (node.isLeaf ? 1 : 0)
 }
 
+// Same searchbar behavior as TemplateTree.tsx's nodeMatchesQuery (the individual per-template
+// editor) — matches on label text OR node code, self-or-any-descendant, so a query surfaces a
+// branch even when only a deeply-nested child matches. `query` is expected pre-normalized
+// (trimmed + lowercased) by the caller, matching TemplateTree's own convention. A GroupNodeRow has
+// no single "code" of its own (unlike TemplateNode) — it's checked against every instance's
+// nodeCode instead, since any of them is a code a user might search by.
+function groupNodeMatchesQuery(node: GroupNodeRow, query: string): boolean {
+  if (node.labelTh.toLowerCase().includes(query)) return true
+  if (node.instances.some((i) => i.nodeCode.toLowerCase().includes(query))) return true
+  return node.children.some((c) => groupNodeMatchesQuery(c, query))
+}
+
 function TemplateGroupsContent() {
   const { data, isLoading, error } = useFacilityGroups(VERSION)
   const [editing, setEditing] = React.useState<GroupNodeRow | null>(null)
   const [addingNew, setAddingNew] = React.useState(false)
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({})
+  const [query, setQuery] = React.useState('')
+  const normalizedQuery = query.trim().toLowerCase()
 
   function toggleGroup(id: string) {
     setOpenGroups((cur) => ({ ...cur, [id]: !(cur[id] ?? false) }))
@@ -74,7 +89,8 @@ function TemplateGroupsContent() {
     )
   }
 
-  const roots = [...data.containerGroups].sort(byFacilityCatalogOrder)
+  const allRoots = [...data.containerGroups].sort(byFacilityCatalogOrder)
+  const roots = normalizedQuery ? allRoots.filter((r) => groupNodeMatchesQuery(r, normalizedQuery)) : allRoots
   const conflictCount = flattenLeafNodes(data.containerGroups).filter((it) => it.hasConflict && !it.conflictAcknowledged).length
 
   return (
@@ -124,9 +140,33 @@ function TemplateGroupsContent() {
         <StatCard label="ลดงานแก้ไขลง" value={`${Math.round((1 - data.stats.editUnits / data.stats.totalLeaves) * 100)}%`} />
       </div>
 
+      {/* Same searchbar as the individual per-template editor (TemplateTree.tsx) — matches on
+          code or label text, any depth, and auto-expands every branch containing a match (both
+          the top-level group header AND nested rows) so a hit is never hidden behind a collapsed
+          group. Non-matching top-level groups are filtered out of `roots` entirely rather than
+          just collapsed, since there can be dozens of them. */}
+      <div className="relative min-w-0">
+        <Search size={15} className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="ค้นหารหัสหรือชื่อรายการ…"
+          className={`${INPUT_CLS} py-2 pl-8 pr-8 text-sm`}
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={() => setQuery('')}
+            className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
       <div className="space-y-3">
         {roots.map((root, i) => {
-          const isOpen = openGroups[root.id] ?? false
+          const isOpen = normalizedQuery ? true : (openGroups[root.id] ?? false)
           const leafCount = countLeaves(root)
           return (
             <div key={root.id} className="bg-card border-border overflow-hidden rounded-xl border">
@@ -180,7 +220,7 @@ function TemplateGroupsContent() {
                 <>
                   <TableHeaderRow />
                   {[...root.children].sort(byDocOrder).map((child) => (
-                    <TableRow key={child.id} node={child} depth={1} onEdit={setEditing} />
+                    <TableRow key={child.id} node={child} depth={1} onEdit={setEditing} query={normalizedQuery} />
                   ))}
                   {root.children.length === 0 && (
                     <div className="text-muted-foreground px-4 py-3 text-sm">รายการนี้ไม่มีรายการย่อย</div>
@@ -216,10 +256,29 @@ function TableHeaderRow() {
 // length-tier sub-groups (e.g. the ramp's ≤2500mm/2500-6000mm/≥6000mm cases) still render as their
 // own expandable rows — hierarchy lives entirely inside the "รายการ" cell (indent + chevron), so
 // the รหัส/ใช้ร่วมกัน/สถานะ/การดำเนินการ columns stay aligned no matter how deep a row sits.
-function TableRow({ node, depth, onEdit }: { node: GroupNodeRow; depth: number; onEdit: (n: GroupNodeRow) => void }) {
-  const [open, setOpen] = React.useState(true)
-  const hasChildren = node.children.length > 0
+function TableRow({
+  node,
+  depth,
+  onEdit,
+  query,
+}: {
+  node: GroupNodeRow
+  depth: number
+  onEdit: (n: GroupNodeRow) => void
+  query: string
+}) {
+  // Every hook called unconditionally, before any early return below (Rules of Hooks) — this row's
+  // `key` keeps the same component instance across a query changing from non-matching to matching
+  // (or back), so a hook skipped only on the non-matching path would desync React's per-instance
+  // hook order the moment that row starts/stops matching.
+  const [manuallyOpen, setManuallyOpen] = React.useState(true)
   const sortedChildren = React.useMemo(() => [...node.children].sort(byDocOrder), [node.children])
+  const searching = query.length > 0
+  if (searching && !groupNodeMatchesQuery(node, query)) return null
+  // Same "search forces every matching branch open" behavior as TemplateTree.tsx's NodeRow — a
+  // result should never stay hidden behind a row someone collapsed before they started searching.
+  const open = searching ? true : manuallyOpen
+  const hasChildren = node.children.length > 0
   const representative = node.instances[0]
 
   return (
@@ -233,7 +292,7 @@ function TableRow({ node, depth, onEdit }: { node: GroupNodeRow; depth: number; 
 
         <div className="flex min-w-0 items-start gap-1.5 py-2.5 pr-3" style={{ paddingLeft: `${depth * 20 + 12}px` }}>
           {hasChildren ? (
-            <button type="button" onClick={() => setOpen((o) => !o)} className="hover:bg-secondary mt-0.5 shrink-0 rounded p-0.5">
+            <button type="button" onClick={() => setManuallyOpen((o) => !o)} className="hover:bg-secondary mt-0.5 shrink-0 rounded p-0.5">
               <ChevronRight size={14} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
             </button>
           ) : (
@@ -280,7 +339,7 @@ function TableRow({ node, depth, onEdit }: { node: GroupNodeRow; depth: number; 
       {hasChildren && open && (
         <div>
           {sortedChildren.map((child) => (
-            <TableRow key={child.id} node={child} depth={depth + 1} onEdit={onEdit} />
+            <TableRow key={child.id} node={child} depth={depth + 1} onEdit={onEdit} query={query} />
           ))}
         </div>
       )}

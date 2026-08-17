@@ -48,6 +48,16 @@ export function usePropagateItemEdit(version: number) {
   })
 }
 
+// Era-editor safety session, Part E — moves an unattached node onto a different existing group.
+export function useAttachNodeToGroup(version: number) {
+  const invalidate = useInvalidateGroups(version)
+  return useMutation({
+    mutationFn: ({ targetItemId, body }: { targetItemId: string; body: groupsApi.AttachNodeToGroupBody }) =>
+      groupsApi.attachNodeToGroup(version, targetItemId, body),
+    onSuccess: invalidate,
+  })
+}
+
 export function useConfirmGroupedMeasurement(version: number) {
   const invalidate = useInvalidateGroups(version)
   return useMutation({

@@ -52,7 +52,7 @@ export interface InstanceMeasurement {
   value2: number | null
   unit: string
   tiers: TemplateTier[] | null
-  byLaw: Record<string, { value?: number | null; value2?: number | null; tiers?: TemplateTier[] }> | null
+  byLaw: Record<string, { value?: number | null; value2?: number | null; tiers?: TemplateTier[]; sourceText?: string | null; labelTh?: string | null }> | null
   autoGrade: boolean
   sourceText: string | null
   confirmed: boolean
@@ -189,7 +189,10 @@ export interface GroupedEditBody {
   lawRefs?: { lawRefs: string[]; beyondLaw: boolean }
   hidden?: { hidden: boolean }
   label?: { labelTh: string; num?: string }
-  era?: { lawCode: string; entry?: { value?: number | null; value2?: number | null; tiers?: TemplateTier[] } | null }
+  era?: {
+    lawCode: string
+    entry?: { value?: number | null; value2?: number | null; tiers?: TemplateTier[]; sourceText?: string | null; labelTh?: string | null } | null
+  }
   imageKey?: string
   imageOp?: 'add' | 'remove'
 }
@@ -231,6 +234,25 @@ export function getGroupedReviewQueue(version: number) {
 
 export function propagateItemEdit(version: number, itemId: string, body: GroupedEditBody) {
   return api.post<PropagateResult>(`/admin/template-groups/items/${encodeURIComponent(itemId)}/propagate?version=${version}`, body)
+}
+
+// Era-editor safety session, Part E — moves a node that isn't currently master-attached onto a
+// DIFFERENT existing group (target). `targetItemId` is the destination canonical item's id;
+// `templateId`/`nodeCode` together name the source node, mirroring propagateItemEdit's own
+// instance-targeting shape.
+export interface AttachNodeToGroupBody {
+  templateId: string
+  nodeCode: string
+}
+
+export interface AttachNodeToGroupResult {
+  id: string
+  definition: unknown
+  masterId: string
+}
+
+export function attachNodeToGroup(version: number, targetItemId: string, body: AttachNodeToGroupBody) {
+  return api.post<AttachNodeToGroupResult>(`/admin/template-groups/items/${encodeURIComponent(targetItemId)}/attach-node?version=${version}`, body)
 }
 
 export function confirmGroupedMeasurement(version: number, itemId: string, measurementKey: string) {

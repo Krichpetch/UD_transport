@@ -25,9 +25,38 @@ function flattenLeaves(nodes: GroupNodeDto[]): GroupNodeDto[] {
   return out
 }
 
-// Two v3-shaped templates sharing one container ("ทางลาดสำหรับคนพิการ") with two leaves:
+// Era-editor safety session, Part A.7 — a third leaf sharing the SAME tiered+byLaw shape (incl.
+// sourceText) across both templates, so it's SHARED/propagatable, for the tiers-only era-edit
+// fan-out test below.
+function tieredEraLeaf() {
+  return {
+    code: 'A1.1-3',
+    labelTh: 'จำนวนที่จอดรถสำหรับคนพิการ',
+    answerType: 'presence_standard' as const,
+    measurements: [
+      {
+        key: 'm1',
+        operator: 'tiered' as const,
+        unit: 'count',
+        autoGrade: true,
+        inputs: [
+          { key: 'basis', labelTh: 'จำนวนที่จอดรถทั้งหมด' },
+          { key: 'provided', labelTh: 'จำนวนที่จอดรถสำหรับคนพิการ' },
+        ],
+        tiers: [{ min: 1, max: 25, required: 1 }],
+        byLaw: {
+          MHT_2564: { tiers: [{ min: 1, max: 50, required: 1 }], sourceText: 'ตารางที่ 2 แนบท้ายกฎกระทรวง 2564' },
+        },
+        confirmed: true,
+      },
+    ],
+  }
+}
+
+// Two v3-shaped templates sharing one container ("ทางลาดสำหรับคนพิการ") with three leaves:
 //   A1.1-1 — identical text AND data in both -> SHARED, no conflict, propagatable.
 //   A1.1-2 — identical text, DIFFERENT measurement value -> SHARED, a live conflict.
+//   A1.1-3 — identical tiered+byLaw leaf in both -> SHARED, no conflict, propagatable.
 function landDef() {
   return {
     schemaVersion: 2,
@@ -53,6 +82,7 @@ function landDef() {
                 answerType: 'presence_standard',
                 measurements: [{ key: 'm1', operator: 'gte', value: 900, unit: 'mm', autoGrade: true, confirmed: true }],
               },
+              tieredEraLeaf(),
             ],
           },
         ],
@@ -86,6 +116,7 @@ function waterDef() {
                 answerType: 'presence_standard',
                 measurements: [{ key: 'm1', operator: 'gte', value: 500, unit: 'mm', autoGrade: true, confirmed: true }],
               },
+              tieredEraLeaf(),
             ],
           },
         ],
@@ -103,6 +134,10 @@ describe('FacilityGroupsService', () => {
   const findUnique = jest.fn()
   const update = jest.fn()
   const auditLog = jest.fn()
+  // Era-editor safety session, Part E — attachNodeToGroup re-reads the master row on the ROOT
+  // client (outside atomicMasterPush's transaction) to build the payload pushMasterToInstance
+  // needs for the SOURCE node's own write.
+  const rootMasterFindUnique = jest.fn()
 
   // Session S5-fix, Part B — propagateItemEdit routes every field except 'hidden' through an
   // atomic $transaction (promote-on-edit + master push). Same tx-mocking convention as
@@ -144,7 +179,11 @@ describe('FacilityGroupsService', () => {
         FacilityGroupsService,
         {
           provide: PrismaService,
-          useValue: { checklistTemplate: { findMany, findUnique, update }, $transaction: transactionMock },
+          useValue: {
+            checklistTemplate: { findMany, findUnique, update },
+            masterCriterion: { findUnique: rootMasterFindUnique },
+            $transaction: transactionMock,
+          },
         },
         { provide: AuditLogService, useValue: { log: auditLog } },
         { provide: MinioService, useValue: { upload: jest.fn(), getPresignedUrl: jest.fn(), remove: jest.fn() } },
@@ -153,9 +192,9 @@ describe('FacilityGroupsService', () => {
     service = moduleRef.get(FacilityGroupsService)
   })
 
-  it('getGroups reports one SHARED non-conflicted item and one SHARED conflicted item', async () => {
+  it('getGroups reports two SHARED non-conflicted items and one SHARED conflicted item', async () => {
     const result = await service.getGroups({ kind: 'exact', version: 3 })
-    expect(flattenLeaves(result.containerGroups)).toHaveLength(2)
+    expect(flattenLeaves(result.containerGroups)).toHaveLength(3)
 
     const clean = flattenLeaves(result.containerGroups).find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
     expect(clean.classification).toBe('SHARED')
@@ -242,6 +281,34 @@ describe('FacilityGroupsService', () => {
       const leaf = call[0].data.definition.groups[0].items[0].subItems[0]
       expect(leaf.masterId).toBe(first.masterId)
       expect(leaf.measurements[0].value).toBe(1000)
+    }
+  })
+
+  // Era-editor safety session, Part A.7/D.2 — the tiers-only era patch (exactly what the fixed
+  // GroupedEraSection.save/buildEraEntryPatch now sends) must not throw (bug 2, pre-fix: a
+  // hardcoded {value, value2} body on a tiered operator threw a hard 400 from parseByLawEntry's
+  // "tiered byLaw entry requires tiers" check) AND must preserve sourceText through the merge fix
+  // (bug 1) across the ENTIRE master-snapshot fan-out (atomicMasterPush's wholesale `measurements`
+  // write-through), not just the direct core-function call already covered in templates.core.spec.ts.
+  it('propagateItemEdit (era field, tiers-only patch) merges onto the existing byLaw entry and survives the master-snapshot fan-out to every instance', async () => {
+    const groups = await service.getGroups({ kind: 'exact', version: 3 })
+    const tieredItem = flattenLeaves(groups.containerGroups).find((it) => it.labelTh.includes('จำนวนที่จอดรถสำหรับคนพิการ'))!
+
+    const result = await service.propagateItemEdit({ kind: 'exact', version: 3 }, tieredItem.id, 'admin1', {
+      field: 'era',
+      measurementKey: 'm1',
+      era: { lawCode: 'MHT_2564', entry: { tiers: [{ min: 1, max: 60, required: 1 }] } },
+    })
+
+    expect(result.wroteCount).toBe(2)
+    expect(txTemplateUpdate).toHaveBeenCalledTimes(2)
+    for (const call of txTemplateUpdate.mock.calls) {
+      const leaf = call[0].data.definition.groups[0].items[0].subItems[2]
+      const entry = leaf.measurements[0].byLaw.MHT_2564
+      expect(entry.tiers).toEqual([{ min: 1, max: 60, required: 1, incrementPer: undefined, incrementBy: undefined }])
+      // Preserved, not silently dropped by the tiers-only patch — this is the merge fix (A.2)
+      // proven under the full propagate-through-master fan-out, not just the direct call.
+      expect(entry.sourceText).toBe('ตารางที่ 2 แนบท้ายกฎกระทรวง 2564')
     }
   })
 
@@ -463,6 +530,152 @@ describe('FacilityGroupsService', () => {
       expect(result.skipped).toHaveLength(1)
       expect(result.skipped[0]!.templateId).toBe(WATER_ROW.id)
       expect(result.skipped[0]!.reason).toContain('ไม่ใช่เวอร์ชันร่าง')
+    })
+  })
+
+  // Era-editor safety session, Part E — moving an unattached node onto a DIFFERENT existing group.
+  // A1.1-4 exists ONLY in the land template, worded completely differently from the "900 มิลลิเมตร"
+  // cluster it gets moved into — standing in for the real motivating case (rail_metro's A1.4-5,
+  // wrongly worded and stuck in its own pool) without using real สนข. text. Deliberately placed in
+  // the SAME template row as one of the target's own instances (land's A1.1-1) — the real case
+  // (an item repeating within one template) hits exactly this row-collision path, which is what the
+  // fresh-refetch-after-push fix in attachNodeToGroup exists to handle correctly.
+  describe('attachNodeToGroup', () => {
+    function landDefWithExtraLeaf(extra: Record<string, unknown> = {}) {
+      const def = landDef()
+      ;(def.groups[0]!.items[0]!.subItems as unknown[]).push({
+        code: 'A1.1-4',
+        labelTh: 'รายการเดี่ยว ยังไม่เชื่อมกลุ่มใด',
+        answerType: 'presence_standard',
+        measurements: [{ key: 'm1', operator: 'gte', value: 1000, unit: 'mm', autoGrade: true, confirmed: true }],
+        ...extra,
+      })
+      return def
+    }
+
+    const MASTER_ROW_SHAPE = {
+      labelTh: 'ความกว้างไม่น้อยกว่า 900 มิลลิเมตร',
+      answerType: 'presence_standard',
+      measurements: [{ key: 'm1', operator: 'gte', value: 900, unit: 'mm', autoGrade: true, confirmed: true }],
+      guidance: null,
+      imageKeys: [] as string[],
+      lawRefs: [] as string[],
+      cabinetResolution: null,
+      beyondLaw: null,
+      facilityCode: null,
+    }
+
+    function mockRows(land: unknown, water: unknown) {
+      const byId = (id: string) => (id === LAND_ROW.id ? land : id === WATER_ROW.id ? water : null)
+      findMany.mockResolvedValue([land, water])
+      findUnique.mockImplementation(({ where: { id } }: { where: { id: string } }) => Promise.resolve(byId(id)))
+      txTemplateFindUnique.mockImplementation(({ where: { id } }: { where: { id: string } }) => Promise.resolve(byId(id)))
+    }
+
+    async function resolveTargetAndSource() {
+      const groups = await service.getGroups({ kind: 'exact', version: 3 })
+      const target = flattenLeaves(groups.containerGroups).find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
+      return { target }
+    }
+
+    it('attaches a never-linked node to an already-masterId-bearing target: source gets the masterId + converged write-through fields; target instances keep their values', async () => {
+      const promotedLand = { id: LAND_ROW.id, mode: 'ทางบก', variantKey: 'standard', version: 3, status: 'DRAFT', definition: JSON.parse(JSON.stringify(landDefWithExtraLeaf())) }
+      promotedLand.definition.groups[0].items[0].subItems[0].masterId = 'existing-master-1'
+      const promotedWater = { ...WATER_ROW, definition: JSON.parse(JSON.stringify(waterDef())) }
+      promotedWater.definition.groups[0].items[0].subItems[0].masterId = 'existing-master-1'
+      mockRows(promotedLand, promotedWater)
+      txMasterFindUnique.mockResolvedValue({ id: 'existing-master-1' })
+      rootMasterFindUnique.mockResolvedValue({ id: 'existing-master-1', ...MASTER_ROW_SHAPE })
+
+      const { target } = await resolveTargetAndSource()
+      expect(target.masterId).toBe('existing-master-1')
+
+      const result = await service.attachNodeToGroup({ kind: 'exact', version: 3 }, target.id, LAND_ROW.id, 'A1.1-4', 'admin1')
+
+      expect(result.masterId).toBe('existing-master-1')
+      expect(txMasterCreate).not.toHaveBeenCalled() // already promoted — never creates a second master
+      const sourceUpdateCall = update.mock.calls.find((c) => c[0].where.id === LAND_ROW.id)!
+      const sourceLeaf = sourceUpdateCall[0].data.definition.groups[0].items[0].subItems[3]
+      expect(sourceLeaf.code).toBe('A1.1-4')
+      expect(sourceLeaf.masterId).toBe('existing-master-1')
+      expect(sourceLeaf.labelTh).toBe(MASTER_ROW_SHAPE.labelTh) // converged to the master's write-through fields
+      // The target's OWN A1.1-1 leaf — updated earlier in the SAME row by atomicMasterPush inside
+      // the transaction — must still carry its masterId in THIS later, separate root-client write;
+      // this is exactly what the fresh-refetch-after-push fix protects against clobbering.
+      const targetLeaf = sourceUpdateCall[0].data.definition.groups[0].items[0].subItems[0]
+      expect(targetLeaf.masterId).toBe('existing-master-1')
+    })
+
+    it('attaches to an unpromoted target (no masterId yet): creates a MasterCriterion, converges the target\'s own existing instances, AND links the source node — all in one call', async () => {
+      mockRows(
+        { id: LAND_ROW.id, mode: 'ทางบก', variantKey: 'standard', version: 3, status: 'DRAFT', definition: landDefWithExtraLeaf() },
+        WATER_ROW,
+      )
+      rootMasterFindUnique.mockResolvedValue({ id: 'new-master-1', ...MASTER_ROW_SHAPE })
+
+      const { target } = await resolveTargetAndSource()
+      expect(target.masterId).toBeUndefined()
+
+      const result = await service.attachNodeToGroup({ kind: 'exact', version: 3 }, target.id, LAND_ROW.id, 'A1.1-4', 'admin1')
+
+      expect(result.masterId).toBe('new-master-1')
+      expect(txMasterCreate).toHaveBeenCalledTimes(1) // first-ever attach for this target promotes it
+      // Target's own two pre-existing instances (land A1.1-1, water A1.1-1) both converged inside
+      // atomicMasterPush's transaction.
+      expect(txTemplateUpdate).toHaveBeenCalledTimes(2)
+      for (const call of txTemplateUpdate.mock.calls) {
+        const leaf = call[0].data.definition.groups[0].items[0].subItems[0]
+        expect(leaf.masterId).toBe('new-master-1')
+      }
+      // Source node linked via the service's own separate (non-tx) write.
+      const sourceUpdateCall = update.mock.calls.find((c) => c[0].where.id === LAND_ROW.id)!
+      const sourceLeaf = sourceUpdateCall[0].data.definition.groups[0].items[0].subItems[3]
+      expect(sourceLeaf.masterId).toBe('new-master-1')
+    })
+
+    it('a standalone:true source node has standalone cleared after attaching, and becomes visible in the target\'s cluster on the next computeGroups() pass', async () => {
+      mockRows(
+        { id: LAND_ROW.id, mode: 'ทางบก', variantKey: 'standard', version: 3, status: 'DRAFT', definition: landDefWithExtraLeaf({ standalone: true }) },
+        WATER_ROW,
+      )
+      rootMasterFindUnique.mockResolvedValue({ id: 'new-master-1', ...MASTER_ROW_SHAPE })
+
+      const { target } = await resolveTargetAndSource()
+      const result = await service.attachNodeToGroup({ kind: 'exact', version: 3 }, target.id, LAND_ROW.id, 'A1.1-4', 'admin1')
+      const sourceUpdateCall = update.mock.calls.find((c) => c[0].where.id === LAND_ROW.id)!
+      const persistedLand = sourceUpdateCall[0].data.definition
+      const sourceLeaf = persistedLand.groups[0].items[0].subItems[3]
+      expect(sourceLeaf.standalone).toBeUndefined()
+      expect(sourceLeaf.masterId).toBe(result.masterId)
+
+      // Simulate persistence, then re-fetch groups — the node should now be visible, pooled with
+      // the target under the SAME canonical item (by masterId, not by its still-mismatched text).
+      mockRows({ id: LAND_ROW.id, mode: 'ทางบก', variantKey: 'standard', version: 3, status: 'DRAFT', definition: persistedLand }, WATER_ROW)
+      const regroups = await service.getGroups({ kind: 'exact', version: 3 })
+      const merged = flattenLeaves(regroups.containerGroups).find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
+      expect(merged.instances.some((i) => i.nodeCode === 'A1.1-4')).toBe(true)
+      expect(merged.instances).toHaveLength(3)
+    })
+
+    it('guard: a source node already attached to a DIFFERENT master is rejected before any write', async () => {
+      mockRows(
+        { id: LAND_ROW.id, mode: 'ทางบก', variantKey: 'standard', version: 3, status: 'DRAFT', definition: landDefWithExtraLeaf({ masterId: 'other-master' }) },
+        WATER_ROW,
+      )
+      const { target } = await resolveTargetAndSource()
+      await expect(service.attachNodeToGroup({ kind: 'exact', version: 3 }, target.id, LAND_ROW.id, 'A1.1-4', 'admin1')).rejects.toThrow(BadRequestException)
+      expect(transactionMock).not.toHaveBeenCalled()
+      expect(update).not.toHaveBeenCalled()
+    })
+
+    it('guard: attaching a node that is already a member of the target group is rejected before any write', async () => {
+      mockRows(LAND_ROW, WATER_ROW)
+      const { target } = await resolveTargetAndSource()
+      await expect(
+        service.attachNodeToGroup({ kind: 'exact', version: 3 }, target.id, LAND_ROW.id, 'A1.1-1', 'admin1'),
+      ).rejects.toThrow(BadRequestException)
+      expect(transactionMock).not.toHaveBeenCalled()
+      expect(update).not.toHaveBeenCalled()
     })
   })
 })

@@ -29,6 +29,7 @@ import { ActivateTemplateDto } from './dto/activate-template.dto'
 import { EditHiddenDto } from './dto/edit-hidden.dto'
 import { EditStandaloneDto } from './dto/edit-standalone.dto'
 import { AttachMasterDto } from './dto/attach-master.dto'
+import { EditLabelByLawDto } from './dto/edit-label-by-law.dto'
 
 interface AuthRequest extends Request {
   user: { id: string; username: string; role: string }
@@ -101,6 +102,19 @@ export class TemplatesAdminController {
   ) {
     if (req.user.role !== 'ADMIN') throw new ForbiddenException()
     return this.templates.editEra(id, nodeCode, measurementKey, body, req.user.id)
+  }
+
+  // ---- Era-editor safety session, Part C — container-only labelByLaw editing (any status). ----
+
+  @Patch(':id/nodes/:nodeCode/label-by-law')
+  editLabelByLaw(
+    @Param('id') id: string,
+    @Param('nodeCode') nodeCode: string,
+    @Body() body: EditLabelByLawDto,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.templates.editLabelByLaw(id, nodeCode, body, req.user.id)
   }
 
   @Patch(':id/guidance/:nodeCode')

@@ -62,6 +62,17 @@ export function useEditEra(templateId: string) {
   })
 }
 
+// ---- Era-editor safety session, Part C — container-only labelByLaw editing (any status) ----
+
+export function useEditLabelByLaw(templateId: string) {
+  const invalidate = useInvalidateAfterEdit(templateId)
+  return useMutation({
+    mutationFn: ({ nodeCode, body }: { nodeCode: string; body: templatesApi.EditLabelByLawBody }) =>
+      templatesApi.editLabelByLaw(templateId, nodeCode, body),
+    onSuccess: invalidate,
+  })
+}
+
 export function useEditGuidance(templateId: string) {
   const invalidate = useInvalidateAfterEdit(templateId)
   return useMutation({

@@ -46,6 +46,11 @@ export interface TemplateMeasurementInput {
 // carries — an entry with nothing to swap has no reason to exist.
 export interface TemplateLabelByLawEntry {
   labelTh: string
+  // Era-editor safety session — admin bookkeeping only, mirrors TemplateMeasurementByLawEntry's
+  // own sourceText field. Never projected onto TemplateNode (no top-level sourceText field to put
+  // it in) and never reaches the client — resolveNode strips the whole labelByLaw map before the
+  // audit-template endpoint returns (era-resolution.ts), same as the measurement version.
+  sourceText?: string | null
 }
 
 // The era-varying slice of a measurement's value fields — keyed by LawReference.code inside
@@ -503,7 +508,10 @@ function parseNode(raw: unknown, path: string): TemplateNode {
     const labelByLaw: Record<string, TemplateLabelByLawEntry> = {}
     for (const [lawCode, entry] of Object.entries(o.labelByLaw)) {
       if (!isPlainObject(entry)) fail(`${path}.labelByLaw.${lawCode}`, 'must be an object')
-      labelByLaw[lawCode] = { labelTh: checkString(entry.labelTh, `${path}.labelByLaw.${lawCode}`, 'labelTh') }
+      labelByLaw[lawCode] = {
+        labelTh: checkString(entry.labelTh, `${path}.labelByLaw.${lawCode}`, 'labelTh'),
+        sourceText: typeof entry.sourceText === 'string' ? entry.sourceText : undefined,
+      }
     }
     node.labelByLaw = labelByLaw
   }

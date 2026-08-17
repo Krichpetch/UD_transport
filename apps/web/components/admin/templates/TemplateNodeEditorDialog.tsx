@@ -15,6 +15,8 @@ import { LawRefsEditor } from './LawRefsEditor'
 import { HiddenToggle } from './HiddenToggle'
 import { StructuralEditor } from './StructuralEditor'
 import { MasterAttachedBanner } from './MasterAttachedBanner'
+import { LabelByLawEditor } from './LabelByLawEditor'
+import { MoveToGroupPicker } from './MoveToGroupPicker'
 
 // Session S4b-fix, Fix 4 — provenance banner: tells the admin this node's text is shared with
 // other templates via the grouped editor BEFORE they edit it here in isolation, and offers the
@@ -59,23 +61,34 @@ function GroupProvenanceBanner({
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
-      <span className="flex items-center gap-1.5">
-        <Layers size={14} />
-        ส่วนหนึ่งของกลุ่ม &ldquo;{groupMembership!.labelTh}&rdquo; — ใช้ร่วมกัน {groupMembership!.instanceCount} ที่{' '}
-        <Link href="/admin/templates/groups" className="underline">
-          ดูกลุ่ม
-        </Link>
-      </span>
-      <button
-        type="button"
-        onClick={() => editStandalone.mutate({ nodeCode: node.code, standalone: true })}
-        disabled={editStandalone.isPending}
-        className="flex items-center gap-1 rounded-lg bg-blue-800/10 px-2.5 py-1 text-xs font-medium hover:bg-blue-800/20 disabled:opacity-50"
-      >
-        {editStandalone.isPending ? <Loader2 size={12} className="animate-spin" /> : null}
-        แก้เป็นรายการเดี่ยว
-      </button>
+    <div className="space-y-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5">
+          <Layers size={14} />
+          ส่วนหนึ่งของกลุ่ม &ldquo;{groupMembership!.labelTh}&rdquo; — ใช้ร่วมกัน {groupMembership!.instanceCount} ที่{' '}
+          <Link href="/admin/templates/groups" className="underline">
+            ดูกลุ่ม
+          </Link>
+        </span>
+        <button
+          type="button"
+          onClick={() => editStandalone.mutate({ nodeCode: node.code, standalone: true })}
+          disabled={editStandalone.isPending}
+          className="flex items-center gap-1 rounded-lg bg-blue-800/10 px-2.5 py-1 text-xs font-medium hover:bg-blue-800/20 disabled:opacity-50"
+        >
+          {editStandalone.isPending ? <Loader2 size={12} className="animate-spin" /> : null}
+          แก้เป็นรายการเดี่ยว
+        </button>
+      </div>
+      {/* Era-editor safety session, Part E — the never-linked fuzzy-pool case (e.g. a mis-worded
+          item stuck in its own wrong-text pool): offered only while this node isn't explicitly
+          master-attached — an attached node's grouping is owned by its master link, not this
+          fuzzy cluster, and editing it directly is already blocked server-side either way. */}
+      {!node.masterId && (
+        <div className="border-t border-blue-200 pt-1.5">
+          <MoveToGroupPicker templateId={templateId} sourceNodeCode={node.code} excludeGroupId={groupMembership!.id} />
+        </div>
+      )}
     </div>
   )
 }
@@ -134,9 +147,12 @@ export function TemplateNodeEditorDialog({
               <GroupProvenanceBanner templateId={templateId} node={node} groupMembership={groupMembership ?? null} readOnly={retired} />
 
               {!node.answerType && (
-                <div className="bg-secondary/60 text-muted-foreground rounded-lg p-2.5 text-sm">
-                  รายการนี้เป็นหมวดหมู่ (ไม่มีคำตอบของตัวเอง) — แนบได้เฉพาะรูปภาพประกอบเท่านั้น
-                </div>
+                <>
+                  <div className="bg-secondary/60 text-muted-foreground rounded-lg p-2.5 text-sm">
+                    รายการนี้เป็นหมวดหมู่ (ไม่มีคำตอบของตัวเอง) — แนบได้เฉพาะรูปภาพประกอบเท่านั้น
+                  </div>
+                  <LabelByLawEditor templateId={templateId} node={node} readOnly={retired} />
+                </>
               )}
               {/* guidance is a leaf-only field in the validator (packages/types/checklist-template.ts
                   parseNode only reads/preserves it inside the answerType branch) — showing this

@@ -7,6 +7,12 @@
 // MeasurementEditor.tsx / GroupedItemEditDialog.tsx / StructuralEditor.tsx.
 import type { ThresholdOperator } from '@repo/types'
 
+// Shared across MeasurementEditor.tsx, StructuralEditor.tsx, and GroupedItemEditDialog.tsx —
+// previously each declared its own local ThresholdOperator[] list, and the grouped dialog's copy
+// had drifted to omit 'tiered' (the root cause of the grouped editor never offering a tiered
+// operator on the base measurement OR era sections — see templates.core.ts#editEraOverride's doc).
+export const OPERATORS: ThresholdOperator[] = ['gte', 'lte', 'range', 'tiered']
+
 export const OPERATOR_LABEL: Record<ThresholdOperator, string> = {
   gte: 'ไม่น้อยกว่า (gte)',
   lte: 'ไม่เกิน (lte)',
