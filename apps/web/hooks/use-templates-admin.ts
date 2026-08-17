@@ -169,6 +169,14 @@ export function useAddChildNode(templateId: string) {
   })
 }
 
+export function useAddTopLevelItem(templateId: string) {
+  const invalidate = useInvalidateAfterEdit(templateId)
+  return useMutation({
+    mutationFn: (body: templatesApi.AddTopLevelItemBody) => templatesApi.addTopLevelItem(templateId, body),
+    onSuccess: invalidate,
+  })
+}
+
 export function useReorderNode(templateId: string) {
   const invalidate = useInvalidateAfterEdit(templateId)
   return useMutation({

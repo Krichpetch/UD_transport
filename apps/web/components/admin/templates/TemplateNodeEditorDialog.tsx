@@ -104,6 +104,7 @@ export function TemplateNodeEditorDialog({
   breadcrumb,
   groupMembership,
   onClose,
+  onNodeMoved,
 }: {
   templateId: string
   templateStatus: 'DRAFT' | 'ACTIVE' | 'RETIRED' | string
@@ -112,6 +113,9 @@ export function TemplateNodeEditorDialog({
   breadcrumb: string[]
   groupMembership?: GroupNodeRow | null
   onClose: () => void
+  // reorderNode pins codes to their slot — this keeps the dialog pointed at the moved content
+  // instead of snapping to whatever now sits under the code it was opened with.
+  onNodeMoved?: (newCode: string) => void
 }) {
   // Part B.4 — "no silent re-grades": editing a measurement on an ACTIVE template requires an
   // explicit ack of the consequence (re-scoring on next recompute) before the edit form even
@@ -213,6 +217,7 @@ export function TemplateNodeEditorDialog({
                   node={node}
                   onNodeDeleted={onClose}
                   onChildAdded={() => {}}
+                  onNodeMoved={onNodeMoved}
                 />
               ) : !retired && (
                 <div className="bg-secondary/60 text-muted-foreground rounded-lg p-2.5 text-sm">

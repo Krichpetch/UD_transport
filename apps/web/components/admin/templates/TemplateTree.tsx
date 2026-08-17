@@ -12,11 +12,11 @@
 import * as React from 'react'
 import type { ChecklistTemplateDefinition, TemplateNode } from '@repo/types'
 import { walkTemplateLeaves } from '@repo/types'
-import { CheckCircle2, ChevronRight, Image as ImageIcon, Scale, Search, SkipForward, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, CheckCircle2, ChevronRight, Image as ImageIcon, Scale, Search, SkipForward, X } from 'lucide-react'
 import { INPUT_CLS } from '@/lib/ui-classes'
 import { PhotoLightbox } from '@/components/checklist/ChecklistPhotoGallery'
 import { useTemplateImageUrls } from '@/hooks/use-template-image-urls'
-import { useRemoveTemplateImage } from '@/hooks/use-templates-admin'
+import { useRemoveTemplateImage, useReorderNode } from '@/hooks/use-templates-admin'
 
 // Image-count badge that doubles as a delete affordance — click opens the same lightbox the
 // editor dialog uses (with delete wired up), without having to open the full node editor just to
@@ -110,22 +110,78 @@ function ConfirmDot({ node }: { node: TemplateNode }) {
   return <span className="border-border block size-4 shrink-0 rounded-full border-2" />
 }
 
+// Era-editor safety follow-up (live feedback, 2026-08-17) — reorder used to be reachable only by
+// opening a node's full editor dialog first (StructuralEditor's buttons), which made it easy to
+// miss entirely. Surfaced directly on the tree row instead, so it's the default, visible way to
+// reorder — no dialog required. `onNodeMoved` mirrors TemplateNodeEditorDialog's own wiring: since
+// reorderNode now pins codes to their slot (see templates.core.ts#reorderNode's doc), the moved
+// content's code can change, and an open editor for that node needs to follow it, not the old code.
+function ReorderButtons({
+  templateId,
+  nodeCode,
+  isFirst,
+  isLast,
+  onNodeMoved,
+}: {
+  templateId: string
+  nodeCode: string
+  isFirst: boolean
+  isLast: boolean
+  onNodeMoved?: (newCode: string) => void
+}) {
+  const reorderNode = useReorderNode(templateId)
+  function move(direction: 'up' | 'down', e: React.MouseEvent) {
+    e.stopPropagation()
+    reorderNode.mutate({ nodeCode, direction }, { onSuccess: (result) => onNodeMoved?.(result.code) })
+  }
+  return (
+    <div className="flex shrink-0 items-center gap-0.5">
+      <button
+        type="button"
+        onClick={(e) => move('up', e)}
+        disabled={isFirst || reorderNode.isPending}
+        title="เลื่อนขึ้น (สลับรหัสกับรายการก่อนหน้า)"
+        className="hover:bg-secondary rounded p-0.5 disabled:opacity-30"
+      >
+        <ArrowUp size={12} />
+      </button>
+      <button
+        type="button"
+        onClick={(e) => move('down', e)}
+        disabled={isLast || reorderNode.isPending}
+        title="เลื่อนลง (สลับรหัสกับรายการถัดไป)"
+        className="hover:bg-secondary rounded p-0.5 disabled:opacity-30"
+      >
+        <ArrowDown size={12} />
+      </button>
+    </div>
+  )
+}
+
 function NodeRow({
   templateId,
+  templateStatus,
   node,
   depth,
   breadcrumb,
   selectedCode,
   onSelect,
   query,
+  isFirst,
+  isLast,
+  onNodeMoved,
 }: {
   templateId: string
+  templateStatus: string
   node: TemplateNode
   depth: number
   breadcrumb: string[]
   selectedCode: string | null
   onSelect: (node: TemplateNode, breadcrumb: string[]) => void
   query: string
+  isFirst: boolean
+  isLast: boolean
+  onNodeMoved?: (newCode: string) => void
 }) {
   const hasChildren = !!node.subItems && node.subItems.length > 0
   const isAnswerable = !!node.answerType
@@ -173,19 +229,27 @@ function NodeRow({
             </div>
           )}
         </div>
+        {/* DRAFT-only, same server gate as every other structural edit (STRUCTURE_EDIT_REQUIRES_DRAFT) */}
+        {templateStatus === 'DRAFT' && (
+          <ReorderButtons templateId={templateId} nodeCode={node.code} isFirst={isFirst} isLast={isLast} onNodeMoved={onNodeMoved} />
+        )}
       </div>
       {hasChildren && open && (
         <div>
-          {node.subItems!.map((child) => (
+          {node.subItems!.map((child, i, arr) => (
             <NodeRow
               key={child.code}
               templateId={templateId}
+              templateStatus={templateStatus}
               node={child}
               depth={depth + 1}
               breadcrumb={[...breadcrumb, node.labelTh]}
               selectedCode={selectedCode}
               onSelect={onSelect}
               query={query}
+              isFirst={i === 0}
+              isLast={i === arr.length - 1}
+              onNodeMoved={onNodeMoved}
             />
           ))}
         </div>
@@ -196,14 +260,18 @@ function NodeRow({
 
 export function TemplateTree({
   templateId,
+  templateStatus,
   definition,
   selectedCode,
   onSelect,
+  onNodeMoved,
 }: {
   templateId: string
+  templateStatus: string
   definition: ChecklistTemplateDefinition
   selectedCode: string | null
   onSelect: (node: TemplateNode, breadcrumb: string[]) => void
+  onNodeMoved?: (newCode: string) => void
 }) {
   const [query, setQuery] = React.useState('')
   const normalizedQuery = query.trim().toLowerCase()
@@ -271,16 +339,20 @@ export function TemplateTree({
                 {group.code} {group.labelTh}
               </div>
             )}
-            {group.items.map((item) => (
+            {group.items.map((item, i, arr) => (
               <NodeRow
                 key={item.code}
                 templateId={templateId}
+                templateStatus={templateStatus}
                 node={item}
                 depth={0}
                 breadcrumb={[group.labelTh]}
                 selectedCode={selectedCode}
                 onSelect={onSelect}
                 query={normalizedQuery}
+                isFirst={i === 0}
+                isLast={i === arr.length - 1}
+                onNodeMoved={onNodeMoved}
               />
             ))}
           </div>

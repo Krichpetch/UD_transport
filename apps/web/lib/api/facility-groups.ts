@@ -327,3 +327,37 @@ export interface AddAndPlaceResponse {
 export function addAndPlace(version: number, body: AddAndPlaceRequest) {
   return api.post<AddAndPlaceResponse>(`/admin/template-groups/add-and-place?version=${version}`, body)
 }
+
+// ---- Live feedback (2026-08-17) — delete-group, the symmetric counterpart to add-and-place ----
+
+export interface DeleteGroupRequest {
+  canonicalItemId: string
+  targetTemplateIds: string[]
+  confirm: boolean
+}
+
+export interface DeleteGroupResolved {
+  templateId: string
+  mode: string
+  variantKey: string
+  nodeCode: string
+  labelTh: string
+}
+
+export interface DeleteGroupSkipped {
+  templateId: string
+  mode: string | null
+  variantKey: string | null
+  reason: string
+}
+
+export interface DeleteGroupResponse {
+  correlationId: string | null
+  wroteCount: number
+  resolved: DeleteGroupResolved[]
+  skipped: DeleteGroupSkipped[]
+}
+
+export function deleteGroup(version: number, body: DeleteGroupRequest) {
+  return api.post<DeleteGroupResponse>(`/admin/template-groups/delete-group?version=${version}`, body)
+}

@@ -30,6 +30,7 @@ import { EditHiddenDto } from './dto/edit-hidden.dto'
 import { EditStandaloneDto } from './dto/edit-standalone.dto'
 import { AttachMasterDto } from './dto/attach-master.dto'
 import { EditLabelByLawDto } from './dto/edit-label-by-law.dto'
+import { AddTopLevelItemDto } from './dto/add-top-level-item.dto'
 
 interface AuthRequest extends Request {
   user: { id: string; username: string; role: string }
@@ -224,6 +225,20 @@ export class TemplatesAdminController {
   ) {
     if (req.user.role !== 'ADMIN') throw new ForbiddenException()
     return this.templates.addChild(id, parentCode, body, req.user.id)
+  }
+
+  // A brand-new TOP-LEVEL item (a sibling directly under a GROUP, or under an existing node),
+  // positioned relative to an anchor — the individual-editor sibling of the grouped editor's
+  // add-and-place. Distinct from POST .../nodes/:parentCode/children above (which only ever
+  // appends a CHILD under an already-selected existing node).
+  @Post(':id/top-level-items')
+  addTopLevelItem(
+    @Param('id') id: string,
+    @Body() body: AddTopLevelItemDto,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.templates.addTopLevelItem(id, body, req.user.id)
   }
 
   @Patch(':id/nodes/:nodeCode/reorder')

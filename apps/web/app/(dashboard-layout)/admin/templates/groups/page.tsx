@@ -2,13 +2,14 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, ChevronUp, ListChecks, Plus, Search, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, ChevronUp, ListChecks, Plus, Search, Trash2, X } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
 import { useFacilityGroups } from '@/hooks/use-facility-groups'
 import { ClassificationBadge, ConflictBadge } from '@/components/admin/templates/GroupedItemBadges'
 import { InstanceBreakdownChips } from '@/components/admin/templates/InstanceBreakdownChips'
 import { GroupedItemEditDialog } from '@/components/admin/templates/GroupedItemEditDialog'
 import { AddAndPlaceDialog } from '@/components/admin/templates/AddAndPlaceDialog'
+import { DeleteGroupDialog } from '@/components/admin/templates/DeleteGroupDialog'
 import { describeAnswerSpec } from '@/lib/template-format'
 import { INPUT_CLS } from '@/lib/ui-classes'
 import { flattenLeafNodes, type GroupNodeRow } from '@/lib/api/facility-groups'
@@ -71,6 +72,7 @@ function groupNodeMatchesQuery(node: GroupNodeRow, query: string): boolean {
 function TemplateGroupsContent() {
   const { data, isLoading, error } = useFacilityGroups(VERSION)
   const [editing, setEditing] = React.useState<GroupNodeRow | null>(null)
+  const [deleting, setDeleting] = React.useState<GroupNodeRow | null>(null)
   const [addingNew, setAddingNew] = React.useState(false)
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({})
   const [query, setQuery] = React.useState('')
@@ -212,6 +214,20 @@ function TemplateGroupsContent() {
                       แก้ไข & เผยแพร่
                     </button>
                   )}
+                  {/* Live feedback (2026-08-17) — "a way to delete any facility group that
+                      doesn't need to be there anymore". Not gated on propagatable (unlike edit) —
+                      an unwanted or conflicted group should still be removable. */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setDeleting(root)
+                    }}
+                    title="ลบกลุ่มนี้"
+                    className="text-muted-foreground hover:bg-secondary/60 hover:text-red-600 rounded-lg border border-transparent p-1.5"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                   {isOpen ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
                 </div>
               </div>
@@ -220,7 +236,7 @@ function TemplateGroupsContent() {
                 <>
                   <TableHeaderRow />
                   {[...root.children].sort(byDocOrder).map((child) => (
-                    <TableRow key={child.id} node={child} depth={1} onEdit={setEditing} query={normalizedQuery} />
+                    <TableRow key={child.id} node={child} depth={1} onEdit={setEditing} onDelete={setDeleting} query={normalizedQuery} />
                   ))}
                   {root.children.length === 0 && (
                     <div className="text-muted-foreground px-4 py-3 text-sm">รายการนี้ไม่มีรายการย่อย</div>
@@ -234,6 +250,7 @@ function TemplateGroupsContent() {
 
       <GroupedItemEditDialog version={VERSION} item={editing} onClose={() => setEditing(null)} />
       {addingNew && data && <AddAndPlaceDialog version={VERSION} roots={data.containerGroups} onClose={() => setAddingNew(false)} />}
+      {deleting && <DeleteGroupDialog version={VERSION} item={deleting} onClose={() => setDeleting(null)} />}
     </div>
   )
 }
@@ -260,11 +277,13 @@ function TableRow({
   node,
   depth,
   onEdit,
+  onDelete,
   query,
 }: {
   node: GroupNodeRow
   depth: number
   onEdit: (n: GroupNodeRow) => void
+  onDelete: (n: GroupNodeRow) => void
   query: string
 }) {
   // Every hook called unconditionally, before any early return below (Rules of Hooks) — this row's
@@ -315,7 +334,7 @@ function TableRow({
           <ConflictBadge item={node} />
         </div>
 
-        <div className="px-3 py-2.5">
+        <div className="flex items-center gap-1 px-3 py-2.5">
           {node.propagatable ? (
             <button
               type="button"
@@ -334,12 +353,22 @@ function TableRow({
           ) : (
             <span className="text-muted-foreground text-xs">แก้ไขทีละแบบประเมิน</span>
           )}
+          {/* Live feedback (2026-08-17) — not gated on propagatable, same reasoning as the root
+              header's own delete button above. */}
+          <button
+            type="button"
+            onClick={() => onDelete(node)}
+            title="ลบรายการนี้"
+            className="text-muted-foreground hover:bg-secondary/60 hover:text-red-600 shrink-0 rounded-lg border border-transparent p-1.5"
+          >
+            <Trash2 size={13} />
+          </button>
         </div>
       </div>
       {hasChildren && open && (
         <div>
           {sortedChildren.map((child) => (
-            <TableRow key={child.id} node={child} depth={depth + 1} onEdit={onEdit} query={query} />
+            <TableRow key={child.id} node={child} depth={depth + 1} onEdit={onEdit} onDelete={onDelete} query={query} />
           ))}
         </div>
       )}

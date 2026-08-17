@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { TemplateNode } from '@repo/types'
 import { indexTemplateNodesByCode } from '@repo/types'
-import { ArrowLeft, Copy, Download, Loader2, Rocket } from 'lucide-react'
+import { ArrowLeft, Copy, Download, Loader2, Plus, Rocket } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
 import { useActivateTemplate, useCloneToDraft, useTemplateDetail } from '@/hooks/use-templates-admin'
 import { useFacilityGroups } from '@/hooks/use-facility-groups'
@@ -18,6 +18,7 @@ import { TransportBadge } from '@/components/shared/badges'
 import { TemplateStatusBadge } from '@/components/admin/templates/TemplateStatusBadge'
 import { TemplateTree } from '@/components/admin/templates/TemplateTree'
 import { TemplateNodeEditorDialog } from '@/components/admin/templates/TemplateNodeEditorDialog'
+import { AddTopLevelItemDialog } from '@/components/admin/templates/AddTopLevelItemDialog'
 
 export default function TemplateDetailPage({ params }: { params: Promise<{ id: string }> }) {
   return (
@@ -39,6 +40,7 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
   const [exporting, setExporting] = React.useState(false)
   const [activateOpen, setActivateOpen] = React.useState(false)
   const [atRisk, setAtRisk] = React.useState<{ stations: string[]; count: number } | null>(null)
+  const [addingTopLevel, setAddingTopLevel] = React.useState(false)
 
   // Session S4b-fix, Fix 4 — the grouped editor is v3-only, so this lookup is only meaningful (and
   // only fired) when the open template actually IS v3; the provenance banner simply doesn't show
@@ -106,6 +108,13 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
     if (fresh && fresh !== selected.node) setSelected((s) => (s ? { ...s, node: fresh } : s))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data])
+
+  // Shared by the tree's inline reorder buttons AND the node editor dialog's own reorder buttons
+  // (StructuralEditor) — reorderNode now pins codes to their slot, so whichever content the admin
+  // was looking at may carry a new code after a move; keep `selected` pointed at it either way.
+  function handleNodeMoved(newCode: string) {
+    setSelected((s) => (s ? { ...s, node: { ...s.node, code: newCode } } : s))
+  }
 
   async function handleExport() {
     if (!data) return
@@ -197,6 +206,20 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
               สร้างเวอร์ชันร่างใหม่
             </button>
           )}
+          {/* Structural editing is DRAFT-only — same gate StructuralEditor.tsx's own affordances
+              already enforce server-side (STRUCTURE_EDIT_REQUIRES_DRAFT); this is just the UI
+              reflection so the button reads as unavailable rather than failing after a click. */}
+          {data.status === 'DRAFT' && (
+            <button
+              type="button"
+              onClick={() => setAddingTopLevel(true)}
+              className="border-border bg-card hover:bg-secondary/60 flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-medium"
+              title="เพิ่มรายการใหม่ระดับบนสุดของกลุ่ม (เช่น วางก่อน/หลังรายการที่มีอยู่)"
+            >
+              <Plus size={15} />
+              เพิ่มรายการใหม่
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void handleExport()}
@@ -250,9 +273,11 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
       <div className="bg-card border-border rounded-xl border p-3">
         <TemplateTree
           templateId={data.id}
+          templateStatus={data.status}
           definition={data.definition}
           selectedCode={selected?.node.code ?? null}
           onSelect={(node, breadcrumb) => setSelected({ node, breadcrumb })}
+          onNodeMoved={handleNodeMoved}
         />
       </div>
 
@@ -264,7 +289,17 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
         breadcrumb={selected?.breadcrumb ?? []}
         groupMembership={groupMembership}
         onClose={() => setSelected(null)}
+        onNodeMoved={handleNodeMoved}
       />
+
+      {addingTopLevel && (
+        <AddTopLevelItemDialog
+          templateId={data.id}
+          templateVersion={data.version}
+          definition={data.definition}
+          onClose={() => setAddingTopLevel(false)}
+        />
+      )}
 
       <Dialog
         open={activateOpen}

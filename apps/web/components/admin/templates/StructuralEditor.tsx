@@ -193,11 +193,15 @@ export function StructuralEditor({
   node,
   onNodeDeleted,
   onChildAdded,
+  onNodeMoved,
 }: {
   templateId: string
   node: TemplateNode
   onNodeDeleted: () => void
   onChildAdded: (code: string) => void
+  // reorderNode now pins codes to their slot (Era-editor safety follow-up) — this node's own code
+  // may change when it moves. Called with the new code so an open editor can follow the content.
+  onNodeMoved?: (newCode: string) => void
 }) {
   const setQuestionType = useSetQuestionType(templateId)
   const reorderNode = useReorderNode(templateId)
@@ -295,18 +299,28 @@ export function StructuralEditor({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => reorderNode.mutate({ nodeCode: node.code, direction: 'up' })}
+              onClick={() =>
+                reorderNode.mutate(
+                  { nodeCode: node.code, direction: 'up' },
+                  { onSuccess: (result) => onNodeMoved?.(result.code) },
+                )
+              }
               disabled={reorderNode.isPending}
-              title="เลื่อนขึ้น"
+              title="เลื่อนขึ้น (สลับรหัสกับรายการก่อนหน้า)"
               className="border-border rounded border p-1 text-xs disabled:opacity-40"
             >
               <ArrowUp size={12} />
             </button>
             <button
               type="button"
-              onClick={() => reorderNode.mutate({ nodeCode: node.code, direction: 'down' })}
+              onClick={() =>
+                reorderNode.mutate(
+                  { nodeCode: node.code, direction: 'down' },
+                  { onSuccess: (result) => onNodeMoved?.(result.code) },
+                )
+              }
               disabled={reorderNode.isPending}
-              title="เลื่อนลง"
+              title="เลื่อนลง (สลับรหัสกับรายการถัดไป)"
               className="border-border rounded border p-1 text-xs disabled:opacity-40"
             >
               <ArrowDown size={12} />

@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'crypto'
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma, type MasterCriterion } from '@prisma/client'
 import type { ChecklistTemplateDefinition, TemplateAnswerType, TransportMode } from '@repo/types'
-import { ChecklistTemplateValidationError, FACILITY_CATALOG, indexTemplateNodesByCode } from '@repo/types'
+import { ChecklistTemplateValidationError, indexTemplateNodesByCode } from '@repo/types'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditLogService } from '../../audit/audit.service'
 import { MinioService } from '../../minio/minio.service'
@@ -27,6 +27,7 @@ import type { GroupedEditDto } from './dto/grouped-edit.dto'
 import type { ResolveConflictDto } from './dto/resolve-conflict.dto'
 import type { AddAndPlaceDto } from './dto/add-and-place.dto'
 import type { AttachNodeToGroupDto } from './dto/attach-node-to-group.dto'
+import type { DeleteGroupDto } from './dto/delete-group.dto'
 
 // Json columns need the JsonNull sentinel for "set SQL NULL" — see master-criteria.service.ts's
 // own copy of this helper for why a bare JS null/undefined isn't enough.
@@ -100,6 +101,9 @@ export const TEMPLATE_GROUPED_EDIT = 'TEMPLATE_GROUPED_EDIT'
 export const TEMPLATE_GROUPED_CONFIRM = 'TEMPLATE_GROUPED_CONFIRM'
 // Session S4b-fix, Fix 3 — add-and-place: one NEW item, written to N templates at a chosen position.
 export const TEMPLATE_GROUPED_ADD = 'TEMPLATE_GROUPED_ADD'
+// Live feedback (2026-08-17) — delete-group: the symmetric counterpart, removing a canonical
+// item's instances from N chosen templates at once.
+export const TEMPLATE_GROUPED_DELETE = 'TEMPLATE_GROUPED_DELETE'
 // Era-editor safety session, Part E — a node that WASN'T master-attached moves onto a DIFFERENT
 // existing group. Distinct from TEMPLATE_MASTER_REATTACH (templates.service.ts — "back to the same
 // master you detached from") so the audit trail can tell "moved to a different group" apart from an
@@ -132,6 +136,22 @@ export interface AddAndPlaceResolved {
   code?: string
 }
 export interface AddAndPlaceSkipped {
+  templateId: string
+  mode: string | null
+  variantKey: string | null
+  reason: string
+}
+
+// Live feedback (2026-08-17) — delete-group's own resolved/skipped shapes, same module-level
+// reasoning as AddAndPlaceResolved/AddAndPlaceSkipped above (nameable in the emitted .d.ts).
+export interface DeleteGroupResolved {
+  templateId: string
+  mode: TransportMode
+  variantKey: string
+  nodeCode: string
+  labelTh: string
+}
+export interface DeleteGroupSkipped {
   templateId: string
   mode: string | null
   variantKey: string | null
@@ -786,17 +806,11 @@ export class FacilityGroupsService {
     }
 
     // facilityCode -> lawRefs/cabinetResolution/beyondLaw, same resolution tagContainers would do —
-    // unless the caller already supplied lawRefs explicitly, which wins.
-    let lawRefs = dto.content.lawRefs
-    let cabinetResolution: boolean | undefined
-    let beyondLaw: boolean | undefined
-    if (dto.content.facilityCode !== undefined) {
-      const entry = FACILITY_CATALOG.find((e) => e.code === dto.content.facilityCode)
-      if (!entry) throw new BadRequestException(`unknown facilityCode ${dto.content.facilityCode}`)
-      if (!lawRefs) lawRefs = [...entry.lawRefs]
-      cabinetResolution = entry.cabinetResolution
-      beyondLaw = entry.beyondLaw
-    }
+    // unless the caller already supplied lawRefs explicitly, which wins. Shared with
+    // templates.service.ts#addTopLevelItem via core.resolveFacilityCodeDefaults.
+    const facilityDefaults = core.resolveFacilityCodeDefaults(dto.content.facilityCode, dto.content.lawRefs)
+    if (!facilityDefaults) throw new BadRequestException(`unknown facilityCode ${dto.content.facilityCode}`)
+    const { lawRefs, cabinetResolution, beyondLaw } = facilityDefaults
 
     if (!dto.confirm) {
       return { correlationId: null as string | null, wroteCount: 0, resolved, skipped }
@@ -862,6 +876,102 @@ export class FacilityGroupsService {
     })
 
     return result.code
+  }
+
+  // Live feedback (2026-08-17) — delete-group: the symmetric counterpart to addAndPlace above,
+  // removing a canonical item's instances from N chosen templates in one action instead of opening
+  // each template's own individual editor to delete one at a time (real motivating case: an
+  // admin-added item that turned out to be a near-duplicate typo of an already-correct one, sitting
+  // in 3 templates). Same preview -> confirm two-step, same per-target skip-with-reason convention
+  // as addAndPlace. A target is skipped (never guessed past) when: the template row doesn't exist,
+  // this canonical item has no instance in it (already gone, or never there), the row isn't a DRAFT
+  // (STRUCTURE_EDIT_REQUIRES_DRAFT — deletion is structural, same gate as every other structural
+  // edit), or the instance is master-attached (assertNotAttached's own reasoning applies here too:
+  // deleting a linked leaf out from under its master without detaching first would leave the
+  // master's own instance list silently short one member).
+  async deleteGroup(scope: VersionScope, dto: DeleteGroupDto, actorId: string) {
+    const { result } = await this.computeGroups(scope)
+
+    const item = flattenTree(result.containerGroups).find((n) => n.id === dto.canonicalItemId)
+    if (!item) throw new NotFoundException(`unknown canonicalItemId "${dto.canonicalItemId}"`)
+
+    const rows = await this.prisma.checklistTemplate.findMany({ where: { id: { in: dto.targetTemplateIds } } })
+    const rowById = new Map(rows.map((r) => [r.id, r]))
+
+    const resolved: DeleteGroupResolved[] = []
+    const skipped: DeleteGroupSkipped[] = []
+
+    for (const templateId of dto.targetTemplateIds) {
+      const row = rowById.get(templateId)
+      if (!row) {
+        skipped.push({ templateId, mode: null, variantKey: null, reason: 'ไม่พบแบบประเมินนี้' })
+        continue
+      }
+      const inst = item.instances.find((i) => i.templateId === templateId)
+      if (!inst) {
+        skipped.push({ templateId, mode: row.mode, variantKey: row.variantKey, reason: 'ไม่พบรายการนี้ในแบบประเมินนี้ (อาจถูกลบไปแล้ว)' })
+        continue
+      }
+      if (row.status !== 'DRAFT') {
+        skipped.push({ templateId, mode: row.mode, variantKey: row.variantKey, reason: 'ไม่ใช่เวอร์ชันร่าง — สร้างเวอร์ชันร่างใหม่ก่อน' })
+        continue
+      }
+      const def = row.definition as unknown as ChecklistTemplateDefinition
+      if (isNodeAttached(def, inst.nodeCode)) {
+        skipped.push({ templateId, mode: row.mode, variantKey: row.variantKey, reason: 'รายการนี้เชื่อมโยงกับรายการต้นแบบ กรุณาแยกออกก่อนลบ' })
+        continue
+      }
+      resolved.push({ templateId, mode: row.mode as TransportMode, variantKey: row.variantKey, nodeCode: inst.nodeCode, labelTh: inst.labelTh })
+    }
+
+    if (!dto.confirm) {
+      return { correlationId: null as string | null, wroteCount: 0, resolved, skipped }
+    }
+    if (resolved.length === 0) {
+      throw new BadRequestException('ไม่มีเป้าหมายที่ลบได้ — ทุกแบบประเมินถูกข้าม ดูเหตุผลใน skipped[]')
+    }
+
+    const correlationId = randomUUID()
+    for (const target of resolved) {
+      await this.writeStructuralDelete(target.templateId, target.nodeCode, actorId, correlationId)
+    }
+
+    return { correlationId: correlationId as string | null, wroteCount: resolved.length, resolved, skipped }
+  }
+
+  // Structural-delete write for ONE target, gated exactly like writeStructuralAdd above
+  // (DRAFT-only, same error code the frontend already renders a message for).
+  private async writeStructuralDelete(templateId: string, nodeCode: string, actorId: string, correlationId: string): Promise<void> {
+    const row = await this.prisma.checklistTemplate.findUnique({ where: { id: templateId } })
+    if (!row) throw new NotFoundException(`template ${templateId} not found`)
+    if (row.status !== 'DRAFT') {
+      throw new ForbiddenException({ code: 'STRUCTURE_EDIT_REQUIRES_DRAFT', message: 'โครงสร้างแก้ไขได้ในเวอร์ชันร่างเท่านั้น' })
+    }
+    const def = row.definition as unknown as ChecklistTemplateDefinition
+
+    let result: { definition: ChecklistTemplateDefinition; deletedCode: string; subtreeLeafCount: number }
+    try {
+      result = core.deleteNode(def, nodeCode)
+    } catch (err) {
+      if (err instanceof TemplateEditError || err instanceof ChecklistTemplateValidationError) {
+        throw new BadRequestException(`${templateId}: ${(err as Error).message}`)
+      }
+      throw err
+    }
+
+    await this.prisma.checklistTemplate.update({
+      where: { id: templateId },
+      data: { definition: result.definition as unknown as Prisma.InputJsonValue },
+    })
+
+    await this.auditLog.log({
+      userId: actorId,
+      action: TEMPLATE_GROUPED_DELETE,
+      entityType: 'ChecklistTemplate',
+      entityId: templateId,
+      before: { correlationId, nodeCode, subtreeLeafCount: result.subtreeLeafCount },
+      after: { correlationId, deleted: true },
+    })
   }
 
   // Only ever iterates LEAF nodes (result.canonicalItems is already flattenLeaves' output — see

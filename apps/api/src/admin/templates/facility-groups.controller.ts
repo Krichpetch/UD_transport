@@ -7,6 +7,7 @@ import { GroupedEditDto } from './dto/grouped-edit.dto'
 import { ResolveConflictDto } from './dto/resolve-conflict.dto'
 import { AddAndPlaceDto } from './dto/add-and-place.dto'
 import { AttachNodeToGroupDto } from './dto/attach-node-to-group.dto'
+import { DeleteGroupDto } from './dto/delete-group.dto'
 
 interface AuthRequest extends Request {
   user: { id: string; username: string; role: string }
@@ -127,5 +128,18 @@ export class FacilityGroupsController {
   ) {
     if (req.user.role !== 'ADMIN') throw new ForbiddenException()
     return this.groups.addAndPlace(parseScope(scope, version), body, req.user.id)
+  }
+
+  // Live feedback (2026-08-17) — delete-group, the symmetric counterpart to add-and-place. Same
+  // route-ordering note applies ('delete-group' can never collide with an ':itemId' value).
+  @Post('delete-group')
+  deleteGroup(
+    @Query('version') version: string | undefined,
+    @Query('scope') scope: string | undefined,
+    @Body() body: DeleteGroupDto,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.groups.deleteGroup(parseScope(scope, version), body, req.user.id)
   }
 }

@@ -322,8 +322,33 @@ export function addChildNode(templateId: string, parentCode: string, body: AddCh
   )
 }
 
+// The individual-editor sibling of add-and-place (facility-groups.ts#addAndPlace) — a brand-new
+// TOP-LEVEL item (a sibling directly under a group, e.g. inserted before TTRS), for ONE template
+// only, distinct from addChildNode above (which only ever appends a child under an already-
+// selected existing node). `containerCode` is a group code OR an existing node code; `anchorCode`
+// must be an existing item directly inside it — see AddTopLevelItemDto's doc for the full contract.
+export interface AddTopLevelItemBody {
+  containerCode: string
+  anchorCode: string
+  side: 'before' | 'after'
+  labelTh: string
+  type: QuestionTypeSelector
+  threshold?: EditMeasurementBody
+  lawRefs?: string[]
+  facilityCode?: number
+}
+
+export function addTopLevelItem(templateId: string, body: AddTopLevelItemBody) {
+  return api.post<{ id: string; definition: ChecklistTemplateDefinition; code: string }>(
+    `/admin/templates/${templateId}/top-level-items`,
+    body,
+  )
+}
+
+// `code` is the moved node's own content's NEW code — reorderNode pins codes to their slot, so a
+// caller tracking "the node the admin opened" by code must re-point to this, not the old code.
 export function reorderNode(templateId: string, nodeCode: string, direction: 'up' | 'down') {
-  return api.patch<{ id: string; definition: ChecklistTemplateDefinition }>(
+  return api.patch<{ id: string; definition: ChecklistTemplateDefinition; code: string }>(
     `/admin/templates/${templateId}/nodes/${encodeURIComponent(nodeCode)}/reorder`,
     { direction },
   )

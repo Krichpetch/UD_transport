@@ -86,3 +86,14 @@ export function useAddAndPlace(version: number) {
     },
   })
 }
+
+// Live feedback (2026-08-17) — delete-group, the symmetric counterpart to useAddAndPlace above.
+export function useDeleteGroup(version: number) {
+  const invalidate = useInvalidateGroups(version)
+  return useMutation({
+    mutationFn: (body: groupsApi.DeleteGroupRequest) => groupsApi.deleteGroup(version, body),
+    onSuccess: (_data, variables) => {
+      if (variables.confirm) invalidate()
+    },
+  })
+}

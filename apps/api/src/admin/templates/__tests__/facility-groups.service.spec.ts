@@ -463,14 +463,14 @@ describe('FacilityGroupsService', () => {
       )
       expect(result.wroteCount).toBe(2)
       expect(update).toHaveBeenCalledTimes(2)
-      // Both fixtures share identical existing structure (A1.1-1, A1.1-2), so both independently
-      // compute the SAME next free code ("A1.1-3") — that's correct, not a collision: each
-      // template's code is derived from ONLY that template's own existing siblings (see
-      // addPositionedChildNode's doc). The invariant that matters is per-template, not global.
+      // Era-editor safety follow-up — a positioned insert now renumbers the level to match display
+      // order: inserted BEFORE the first item (A1.1-1, "900 มิลลิเมตร"), the new node takes over
+      // that code and the displaced original shifts to A1.1-2. Both fixtures share identical
+      // existing structure, so both independently land on the same code — that's still correct,
+      // not a collision (each template's renumbering only ever touches its own siblings; see
+      // addPositionedChildNode's doc).
       for (const r of result.resolved) {
-        expect(r.code).toBeTruthy()
-        expect(r.code).not.toBe('A1.1-1')
-        expect(r.code).not.toBe('A1.1-2')
+        expect(r.code).toBe('A1.1-1')
       }
       for (const call of auditLog.mock.calls) expect(call[0].action).toBe('TEMPLATE_GROUPED_ADD')
       const correlationIds = auditLog.mock.calls.map((c) => (c[0].before as { correlationId: string }).correlationId)
@@ -480,9 +480,12 @@ describe('FacilityGroupsService', () => {
       for (const call of update.mock.calls) {
         const container = call[0].data.definition.groups[0].items[0]
         const inserted = container.subItems.find((n: { labelTh: string }) => n.labelTh === 'ถังขยะแบบยกเคลื่อนที่ได้')
+        expect(inserted.code).toBe('A1.1-1')
         expect(inserted.facilityCode).toBe(27)
         expect(inserted.lawRefs).toEqual(['PSD_2555'])
         expect(container.subItems[0].code).toBe(inserted.code) // inserted BEFORE the anchor -> first position
+        const shifted = container.subItems.find((n: { labelTh: string }) => n.labelTh.includes('900 มิลลิเมตร'))
+        expect(shifted.code).toBe('A1.1-2') // the displaced original A1.1-1, shifted up by one
       }
     })
 
@@ -530,6 +533,100 @@ describe('FacilityGroupsService', () => {
       expect(result.skipped).toHaveLength(1)
       expect(result.skipped[0]!.templateId).toBe(WATER_ROW.id)
       expect(result.skipped[0]!.reason).toContain('ไม่ใช่เวอร์ชันร่าง')
+    })
+  })
+
+  // Live feedback (2026-08-17) — delete-group: the symmetric counterpart to addAndPlace, for
+  // removing a canonical item (real motivating case: an admin-added item that turned out to be an
+  // unwanted near-duplicate) from N chosen templates in one action.
+  describe('deleteGroup', () => {
+    async function resolveCleanTarget() {
+      const groups = await service.getGroups({ kind: 'exact', version: 3 })
+      const clean = flattenLeaves(groups.containerGroups).find((it) => it.labelTh.includes('900 มิลลิเมตร'))!
+      return { clean }
+    }
+
+    it('confirm:false previews both targets with no writes', async () => {
+      const { clean } = await resolveCleanTarget()
+      const result = await service.deleteGroup(
+        { kind: 'exact', version: 3 },
+        { canonicalItemId: clean.id, targetTemplateIds: [LAND_ROW.id, WATER_ROW.id], confirm: false },
+        'admin1',
+      )
+      expect(result.wroteCount).toBe(0)
+      expect(result.resolved).toHaveLength(2)
+      expect(result.skipped).toHaveLength(0)
+      expect(update).not.toHaveBeenCalled()
+    })
+
+    it('confirm:true deletes the node from both targets and shares one correlationId', async () => {
+      const { clean } = await resolveCleanTarget()
+      const result = await service.deleteGroup(
+        { kind: 'exact', version: 3 },
+        { canonicalItemId: clean.id, targetTemplateIds: [LAND_ROW.id, WATER_ROW.id], confirm: true },
+        'admin1',
+      )
+      expect(result.wroteCount).toBe(2)
+      expect(update).toHaveBeenCalledTimes(2)
+      for (const call of update.mock.calls) {
+        const container = call[0].data.definition.groups[0].items[0]
+        expect((container.subItems as { code: string }[]).some((n) => n.code === 'A1.1-1')).toBe(false)
+      }
+      for (const call of auditLog.mock.calls) expect(call[0].action).toBe('TEMPLATE_GROUPED_DELETE')
+      const correlationIds = auditLog.mock.calls.map((c) => (c[0].before as { correlationId: string }).correlationId)
+      expect(new Set(correlationIds).size).toBe(1)
+      expect(correlationIds[0]).toBe(result.correlationId)
+    })
+
+    it('an unknown target templateId is skipped and reported, the valid target still deletes', async () => {
+      const { clean } = await resolveCleanTarget()
+      const result = await service.deleteGroup(
+        { kind: 'exact', version: 3 },
+        { canonicalItemId: clean.id, targetTemplateIds: [LAND_ROW.id, 'does-not-exist'], confirm: true },
+        'admin1',
+      )
+      expect(result.wroteCount).toBe(1)
+      expect(result.skipped).toHaveLength(1)
+      expect(result.skipped[0]!.templateId).toBe('does-not-exist')
+      expect(result.skipped[0]!.reason).toContain('ไม่พบแบบประเมิน')
+    })
+
+    it('a target whose template row is not DRAFT is skipped, never silently deleted', async () => {
+      findMany
+        .mockResolvedValueOnce([LAND_ROW, WATER_ROW])
+        .mockResolvedValueOnce([LAND_ROW, WATER_ROW])
+        .mockResolvedValueOnce([LAND_ROW, { ...WATER_ROW, status: 'ACTIVE' }])
+      const { clean } = await resolveCleanTarget()
+      const result = await service.deleteGroup(
+        { kind: 'exact', version: 3 },
+        { canonicalItemId: clean.id, targetTemplateIds: [LAND_ROW.id, WATER_ROW.id], confirm: true },
+        'admin1',
+      )
+      expect(result.wroteCount).toBe(1)
+      expect(result.skipped).toHaveLength(1)
+      expect(result.skipped[0]!.templateId).toBe(WATER_ROW.id)
+      expect(result.skipped[0]!.reason).toContain('ไม่ใช่เวอร์ชันร่าง')
+    })
+
+    it('a master-attached instance is skipped rather than silently deleted out from under its master', async () => {
+      const attachedLand = JSON.parse(JSON.stringify(landDef())) as ReturnType<typeof landDef>
+      ;(attachedLand.groups[0]!.items[0]!.subItems as unknown as { code: string; masterId?: string }[])
+        .find((n) => n.code === 'A1.1-1')!.masterId = 'existing-master-1'
+      const attachedLandRow = { ...LAND_ROW, definition: attachedLand }
+      findMany.mockResolvedValue([attachedLandRow, WATER_ROW])
+      findUnique.mockImplementation(({ where: { id } }: { where: { id: string } }) =>
+        Promise.resolve(id === attachedLandRow.id ? attachedLandRow : id === WATER_ROW.id ? WATER_ROW : null),
+      )
+      const { clean } = await resolveCleanTarget()
+      const result = await service.deleteGroup(
+        { kind: 'exact', version: 3 },
+        { canonicalItemId: clean.id, targetTemplateIds: [attachedLandRow.id, WATER_ROW.id], confirm: true },
+        'admin1',
+      )
+      expect(result.wroteCount).toBe(1)
+      expect(result.skipped).toHaveLength(1)
+      expect(result.skipped[0]!.templateId).toBe(attachedLandRow.id)
+      expect(result.skipped[0]!.reason).toContain('เชื่อมโยงกับรายการต้นแบบ')
     })
   })
 

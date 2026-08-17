@@ -12,6 +12,7 @@ import {
   editMeasurementValue,
   overwriteLeafData,
   removeImageKey,
+  resolveFacilityCodeDefaults,
   summarizeTemplate,
   unconfirmedMeasurementRows,
 } from '../templates.core'
@@ -434,5 +435,33 @@ describe('overwriteLeafData', () => {
 
   it('throws TemplateEditError for an unknown node code', () => {
     expect(() => overwriteLeafData(fixture(), 'nope', { answerType: 'presence' })).toThrow(TemplateEditError)
+  })
+})
+
+// Era-editor safety follow-up — shared by addAndPlace (facility-groups.service.ts) and
+// addTopLevelItem (templates.service.ts), so both "new item" flows derive lawRefs/
+// cabinetResolution/beyondLaw from FACILITY_CATALOG identically.
+describe('resolveFacilityCodeDefaults', () => {
+  it('returns the explicit lawRefs unchanged when no facilityCode is given', () => {
+    expect(resolveFacilityCodeDefaults(undefined, ['MHT_2548'])).toEqual({ lawRefs: ['MHT_2548'] })
+  })
+
+  it('resolves lawRefs/cabinetResolution/beyondLaw from a real facility catalog entry', () => {
+    // code 3 = "ทางลาด", cabinetResolution: true, lawRefs: ['MHT_2548','PSD_2555','MOT_2556','MHT_2564']
+    const result = resolveFacilityCodeDefaults(3, undefined)
+    expect(result).toEqual({
+      lawRefs: ['MHT_2548', 'PSD_2555', 'MOT_2556', 'MHT_2564'],
+      cabinetResolution: true,
+      beyondLaw: undefined,
+    })
+  })
+
+  it('explicit lawRefs win over the catalog default when both are supplied', () => {
+    const result = resolveFacilityCodeDefaults(3, ['MHT_2564'])
+    expect(result?.lawRefs).toEqual(['MHT_2564'])
+  })
+
+  it('returns null for an unknown facilityCode', () => {
+    expect(resolveFacilityCodeDefaults(9999, undefined)).toBeNull()
   })
 })

@@ -18,7 +18,7 @@ import type {
   TemplateNode,
   TemplateTier,
 } from '@repo/types'
-import { indexTemplateNodesByCode, parseTemplateDefinition, walkTemplateLeaves } from '@repo/types'
+import { FACILITY_CATALOG, indexTemplateNodesByCode, parseTemplateDefinition, walkTemplateLeaves } from '@repo/types'
 
 export class TemplateEditError extends Error {}
 
@@ -541,10 +541,10 @@ export function addChildNode(
 }
 
 // ---- Session S4b-fix, Fix 3 — add-and-place: insert a new sibling at a chosen POSITION relative
-// to a named anchor, rather than always at the end (addChildNode above). Code assignment is
-// UNCHANGED — still append-only via currentChildSeq/childSeparator, so the new code is never
-// visually adjacent to its anchor's code, only adjacent in DISPLAY order. Same invariant
-// reorderNode's doc already establishes: codes and position are orthogonal. ----
+// to a named anchor, rather than always at the end (addChildNode above). Era-editor safety
+// follow-up: the code now renumbers to match that position too (see addPositionedChildNode's own
+// doc below) — a "before N" insert takes over N's own code, shifting N (and everything after it)
+// up by one, rather than always appending the next free number regardless of where it lands. ----
 
 export interface AddPositionedChildPatch {
   labelTh: string
@@ -554,6 +554,30 @@ export interface AddPositionedChildPatch {
   facilityCode?: number
   cabinetResolution?: boolean
   beyondLaw?: boolean
+}
+
+export interface FacilityCodeDefaults {
+  lawRefs?: string[]
+  cabinetResolution?: boolean
+  beyondLaw?: boolean
+}
+
+// facilityCode -> lawRefs/cabinetResolution/beyondLaw, the same derivation tagContainers does at
+// seed time — shared by addAndPlace (facility-groups.service.ts) and addTopLevelItem
+// (templates.service.ts) so a new top-level item gets identical catalog resolution regardless of
+// which admin flow created it. Explicit `explicitLawRefs`, when supplied, always wins over the
+// catalog's own. Returns `null` for an unknown facilityCode — kept Nest-free (no
+// BadRequestException) matching this file's "no @nestjs/common" convention; each caller turns that
+// into its own error.
+export function resolveFacilityCodeDefaults(facilityCode: number | undefined, explicitLawRefs: string[] | undefined): FacilityCodeDefaults | null {
+  if (facilityCode === undefined) return { lawRefs: explicitLawRefs }
+  const entry = FACILITY_CATALOG.find((e) => e.code === facilityCode)
+  if (!entry) return null
+  return {
+    lawRefs: explicitLawRefs ?? [...entry.lawRefs],
+    cabinetResolution: entry.cabinetResolution,
+    beyondLaw: entry.beyondLaw,
+  }
 }
 
 function buildPositionedChild(code: string, patch: AddPositionedChildPatch): TemplateNode {
@@ -566,16 +590,15 @@ function buildPositionedChild(code: string, patch: AddPositionedChildPatch): Tem
   return child
 }
 
-function currentGroupChildSeq(group: ChecklistTemplateDefinition['groups'][number]): number {
-  if (typeof group.childSeq === 'number') return group.childSeq
-  return group.items.reduce((max, item) => Math.max(max, parseLastCodeSegment(item.code)), 0)
-}
-
 // Session S4b-fix, Fix 3 — like addChildNode, but inserts the new sibling at a chosen POSITION
-// relative to a named anchor, rather than always at the end. Code assignment is UNCHANGED — still
-// append-only (currentChildSeq/currentGroupChildSeq), so the new code is never visually adjacent
-// to its anchor's code, only adjacent in DISPLAY order (same invariant reorderNode's doc already
-// establishes: codes and position are orthogonal).
+// relative to a named anchor, rather than always at the end.
+//
+// Era-editor safety follow-up (live feedback, 2026-08-17) — code assignment REVERSED from the
+// original "always append-only, never adjacent to the anchor's code" design: the whole level now
+// renumbers via renumberLevelByPosition immediately after the splice, so the new item's code lands
+// in sequence with its new neighbors right away (an item inserted before some code N takes over N
+// itself, and N's old content — along with everything after it — shifts up by one). Same
+// motivation and same DRAFT-only safety argument as reorderNode's doc above.
 //
 // `containerCode` may name either an ordinary TemplateNode (inserts into its `subItems`) OR a
 // GROUP's own code (inserts into that group's top-level `items[]`) — real anchors are not always
@@ -599,15 +622,16 @@ export function addPositionedChildNode(
     if (anchorIndex === -1) {
       throw new TemplateEditError(`anchor node "${anchorCode}" not found as a top-level item of group "${containerCode}"`)
     }
-    const seq = currentGroupChildSeq(group) + 1
-    group.childSeq = seq
-    const code = `${containerCode}${childSeparator(containerCode)}${seq}`
-    const child = buildPositionedChild(code, patch)
+    // Placeholder code — overwritten immediately below by renumberLevelByPosition, which reassigns
+    // every sibling's code (this new one included) to match its post-insert array position.
+    const child = buildPositionedChild(`${containerCode}${childSeparator(containerCode)}0`, patch)
 
     const insertAt = side === 'before' ? anchorIndex : anchorIndex + 1
     const nextItems = [...group.items]
     nextItems.splice(insertAt, 0, child)
-    group.items = nextItems
+    group.items = renumberLevelByPosition(nextItems, containerCode)
+    group.childSeq = group.items.length
+    const code = group.items[insertAt]!.code
 
     let validated = parseTemplateDefinition(clone)
     if (patch.threshold) validated = addMeasurement(validated, code, patch.threshold).definition
@@ -621,15 +645,14 @@ export function addPositionedChildNode(
     throw new TemplateEditError(`anchor node "${anchorCode}" not found under container "${containerCode}"`)
   }
 
-  const seq = currentChildSeq(parent) + 1
-  parent.childSeq = seq
-  const code = `${containerCode}${childSeparator(containerCode)}${seq}`
-  const child = buildPositionedChild(code, patch)
+  const child = buildPositionedChild(`${containerCode}${childSeparator(containerCode)}0`, patch)
 
   const insertAt = side === 'before' ? anchorIndex : anchorIndex + 1
   const nextSiblings = [...siblings]
   nextSiblings.splice(insertAt, 0, child)
-  parent.subItems = nextSiblings
+  parent.subItems = renumberLevelByPosition(nextSiblings, containerCode)
+  parent.childSeq = parent.subItems.length
+  const code = parent.subItems[insertAt]!.code
 
   let validated = parseTemplateDefinition(clone)
   if (patch.threshold) {
@@ -674,11 +697,55 @@ export function deleteNode(def: ChecklistTemplateDefinition, nodeCode: string): 
 
 export interface ReorderNodeResult {
   definition: ChecklistTemplateDefinition
+  // The code the MOVED node's own content now carries (see below — codes are pinned to their
+  // slot, not the content, so a moved node's code changes too). Equal to the original `nodeCode`
+  // on a no-op (already at the edge). The caller uses this to keep an open editor pointed at the
+  // content the admin was actually looking at, rather than snapping to whatever now sits under
+  // the old code.
+  movedToCode: string
+}
+
+// Renames a node's own code plus every descendant's, preserving each descendant's suffix past
+// the old prefix (child codes are always `${parentCode}${separator}${seq}`, so every descendant
+// code literally starts with its ancestor's code — see childSeparator/addChildNode above).
+// Everything other than `code` travels with the node unchanged (labelTh, measurements, masterId,
+// childSeq, ...) — only the printed code label is being reassigned to a new slot.
+function renumberSubtreeCodes(node: TemplateNode, oldPrefix: string, newPrefix: string): TemplateNode {
+  const code = node.code.startsWith(oldPrefix) ? newPrefix + node.code.slice(oldPrefix.length) : node.code
+  return {
+    ...node,
+    code,
+    subItems: node.subItems ? node.subItems.map((c) => renumberSubtreeCodes(c, oldPrefix, newPrefix)) : node.subItems,
+  }
+}
+
+// Era-editor safety follow-up — reassigns an entire sibling level's codes to match CURRENT array
+// order (1, 2, 3, ... under `containerCode`'s own separator), cascading each node's own
+// descendants via renumberSubtreeCodes above. Used by addPositionedChildNode so a positioned
+// insert's code reads in sequence with its new neighbors immediately, not just its position — see
+// that function's doc for why (live feedback: a code is a printed line number, and an insert
+// should renumber what it displaces the way editing a numbered list would).
+function renumberLevelByPosition(nodes: TemplateNode[], containerCode: string): TemplateNode[] {
+  const sep = childSeparator(containerCode)
+  return nodes.map((n, i) => {
+    const newCode = `${containerCode}${sep}${i + 1}`
+    return n.code === newCode ? n : renumberSubtreeCodes(n, n.code, newCode)
+  })
 }
 
 // Part C.4 — up/down reordering within a level (siblings under the same parent), the simpler of
-// the two options the spec offered over drag-and-drop. Codes are untouched — only display order
-// changes — matching the crosswalk convention that codes are stable identifiers, not positions.
+// the two options the spec offered over drag-and-drop.
+//
+// Era-editor safety follow-up (live feedback, 2026-08-17) — REVERSED from the original "codes are
+// untouched, only display order changes" design. In practice a code reads as a printed line
+// number on the physical checklist document, and admins expect moving an item before another one
+// to renumber them the way a human editing a numbered list would — not leave the display order
+// and the code order silently disagreeing (e.g. a newly-inserted item displayed above "B2.18"
+// while itself still labelled "B2.19"). Codes are now PINNED TO THE SLOT: the two nodes swap
+// positions, and each swaps onto the OTHER's former code (cascading into any of its own
+// descendants via renumberSubtreeCodes), so code order always stays monotonic with display order.
+// Safe specifically because this is DRAFT-only (applyStructuralEdit's gate) — no live audit
+// answer ever references a DRAFT template's codes, so there is nothing to leave dangling.
 export function reorderNode(
   def: ChecklistTemplateDefinition,
   nodeCode: string,
@@ -687,6 +754,7 @@ export function reorderNode(
   const clone = cloneDefinition(def)
   let found = false
   let moved = false
+  let movedToCode = nodeCode
 
   const reorderIn = (nodes: TemplateNode[]): TemplateNode[] => {
     const idx = nodes.findIndex((n) => n.code === nodeCode)
@@ -696,9 +764,13 @@ export function reorderNode(
     found = true
     const swapWith = direction === 'up' ? idx - 1 : idx + 1
     if (swapWith < 0 || swapWith >= nodes.length) return nodes
+    const a = nodes[idx]!
+    const b = nodes[swapWith]!
     const copy = [...nodes]
-    ;[copy[idx], copy[swapWith]] = [copy[swapWith]!, copy[idx]!]
+    copy[idx] = renumberSubtreeCodes(b, b.code, a.code)
+    copy[swapWith] = renumberSubtreeCodes(a, a.code, b.code)
     moved = true
+    movedToCode = b.code
     return copy
   }
   for (const g of clone.groups) g.items = reorderIn(g.items)
@@ -709,7 +781,7 @@ export function reorderNode(
   void moved
 
   const validated = parseTemplateDefinition(clone)
-  return { definition: validated }
+  return { definition: validated, movedToCode }
 }
 
 export interface EditLabelResult {

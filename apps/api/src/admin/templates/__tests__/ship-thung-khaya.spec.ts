@@ -96,8 +96,6 @@ describeIfPresent('addPositionedChildNode — Fix 5 dogfood: ถังขยะ�
       }
 
       const containingGroup = def.groups.find((g) => g.code === anchor.containerCode)
-      const beforeSiblings = containingGroup ? containingGroup.items : findNodeByCode(def.groups, anchor.containerCode)!.subItems!
-      const before = beforeSiblings.map((n) => n.code)
       const containerLabel = containingGroup ? containingGroup.labelTh : findNodeByCode(def.groups, anchor.containerCode)!.labelTh
 
       const result = addPositionedChildNode(def, anchor.containerCode, anchor.anchorCode, 'before', {
@@ -107,18 +105,27 @@ describeIfPresent('addPositionedChildNode — Fix 5 dogfood: ถังขยะ�
         lawRefs: ['PSD_2555'],
       })
 
-      // Append-only: the new code is never the TTRS code, and never collides with an existing sibling.
-      expect(result.code).not.toBe(anchor.anchorCode)
-      expect(before).not.toContain(result.code)
-
-      // Position: new node sits immediately before TTRS among the container's (group's or node's) children.
+      // Era-editor safety follow-up — the level now renumbers on insert (renumberLevelByPosition),
+      // so the new code is no longer guaranteed to differ from the TTRS anchor's OLD code (it
+      // commonly takes it over, with TTRS shifting up by one); assert the surviving structural
+      // invariants instead — the whole level reads fully sequential from 1, matching array order.
       const afterGroup = result.definition.groups.find((g) => g.code === anchor.containerCode)
       const siblings = afterGroup ? afterGroup.items : findNodeByCode(result.definition.groups, anchor.containerCode)!.subItems!
       const codes = siblings.map((n) => n.code)
-      const ttrsIndex = codes.indexOf(anchor.anchorCode)
+      for (const [i, c] of codes.entries()) {
+        const m = /[.-](\d+)$/.exec(c)
+        expect(m).not.toBeNull()
+        expect(Number(m![1])).toBe(i + 1)
+      }
+
+      // Position: new node sits immediately before TTRS (found by label again — its own code may
+      // have shifted) among the container's (group's or node's) children.
+      const ttrsIndex = siblings.findIndex((n) => n.labelTh.includes('TTRS'))
+      expect(ttrsIndex).toBeGreaterThan(0)
       expect(codes[ttrsIndex - 1]).toBe(result.code)
 
       const inserted = siblings.find((n) => n.code === result.code)!
+      expect(inserted.labelTh).toBe('ถังขยะแบบยกเคลื่อนที่ได้')
       expect(inserted.facilityCode).toBe(27)
       expect(inserted.lawRefs).toEqual(['PSD_2555'])
 

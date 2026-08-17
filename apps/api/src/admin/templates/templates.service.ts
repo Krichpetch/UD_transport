@@ -20,6 +20,7 @@ import type { EditHiddenDto } from './dto/edit-hidden.dto'
 import type { EditStandaloneDto } from './dto/edit-standalone.dto'
 import type { AttachMasterDto } from './dto/attach-master.dto'
 import type { EditLabelByLawDto } from './dto/edit-label-by-law.dto'
+import type { AddTopLevelItemDto } from './dto/add-top-level-item.dto'
 import {
   collectReferencedMasterIds,
   detachFromMaster,
@@ -388,15 +389,56 @@ export class TemplatesAdminService {
     return { id: templateId, definition: result.definition, code: result.after.code }
   }
 
+  // Individual-editor sibling of facility-groups.service.ts#addAndPlace (Era-editor safety follow-
+  // up) — same "new item positioned relative to an anchor" primitive (core.addPositionedChildNode),
+  // but for ONE template only, no multi-template fan-out. This closes the gap where the individual
+  // editor could only ever add a CHILD under an already-selected existing node (addChild above,
+  // via core.addChildNode) — there was no way to add a brand-new TOP-LEVEL item (a sibling of an
+  // existing item directly under a GROUP, e.g. inserting before TTRS) without going through the
+  // grouped editor's multi-template add-and-place flow.
+  async addTopLevelItem(templateId: string, dto: AddTopLevelItemDto, actorId: string) {
+    const facilityDefaults = core.resolveFacilityCodeDefaults(dto.facilityCode, dto.lawRefs)
+    if (!facilityDefaults) throw new BadRequestException(`unknown facilityCode ${dto.facilityCode}`)
+    const { lawRefs, cabinetResolution, beyondLaw } = facilityDefaults
+
+    const result = await this.applyStructuralEdit(
+      templateId,
+      actorId,
+      TEMPLATE_STRUCTURE_EDIT,
+      dto.containerCode,
+      { containerCode: dto.containerCode, anchorCode: dto.anchorCode, side: dto.side, op: 'addTopLevelItem' },
+      (def) => {
+        const r = core.addPositionedChildNode(def, dto.containerCode, dto.anchorCode, dto.side, {
+          labelTh: dto.labelTh,
+          type: dto.type,
+          threshold: dto.threshold,
+          lawRefs,
+          facilityCode: dto.facilityCode,
+          cabinetResolution,
+          beyondLaw,
+        })
+        return { definition: r.definition, before: null, after: { code: r.code } }
+      },
+    )
+    return { id: templateId, definition: result.definition, code: result.after.code }
+  }
+
+  // Returns the moved node's new code (`movedToCode`) so the frontend can keep an open editor
+  // pointed at the content the admin was looking at — reorderNode now pins codes to their slot,
+  // so the code the admin opened the dialog with may now belong to a different sibling's content.
   async reorderNode(templateId: string, nodeCode: string, dto: ReorderNodeDto, actorId: string) {
-    return this.applyStructuralEdit(
+    const result = await this.applyStructuralEdit(
       templateId,
       actorId,
       TEMPLATE_STRUCTURE_EDIT,
       nodeCode,
       { nodeCode, op: 'reorder', direction: dto.direction },
-      (def) => ({ ...core.reorderNode(def, nodeCode, dto.direction), before: null, after: null }),
+      (def) => {
+        const r = core.reorderNode(def, nodeCode, dto.direction)
+        return { definition: r.definition, before: null, after: { code: r.movedToCode } }
+      },
     )
+    return { id: templateId, definition: result.definition, code: result.after.code }
   }
 
   async deleteNode(templateId: string, nodeCode: string, actorId: string) {

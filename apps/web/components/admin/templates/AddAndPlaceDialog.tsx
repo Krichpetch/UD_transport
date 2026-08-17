@@ -1,12 +1,13 @@
 'use client'
 
 import * as React from 'react'
-import { AlertTriangle, Check, Loader2, Send } from 'lucide-react'
+import { AlertTriangle, Check, Link2, Loader2, Send } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { DIALOG_HEADER_CLS, DIALOG_TITLE_CLS, INPUT_CLS, SELECT_CLS } from '@/lib/ui-classes'
 import { TransportBadge } from '@/components/shared/badges'
 import { useAddAndPlace } from '@/hooks/use-facility-groups'
 import { OPERATOR_LABEL } from '@/lib/template-format'
+import { bestFuzzyMatch } from '@/lib/fuzzy-match'
 import { flattenGroupNodes, type GroupNodeRow } from '@/lib/api/facility-groups'
 import type { ThresholdOperator } from '@repo/types'
 import { FACILITY_CATALOG } from '@repo/types'
@@ -68,6 +69,15 @@ export function AddAndPlaceDialog({
   const anchor = groupSubtree.find((n) => n.id === anchorNodeId)
   const anchorLabel = anchor?.labelTh
   const facilityEntry = facilityCode === '' ? undefined : FACILITY_CATALOG.find((e) => e.code === facilityCode)
+
+  // Era-editor safety follow-up — the "กลุ่มสิ่งอำนวยความสะดวก" picker above only chooses an ANCHOR
+  // for positioning; it does NOT constrain what group this new item's own labelTh ends up pooled
+  // into afterward — that's decided purely by text-similarity matching once the groups page next
+  // recomputes. Same live warning as AddTopLevelItemDialog, against the same depth-0 root set.
+  const labelMatch = React.useMemo(() => {
+    if (!labelTh.trim()) return null
+    return bestFuzzyMatch(labelTh, roots, (g) => g.labelTh)
+  }, [roots, labelTh])
 
   function onGroupChange(id: string) {
     setGroupId(id)
@@ -202,6 +212,19 @@ export function AddAndPlaceDialog({
                   }}
                   placeholder="ข้อความคำถาม เช่น ถังขยะแบบยกเคลื่อนที่ได้"
                 />
+                {labelMatch?.willGroup && (
+                  <p className="flex items-center gap-1.5 text-xs text-[#52aa4e]">
+                    <Link2 size={12} />
+                    จะรวมกับกลุ่มที่มีอยู่แล้ว &ldquo;{labelMatch.item.labelTh}&rdquo; ({labelMatch.item.instanceCount} ที่)
+                  </p>
+                )}
+                {labelMatch && !labelMatch.willGroup && labelMatch.ratio >= 0.75 && (
+                  <p className="flex items-center gap-1.5 text-xs text-amber-600">
+                    <AlertTriangle size={12} />
+                    ข้อความใกล้เคียงกลุ่ม &ldquo;{labelMatch.item.labelTh}&rdquo; แต่ตรงกันแค่ {Math.round(labelMatch.ratio * 100)}% — ไม่พอที่จะรวมกลุ่ม
+                    (ต้อง ≥95%) พิมพ์ให้ตรงกันเป๊ะๆ ถ้าต้องการให้รวมกับกลุ่มนี้
+                  </p>
+                )}
                 <div className="grid grid-cols-2 gap-2.5">
                   <select className={`${SELECT_CLS} text-sm`} value={type} onChange={(e) => { setType(e.target.value as QuestionType); setPreviewed(false) }}>
                     <option value="presence">มี/ไม่มี</option>

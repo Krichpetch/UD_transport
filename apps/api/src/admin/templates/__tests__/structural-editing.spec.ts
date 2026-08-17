@@ -235,22 +235,54 @@ describe('reorderMeasurement — Part C follow-up (measurement display order)', 
 })
 
 describe('reorderNode — Part C.4 reorder persistence', () => {
-  it('moves a node up, swapping with its previous sibling', () => {
+  // Era-editor safety follow-up (live feedback, 2026-08-17) — codes are now PINNED TO THE SLOT:
+  // moving a node swaps its content onto the sibling's former code, not the other way around, so
+  // code order always stays monotonic with display order (a printed line number, not an opaque id
+  // that drifts out of sequence the moment something moves past it).
+  it('moves a node up: content swaps, but codes stay pinned to their slot (ascending)', () => {
     const def = fixture()
     const result = reorderNode(def, 'A1.1-2', 'up')
-    const codes = result.definition.groups[0]!.items[0]!.subItems!.map((n) => n.code)
-    expect(codes).toEqual(['A1.1-2', 'A1.1-1'])
+    const subItems = result.definition.groups[0]!.items[0]!.subItems!
+    expect(subItems.map((n) => n.code)).toEqual(['A1.1-1', 'A1.1-2'])
+    // A1.1-2's content ('ป้าย') is now displayed first, under the code that used to be A1.1-1's.
+    expect(subItems.map((n) => n.labelTh)).toEqual(['ป้าย', 'ทางลาด'])
+  })
+
+  it('reports the moved content\'s new code via movedToCode', () => {
+    const def = fixture()
+    const result = reorderNode(def, 'A1.1-2', 'up')
+    expect(result.movedToCode).toBe('A1.1-1')
   })
 
   it('is a no-op at the top edge (moving the first sibling up)', () => {
     const def = fixture()
     const result = reorderNode(def, 'A1.1-1', 'up')
-    const codes = result.definition.groups[0]!.items[0]!.subItems!.map((n) => n.code)
-    expect(codes).toEqual(['A1.1-1', 'A1.1-2'])
+    const subItems = result.definition.groups[0]!.items[0]!.subItems!
+    expect(subItems.map((n) => n.code)).toEqual(['A1.1-1', 'A1.1-2'])
+    expect(subItems.map((n) => n.labelTh)).toEqual(['ทางลาด', 'ป้าย'])
+    expect(result.movedToCode).toBe('A1.1-1')
   })
 
   it('throws on an unknown code', () => {
     const def = fixture()
     expect(() => reorderNode(def, 'Z9.9', 'up')).toThrow(TemplateEditError)
+  })
+
+  it('cascades the rename onto descendants when the moved node has its own subItems', () => {
+    const def = fixture()
+    // Top-level: A1.1 (has subItems A1.1-1/A1.1-2) moves down past the leaf A1.2.
+    const result = reorderNode(def, 'A1.1', 'down')
+    const items = result.definition.groups[0]!.items
+
+    expect(items.map((n) => n.code)).toEqual(['A1.1', 'A1.2'])
+    // A1.2's old content (the leaf 'ห้องน้ำ') now sits under code A1.1, with no subItems.
+    expect(items[0]!.labelTh).toBe('ห้องน้ำ')
+    expect(items[0]!.subItems).toBeUndefined()
+    // A1.1's old content now sits under code A1.2, and its OWN subItems were renumbered onto the
+    // new A1.2- prefix so they still nest correctly under their (relocated) parent's code.
+    expect(items[1]!.labelTh).toBe('ที่จอดรถสำหรับคนพิการ')
+    expect(items[1]!.subItems!.map((n) => n.code)).toEqual(['A1.2-1', 'A1.2-2'])
+    expect(items[1]!.subItems!.map((n) => n.labelTh)).toEqual(['ทางลาด', 'ป้าย'])
+    expect(result.movedToCode).toBe('A1.2')
   })
 })
