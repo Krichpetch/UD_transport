@@ -2,12 +2,12 @@
 
 import * as React from 'react'
 import { useSearchParams } from 'next/navigation'
-import { getStationTypeLabel, CHECKLIST_CATEGORIES } from '@/lib/constants'
+import { getStationTypeLabel } from '@/lib/constants'
 import { useStation } from '@/hooks/use-stations'
 import { useSaveDraft, useSubmitChecklist, useMyDraft, useTemplateForAudit } from '@/hooks/use-checklists'
 import { restampDraftEra } from '@/lib/api/checklists'
 import { useUpdateYearBuilt } from '@/hooks/use-stations'
-import { computeScoreFromItems, buildHistogram, scoreToStatus } from '@repo/types'
+import { computeScoreFromItems } from '@repo/types'
 import {
   MapPin, Save, Send, Clock, User as UserIcon,
   AlertTriangle, Loader2, X, FlaskConical, ChevronDown, ClipboardList, GraduationCap,
@@ -19,9 +19,10 @@ import { TutorialSection } from '@/components/audit/TutorialSection'
 import { LeafAnswerRow } from '@/components/audit/LeafAnswerRow'
 import { V2ItemPage } from '@/components/audit/V2PagerForm'
 import { PageNavigatorTrigger, type NavigatorPage } from '@/components/audit/PageNavigator'
+import { ChecklistSummaryPanel } from '@/components/checklist/ChecklistSummaryPanel'
 import { useAuthStore } from '@/stores/auth.store'
 import { useAuditFormStore } from '@/stores/audit-form.store'
-import { buildStoredGroups, countProgress, countProgressForNodes, groupDisplayName, collectRedactedLeaves, isNodeFullyRedacted } from '@/lib/audit-form'
+import { buildStoredGroups, countProgress, countProgressForNodes, groupDisplayName, collectRedactedLeaves, buildNavPages, buildV2Pages } from '@/lib/audit-form'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { ApiError } from '@/lib/api'
 import { getCurrentPosition, haversineMeters, PROXIMITY_BYPASS } from '@/lib/geolocation'
@@ -234,7 +235,6 @@ export default function AuditPage() {
 
   const [submitResult, setSubmitResult] = React.useState<ChecklistRecord | null>(null)
   const [submitWarning, setSubmitWarning] = React.useState('')
-  const [locating, setLocating] = React.useState(false)
   const [currentPage, setCurrentPage] = React.useState(0)
 
   // ── Check-in gate (Screen B) — confirm-to-start + GPS capture + year-built capture ──
@@ -256,6 +256,12 @@ export default function AuditPage() {
   // glance; removed). MonthYearBuiltInput ("YYYY-MM", Gregorian) is the sole source of truth;
   // yearBuilt itself is always derived from it, never typed separately — see saveYearBuilt below.
   const [yearBuiltDateInput, setYearBuiltDateInput] = React.useState('')
+  // Emergency year-built correction, reachable once already checked in (Screen B is now skipped
+  // on resume — see the hydrate effect above) — collapsed by default so it doesn't compete with
+  // the form for attention; expands the SAME MonthYearBuiltInput + handleYearBuiltCommit/
+  // pendingYearChange flow Screen B already uses, so the "answers may be lost" warning dialog
+  // fires exactly the same way regardless of where the year is changed from.
+  const [editingYearInline, setEditingYearInline] = React.useState(false)
 
   // Part D — Zustand audit-form store: single source of truth for answers/finalThoughts once
   // hydrated. Server data hydrates it ONCE per (station, preview-mode) via the guard below;
@@ -340,6 +346,13 @@ export default function AuditPage() {
     // A changed preview year can change v2Pages' length/order (redacted pages drop out) —
     // reset paging so currentPage never points past the end of the freshly-hydrated page set.
     setCurrentPage(0)
+    // A checklist row already exists for this (station, auditor) — REJECTED-resume, an ordinary
+    // reopened draft, or a self-unsubmitted one. The start-time proximity gate already ran (or was
+    // legitimately skipped) whenever that row was first CREATED — saveDraft/submit only gate
+    // creation, never an update (see ChecklistsService's doc) — so re-showing Screen B's GPS check
+    // here would block finishing work that's deliberately allowed to continue from anywhere. Screen
+    // B stays required only for a genuinely fresh checklist (no row yet, draft?.id null).
+    if (draft?.id) setCheckedIn(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [station, draftLoading, templateLoading, draft, templateResp, v2PreviewAllowed, previewVersion, previewYearBuiltOverride, previewBuildDateOverride])
 
@@ -552,16 +565,15 @@ export default function AuditPage() {
     setSubmitWarning('')
     const items = buildStoredGroups(templateDef, answers)
 
-    let gps: SubmitGps | undefined
-    if (!PROXIMITY_BYPASS) {
-      setLocating(true)
-      const pos = await getCurrentPosition()
-      setLocating(false)
-      if (pos.status === 'ok') gps = { lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy }
-    }
-
+    // Submit is not proximity-gated at all now — no live GPS lookup here, no "checking position"
+    // wait, submit can never fail on location. checkInGpsRef.current rides along exactly as the
+    // autosave effect already does above: it's whatever (if anything) check-in captured, never a
+    // fresh read, and it only matters at all for the narrow case of a direct submit with no prior
+    // autosave (a fresh checklist row created by THIS call) — see ChecklistsService.submit's
+    // isStart branch. For any resumed draft it's already undefined (Screen B was skipped) and
+    // changes nothing.
     try {
-      const result = await submitMutation.mutateAsync({ items, score, gps, finalThoughts })
+      const result = await submitMutation.mutateAsync({ items, score, gps: checkInGpsRef.current, finalThoughts })
       setSubmitResult(result)
     } catch (err) {
       // Session F3, Part H.4 — the OUT_OF_RANGE/LOCATION_REQUIRED → auto-save-as-draft branch is
@@ -612,10 +624,8 @@ export default function AuditPage() {
 
   // ── Screen D: post-submit summary ──
   if (submitResult) {
-    const histogram = buildHistogram(submitResult.items)
     const finalScore = submitResult.score ?? computeScoreFromItems(submitResult.items)
-    const status = scoreToStatus(finalScore)
-    const color = finalScore >= 75 ? '#52aa4e' : finalScore >= 50 ? '#ffc107' : '#f44336'
+
     return (
       <div className="space-y-4">
         {stationPicker}
@@ -627,40 +637,14 @@ export default function AuditPage() {
             ส่งเมื่อ {submitResult.submittedAt ? new Date(submitResult.submittedAt).toLocaleString('th-TH') : '-'}
           </p>
 
-          {submitResult.locationVerified === false && (
-            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-center text-xs text-amber-700">
-              ⚠ ไม่สามารถยืนยันตำแหน่งได้ – พิกัดสถานีเป็นค่าโดยประมาณ
-            </p>
-          )}
+          {/* submitResult.locationVerified is no longer shown here — submit is never
+              proximity-gated now (see handleSubmit's doc), so this field is hardcoded false for
+              every non-fresh-start submission by construction (checklists.service.ts's submit()),
+              not a signal of an actual problem. Showing it would just alarm every auditor on every
+              ordinary resumed submission for no reason. */}
 
-          <div className="mt-4 text-center">
-            <span className="text-4xl font-bold" style={{ color }}>{finalScore}%</span>
-            <p className="mt-1 text-xs font-semibold" style={{ color }}>{status}</p>
-          </div>
-
-          <div className="mt-4 divide-y divide-border border-t border-border text-sm">
-            <div className="flex items-center justify-between py-2">
-              <span className="text-muted-foreground">มี ได้มาตรฐาน</span>
-              <span className="font-semibold text-[#52aa4e]">{histogram.hasStandard}</span>
-            </div>
-            <div className="flex items-center justify-between py-2">
-              <span className="text-muted-foreground">มี ไม่ได้มาตรฐาน</span>
-              <span className="font-semibold text-amber-600">{histogram.hasSubstandard}</span>
-            </div>
-            {histogram.standardUnspecified > 0 && (
-              <div className="flex items-center justify-between py-2">
-                <span className="text-muted-foreground">มี ไม่ระบุมาตรฐาน ⚑</span>
-                <span className="font-semibold text-orange-500">{histogram.standardUnspecified}</span>
-              </div>
-            )}
-            <div className="flex items-center justify-between py-2">
-              <span className="text-muted-foreground">ไม่มี</span>
-              <span className="font-semibold text-[#f44336]">{histogram.none}</span>
-            </div>
-            <div className="flex items-center justify-between py-2">
-              <span className="text-muted-foreground">ไม่เกี่ยวข้อง (N/A)</span>
-              <span className="font-semibold text-gray-400">{histogram.na}</span>
-            </div>
+          <div className="mt-4">
+            <ChecklistSummaryPanel items={submitResult.items} templateDef={templateDef} score={finalScore} />
           </div>
 
           <button
@@ -673,6 +657,38 @@ export default function AuditPage() {
       </div>
     )
   }
+
+  // 2026-08-06 — changing the year reloads the era-resolved template (see carryOverRef's doc);
+  // warn first, since some already-entered answers may not exist in the new form. Computed once,
+  // shared between Screen B and the checked-in header's emergency year-edit control below — same
+  // pendingYearChange/confirmYearChange/cancelYearChange state either way, so the warning and its
+  // behavior are identical regardless of where the auditor triggers a year change from.
+  const yearChangeDialog = (
+    <Dialog open={!!pendingYearChange} onOpenChange={(o) => { if (!o) cancelYearChange() }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-xl p-5">
+        <DialogTitle className="text-sm font-bold text-foreground">เปลี่ยนปีที่ก่อสร้าง?</DialogTitle>
+        <p className="mt-2 text-xs text-muted-foreground">
+          การเปลี่ยนเดือน/ปีที่ก่อสร้างจะโหลดแบบฟอร์มใหม่ตามเกณฑ์กฎหมายที่ใช้บังคับในปีนั้น
+          คำตอบที่กรอกไว้แล้วจะถูกโอนมาเฉพาะรายการที่ยังคงมีอยู่ในแบบฟอร์มใหม่ —
+          รายการที่ไม่มีอยู่แล้วจะไม่ถูกโอนมาและต้องตอบใหม่
+        </p>
+        <div className="mt-4 flex gap-2">
+          <button
+            onClick={cancelYearChange}
+            className="flex-1 rounded-lg border border-border py-2.5 text-xs font-medium text-foreground"
+          >
+            ยกเลิก
+          </button>
+          <button
+            onClick={() => { void confirmYearChange() }}
+            className="flex-1 rounded-lg bg-primary py-2.5 text-xs font-bold text-primary-foreground"
+          >
+            ยืนยันและโหลดใหม่
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
 
   // ── Screen B: pre-audit confirm-to-start ──
   if (!checkedIn) {
@@ -768,33 +784,7 @@ export default function AuditPage() {
             )}
           </div>
 
-          {/* 2026-08-06 — changing the year on a station with existing progress reloads the
-              era-resolved template (see carryOverRef's doc); warn first, since some already-
-              entered answers may not exist in the new form. */}
-          <Dialog open={!!pendingYearChange} onOpenChange={(o) => { if (!o) cancelYearChange() }}>
-            <DialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-xl p-5">
-              <DialogTitle className="text-sm font-bold text-foreground">เปลี่ยนปีที่ก่อสร้าง?</DialogTitle>
-              <p className="mt-2 text-xs text-muted-foreground">
-                การเปลี่ยนเดือน/ปีที่ก่อสร้างจะโหลดแบบฟอร์มใหม่ตามเกณฑ์กฎหมายที่ใช้บังคับในปีนั้น
-                คำตอบที่กรอกไว้แล้วจะถูกโอนมาเฉพาะรายการที่ยังคงมีอยู่ในแบบฟอร์มใหม่ —
-                รายการที่ไม่มีอยู่แล้วจะไม่ถูกโอนมาและต้องตอบใหม่
-              </p>
-              <div className="mt-4 flex gap-2">
-                <button
-                  onClick={cancelYearChange}
-                  className="flex-1 rounded-lg border border-border py-2.5 text-xs font-medium text-foreground"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  onClick={() => { void confirmYearChange() }}
-                  className="flex-1 rounded-lg bg-primary py-2.5 text-xs font-bold text-primary-foreground"
-                >
-                  ยืนยันและโหลดใหม่
-                </button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          {yearChangeDialog}
 
           {checkInStatus === 'blocked' && (
             <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">
@@ -827,44 +817,18 @@ export default function AuditPage() {
   }
 
   const groups = templateDef.groups
-  // v2's pager is one level deeper than v1's: v1 paginates group-by-group; v2 paginates
-  // item-by-item within a group (A1 → A1.1, A1.2, …), continuing seamlessly into the next
-  // group's first item — see V2PagerForm.tsx for what renders inside one item's page.
   // Part C.3 — a top-level group item that's fully era-redacted (itself, or every descendant when
   // it's a pure container) never gets its own page; it's only visible read-only in the summary
-  // page's per-group footer note below.
-  const v2Pages = isV1 ? [] : groups.flatMap((g) => g.items.filter((item) => !isNodeFullyRedacted(item)).map((item) => ({ group: g, item })))
+  // page's per-group footer note below. See buildV2Pages' own doc for the v1/v2 pagination split.
+  const v2Pages = isV1 ? [] : buildV2Pages(groups)
   const totalPages = isV1 ? groups.length : v2Pages.length
   const isSummaryPage = currentPage === totalPages
 
-  // Navigator (jump-to) — one entry per page, v1 = group-level, v2 = item-level, matching each
-  // pager's own granularity. Progress figures reuse the exact same countProgressForNodes tally
-  // the header/summary page already use, so the navigator can never disagree with them.
-  // Session S4a, Part D.2 (live-tested follow-up) — v1 groups use the exact same A1/A2/B1.../C1
-  // code scheme as v3's containers (see apps/api/prisma/v1-template-groups.ts), so the same
-  // leading-letter grouping applies here too — v1 is what a real auditor sees for every mode
-  // except rail_metro today, so this is the navigator most auditors actually use.
-  function categoryLabel(code: string): { groupKey: string; groupLabel: string } {
-    const letter = code[0] ?? code
-    return { groupKey: letter, groupLabel: CHECKLIST_CATEGORIES.find((c) => c.value === letter)?.label ?? letter }
-  }
-
-  const navPages: NavigatorPage[] = isV1
-    ? groups.map((g) => {
-        const p = countProgressForNodes(g.items, answers)
-        return { code: g.code, label: groupDisplayName(g), answered: p.answered, total: p.total, ...categoryLabel(g.code) }
-      })
-    : v2Pages.map(({ group, item }) => {
-        const p = countProgressForNodes([item], answers)
-        return {
-          code: item.code,
-          label: item.num ? `${item.num}. ${item.labelTh}` : item.labelTh,
-          sublabel: groupDisplayName(group),
-          answered: p.answered,
-          total: p.total,
-          ...categoryLabel(group.code),
-        }
-      })
+  // Navigator (jump-to) — shared with the my-work read-only review screen (lib/audit-form.ts),
+  // so there is one pagination/navigator scheme, not two independently-built ones. v1 is what a
+  // real auditor sees for every mode except rail_metro today, so this is the navigator most
+  // auditors actually use.
+  const navPages: NavigatorPage[] = buildNavPages(groups, isV1, v2Pages, answers)
 
   return (
     <div className="space-y-4">
@@ -924,7 +888,39 @@ export default function AuditPage() {
             {locationUnverifiedMessage}
           </p>
         )}
+
+        {/* Screen B is skipped once a draft already exists (see the hydrate effect above), so this
+            is now the ONLY reachable way to correct an already-stamped year built — collapsed by
+            default, explicitly labeled "emergency", reusing handleYearBuiltCommit/yearChangeDialog
+            so the same data-loss warning fires whether the year is changed from here or Screen B. */}
+        {!v2PreviewAllowed && (
+          <div className="mt-2 border-t border-border pt-2">
+            <button
+              onClick={() => setEditingYearInline((v) => !v)}
+              className="text-[10px] font-medium text-muted-foreground underline decoration-dotted"
+            >
+              ปีที่ก่อสร้าง: พ.ศ. {effectiveYearBuiltInput || '-'} · แก้ไข (กรณีฉุกเฉิน)
+            </button>
+            {editingYearInline && (
+              <div className="mt-2">
+                <MonthYearBuiltInput
+                  key={station.id}
+                  value={yearBuiltDateInput}
+                  onChange={setYearBuiltDateInput}
+                  onCommit={(v) => { handleYearBuiltCommit(v); setEditingYearInline(false) }}
+                  minBuddhistYear={YEAR_BUILT_MIN}
+                  className="mt-1"
+                />
+                <p className="mt-1 text-[10px] text-amber-600">
+                  ⚠ ใช้เฉพาะกรณีจำเป็นเท่านั้น คำตอบบางรายการอาจสูญหายหากไม่มีอยู่ในแบบฟอร์มของปีใหม่
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {yearChangeDialog}
 
       {submitWarning && (
         <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-700 shadow-sm">
@@ -996,11 +992,11 @@ export default function AuditPage() {
                 </p>
                 <button
                   onClick={handleSubmit}
-                  disabled={submitMutation.isPending || locating || !requiredComplete}
+                  disabled={submitMutation.isPending || !requiredComplete}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground disabled:opacity-50"
                 >
-                  {(submitMutation.isPending || locating) ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-                  {locating ? 'กำลังระบุตำแหน่ง…' : submitMutation.isPending ? 'กำลังส่ง…' : 'ส่งรายงาน'}
+                  {submitMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                  {submitMutation.isPending ? 'กำลังส่ง…' : 'ส่งรายงาน'}
                 </button>
                 {/* Part C.2 — blocks only on the REQUIRED groups. An incomplete optional group is
                     still surfaced (in the per-group list above, as "ไม่บังคับ"), just never fatal. */}

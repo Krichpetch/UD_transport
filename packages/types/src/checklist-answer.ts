@@ -74,6 +74,26 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 
 const CHECKLIST_VALUES: readonly (ChecklistValue)[] = ['มี', 'ไม่มี', 'N/A', null]
 
+// Part C (auditor self-unsubmit/summary session) — previously an unvalidated cast
+// (`node.photos = o.photos as ChecklistPhoto[]`); a malformed photo object could reach storage
+// undetected. `caption` is the only genuinely new field (additive/optional, same convention as
+// the item-level `note` above); the rest were already required by ChecklistPhoto's own type, now
+// actually enforced at the boundary like everything else this parser guards.
+function parsePhoto(raw: unknown, path: string): ChecklistPhoto {
+  if (!isPlainObject(raw)) fail(path, 'photo must be an object')
+  const o = raw as Record<string, unknown>
+  if (typeof o.id !== 'string' || o.id.length === 0) fail(`${path}.id`, 'missing id')
+  if (typeof o.url !== 'string') fail(`${path}.url`, 'missing url')
+  if (typeof o.filename !== 'string') fail(`${path}.filename`, 'missing filename')
+  if (typeof o.uploadedAt !== 'string') fail(`${path}.uploadedAt`, 'missing uploadedAt')
+  const photo: ChecklistPhoto = { id: o.id, url: o.url, filename: o.filename, uploadedAt: o.uploadedAt }
+  if (o.caption !== undefined) {
+    if (typeof o.caption !== 'string') fail(`${path}.caption`, 'must be a string')
+    photo.caption = o.caption
+  }
+  return photo
+}
+
 function parseStoredNode(raw: unknown, path: string): StoredChecklistNode {
   if (!isPlainObject(raw)) fail(path, 'item must be an object')
   const o = raw as Record<string, unknown>
@@ -114,7 +134,7 @@ function parseStoredNode(raw: unknown, path: string): StoredChecklistNode {
   }
   if (typeof o.cabinetPriority === 'boolean') node.cabinetPriority = o.cabinetPriority
   if (typeof o.note === 'string') node.note = o.note
-  if (Array.isArray(o.photos)) node.photos = o.photos as ChecklistPhoto[]
+  if (Array.isArray(o.photos)) node.photos = (o.photos as unknown[]).map((p, i) => parsePhoto(p, `${path}.photos[${i}]`))
   if (typeof o.flagged === 'boolean') node.flagged = o.flagged
   if (typeof o.reviewFlag === 'boolean') node.reviewFlag = o.reviewFlag
   if (typeof o.applicable === 'boolean') node.applicable = o.applicable

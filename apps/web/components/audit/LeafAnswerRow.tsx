@@ -67,9 +67,15 @@ function DerivedIndicator({ node, values }: { node: TemplateNode; values: Record
   )
 }
 
-export function LeafAnswerRow({ node, disabled = false, breadcrumb }: {
+export function LeafAnswerRow({ node, disabled = false, readOnly = false, breadcrumb }: {
   node: TemplateNode
   disabled?: boolean
+  // Live feedback follow-up ("look back on my submitted work") — locks every answer control
+  // (buttons, measurement inputs, note, photo add/delete/caption-edit) without the `disabled`
+  // cascade's dimming: this is a COMPLETE, valid, already-submitted answer, not one auto-filled
+  // by a parent's ไม่มี — it should stay fully legible, just non-interactive. Orthogonal to
+  // `disabled`, which still governs its own thing independently (see rowDisabledCls below).
+  readOnly?: boolean
   breadcrumb?: string[]  // ancestor labels, for the threshold modal's "which item is this" context
 }) {
   const answer = useAuditFormStore((s) => s.answers[node.code])
@@ -125,6 +131,13 @@ export function LeafAnswerRow({ node, disabled = false, breadcrumb }: {
     setAnswer(node.code, { photos: answer!.photos.filter((p) => p.id !== photo.id) })
   }
 
+  // Part C — per-photo caption, live-typed straight into the answer store exactly like the
+  // per-item note field below (setAnswer, no separate save step — it rides the same autosave/
+  // submit path already validated by parseChecklistItems' photo shape check).
+  function handleUpdatePhotoCaption(photo: ChecklistPhoto, caption: string) {
+    setAnswer(node.code, { photos: answer!.photos.map((p) => (p.id === photo.id ? { ...p, caption } : p)) })
+  }
+
   const rowDisabledCls = disabled ? 'opacity-40 pointer-events-none' : ''
   const answered = isLeafAnswered(node, answer)
 
@@ -166,26 +179,38 @@ export function LeafAnswerRow({ node, disabled = false, breadcrumb }: {
       <NodeReferenceImages node={node} className="mb-2.5" />
 
       {node.answerType === 'choice' && (
-        <ChoiceControl node={node} value={answer.value} meetsStandard={answer.meetsStandard} setAnswer={handleSetAnswer} />
+        <ChoiceControl node={node} value={answer.value} meetsStandard={answer.meetsStandard} setAnswer={handleSetAnswer} readOnly={readOnly} />
       )}
       {node.answerType === 'presence' && (
-        <PresenceControl code={node.code} present={answer.present} value={answer.value} setAnswer={handleSetAnswer} />
+        <PresenceControl code={node.code} present={answer.present} value={answer.value} setAnswer={handleSetAnswer} readOnly={readOnly} />
       )}
       {node.answerType === 'presence_standard' && (
-        <PresenceStandardControl node={node} answer={answer} setAnswer={handleSetAnswer} />
+        <PresenceStandardControl node={node} answer={answer} setAnswer={handleSetAnswer} readOnly={readOnly} />
       )}
 
       {answer.photos.length > 0 && (
         <div className="mt-2.5">
-          <ChecklistPhotoGallery photos={answer.photos} onDelete={handleDeletePhoto} />
+          <ChecklistPhotoGallery
+            photos={answer.photos}
+            onDelete={readOnly ? undefined : handleDeletePhoto}
+            onCaptionChange={readOnly ? undefined : handleUpdatePhotoCaption}
+          />
         </div>
       )}
-      <PhotoPicker
-        existingCount={answer.photos.length}
-        onPhotosUploaded={(photos) => setAnswer(node.code, { photos: [...answer.photos, ...photos] })}
-      />
+      {!readOnly && (
+        <PhotoPicker
+          existingCount={answer.photos.length}
+          onPhotosUploaded={(photos) => setAnswer(node.code, { photos: [...answer.photos, ...photos] })}
+        />
+      )}
 
-      {answer.note || notesOpen ? (
+      {readOnly ? (
+        answer.note && (
+          <p className="text-muted-foreground mt-2.5 flex items-start gap-1.5 text-xs">
+            <StickyNote size={11} className="mt-0.5 shrink-0" /> {answer.note}
+          </p>
+        )
+      ) : answer.note || notesOpen ? (
         <textarea
           value={answer.note}
           onChange={(e) => setAnswer(node.code, { note: e.target.value })}
@@ -205,11 +230,12 @@ export function LeafAnswerRow({ node, disabled = false, breadcrumb }: {
   )
 }
 
-function ChoiceControl({ node, value, meetsStandard, setAnswer }: {
+function ChoiceControl({ node, value, meetsStandard, setAnswer, readOnly = false }: {
   node: TemplateNode
   value: ChecklistValue
   meetsStandard: boolean
   setAnswer: (code: string, patch: Record<string, unknown>) => void
+  readOnly?: boolean
 }) {
   return (
     <>
@@ -217,11 +243,12 @@ function ChoiceControl({ node, value, meetsStandard, setAnswer }: {
         {CHOICE_OPTIONS.map((opt) => (
           <button
             key={opt.value!}
+            disabled={readOnly}
             onClick={() => setAnswer(node.code, {
               value: value === opt.value ? null : opt.value,
               meetsStandard: opt.value === 'มี' ? meetsStandard : false,
             })}
-            className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-all ${value === opt.value ? opt.active : INACTIVE}`}
+            className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-all disabled:cursor-default ${value === opt.value ? opt.active : INACTIVE}`}
           >
             {opt.label}
           </button>
@@ -229,8 +256,9 @@ function ChoiceControl({ node, value, meetsStandard, setAnswer }: {
       </div>
       {value === 'มี' && (
         <button
+          disabled={readOnly}
           onClick={() => setAnswer(node.code, { meetsStandard: !meetsStandard })}
-          className={`mt-2 flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
+          className={`mt-2 flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all disabled:cursor-default ${
             meetsStandard ? 'border-green-300 bg-green-50 text-green-700' : 'border-border text-muted-foreground'
           }`}
         >
@@ -253,24 +281,27 @@ function ChoiceControl({ node, value, meetsStandard, setAnswer }: {
 // 'N/A': a resumed pre-F3 draft (or a REJECTED checklist returned for fixes) can carry one, and
 // showing it as มี or ไม่มี would misrepresent what the auditor actually recorded. Picking either
 // button clears it, which is how such a node gets migrated onto the 2-way model.
-function PresenceControl({ code, present, value, setAnswer }: {
+function PresenceControl({ code, present, value, setAnswer, readOnly = false }: {
   code: string
   present: boolean | null
   value: ChecklistValue
   setAnswer: (code: string, patch: Record<string, unknown>) => void
+  readOnly?: boolean
 }) {
   const isNa = value === 'N/A'
   return (
     <div className="flex gap-2">
       <button
+        disabled={readOnly}
         onClick={() => setAnswer(code, { present: present === true ? null : true, value: null })}
-        className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-all ${present === true && !isNa ? 'border-blue-300 bg-blue-50 text-blue-700' : INACTIVE}`}
+        className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-all disabled:cursor-default ${present === true && !isNa ? 'border-blue-300 bg-blue-50 text-blue-700' : INACTIVE}`}
       >
         มี
       </button>
       <button
+        disabled={readOnly}
         onClick={() => setAnswer(code, { present: present === false ? null : false, value: null })}
-        className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-all ${present === false && !isNa ? 'border-red-200 bg-red-50 text-red-700' : INACTIVE}`}
+        className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-all disabled:cursor-default ${present === false && !isNa ? 'border-red-200 bg-red-50 text-red-700' : INACTIVE}`}
       >
         ไม่มี
       </button>
@@ -278,34 +309,37 @@ function PresenceControl({ code, present, value, setAnswer }: {
   )
 }
 
-function PresenceStandardControl({ node, answer, setAnswer }: {
+function PresenceStandardControl({ node, answer, setAnswer, readOnly = false }: {
   node: TemplateNode
   answer: { present: boolean | null; value: ChecklistValue; meetsStandard: boolean; values: Record<string, number> }
   setAnswer: (code: string, patch: Record<string, unknown>) => void
+  readOnly?: boolean
 }) {
   const measured = node.measurements && node.measurements.length > 0
   return (
     <>
-      <PresenceControl code={node.code} present={answer.present} value={answer.value} setAnswer={setAnswer} />
+      <PresenceControl code={node.code} present={answer.present} value={answer.value} setAnswer={setAnswer} readOnly={readOnly} />
       {answer.present === true && (
         measured ? (
           <div className="mt-2.5 space-y-2">
             {node.measurements!.map((m) => (
-              <MeasurementInput key={m.key} code={node.code} measurement={m} values={answer.values} setAnswer={setAnswer} />
+              <MeasurementInput key={m.key} code={node.code} measurement={m} values={answer.values} setAnswer={setAnswer} readOnly={readOnly} />
             ))}
             <DerivedIndicator node={node} values={answer.values} />
           </div>
         ) : (
           <div className="mt-2 flex gap-2">
             <button
+              disabled={readOnly}
               onClick={() => setAnswer(node.code, { meetsStandard: true })}
-              className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-all ${answer.meetsStandard ? 'border-green-300 bg-green-50 text-green-700' : INACTIVE}`}
+              className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-all disabled:cursor-default ${answer.meetsStandard ? 'border-green-300 bg-green-50 text-green-700' : INACTIVE}`}
             >
               ได้มาตรฐาน
             </button>
             <button
+              disabled={readOnly}
               onClick={() => setAnswer(node.code, { meetsStandard: false })}
-              className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-all ${!answer.meetsStandard ? 'border-red-200 bg-red-50 text-red-700' : INACTIVE}`}
+              className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-all disabled:cursor-default ${!answer.meetsStandard ? 'border-red-200 bg-red-50 text-red-700' : INACTIVE}`}
             >
               ไม่ได้มาตรฐาน
             </button>
@@ -316,11 +350,12 @@ function PresenceStandardControl({ node, answer, setAnswer }: {
   )
 }
 
-function MeasurementInput({ code, measurement, values, setAnswer }: {
+function MeasurementInput({ code, measurement, values, setAnswer, readOnly = false }: {
   code: string
   measurement: NonNullable<TemplateNode['measurements']>[number]
   values: Record<string, number>
   setAnswer: (code: string, patch: Record<string, unknown>) => void
+  readOnly?: boolean
 }) {
   function setValue(key: string, raw: string) {
     const n = raw === '' ? undefined : Number(raw)
@@ -339,9 +374,10 @@ function MeasurementInput({ code, measurement, values, setAnswer }: {
             <input
               type="number"
               inputMode="decimal"
+              disabled={readOnly}
               value={values[inp.key] ?? ''}
               onChange={(e) => setValue(inp.key, e.target.value)}
-              className="border-border focus:ring-ring mt-1 w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1"
+              className="border-border focus:ring-ring mt-1 w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 disabled:bg-secondary/30"
             />
           </label>
         ))}
@@ -378,9 +414,10 @@ function MeasurementInput({ code, measurement, values, setAnswer }: {
             <input
               type="number"
               inputMode="decimal"
+              disabled={readOnly}
               value={rise ?? ''}
               onChange={(e) => setValue(riseKey, e.target.value)}
-              className="border-border focus:ring-ring mt-1 w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1"
+              className="border-border focus:ring-ring mt-1 w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 disabled:bg-secondary/30"
             />
           </label>
           <label className="flex-1 text-[11px] text-muted-foreground">
@@ -388,9 +425,10 @@ function MeasurementInput({ code, measurement, values, setAnswer }: {
             <input
               type="number"
               inputMode="decimal"
+              disabled={readOnly}
               value={hypotenuse ?? ''}
               onChange={(e) => setValue(hypotenuseKey, e.target.value)}
-              className="border-border focus:ring-ring mt-1 w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1"
+              className="border-border focus:ring-ring mt-1 w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 disabled:bg-secondary/30"
             />
           </label>
         </div>
@@ -412,9 +450,10 @@ function MeasurementInput({ code, measurement, values, setAnswer }: {
         <input
           type="number"
           inputMode="decimal"
+          disabled={readOnly}
           value={values[measurement.key] ?? ''}
           onChange={(e) => setValue(measurement.key, e.target.value)}
-          className="border-border focus:ring-ring w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1"
+          className="border-border focus:ring-ring w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 disabled:bg-secondary/30"
         />
         <span className="text-xs text-muted-foreground">{unitSuffix(measurement.unit).replace(/[()]/g, '')}</span>
       </div>

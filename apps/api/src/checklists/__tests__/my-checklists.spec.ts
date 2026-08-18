@@ -142,6 +142,89 @@ describe('ChecklistsService.findMyChecklists — Part E', () => {
     }))
   })
 
+  // Live feedback follow-up — the auditor "look back on my submitted work" review screen needs
+  // the FROZEN template (templateId, stamped once at creation) to re-render real answer controls
+  // and compute an accurate category summary, not the mode's current ACTIVE template.
+  it('findMyChecklistDetail returns the checklist\'s own frozen template definition, not wrapped in the relation object', async () => {
+    const definition = { schemaVersion: 1, mode: 'ทางบก', groups: [] }
+    const checklistFindFirst = jest.fn().mockResolvedValue({
+      id: 'cl1', auditorId: 'auditor-a', items: [],
+      station: { nameTh: 'สถานี A' },
+      template: { definition },
+    })
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        ChecklistsService,
+        { provide: PrismaService, useValue: { checklist: { findFirst: checklistFindFirst } } },
+        { provide: StationsService, useValue: {} },
+        { provide: AuditLogService, useValue: { log: jest.fn() } },
+        { provide: MinioService, useValue: { getPresignedUrl: jest.fn(), remove: jest.fn() } },
+      ],
+    }).compile()
+    const detailService = moduleRef.get(ChecklistsService)
+
+    const result = await detailService.findMyChecklistDetail('auditor-a', 'cl1')
+    expect(result.templateDef).toEqual(definition)
+    expect((result as { template?: unknown }).template).toBeUndefined()
+  })
+
+  it('findMyChecklistDetail degrades to templateDef: null for a pre-E1 row with no templateId', async () => {
+    const checklistFindFirst = jest.fn().mockResolvedValue({
+      id: 'cl2', auditorId: 'auditor-a', items: [], station: { nameTh: 'สถานี B' }, template: null,
+    })
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        ChecklistsService,
+        { provide: PrismaService, useValue: { checklist: { findFirst: checklistFindFirst } } },
+        { provide: StationsService, useValue: {} },
+        { provide: AuditLogService, useValue: { log: jest.fn() } },
+        { provide: MinioService, useValue: { getPresignedUrl: jest.fn(), remove: jest.fn() } },
+      ],
+    }).compile()
+    const detailService = moduleRef.get(ChecklistsService)
+
+    const result = await detailService.findMyChecklistDetail('auditor-a', 'cl2')
+    expect(result.templateDef).toBeNull()
+  })
+
+  // Live feedback fix — an admin-hidden node (TemplateNode.hidden === true) never reached the
+  // auditor's actual form and has no stored answer; the raw ChecklistTemplate.definition doesn't
+  // know that (filterHiddenItems is what strips it, normally run by getTemplateForAudit for the
+  // LIVE form) — findMyChecklistDetail must run the exact same filter, or a hidden item that was
+  // never shown, never answerable, and never in `items` would resurface in the review screen.
+  it('findMyChecklistDetail strips admin-hidden nodes from the returned templateDef, same as getTemplateForAudit already does for the live form', async () => {
+    const definition = {
+      schemaVersion: 2, mode: 'ทางบก',
+      groups: [
+        {
+          code: 'A', labelTh: 'A', items: [
+            { code: 'A1', labelTh: 'visible', answerType: 'choice' },
+            { code: 'A2', labelTh: 'hidden by admin', answerType: 'choice', hidden: true },
+          ],
+        },
+      ],
+    }
+    const checklistFindFirst = jest.fn().mockResolvedValue({
+      id: 'cl3', auditorId: 'auditor-a', items: [],
+      station: { nameTh: 'สถานี C' },
+      template: { definition },
+    })
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        ChecklistsService,
+        { provide: PrismaService, useValue: { checklist: { findFirst: checklistFindFirst } } },
+        { provide: StationsService, useValue: {} },
+        { provide: AuditLogService, useValue: { log: jest.fn() } },
+        { provide: MinioService, useValue: { getPresignedUrl: jest.fn(), remove: jest.fn() } },
+      ],
+    }).compile()
+    const detailService = moduleRef.get(ChecklistsService)
+
+    const result = await detailService.findMyChecklistDetail('auditor-a', 'cl3')
+    const codes = result.templateDef?.groups.flatMap((g) => g.items.map((i) => i.code))
+    expect(codes).toEqual(['A1'])
+  })
+
   it('paginates with total/page/totalPages, newest first', async () => {
     checklistCount.mockResolvedValue(45)
     checklistFindMany.mockResolvedValue([])

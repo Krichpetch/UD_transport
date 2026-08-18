@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { ChevronLeft, ChevronRight, Loader2, Trash2, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, MessageSquare, Trash2, X } from 'lucide-react'
 import type { ChecklistPhoto } from '@repo/types'
 
 const VISIBLE = 3
@@ -43,6 +43,7 @@ export function PhotoLightbox({
   startIndex,
   onClose,
   onDelete,
+  onCaptionChange,
 }: {
   photos: ChecklistPhoto[]
   startIndex: number
@@ -50,6 +51,12 @@ export function PhotoLightbox({
   // Session E3, Part C.2/C.3 — auditors get a delete action on their own photos, reusing this
   // same viewer rather than a second one; admins (no onDelete passed) stay read-only.
   onDelete?: (photo: ChecklistPhoto) => void | Promise<void>
+  // Part C — same editable/read-only split as onDelete above: passed only by the auditor's own
+  // capture view (LeafAnswerRow), live-typed straight into the answer store exactly like the
+  // existing per-item note field (no separate save step — it rides the same autosave). Absent
+  // everywhere else (admin view, the auditor's own read-only my-work detail), where a caption —
+  // if the photo has one — renders as plain text instead.
+  onCaptionChange?: (photo: ChecklistPhoto, caption: string) => void
 }) {
   const [idx, setIdx] = React.useState(startIndex)
   const [deleting, setDeleting] = React.useState(false)
@@ -144,6 +151,25 @@ export function PhotoLightbox({
             </button>
           )}
         </div>
+
+        {/* Part C — per-photo caption. Editable (auditor's own capture) mirrors the existing
+            per-item note field exactly: live onChange straight into the answer store, no separate
+            save step. Read-only elsewhere (admin, my-work detail): plain text, shown only when
+            the photo actually has one — a caption-less legacy photo renders with nothing here. */}
+        {onCaptionChange ? (
+          <input
+            type="text"
+            value={photo.caption ?? ''}
+            onChange={(e) => onCaptionChange(photo, e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="เพิ่มคำอธิบายรูปนี้ (ถ้ามี)"
+            className="mt-2 w-full max-w-[80vw] rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-center text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-white/40"
+          />
+        ) : photo.caption ? (
+          <p className="mt-2 flex items-center justify-center gap-1 text-center text-xs text-white/70">
+            <MessageSquare size={11} className="shrink-0" /> {photo.caption}
+          </p>
+        ) : null}
       </div>
 
       {/* Next */}
@@ -159,9 +185,13 @@ export function PhotoLightbox({
 }
 
 // ── Thumbnail strip — max VISIBLE + "+N" overflow ──────────────
-export function ChecklistPhotoGallery({ photos, onDelete, variant = 'evidence' }: {
+export function ChecklistPhotoGallery({ photos, onDelete, onCaptionChange, variant = 'evidence' }: {
   photos: ChecklistPhoto[]
   onDelete?: (photo: ChecklistPhoto) => void | Promise<void>
+  // Part C — see PhotoLightbox's doc; forwarded straight through so a reviewer scanning the
+  // dense evidence-photo strip (e.g. the admin checklist view) sees a small indicator on any tile
+  // that has one (below), and gets the full text once they tap into the lightbox.
+  onCaptionChange?: (photo: ChecklistPhoto, caption: string) => void
   // Session F3, Part E — defaults to the pre-F3 appearance, so every existing evidence call site
   // is untouched.
   variant?: PhotoGalleryVariant
@@ -201,6 +231,14 @@ export function ChecklistPhotoGallery({ photos, onDelete, variant = 'evidence' }
               className={`${styles.tile} focus:outline-none focus:ring-2 focus:ring-ring/60`}
             >
               <img src={p.url} alt={p.filename} loading="lazy" className={styles.img} />
+              {/* Part C — a tile is too small for the caption text itself (size-8 in the dense
+                  evidence strip); this just flags WHICH photo has one, so a reviewer knows to tap
+                  in rather than having to open every photo to check. */}
+              {p.caption && (
+                <div className="absolute right-0.5 top-0.5 flex size-3 items-center justify-center rounded-full bg-black/60">
+                  <MessageSquare size={7} className="text-white" />
+                </div>
+              )}
               {showOverlay && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/55 text-[10px] font-bold text-white">
                   +{overflow}
@@ -217,6 +255,7 @@ export function ChecklistPhotoGallery({ photos, onDelete, variant = 'evidence' }
           startIndex={lightboxIdx}
           onClose={close}
           onDelete={onDelete}
+          onCaptionChange={onCaptionChange}
         />
       )}
     </>

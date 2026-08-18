@@ -312,6 +312,11 @@ export interface FacilityMetrics {
   pctSuccess:        number  // 3.4 ร้อยละความสำเร็จ — unrounded; callers format for display
   pctHasFacility:    number  // 3.5 ร้อยละการจัดให้มีสิ่งอำนวยความสะดวก
   pctMeetsStandard:  number  // 3.6 ร้อยละการได้มาตรฐาน (among items that have it; presence-only excluded)
+  // Live feedback fix — pctHasFacility's own denominator (total + presenceHas + presenceNone), so
+  // a caller displaying "hasItem/N" (e.g. for a presence-only-heavy category, where total===0
+  // makes pctSuccess/`meetsStandard/total` meaningless) doesn't have to reverse-derive it from a
+  // rounded percentage. Was already computed internally; this just also returns it.
+  facilityEligible:  number
 }
 
 export function computeFacilityMetrics(items: unknown, templateDef?: ChecklistTemplateDefinition): FacilityMetrics {
@@ -328,6 +333,7 @@ export function computeFacilityMetrics(items: unknown, templateDef?: ChecklistTe
     pctSuccess:       total            > 0 ? (meetsStandard / total)            * 100 : 0,
     pctHasFacility:   facilityEligible > 0 ? (hasItem / facilityEligible)        * 100 : 0,
     pctMeetsStandard: standardsHasItem > 0 ? (meetsStandard / standardsHasItem)  * 100 : 0,
+    facilityEligible,
   }
 }
 

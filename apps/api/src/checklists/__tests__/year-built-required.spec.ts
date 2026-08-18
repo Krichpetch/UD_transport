@@ -32,6 +32,10 @@ describe('ChecklistsService — Part B.2 yearBuilt required at checklist creatio
           useValue: {
             checklist: { create: checklistCreate, update: checklistUpdate, findFirst: checklistFindFirst },
             checklistTemplate: { findFirst: jest.fn().mockResolvedValue(null) },
+            // Consulted by submit()'s resubmit-after-unsubmit linkage check whenever an existing
+            // draft is consumed — resolving to null keeps that path a no-op here (see
+            // unsubmit-return-loop.spec.ts for that behavior itself).
+            auditLog: { findFirst: jest.fn().mockResolvedValue(null) },
           },
         },
         { provide: StationsService, useValue: { findOne } },

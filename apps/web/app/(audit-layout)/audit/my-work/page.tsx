@@ -58,8 +58,9 @@ export default function MyWorkPage() {
 
   // Part E.4 — strictly read-only beyond navigation: every row action here is either a route
   // push into the existing /audit flow (DRAFT/REJECTED — Part D's tested hydrate path, no second
-  // resume mechanism) or into the new read-only detail view (SUBMITTED/APPROVED). No delete,
-  // withdraw, or edit control anywhere on this page.
+  // resume mechanism) or into the detail view (SUBMITTED/APPROVED) — read-only there too, except
+  // for the SUBMITTED-only self-unsubmit control (see UnsubmitButton in [id]/page.tsx). No action
+  // on THIS list page itself.
   function openRow(row: MyChecklistRow) {
     if (row.status === 'DRAFT' || row.status === 'REJECTED') {
       router.push(`/audit?station=${row.stationId}`)

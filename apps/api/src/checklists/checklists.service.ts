@@ -49,6 +49,11 @@ const MAX_PHOTOS_PER_ITEM = 5
 // APPROVED — those are the record of what was actually reviewed.
 const PHOTO_EDITABLE_STATUSES = ['DRAFT', 'REJECTED'] as const
 
+// Self-unsubmit — for the "current status" text in unsubmitChecklist's refusal message below.
+const CHECKLIST_STATUS_TH: Record<string, string> = {
+  DRAFT: 'ฉบับร่าง', SUBMITTED: 'รอตรวจสอบ', APPROVED: 'อนุมัติแล้ว', REJECTED: 'ถูกตีกลับ',
+}
+
 export interface SubmitGps {
   lat: number
   lng: number
@@ -766,18 +771,43 @@ export class ChecklistsService {
         })
       }
       await this.prisma.checklist.update({ where: { id: existingDraft.id }, data: { reviewNotes: null } })
+    } else if (existingDraft) {
+      // Self-unsubmit resubmission linkage — mirrors the rejection branch above, generalized to
+      // the same shape. There is no reviewNotes-equivalent column for this path (unsubmitChecklist
+      // flips SUBMITTED -> DRAFT on the SAME row, in place — see its doc), so the signal is read
+      // from AuditLog instead: existingDraft IS that very row, and its most recent lifecycle
+      // marker among {UNSUBMIT_CHECKLIST, RESUBMIT_AFTER_UNSUBMIT} tells us whether the unsubmit is
+      // still unresolved. Checking "most recent of these two" (not just "any UNSUBMIT_CHECKLIST
+      // ever") is what makes this self-consuming — once resolved here, a LATER, unrelated submit
+      // reusing the same lingering draft slot sees RESUBMIT_AFTER_UNSUBMIT as the latest marker and
+      // correctly does not re-link, same as reviewNotes being cleared above.
+      const lastUnsubmitEvent = await this.prisma.auditLog.findFirst({
+        where: { entityType: 'Checklist', entityId: existingDraft.id, action: { in: ['UNSUBMIT_CHECKLIST', 'RESUBMIT_AFTER_UNSUBMIT'] } },
+        orderBy: { createdAt: 'desc' },
+      })
+      if (lastUnsubmitEvent?.action === 'UNSUBMIT_CHECKLIST') {
+        await this.auditLog.log({
+          userId: auditorId,
+          action: 'RESUBMIT_AFTER_UNSUBMIT',
+          entityType: 'Checklist',
+          entityId: checklist.id,
+          before: { checklistId: existingDraft.id },
+          after: { checklistId: checklist.id },
+        })
+      }
     }
 
     return checklist
   }
 
-  // Session E3, Part B.4 — admin review page's "resubmission of <link>" marker. Looks up the
-  // RESUBMIT_AFTER_REJECTION AuditLog entry this checklist's submit wrote (see above), if any.
-  // Returns null for every ordinary (non-resubmission) checklist — the common case — with exactly
-  // one indexed AuditLog query (entityId is indexed; see schema.prisma AuditLog @@index).
+  // Session E3, Part B.4 — admin review page's "resubmission of <link>" marker. Looks up whichever
+  // resubmission-linkage AuditLog entry this checklist's submit wrote (see above), if any —
+  // RESUBMIT_AFTER_REJECTION (admin rejected it) or RESUBMIT_AFTER_UNSUBMIT (auditor pulled it back
+  // themselves). Returns null for every ordinary (non-resubmission) checklist — the common case —
+  // with exactly one indexed AuditLog query (entityId is indexed; see schema.prisma AuditLog @@index).
   async findResubmitSource(checklistId: string): Promise<string | null> {
     const log = await this.prisma.auditLog.findFirst({
-      where: { action: 'RESUBMIT_AFTER_REJECTION', entityType: 'Checklist', entityId: checklistId },
+      where: { action: { in: ['RESUBMIT_AFTER_REJECTION', 'RESUBMIT_AFTER_UNSUBMIT'] }, entityType: 'Checklist', entityId: checklistId },
       orderBy: { createdAt: 'desc' },
     })
     const before = log?.before as { checklistId?: string } | null
@@ -821,13 +851,39 @@ export class ChecklistsService {
   // the SAME query as the existence check (BOLA-safe — a checklist that isn't this auditor's 404s
   // exactly like one that doesn't exist, never a 403 confirming it exists under someone else).
   // Photo URLs re-presigned fresh, same convention as every other read path (see refreshPhotoUrls).
+  //
+  // Live feedback follow-up (auditor "look back on my submitted work" review) — also returns the
+  // FROZEN template this checklist was actually filled against (templateId, stamped once at
+  // creation and never repointed — see the Checklist model doc), not the mode's current ACTIVE
+  // template. The client needs this to re-render the real answer controls (V2ItemPage/
+  // LeafAnswerRow) read-only, and to compute an accurate category summary (groupSummaryByCategory)
+  // for any measured presence_standard leaf — those leaves store raw `values`, never a baked
+  // verdict, and always re-derive against the template's measurements[] (see scoring.ts), exactly
+  // the same trust level every other read path in this file already gives `template.definition`
+  // (getActiveTemplate's callers cast it directly too — validated once at write time, not
+  // re-validated on every read). Null only for pre-E1 pilot rows that predate templateId existing.
+  //
+  // filterHiddenItems runs here for the SAME reason every other consumer of a raw
+  // ChecklistTemplate.definition runs it first (resolveEraStamp, getTemplateForAudit) — an
+  // admin-hidden node (TemplateNode.hidden === true) never reached the auditor's actual form and
+  // has no stored answer to review; skipping this would resurrect it into the review screen even
+  // though it was never shown, never answerable, and never in `items` to begin with.
   async findMyChecklistDetail(auditorId: string, id: string) {
     const cl = await this.prisma.checklist.findFirst({
       where: { id, auditorId },
-      include: { station: { select: { nameTh: true, line: true, mode: true, railSubtype: true, province: true } } },
+      include: {
+        station: { select: { nameTh: true, line: true, mode: true, railSubtype: true, province: true } },
+        template: { select: { definition: true } },
+      },
     })
     if (!cl) throw new NotFoundException()
-    return { ...cl, items: await this.refreshPhotoUrls(cl.items) }
+    const { template, ...rest } = cl
+    const rawDef = template?.definition as ChecklistTemplateDefinition | undefined
+    return {
+      ...rest,
+      items: await this.refreshPhotoUrls(cl.items),
+      templateDef: rawDef ? filterHiddenItems(rawDef) : null,
+    }
   }
 
   // Session E3, Part B.1 — "งานที่ถูกตีกลับ" (returned work) on the auditor home. A REJECTED
@@ -923,5 +979,68 @@ export class ChecklistsService {
     })
 
     return { ...updated, items: await this.refreshPhotoUrls(updated.items) }
+  }
+
+  // Self-unsubmit — an auditor pulling back their OWN SUBMITTED checklist (not yet acted on by an
+  // admin) to keep editing it. Deliberately generalizes rejectChecklist's status-transition +
+  // AuditLog shape rather than forking a parallel "reopen" system: no new schema column, and on
+  // the frontend it needs nothing beyond the EXISTING findDraft/hydrate path, because the result
+  // is just an ordinary DRAFT row. Ownership is structural (auditorId is part of the WHERE clause
+  // itself, never a client claim) — same BOLA convention as deletePhoto/findMyChecklistDetail.
+  //
+  // Unlike rejectChecklist, this flips THIS row's own status back to DRAFT in place rather than
+  // copying into a second row: there is no admin-review event to preserve as separate permanent
+  // history here, so era/template/GPS stamps survive for free (same row, same id) with nothing to
+  // re-copy or re-stamp.
+  //
+  // The one wrinkle: saveDraft/submit treat the DRAFT row for a (station, auditor) pair as a
+  // reusable "slot" they never delete — after a normal autosave-then-submit cycle, a STALE DRAFT
+  // row is left lingering alongside the new SUBMITTED row (the two partial unique indexes are
+  // independent, so both can coexist). That stale draft's content is always strictly subsumed by
+  // what actually got submitted (submit() sourced ITS own era stamp/items from that very draft
+  // when one existed), so it is discarded here rather than left to collide with the one-DRAFT
+  // partial unique index when this row flips to DRAFT.
+  async unsubmitChecklist(stationId: string, checklistId: string, auditorId: string) {
+    const existing = await this.prisma.checklist.findFirst({ where: { id: checklistId, stationId, auditorId } })
+    if (!existing) throw new NotFoundException()
+    if (existing.status !== 'SUBMITTED') {
+      throw new BadRequestException({
+        code: 'NOT_SUBMITTED',
+        message: `เรียกคืนได้เฉพาะรายงานที่ส่งแล้วและยังไม่ได้ตรวจสอบเท่านั้น (สถานะปัจจุบัน: ${CHECKLIST_STATUS_TH[existing.status] ?? existing.status})`,
+        status: existing.status,
+      })
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // Re-check status INSIDE the transaction — closes the race between the read above and this
+      // write (e.g. an admin's approve/reject landing in between), same convention as
+      // approveChecklist/rejectChecklist.
+      const current = await tx.checklist.findFirst({ where: { id: checklistId, stationId, auditorId } })
+      if (!current || current.status !== 'SUBMITTED') {
+        throw new BadRequestException({
+          code: 'NOT_SUBMITTED',
+          message: `เรียกคืนได้เฉพาะรายงานที่ส่งแล้วและยังไม่ได้ตรวจสอบเท่านั้น (สถานะปัจจุบัน: ${CHECKLIST_STATUS_TH[current?.status ?? ''] ?? current?.status ?? 'ไม่พบรายงาน'})`,
+          status: current?.status ?? null,
+        })
+      }
+      await tx.checklist.deleteMany({
+        where: { stationId, auditorId, status: 'DRAFT', id: { not: checklistId } },
+      })
+      return tx.checklist.update({
+        where: { id: checklistId },
+        data: { status: 'DRAFT', submittedAt: null, score: null },
+      })
+    })
+
+    await this.auditLog.log({
+      userId: auditorId,
+      action: 'UNSUBMIT_CHECKLIST',
+      entityType: 'Checklist',
+      entityId: checklistId,
+      before: { status: 'SUBMITTED' },
+      after: { status: 'DRAFT' },
+    })
+
+    return updated
   }
 }

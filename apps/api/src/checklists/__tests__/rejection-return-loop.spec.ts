@@ -78,9 +78,14 @@ describe('ChecklistsService.submit — Part B.3 resubmit-after-rejection linkage
   const findOne = jest.fn()
   const distanceToStationMeters = jest.fn()
   const auditLog = jest.fn()
+  // Consulted by the (separate, self-unsubmit) RESUBMIT_AFTER_UNSUBMIT check that now also runs
+  // whenever a draft is consumed — see unsubmit-return-loop.spec.ts for that behavior itself;
+  // resolving to null here keeps these rejection-focused tests about rejection only.
+  const auditLogFindFirst = jest.fn().mockResolvedValue(null)
 
   beforeEach(async () => {
     jest.clearAllMocks()
+    auditLogFindFirst.mockResolvedValue(null)
     findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', railSubtype: null, coordStatus: 'APPROXIMATE', yearBuilt: 2560 })
     checklistCreate.mockResolvedValue({ id: 'new-cl' })
 
@@ -92,6 +97,7 @@ describe('ChecklistsService.submit — Part B.3 resubmit-after-rejection linkage
           useValue: {
             checklist: { create: checklistCreate, findFirst: checklistFindFirst, update: checklistUpdate },
             checklistTemplate: { findFirst: jest.fn().mockResolvedValue(null) },
+            auditLog: { findFirst: auditLogFindFirst },
           },
         },
         { provide: StationsService, useValue: { findOne, distanceToStationMeters } },
@@ -176,7 +182,7 @@ describe('ChecklistsService.findResubmitSource — Part B.4', () => {
     auditLogFindFirst.mockResolvedValue({ before: { checklistId: 'old-rejected' } })
     await expect(service.findResubmitSource('cl-new')).resolves.toBe('old-rejected')
     expect(auditLogFindFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: { action: 'RESUBMIT_AFTER_REJECTION', entityType: 'Checklist', entityId: 'cl-new' },
+      where: { action: { in: ['RESUBMIT_AFTER_REJECTION', 'RESUBMIT_AFTER_UNSUBMIT'] }, entityType: 'Checklist', entityId: 'cl-new' },
     }))
   })
 })

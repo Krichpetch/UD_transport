@@ -7,6 +7,12 @@ export interface ChecklistPhoto {
   url: string
   filename: string
   uploadedAt: string
+  // Part C (auditor self-unsubmit/summary session) — optional per-photo note, authored by the
+  // auditor (which photo shows what) and read by an admin reviewer. Additive/optional: a photo
+  // uploaded before this field existed simply has none and renders identically. Kept separate
+  // from the existing per-ITEM `note` (StoredChecklistNode.note / ChecklistSubItem.note), which
+  // is untouched — this is a note about one specific photo, not the item as a whole.
+  caption?: string
 }
 
 export interface ChecklistSubItem {

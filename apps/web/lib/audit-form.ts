@@ -5,10 +5,15 @@
 // from both the store and any read-only preview.
 import type {
   ChecklistTemplateDefinition,
+  ChecklistTemplateGroupDef,
   TemplateNode,
   ChecklistPhoto,
   ChecklistValue,
+  FacilityMetrics,
 } from '@repo/types'
+import { computeFacilityMetrics } from '@repo/types'
+import { CHECKLIST_CATEGORIES } from '@/lib/constants'
+import type { NavigatorPage, NavigatorLeafPreview } from '@/components/audit/PageNavigator'
 
 // One leaf's answer, shape a superset of every answerType — unused fields simply stay at their
 // default. Mirrors @repo/types#StoredChecklistNode minus the tree-structural fields (id/labelTh/
@@ -320,4 +325,118 @@ export function buildStoredGroups(def: ChecklistTemplateDefinition, answers: Ans
     groupName: groupDisplayName(g),
     items: g.items.map((it) => buildNode(it, answers)),
   }))
+}
+
+export interface CategorySummaryGroup {
+  groupId: string
+  groupName: string
+  metrics: FacilityMetrics
+}
+
+export interface CategorySummary {
+  value: string
+  label: string
+  metrics: FacilityMetrics
+  groups: CategorySummaryGroup[]
+}
+
+// Part B (auditor self-unsubmit/summary session) — groups a submitted checklist's stored items
+// (buildStoredGroups' own output shape: {groupId, groupName, items}[]) by category (A/B/C — the
+// same `groupId[0]` rule categoryLabel/the navigator's grouping already uses, since groupId IS the
+// stored group's template code, e.g. "A1" for v1 or "A" for v2/v3's own top-level group). Every
+// number comes from computeFacilityMetrics called on SLICES of the exact same items array the
+// checklist's stored score was computed from — never a second pass-counting path, so these can
+// never drift from it, and redacted (applicable===false) / hidden (never stored) / optional-group
+// items are excluded from every denominator exactly as computeFacilityMetrics already excludes
+// them everywhere else.
+//
+// v1 stores many small groups per category (A1, A2, A3…), so `groups` lists a real per-group
+// breakdown; v2/v3 stores exactly ONE group per category (its own top-level group already IS the
+// category), so `groups` there holds that single entry — callers should skip rendering it when
+// length is 1, since it would just duplicate the category's own `metrics` on its own row.
+export function groupSummaryByCategory(
+  items: { groupId?: string; groupName?: string }[],
+  templateDef?: ChecklistTemplateDefinition,
+): CategorySummary[] {
+  return CHECKLIST_CATEGORIES.map((cat) => {
+    const groupsInCat = items.filter((g) => (g.groupId ?? '')[0] === cat.value)
+    return {
+      value: cat.value,
+      label: cat.label,
+      metrics: computeFacilityMetrics(groupsInCat, templateDef),
+      groups: groupsInCat.map((g) => ({
+        groupId: g.groupId ?? '',
+        groupName: g.groupName ?? '',
+        metrics: computeFacilityMetrics([g], templateDef),
+      })),
+    }
+  }).filter((cat) => cat.groups.length > 0)
+}
+
+// ── Pager + navigator construction — shared between /audit's editable pager and the my-work
+// read-only review, so there is one pagination scheme, not two independently-built ones. ──
+
+// Session S4a, Part D.2 — the navigator's top-level category (A/B/C), derived from a page's own
+// leading code letter: v1 groups use the exact same A1/A2/B1.../C1 code scheme as v3's containers
+// (see apps/api/prisma/v1-template-groups.ts), so the same leading-letter grouping applies to both.
+export function categoryLabel(code: string): { groupKey: string; groupLabel: string } {
+  const letter = code[0] ?? code
+  return { groupKey: letter, groupLabel: CHECKLIST_CATEGORIES.find((c) => c.value === letter)?.label ?? letter }
+}
+
+// Live feedback follow-up — the navigator's third (leaf-preview + search) tier, built as a REAL
+// tree (not flattened to only the deepest leaves): a page's preview holds exactly its own direct
+// children, and if one of those itself has subItems (e.g. a tiered measurement), THEY nest one
+// level deeper under it, not merged flat into the parent's own list. v1 group items typically
+// have no subItems (so they render as leaves with no further nesting); v2/v3 top-level items can
+// nest arbitrarily — same TemplateNode shape for both (ChecklistTemplateGroupDef.items and
+// TemplateNode.subItems are both TemplateNode[]), so one function covers both.
+export function collectLeafPreview(nodes: TemplateNode[]): NavigatorLeafPreview[] {
+  return nodes.map((n) => ({
+    code: n.code,
+    labelTh: n.labelTh,
+    children: n.subItems && n.subItems.length > 0 ? collectLeafPreview(n.subItems) : undefined,
+  }))
+}
+
+// One entry per PAGE, v1 = group-level, v2 = item-level, matching each pager's own granularity —
+// see buildV2Pages below for how v2Pages itself is built. Progress figures reuse
+// countProgressForNodes, the exact same tally every progress display in this app already uses, so
+// the navigator can never disagree with them.
+export function buildNavPages(
+  groups: ChecklistTemplateGroupDef[],
+  isV1: boolean,
+  v2Pages: { group: ChecklistTemplateGroupDef; item: TemplateNode }[],
+  answers: AnswerMap,
+): NavigatorPage[] {
+  return isV1
+    ? groups.map((g) => {
+        const p = countProgressForNodes(g.items, answers)
+        return {
+          code: g.code, label: groupDisplayName(g), answered: p.answered, total: p.total,
+          leafItems: collectLeafPreview(g.items),
+          ...categoryLabel(g.code),
+        }
+      })
+    : v2Pages.map(({ group, item }) => {
+        const p = countProgressForNodes([item], answers)
+        return {
+          code: item.code,
+          label: item.num ? `${item.num}. ${item.labelTh}` : item.labelTh,
+          sublabel: groupDisplayName(group),
+          answered: p.answered,
+          total: p.total,
+          leafItems: item.subItems && item.subItems.length > 0 ? collectLeafPreview(item.subItems) : undefined,
+          ...categoryLabel(group.code),
+        }
+      })
+}
+
+// v2/v3's pager is one level deeper than v1's: v1 paginates group-by-group; v2 paginates
+// item-by-item within a group (A1 → A1.1, A1.2, …), continuing seamlessly into the next group's
+// first item — see V2PagerForm.tsx for what renders inside one item's page. A top-level item
+// that's fully era-redacted (itself, or every descendant when it's a pure container) never gets
+// its own page.
+export function buildV2Pages(groups: ChecklistTemplateGroupDef[]): { group: ChecklistTemplateGroupDef; item: TemplateNode }[] {
+  return groups.flatMap((g) => g.items.filter((item) => !isNodeFullyRedacted(item)).map((item) => ({ group: g, item })))
 }

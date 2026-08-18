@@ -131,6 +131,19 @@ export class ChecklistsController {
     return this.checklists.submit(stationId, req.user.id, body.items, body.score, body.gps, body.finalThoughts)
   }
 
+  // Self-unsubmit — auditor pulls back their OWN SUBMITTED checklist (not yet acted on by an
+  // admin) to keep editing it. AUDITOR-only; ownership is enforced inside the service via
+  // req.user.id (never a client-suppliable auditorId), same BOLA convention as deletePhoto below.
+  @Post(':checklistId/unsubmit')
+  unsubmit(
+    @Param('stationId') stationId: string,
+    @Param('checklistId') checklistId: string,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    return this.checklists.unsubmitChecklist(stationId, checklistId, req.user.id)
+  }
+
   // Session E3, Part C.3 — auditor removes a photo they uploaded (wrong-evidence case), while the
   // checklist is still DRAFT or REJECTED. `photoId` is the MinIO object key (contains a slash —
   // "checklist-photos/<hex>.<ext>" — so it travels as a query param, never a route segment, same

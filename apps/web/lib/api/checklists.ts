@@ -23,8 +23,10 @@ export interface ChecklistRecord {
   finalThoughts?: string | null
   appliedYearBuilt?: number | null
   appliedLawRefs?: Record<string, string> | null
-  // Session E3, Part B.4 — set when this checklist is a resubmission fixing a rejection; the id
-  // of the REJECTED checklist it responds to, or null for an ordinary (non-resubmission) submit.
+  // Session E3, Part B.4 — set when this checklist is a resubmission, either fixing a rejection
+  // or following the auditor's own self-unsubmit; the id of the prior checklist it responds to
+  // (its `status` tells you which — REJECTED vs. DRAFT, see ResubmissionMarker), or null for an
+  // ordinary (non-resubmission) submit.
   respondsToChecklistId?: string | null
   templateVersion?: number | null
   template?: { variantKey: string } | null
@@ -142,6 +144,13 @@ export function submitChecklist(
   })
 }
 
+// Self-unsubmit — pulls the auditor's OWN SUBMITTED checklist back to DRAFT (not yet acted on by
+// an admin). Returns the checklist now in DRAFT status; the caller navigates back into /audit,
+// where the EXISTING findDraft/hydrate path picks it up like any other in-progress draft.
+export function unsubmitChecklist(stationId: string, checklistId: string) {
+  return api.post<ChecklistRecord>(`/stations/${stationId}/checklist/${checklistId}/unsubmit`, {})
+}
+
 // Session E3, Part C.3 — auditor removes a photo they uploaded, while the checklist is still
 // DRAFT or REJECTED. photoId is the MinIO object key (contains a slash) — always sent as a
 // query param, never a route segment, matching the presign endpoint's convention.
@@ -195,8 +204,13 @@ export function getMyChecklists(page: number, limit: number, status?: MyChecklis
 }
 
 // Session F1, Part E.2 — read-only detail for a SUBMITTED/APPROVED row on the my-work list.
+// Live feedback follow-up — templateDef is the checklist's own FROZEN template (stamped once at
+// creation, see checklists.service.ts#findMyChecklistDetail's doc), not the mode's current ACTIVE
+// template. Needed to re-render the real answer controls read-only and to compute an accurate
+// category summary for any measured leaf. Null only for a pre-E1 pilot row with no templateId.
 export function getMyChecklistDetail(id: string) {
-  return api.get<ChecklistRecord & { station: { nameTh: string; line?: string; mode: string; railSubtype: string | null; province: string | null } }>(
-    `/checklists/mine/${id}`,
-  )
+  return api.get<ChecklistRecord & {
+    station: { nameTh: string; line?: string; mode: string; railSubtype: string | null; province: string | null }
+    templateDef: ChecklistTemplateDefinition | null
+  }>(`/checklists/mine/${id}`)
 }

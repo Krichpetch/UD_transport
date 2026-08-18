@@ -26,15 +26,22 @@ import { RequireRole } from '@/components/auth/require-role'
 import { countReviewFlags } from '@/lib/checklist-review-flags'
 import Link from 'next/link'
 
-// ─── Resubmission marker (Session E3, Part B.4) ────────────────
+// ─── Resubmission marker (Session E3, Part B.4; generalized for self-unsubmit) ─────────────────
 // Fetches this station's checklist history (already used elsewhere for the approve quick-action)
 // only when expanded, and resolves the specific prior checklist by id — no dedicated per-checklist
-// route exists in this app, so the prior rejection's own notes/date are shown inline instead of a
+// route exists in this app, so the prior checklist's own notes/date are shown inline instead of a
 // navigable link.
+//
+// findResubmitSource (checklists.service.ts) now links back for TWO different reasons — an admin
+// rejection, or the auditor pulling the report back themselves (self-unsubmit) — and only the
+// rejection case has reviewNotes/reviewedAt to show (self-unsubmit flips the SAME row back to
+// DRAFT in place, so `prior` here is that row, status DRAFT, not a separate REJECTED record).
+// Branching on `prior.status` distinguishes the two without needing a new field on the response.
 function ResubmissionMarker({ stationId, respondsToChecklistId }: { stationId: string; respondsToChecklistId: string }) {
   const [expanded, setExpanded] = React.useState(false)
   const { data: history } = useChecklistHistory(stationId)
   const prior = history?.find((c) => c.id === respondsToChecklistId)
+  const wasRejection = prior?.status === 'REJECTED'
 
   return (
     <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
@@ -43,16 +50,18 @@ function ResubmissionMarker({ stationId, respondsToChecklistId }: { stationId: s
         className="flex w-full items-center gap-1.5 text-left font-medium text-amber-700"
       >
         <RotateCcw size={11} className="shrink-0" />
-        การส่งซ้ำ — เป็นการแก้ไขจากรายงานที่ถูกปฏิเสธก่อนหน้า
+        {wasRejection ? 'การส่งซ้ำ — เป็นการแก้ไขจากรายงานที่ถูกปฏิเสธก่อนหน้า' : 'การส่งซ้ำ — ผู้ตรวจเรียกคืนรายงานก่อนหน้าเพื่อแก้ไขก่อนส่งใหม่'}
         {expanded ? <ChevronUp size={11} className="ml-auto shrink-0" /> : <ChevronDown size={11} className="ml-auto shrink-0" />}
       </button>
       {expanded && (
         <div className="mt-1.5 border-t border-amber-200 pt-1.5 text-amber-700">
-          {!history ? 'กำลังโหลด…' : !prior ? 'ไม่พบข้อมูลรายงานก่อนหน้า' : (
+          {!history ? 'กำลังโหลด…' : !prior ? 'ไม่พบข้อมูลรายงานก่อนหน้า' : wasRejection ? (
             <>
               {prior.reviewedAt && <p>ถูกปฏิเสธเมื่อ: {new Date(prior.reviewedAt).toLocaleString('th-TH')}</p>}
               {prior.reviewNotes && <p className="mt-0.5">หมายเหตุ: {prior.reviewNotes}</p>}
             </>
+          ) : (
+            <p>ผู้ตรวจเรียกคืนรายงานนี้ด้วยตนเองก่อนส่งใหม่ ไม่ใช่การปฏิเสธจากผู้ดูแลระบบ</p>
           )}
         </div>
       )}

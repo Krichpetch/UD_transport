@@ -47,7 +47,14 @@ function deriveChoice(status: ReturnType<typeof computeContainerStatus>): Contai
 // stored data — a pre-F3 draft, or a REJECTED checklist returned for fixes, whose descendants are
 // all N/A. Neither button lights up in that state, and clicking มี releases the subtree. Dropping
 // this branch would strand such a draft with a permanently collapsed, unanswerable subtree.
-function ContainerNode({ node, breadcrumb, disabled }: { node: TemplateNode; breadcrumb: string[]; disabled: boolean }) {
+function ContainerNode({ node, breadcrumb, disabled, readOnly = false }: {
+  node: TemplateNode; breadcrumb: string[]; disabled: boolean
+  // Live feedback follow-up ("look back on my submitted work") — see LeafAnswerRow's readOnly doc:
+  // locks the มี/ไม่มี buttons without the `disabled` cascade's opacity dimming (a genuinely
+  // answered container, not one auto-filled by an ancestor's ไม่มี). Threaded straight through to
+  // every descendant unconditionally — there is no "read-only container, editable child" case.
+  readOnly?: boolean
+}) {
   const answers = useAuditFormStore((s) => s.answers)
   const stashAndCascade = useAuditFormStore((s) => s.stashAndCascade)
   const restoreStash = useAuditFormStore((s) => s.restoreStash)
@@ -76,14 +83,16 @@ function ContainerNode({ node, breadcrumb, disabled }: { node: TemplateNode; bre
       <NodeReferenceImages node={node} className="px-4 pb-2" />
       <div className="flex gap-2 px-4 pb-2.5 pt-1.5">
         <button
+          disabled={readOnly}
           onClick={selectPresent}
-          className={`flex-1 rounded-lg border py-1.5 text-xs font-medium transition-all ${choice === 'มี' ? 'border-blue-300 bg-blue-50 text-blue-700' : INACTIVE}`}
+          className={`flex-1 rounded-lg border py-1.5 text-xs font-medium transition-all disabled:cursor-default ${choice === 'มี' ? 'border-blue-300 bg-blue-50 text-blue-700' : INACTIVE}`}
         >
           มี
         </button>
         <button
+          disabled={readOnly}
           onClick={selectAbsent}
-          className={`flex-1 rounded-lg border py-1.5 text-xs font-medium transition-all ${choice === 'ไม่มี' ? 'border-red-200 bg-red-50 text-red-700' : INACTIVE}`}
+          className={`flex-1 rounded-lg border py-1.5 text-xs font-medium transition-all disabled:cursor-default ${choice === 'ไม่มี' ? 'border-red-200 bg-red-50 text-red-700' : INACTIVE}`}
         >
           ไม่มี
         </button>
@@ -93,7 +102,7 @@ function ContainerNode({ node, breadcrumb, disabled }: { node: TemplateNode; bre
           {/* Part C.3 — a fully era-redacted child is never rendered as an answerable row (it's
               surfaced only in the per-group collapsed footer note, see the summary page). */}
           {node.subItems.filter((c) => !isNodeFullyRedacted(c)).map((c) => (
-            <CriterionNode key={c.code} node={c} breadcrumb={childBreadcrumb} disabled={disabled || childrenDisabledByParent} />
+            <CriterionNode key={c.code} node={c} breadcrumb={childBreadcrumb} disabled={disabled || childrenDisabledByParent} readOnly={readOnly} />
           ))}
         </div>
       )}
@@ -106,7 +115,9 @@ function ContainerNode({ node, breadcrumb, disabled }: { node: TemplateNode; bre
 // ContainerNode's buttons do — see LeafAnswerRow's handleSetAnswer). Part A default: children
 // always visible; ไม่มี keeps them visible+disabled. Session F3, Part B: a stored (legacy) N/A
 // still collapses them, but is no longer reachable from the form — see ContainerNode's doc.
-function LeafNode({ node, breadcrumb, disabled }: { node: TemplateNode; breadcrumb: string[]; disabled: boolean }) {
+function LeafNode({ node, breadcrumb, disabled, readOnly = false }: {
+  node: TemplateNode; breadcrumb: string[]; disabled: boolean; readOnly?: boolean
+}) {
   const answer = useAuditFormStore((s) => s.answers[node.code])
   const isAbsent = node.answerType === 'choice' ? answer?.value === 'ไม่มี' : answer?.present === false
   const isNA = answer?.value === 'N/A'
@@ -114,11 +125,11 @@ function LeafNode({ node, breadcrumb, disabled }: { node: TemplateNode; breadcru
 
   return (
     <div className={node.subItems ? 'border-b border-border last:border-0' : ''}>
-      <LeafAnswerRow node={node} disabled={disabled} breadcrumb={breadcrumb} />
+      <LeafAnswerRow node={node} disabled={disabled} readOnly={readOnly} breadcrumb={breadcrumb} />
       {!isNA && node.subItems && (
         <div className="ml-4 border-l border-border pl-2">
           {node.subItems.filter((c) => !isNodeFullyRedacted(c)).map((c) => (
-            <CriterionNode key={c.code} node={c} breadcrumb={childBreadcrumb} disabled={disabled || isAbsent} />
+            <CriterionNode key={c.code} node={c} breadcrumb={childBreadcrumb} disabled={disabled || isAbsent} readOnly={readOnly} />
           ))}
         </div>
       )}
@@ -126,15 +137,17 @@ function LeafNode({ node, breadcrumb, disabled }: { node: TemplateNode; breadcru
   )
 }
 
-function CriterionNode({ node, breadcrumb, disabled }: { node: TemplateNode; breadcrumb: string[]; disabled: boolean }) {
-  if (node.answerType) return <LeafNode node={node} breadcrumb={breadcrumb} disabled={disabled} />
-  return <ContainerNode node={node} breadcrumb={breadcrumb} disabled={disabled} />
+function CriterionNode({ node, breadcrumb, disabled, readOnly = false }: {
+  node: TemplateNode; breadcrumb: string[]; disabled: boolean; readOnly?: boolean
+}) {
+  if (node.answerType) return <LeafNode node={node} breadcrumb={breadcrumb} disabled={disabled} readOnly={readOnly} />
+  return <ContainerNode node={node} breadcrumb={breadcrumb} disabled={disabled} readOnly={readOnly} />
 }
 
-export function V2ItemPage({ item, groupLabel }: { item: TemplateNode; groupLabel: string }) {
+export function V2ItemPage({ item, groupLabel, readOnly = false }: { item: TemplateNode; groupLabel: string; readOnly?: boolean }) {
   return (
     <div className="divide-y divide-border">
-      <CriterionNode node={item} breadcrumb={[groupLabel]} disabled={false} />
+      <CriterionNode node={item} breadcrumb={[groupLabel]} disabled={false} readOnly={readOnly} />
     </div>
   )
 }

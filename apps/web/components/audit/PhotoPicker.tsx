@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { Camera, Loader2, Upload, X, Plus } from 'lucide-react'
 import { uploadPhoto } from '@/lib/api/uploads'
+import { compressImage } from '@/lib/image-compression'
 import type { ChecklistPhoto } from '@repo/types'
 
 type PhotoStatus = 'pending' | 'uploading' | 'done' | 'failed'
@@ -24,38 +25,7 @@ interface Props {
   existingCount?: number
 }
 
-const MAX_DIM = 1920
-const JPEG_QUALITY = 0.82
 const MAX_PHOTOS_PER_ITEM = 5
-
-async function compressImage(file: File): Promise<File> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    const src = URL.createObjectURL(file)
-    img.onload = () => {
-      URL.revokeObjectURL(src)
-      const { width, height } = img
-      if (width <= MAX_DIM && height <= MAX_DIM) { resolve(file); return }
-      const ratio  = Math.min(MAX_DIM / width, MAX_DIM / height)
-      const canvas = document.createElement('canvas')
-      canvas.width  = Math.round(width  * ratio)
-      canvas.height = Math.round(height * ratio)
-      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) { resolve(file); return }
-          // Sanitise filename: replace non-ASCII / special chars so HTTP headers stay clean
-          const safeName = file.name.replace(/[^\w.฀-๿-]/g, '_')
-          resolve(new File([blob], safeName, { type: 'image/jpeg' }))
-        },
-        'image/jpeg',
-        JPEG_QUALITY,
-      )
-    }
-    img.onerror = () => { URL.revokeObjectURL(src); resolve(file) }
-    img.src = src
-  })
-}
 
 export function PhotoPicker({ onPhotosUploaded, disabled = false, existingCount = 0 }: Props) {
   const [photos,    setPhotos]   = React.useState<PendingPhoto[]>([])

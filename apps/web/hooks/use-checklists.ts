@@ -9,6 +9,7 @@ import {
   getTemplateForAudit,
   saveDraft,
   submitChecklist,
+  unsubmitChecklist,
   deleteChecklistPhoto,
   getMyRejectedCount,
   getMyRejectedChecklists,
@@ -89,6 +90,21 @@ export function useSubmitChecklist(stationId: string) {
       qc.invalidateQueries({ queryKey: ['station', stationId] })
       qc.invalidateQueries({ queryKey: ['stations', 'summary'] })
       qc.invalidateQueries({ queryKey: ['checklists', 'rejected'] })
+    },
+  })
+}
+
+// Self-unsubmit — pulls the auditor's own SUBMITTED checklist back to DRAFT. Invalidates both the
+// station-scoped queries (draft/latest, for when the auditor navigates back into /audit) and the
+// my-work list/detail (so the row's status updates without a manual refresh).
+export function useUnsubmitChecklist(stationId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (checklistId: string) => unsubmitChecklist(stationId, checklistId),
+    onSuccess: (_data, checklistId) => {
+      qc.invalidateQueries({ queryKey: ['checklist', stationId] })
+      qc.invalidateQueries({ queryKey: ['checklists', 'mine'] })
+      qc.invalidateQueries({ queryKey: ['checklists', 'mine', 'detail', checklistId] })
     },
   })
 }

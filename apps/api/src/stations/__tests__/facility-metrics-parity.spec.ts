@@ -111,6 +111,7 @@ describe('computeFacilityMetrics — parity with the two inline formulas it repl
     expect(result).toEqual({
       total: 0, hasItem: 0, meetsStandard: 0,
       pctSuccess: 0, pctHasFacility: 0, pctMeetsStandard: 0,
+      facilityEligible: 0,
     })
     expect(dashboardFormula([])).toMatchObject({ total: 0, hasItem: 0, meetsStd: 0, pctSuccess: 0, pctHas: 0, pctStd: 0 })
     expect(stationPageFormula(asGroups([]))).toMatchObject({ T: 0, miCount: 0, standardCount: 0, pctSuccess: 0, pctHasFacility: 0, pctMeetsStandard: 0 })

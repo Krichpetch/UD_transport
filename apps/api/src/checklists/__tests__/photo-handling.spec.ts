@@ -85,6 +85,72 @@ describe('ChecklistsService — Part C.1 photo limit', () => {
   })
 })
 
+describe('ChecklistsService — Part C (auditor self-unsubmit/summary session) per-photo caption', () => {
+  let service: ChecklistsService
+  const checklistCreate = jest.fn()
+  const checklistFindFirst = jest.fn()
+  const findOne = jest.fn()
+  const templateFindFirst = jest.fn()
+
+  beforeEach(async () => {
+    jest.clearAllMocks()
+    checklistFindFirst.mockResolvedValue(null)
+    checklistCreate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'cl1', ...data }))
+    findOne.mockResolvedValue({ id: 's1', mode: 'ทางบก', railSubtype: null, yearBuilt: 2560 })
+    templateFindFirst.mockResolvedValue(null)
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        ChecklistsService,
+        {
+          provide: PrismaService,
+          useValue: {
+            checklist: { create: checklistCreate, findFirst: checklistFindFirst },
+            checklistTemplate: { findFirst: templateFindFirst },
+          },
+        },
+        { provide: StationsService, useValue: { findOne } },
+        { provide: AuditLogService, useValue: { log: jest.fn() } },
+        { provide: MinioService, useValue: { getPresignedUrl: jest.fn(), remove: jest.fn() } },
+      ],
+    }).compile()
+
+    service = moduleRef.get(ChecklistsService)
+  })
+
+  it('round-trips a photo carrying a caption, unmangled, through validation', async () => {
+    const items = [{ groupId: 'A1', groupName: 'A1', items: [
+      { id: 'A1.1', labelTh: 'x', value: 'มี', meetsStandard: true, photos: [{ ...photo('p1'), caption: 'ป้ายบังตำแหน่งเครื่องวัด' }] },
+    ] }]
+    const result = await service.saveDraft('s1', 'u1', items)
+    const storedPhotos = (result.items as { items: { photos: { caption?: string }[] }[] }[])[0]!.items[0]!.photos
+    expect(storedPhotos[0]!.caption).toBe('ป้ายบังตำแหน่งเครื่องวัด')
+  })
+
+  it('still accepts a caption-less legacy photo — the field is genuinely optional', async () => {
+    const items = [{ groupId: 'A1', groupName: 'A1', items: [
+      { id: 'A1.1', labelTh: 'x', value: 'มี', meetsStandard: true, photos: [photo('p1')] },
+    ] }]
+    const result = await service.saveDraft('s1', 'u1', items)
+    const storedPhotos = (result.items as { items: { photos: { caption?: string }[] }[] }[])[0]!.items[0]!.photos
+    expect(storedPhotos[0]!.caption).toBeUndefined()
+  })
+
+  it('rejects a malformed photo (missing url) — the shape is now actually validated, not an unchecked cast', async () => {
+    const items = [{ groupId: 'A1', groupName: 'A1', items: [
+      { id: 'A1.1', labelTh: 'x', value: 'มี', meetsStandard: true, photos: [{ id: 'p1', filename: 'p1.jpg', uploadedAt: '2026-07-01T00:00:00.000Z' }] },
+    ] }]
+    await expect(service.saveDraft('s1', 'u1', items)).rejects.toThrow()
+  })
+
+  it('rejects a caption of the wrong type', async () => {
+    const items = [{ groupId: 'A1', groupName: 'A1', items: [
+      { id: 'A1.1', labelTh: 'x', value: 'มี', meetsStandard: true, photos: [{ ...photo('p1'), caption: 123 }] },
+    ] }]
+    await expect(service.saveDraft('s1', 'u1', items)).rejects.toThrow()
+  })
+})
+
 describe('ChecklistsService — Part C.4 refreshPhotoUrls on read paths', () => {
   let service: ChecklistsService
   const checklistFindFirst = jest.fn()
@@ -127,6 +193,20 @@ describe('ChecklistsService — Part C.4 refreshPhotoUrls on read paths', () => 
     expect(result!.items).toEqual([{ groupId: 'A1', groupName: 'A1', items: [
       { id: 'A1.1', labelTh: 'x', value: 'มี', photos: [{ ...photo('checklist-photos/abc.jpg'), url: 'https://fresh.example/checklist-photos/abc.jpg' }] },
     ] }])
+  })
+
+  // Part C (auditor self-unsubmit/summary session) — refreshPhotoUrls only ever overwrites `url`
+  // (see its own `{ ...p, url: ... }` spread); a caption must survive the re-presign exactly like
+  // every other field on the photo already does.
+  it('re-presigning a photo preserves its caption unchanged', async () => {
+    const withCaption = [{ groupId: 'A1', groupName: 'A1', items: [
+      { id: 'A1.1', labelTh: 'x', value: 'มี', photos: [{ ...photo('checklist-photos/abc.jpg', 'https://stale.example/one-hour-ago'), caption: 'มุมนี้บังป้าย' }] },
+    ] }]
+    checklistFindFirst.mockResolvedValue({ id: 'd1', items: withCaption })
+    const result = await service.findDraft('s1', 'u1')
+    const storedPhotos = (result!.items as { items: { photos: { caption?: string; url: string }[] }[] }[])[0]!.items[0]!.photos
+    expect(storedPhotos[0]!.caption).toBe('มุมนี้บังป้าย')
+    expect(storedPhotos[0]!.url).toBe('https://fresh.example/checklist-photos/abc.jpg')
   })
 
   it('findLatest re-presigns photos on the returned checklist', async () => {

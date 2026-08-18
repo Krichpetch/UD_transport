@@ -83,7 +83,7 @@ describe('StationsService.computeMetrics', () => {
     expect(result).toEqual({
       totalStations: 0,
       evaluatedStations: 0,
-      metrics: { total: 0, hasItem: 0, meetsStandard: 0, pctSuccess: 0, pctHasFacility: 0, pctMeetsStandard: 0 },
+      metrics: { total: 0, hasItem: 0, meetsStandard: 0, pctSuccess: 0, pctHasFacility: 0, pctMeetsStandard: 0, facilityEligible: 0 },
       appliedFilters: { mode: 'ทางอากาศ' },
       failingStations: [],
     })
