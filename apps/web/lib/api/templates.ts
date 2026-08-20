@@ -275,6 +275,24 @@ export function activateTemplate(templateId: string, force = false) {
   return api.post<TemplateDetail>(`/admin/templates/${templateId}/activate`, { force })
 }
 
+// One in-progress draft that activating this template would leave unhydrated. `answered`/`total`
+// is a leaf tally off the stored answers (not a re-scored value); dates are ISO strings.
+export interface DraftAtRisk {
+  checklistId: string
+  stationNameTh: string
+  province: string
+  auditorName: string
+  answered: number
+  total: number
+  templateVersion: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export function getDraftsAtRisk(templateId: string) {
+  return api.get<DraftAtRisk[]>(`/admin/templates/${templateId}/drafts-at-risk`)
+}
+
 export function editLabel(templateId: string, nodeCode: string, body: { labelTh: string; num?: string }) {
   return api.patch<{ id: string; definition: ChecklistTemplateDefinition }>(
     `/admin/templates/${templateId}/nodes/${encodeURIComponent(nodeCode)}/label`,

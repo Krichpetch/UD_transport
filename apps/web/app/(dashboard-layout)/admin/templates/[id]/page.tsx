@@ -5,9 +5,9 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { TemplateNode } from '@repo/types'
 import { indexTemplateNodesByCode } from '@repo/types'
-import { ArrowLeft, Copy, Download, Loader2, Plus, Rocket } from 'lucide-react'
+import { ArrowLeft, Copy, Download, Loader2, Plus, Rocket, Users } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
-import { useActivateTemplate, useCloneToDraft, useTemplateDetail } from '@/hooks/use-templates-admin'
+import { useActivateTemplate, useCloneToDraft, useDraftsAtRisk, useTemplateDetail } from '@/hooks/use-templates-admin'
 import { useFacilityGroups } from '@/hooks/use-facility-groups'
 import { GROUPED_EDITOR_VERSION, flattenLeafNodes } from '@/lib/api/facility-groups'
 import { exportTemplate } from '@/lib/api/templates'
@@ -40,6 +40,8 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
   const [exporting, setExporting] = React.useState(false)
   const [activateOpen, setActivateOpen] = React.useState(false)
   const [atRisk, setAtRisk] = React.useState<{ stations: string[]; count: number } | null>(null)
+  const [draftsDetailOpen, setDraftsDetailOpen] = React.useState(false)
+  const draftsAtRisk = useDraftsAtRisk(id, draftsDetailOpen)
   const [addingTopLevel, setAddingTopLevel] = React.useState(false)
 
   // Session S4b-fix, Fix 4 — the grouped editor is v3-only, so this lookup is only meaningful (and
@@ -318,10 +320,23 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
               {data.variantKey === 'standard' ? 'มาตรฐาน' : data.variantKey}) เห็นในการตรวจครั้งถัดไปทันที
               เวอร์ชันที่ใช้งานอยู่ปัจจุบัน (ถ้ามี) จะถูกเปลี่ยนสถานะเป็นเลิกใช้โดยอัตโนมัติ
             </p>
+            <p className="text-muted-foreground rounded-lg bg-secondary/40 p-2.5 text-xs">
+              งานที่ผู้ตรวจ<strong className="text-foreground">ส่งแล้ว</strong>จะไม่ได้รับผลกระทบ —
+              จะยังเปิดดูได้ตามเวอร์ชันเดิมที่ใช้ตรวจเสมอ ผลกระทบมีเฉพาะ<strong className="text-foreground">แบบร่างที่ยังตรวจไม่เสร็จ</strong>เท่านั้น
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setDraftsDetailOpen(true)}
+              className="border-border bg-card hover:bg-secondary/60 flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium"
+            >
+              <Users size={14} />
+              ดูแบบร่างที่ได้รับผลกระทบ
+            </button>
 
             {atRisk && (
               <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-red-600">
-                <p className="font-medium">⚠ มีแบบตรวจค้างอยู่ {atRisk.count} รายการที่ใช้แบบประเมินเวอร์ชันอื่นของสถานีประเภทนี้</p>
+                <p className="font-medium">⚠ มีแบบร่างที่ยังตรวจไม่เสร็จ {atRisk.count} รายการบนแบบประเมินเวอร์ชันอื่นของสถานีประเภทนี้</p>
                 {atRisk.stations.length > 0 && (
                   <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
                     {atRisk.stations.map((name, i) => (
@@ -333,8 +348,8 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
                   <p className="mt-1">…และอีก {atRisk.count - atRisk.stations.length} รายการ</p>
                 )}
                 <p className="mt-2">
-                  ผู้ตรวจเหล่านี้จะเห็นแบบใหม่โดยคำตอบเดิมไม่ถูกโหลด แนะนำให้รอจนกว่าจะส่งงานหรือยกเลิกแบบร่างก่อน
-                  หรือกดยืนยันอีกครั้งเพื่อเปิดใช้งานทันที
+                  ผู้ตรวจเหล่านี้จะเห็นแบบใหม่แทน โดยคำตอบเดิมยังไม่ถูกลบแต่จะไม่ถูกโหลดกลับมาบนแบบใหม่
+                  แนะนำให้รอจนกว่าจะส่งงานหรือยกเลิกแบบร่างก่อน หรือกดยืนยันอีกครั้งเพื่อเปิดใช้งานทันที
                 </p>
               </div>
             )}
@@ -359,6 +374,90 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
               >
                 {activateTemplate.isPending ? <Loader2 size={15} className="animate-spin" /> : <Rocket size={15} />}
                 {atRisk ? 'เปิดใช้งานต่อไป (บังคับ)' : 'ยืนยันเปิดใช้งาน'}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detail behind "ดูแบบร่างที่ได้รับผลกระทบ" — the in-progress drafts a version switch would
+          leave unhydrated, with the info the admin needs to decide whether to wait: station,
+          auditor, progress, and last-edited time. Data is never deleted by activation; this list
+          is who to coordinate with. */}
+      <Dialog open={draftsDetailOpen} onOpenChange={setDraftsDetailOpen}>
+        <DialogContent className="max-w-2xl">
+          <div className={`${DIALOG_HEADER_CLS} -mx-6 -mt-6 mb-4`}>
+            <DialogTitle className={DIALOG_TITLE_CLS}>แบบร่างที่ได้รับผลกระทบ</DialogTitle>
+          </div>
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground text-xs">
+              แบบร่างที่ยังตรวจไม่เสร็จบนแบบประเมินเวอร์ชันอื่นของ <TransportBadge type={data.mode} /> (
+              {data.variantKey === 'standard' ? 'มาตรฐาน' : data.variantKey}) หากเปิดใช้งานเวอร์ชัน {data.version} ตอนนี้
+              ผู้ตรวจเหล่านี้จะเห็นแบบใหม่แทน โดยคำตอบเดิมยังไม่ถูกลบแต่จะไม่ถูกโหลดกลับมา
+            </p>
+
+            {draftsAtRisk.isLoading && (
+              <div className="text-muted-foreground flex items-center justify-center gap-2 py-8 text-xs">
+                <Loader2 size={15} className="animate-spin" /> กำลังโหลด…
+              </div>
+            )}
+            {draftsAtRisk.isError && (
+              <p className="text-red-500 text-xs">{(draftsAtRisk.error as Error).message}</p>
+            )}
+            {draftsAtRisk.data && draftsAtRisk.data.length === 0 && (
+              <div className="text-muted-foreground rounded-lg border border-dashed py-8 text-center text-xs">
+                ไม่มีแบบร่างที่ได้รับผลกระทบ — เปิดใช้งานได้ทันที
+              </div>
+            )}
+            {draftsAtRisk.data && draftsAtRisk.data.length > 0 && (
+              <div className="max-h-[55vh] overflow-auto rounded-lg border">
+                <table className="w-full text-xs">
+                  <thead className="bg-secondary/60 text-muted-foreground sticky top-0">
+                    <tr className="text-left">
+                      <th className="px-3 py-2 font-medium">สถานี</th>
+                      <th className="px-3 py-2 font-medium">ผู้ตรวจ</th>
+                      <th className="px-3 py-2 font-medium">ความคืบหน้า</th>
+                      <th className="px-3 py-2 font-medium">เวอร์ชัน</th>
+                      <th className="px-3 py-2 font-medium">แก้ไขล่าสุด</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {draftsAtRisk.data.map((d) => {
+                      const pct = d.total > 0 ? Math.round((d.answered / d.total) * 100) : 0
+                      return (
+                        <tr key={d.checklistId} className="border-t">
+                          <td className="px-3 py-2">
+                            <div className="font-medium">{d.stationNameTh}</div>
+                            <div className="text-muted-foreground">{d.province}</div>
+                          </td>
+                          <td className="px-3 py-2">{d.auditorName}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <div className="bg-secondary h-1.5 w-16 overflow-hidden rounded-full">
+                                <div className="bg-primary h-full rounded-full" style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="text-muted-foreground whitespace-nowrap">
+                                {d.answered}/{d.total} ({pct}%)
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">{d.templateVersion ?? '—'}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{new Date(d.updatedAt).toLocaleString('th-TH')}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setDraftsDetailOpen(false)}
+                className="border-border bg-card hover:bg-secondary/60 rounded-lg border px-3.5 py-2 text-sm font-medium"
+              >
+                ปิด
               </button>
             </div>
           </div>

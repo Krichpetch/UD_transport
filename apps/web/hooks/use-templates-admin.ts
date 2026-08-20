@@ -124,6 +124,18 @@ export function useActivateTemplate(templateId: string) {
   })
 }
 
+// On-demand fetch of the in-progress drafts a version switch would leave unhydrated. Gated by
+// `enabled` so it only fires when the admin opens the detail view, and never cached stale — the
+// set changes as auditors submit/abandon drafts, so activation decisions need a fresh read.
+export function useDraftsAtRisk(templateId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...templateKey(templateId), 'drafts-at-risk'],
+    queryFn: () => templatesApi.getDraftsAtRisk(templateId),
+    enabled,
+    staleTime: 0,
+  })
+}
+
 export function useEditLabel(templateId: string) {
   const invalidate = useInvalidateAfterEdit(templateId)
   return useMutation({

@@ -46,6 +46,43 @@ function toMasterPayload(master: MasterCriterion): MasterCriterionPayload {
   }
 }
 
+// Lightweight answered/total tally read straight off a stored Checklist.items blob — no template
+// lookup needed — for the admin's "how far along is this auditor" glance in the at-risk view. A
+// leaf is any stored node with no children; it counts toward `total` when it is answerable
+// (carries value/present/answerType, same test parseChecklistItems uses) and toward `answered`
+// when that value/present is definite. Excluded entirely (like scoring) when applicable === false.
+// Deliberately resilient rather than strict: a malformed historical row degrades to a lower count,
+// never throws — this is a read-only convenience number, not a correctness gate.
+function tallyDraftProgress(items: unknown): { answered: number; total: number } {
+  let answered = 0
+  let total = 0
+  const visit = (nodes: unknown): void => {
+    if (!Array.isArray(nodes)) return
+    for (const raw of nodes) {
+      if (!raw || typeof raw !== 'object') continue
+      const node = raw as Record<string, unknown>
+      const children = node.subItems
+      if (Array.isArray(children) && children.length > 0) {
+        visit(children)
+        continue
+      }
+      if (node.applicable === false) continue
+      const answerable = node.value !== undefined || node.present !== undefined || node.answerType !== undefined
+      if (!answerable) continue
+      total++
+      const hasValue = node.value !== undefined && node.value !== null
+      const hasPresent = node.present !== undefined && node.present !== null
+      if (hasValue || hasPresent) answered++
+    }
+  }
+  if (Array.isArray(items)) {
+    for (const g of items) {
+      if (g && typeof g === 'object') visit((g as Record<string, unknown>).items)
+    }
+  }
+  return { answered, total }
+}
+
 // Three audit-action names for W2-S3a (Parts B/C/E): value edits and guidance text share
 // TEMPLATE_THRESHOLD_EDIT (Part E: "audit-logged under the threshold-edit action family"), era
 // overrides get their own TEMPLATE_ERA_EDIT (Part C.2), image attach/detach get their own
@@ -272,15 +309,11 @@ export class TemplatesAdminService {
       where: { status: 'DRAFT' },
       select: { id: true, templateId: true, station: { select: { nameTh: true, mode: true, railSubtype: true } } },
     })
-    const atRisk = drafts.filter((d) => {
-      if (!d.station) return false
-      const { variantKey } = resolveVariantKey(d.station.mode as TransportMode, d.station.railSubtype)
-      return d.station.mode === row.mode && variantKey === row.variantKey && d.templateId !== row.id
-    })
+    const atRisk = drafts.filter((d) => this.draftAtRisk(d, row))
     if (atRisk.length > 0 && !force) {
       throw new ConflictException({
         code: 'DRAFTS_AT_RISK',
-        message: `มีแบบตรวจค้างอยู่ ${atRisk.length} รายการที่ใช้แบบประเมินเวอร์ชันอื่นของ ${row.mode} (${row.variantKey}) — เปิดใช้งานตอนนี้จะทำให้ผู้ตรวจเห็นแบบใหม่โดยคำตอบเดิมไม่ถูกโหลด`,
+        message: `มีแบบร่างที่ยังตรวจไม่เสร็จ ${atRisk.length} รายการบนแบบประเมินเวอร์ชันอื่นของ ${row.mode} (${row.variantKey}) — เปิดใช้งานตอนนี้ผู้ตรวจจะเห็นแบบใหม่แทน โดยคำตอบเดิมยังไม่ถูกลบแต่จะไม่ถูกโหลดกลับมาบนแบบใหม่ (งานที่ส่งแล้วไม่ได้รับผลกระทบ)`,
         stations: atRisk.slice(0, 10).map((d) => d.station!.nameTh),
         count: atRisk.length,
       })
@@ -324,6 +357,62 @@ export class TemplatesAdminService {
     })
 
     return this.get(templateId)
+  }
+
+  // Shared predicate behind both the activation guardrail (count only, above) and the admin
+  // "ดูรายละเอียด" detail view (getDraftsAtRisk, below): a DRAFT is "at risk" from activating `row`
+  // when it belongs to the SAME (mode, variantKey) but was stamped to a DIFFERENT template.
+  // getTemplateForAudit resolves by (mode, variantKey), not by the draft's own templateId, so on
+  // next open that auditor would be handed the newly-activated form with their stored answers
+  // unhydrated. The stored answers are NEVER deleted — they stay on the draft row; they just don't
+  // re-render onto a form keyed to different item codes. A submitted checklist is never at risk:
+  // it renders against its own frozen templateId forever (see checklists.service#findMyChecklistDetail).
+  private draftAtRisk(
+    d: { templateId: string | null; station: { mode: string; railSubtype: string | null } | null },
+    row: { id: string; mode: string; variantKey: string },
+  ): boolean {
+    if (!d.station) return false
+    const { variantKey } = resolveVariantKey(d.station.mode as TransportMode, d.station.railSubtype)
+    return d.station.mode === row.mode && variantKey === row.variantKey && d.templateId !== row.id
+  }
+
+  // Read-only detail behind the activation dialog's "ดูแบบร่างที่ได้รับผลกระทบ" button — the
+  // in-progress DRAFT checklists that activating THIS template would leave unhydrated (same set the
+  // DRAFTS_AT_RISK guardrail counts, with the fields an admin needs to decide whether to wait:
+  // station, auditor, progress, and when the draft was last touched). Loads `items` per draft only
+  // here (never on the activate hot path) to tally progress without a template lookup.
+  async getDraftsAtRisk(templateId: string) {
+    const row = await this.loadRow(templateId)
+    const drafts = await this.prisma.checklist.findMany({
+      where: { status: 'DRAFT' },
+      select: {
+        id: true,
+        templateId: true,
+        templateVersion: true,
+        items: true,
+        createdAt: true,
+        updatedAt: true,
+        station: { select: { nameTh: true, province: true, mode: true, railSubtype: true } },
+        auditor: { select: { displayName: true, username: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    })
+    return drafts
+      .filter((d) => this.draftAtRisk(d, row))
+      .map((d) => {
+        const progress = tallyDraftProgress(d.items)
+        return {
+          checklistId: d.id,
+          stationNameTh: d.station!.nameTh,
+          province: d.station!.province,
+          auditorName: d.auditor?.displayName || d.auditor?.username || '—',
+          answered: progress.answered,
+          total: progress.total,
+          templateVersion: d.templateVersion,
+          createdAt: d.createdAt,
+          updatedAt: d.updatedAt,
+        }
+      })
   }
 
   async editLabel(templateId: string, nodeCode: string, dto: EditLabelDto, actorId: string) {

@@ -169,6 +169,15 @@ export class TemplatesAdminController {
     return this.templates.activateTemplate(id, req.user.id, body.force ?? false)
   }
 
+  // Read-only detail behind the activation dialog's "ดูแบบร่างที่ได้รับผลกระทบ" button — the
+  // in-progress drafts on OTHER versions of this template's (mode, variantKey) that a switch would
+  // leave unhydrated (same set the DRAFTS_AT_RISK guardrail counts).
+  @Get(':id/drafts-at-risk')
+  draftsAtRisk(@Param('id') id: string, @Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.templates.getDraftsAtRisk(id)
+  }
+
   @Patch(':id/nodes/:nodeCode/label')
   editLabel(
     @Param('id') id: string,
