@@ -77,19 +77,28 @@ export class ChecklistsService {
     return { ...cl, items: await this.refreshPhotoUrls(cl.items) }
   }
 
+  // templateDef is fetched and filtered here the same way findMyChecklistDetail does it (see that
+  // method's doc above) — the admin review screen drives the same real E-form readOnly controls
+  // the auditor's own review does, and needs the frozen template for the same reasons: labels,
+  // measurement units/thresholds, and admin-hidden nodes must not resurrect into the review.
   async findLatest(stationId: string) {
     const cl = await this.prisma.checklist.findFirst({
       where: { stationId, status: { in: [ChecklistStatus.SUBMITTED, ChecklistStatus.APPROVED, ChecklistStatus.REJECTED] } },
       orderBy: { submittedAt: 'desc' },
-      include: { auditor: { select: { username: true } } },
+      include: {
+        auditor: { select: { username: true } },
+        template: { select: { definition: true } },
+      },
     })
     if (!cl) return null
-    const { auditor, ...rest } = cl
+    const { auditor, template, ...rest } = cl
+    const rawDef = template?.definition as ChecklistTemplateDefinition | undefined
     return {
       ...rest,
       items: await this.refreshPhotoUrls(rest.items),
       auditorUsername: auditor?.username ?? null,
       respondsToChecklistId: await this.findResubmitSource(cl.id),
+      templateDef: rawDef ? filterHiddenItems(rawDef) : null,
     }
   }
 
@@ -99,7 +108,10 @@ export class ChecklistsService {
       orderBy: { createdAt: 'desc' },
       include: { auditor: { select: { id: true, username: true } } },
     })
-    return Promise.all(rows.map(async (cl) => ({ ...cl, items: await this.refreshPhotoUrls(cl.items) })))
+    return Promise.all(rows.map(async (cl) => {
+      const { auditor, ...rest } = cl
+      return { ...rest, items: await this.refreshPhotoUrls(rest.items), auditorUsername: auditor?.username ?? null }
+    }))
   }
 
   // Part E (W2-S1) — paginated variant for the admin station-detail History tab. A separate
@@ -122,7 +134,10 @@ export class ChecklistsService {
         },
       }),
     ])
-    const data = await Promise.all(rows.map(async (cl) => ({ ...cl, items: await this.refreshPhotoUrls(cl.items) })))
+    const data = await Promise.all(rows.map(async (cl) => {
+      const { auditor, ...rest } = cl
+      return { ...rest, items: await this.refreshPhotoUrls(rest.items), auditorUsername: auditor?.username ?? null }
+    }))
     return { data, total, page, totalPages: Math.max(1, Math.ceil(total / limit)) }
   }
 

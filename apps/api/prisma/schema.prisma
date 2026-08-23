@@ -11,6 +11,10 @@ enum UserRole {
   ADMIN
   AUDITOR
   EXECUTIVE
+  // Admin checklist-review refresh — an auditor who ALSO reviews/approves checklists + views
+  // dashboards, without the full ADMIN template/era/station/user-management surface. See
+  // apps/api/src/*/*.controller.ts's hand-coded role checks for exactly which routes admit it.
+  REVIEWER
 }
 
 enum ChecklistStatus {

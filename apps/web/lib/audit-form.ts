@@ -403,11 +403,28 @@ export function collectLeafPreview(nodes: TemplateNode[]): NavigatorLeafPreview[
 // see buildV2Pages below for how v2Pages itself is built. Progress figures reuse
 // countProgressForNodes, the exact same tally every progress display in this app already uses, so
 // the navigator can never disagree with them.
+// Admin checklist-review refresh — whether ANY node in this subtree (the node itself or any
+// descendant, at any depth) carries an admin review flag. reviewFlag can land on a container's
+// own stored node too (buildNode above gives every node a note/photos/reviewFlag slot regardless
+// of answerType), not just leaves, so this checks node.code itself before recursing.
+function hasFlaggedDescendant(nodes: TemplateNode[], flaggedCodes: Set<string>): boolean {
+  for (const n of nodes) {
+    if (flaggedCodes.has(n.code)) return true
+    if (n.subItems && hasFlaggedDescendant(n.subItems, flaggedCodes)) return true
+  }
+  return false
+}
+
+// `flaggedCodes` (optional) — when the caller is an admin review screen with access to
+// reviewFlag state (never the auditor's own /audit or my-work views, which have no such concept),
+// pages/sections containing a flagged item are marked so PageNavigatorTrigger can surface them —
+// letting the admin jump straight to what needs attention instead of paging through everything.
 export function buildNavPages(
   groups: ChecklistTemplateGroupDef[],
   isV1: boolean,
   v2Pages: { group: ChecklistTemplateGroupDef; item: TemplateNode }[],
   answers: AnswerMap,
+  flaggedCodes?: Set<string>,
 ): NavigatorPage[] {
   return isV1
     ? groups.map((g) => {
@@ -415,6 +432,7 @@ export function buildNavPages(
         return {
           code: g.code, label: groupDisplayName(g), answered: p.answered, total: p.total,
           leafItems: collectLeafPreview(g.items),
+          flagged: flaggedCodes ? hasFlaggedDescendant(g.items, flaggedCodes) : undefined,
           ...categoryLabel(g.code),
         }
       })
@@ -427,6 +445,7 @@ export function buildNavPages(
           answered: p.answered,
           total: p.total,
           leafItems: item.subItems && item.subItems.length > 0 ? collectLeafPreview(item.subItems) : undefined,
+          flagged: flaggedCodes ? hasFlaggedDescendant([item], flaggedCodes) : undefined,
           ...categoryLabel(group.code),
         }
       })

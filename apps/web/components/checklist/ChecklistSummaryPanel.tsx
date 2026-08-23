@@ -14,10 +14,18 @@ export function statusColor(score: number): string {
   return score >= 75 ? 'var(--status-pass)' : score >= 50 ? 'var(--status-warn)' : 'var(--status-fail)'
 }
 
-export function ChecklistSummaryPanel({ items, templateDef, score }: {
+// `size` — 'compact' (default, byte-for-byte the original sizing) is what the auditor's own
+// mobile screens (post-submit Screen D, my-work review) keep using unchanged; 'comfortable' bumps
+// every smaller-than-body size up to match the admin checklist-review table's own text-sm/text-xs
+// scale, for the admin summary page (stations/[id]/page.tsx) where there's no mobile-width
+// constraint forcing things small.
+type PanelSize = 'compact' | 'comfortable'
+
+export function ChecklistSummaryPanel({ items, templateDef, score, size = 'compact' }: {
   items: unknown
   templateDef: ChecklistTemplateDefinition | null
   score: number
+  size?: PanelSize
 }) {
   const histogram = buildHistogram(items, templateDef ?? undefined)
   const status = scoreToStatus(score)
@@ -26,12 +34,13 @@ export function ChecklistSummaryPanel({ items, templateDef, score }: {
     Array.isArray(items) ? (items as { groupId?: string; groupName?: string }[]) : [],
     templateDef ?? undefined,
   )
+  const comfortable = size === 'comfortable'
 
   return (
     <>
       <div className="text-center">
         <span className="text-4xl font-bold" style={{ color }}>{score}%</span>
-        <p className="mt-1 text-xs font-semibold" style={{ color }}>{status}</p>
+        <p className={`mt-1 font-semibold ${comfortable ? 'text-sm' : 'text-xs'}`} style={{ color }}>{status}</p>
       </div>
 
       <div className="mt-4 divide-y divide-border border-t border-border text-sm">
@@ -75,7 +84,7 @@ export function ChecklistSummaryPanel({ items, templateDef, score }: {
           so it's the one that's actually meaningful whenever nothing is eligible for a standard. */}
       {categoryBuckets.length > 0 && (
         <div className="mt-4 border-t border-border pt-4">
-          <p className="mb-2 text-xs font-semibold text-foreground">สรุปผลตามหมวดหมู่</p>
+          <p className={`mb-2 font-semibold text-foreground ${comfortable ? 'text-sm' : 'text-xs'}`}>สรุปผลตามหมวดหมู่</p>
           <div className="grid grid-cols-3 gap-2">
             {categoryBuckets.map((cat) => {
               const { total, hasItem, meetsStandard, facilityEligible } = cat.metrics
@@ -83,9 +92,9 @@ export function ChecklistSummaryPanel({ items, templateDef, score }: {
               const pct = Math.round(hasStandardConcept ? cat.metrics.pctSuccess : cat.metrics.pctHasFacility)
               return (
                 <div key={cat.value} className="rounded-lg bg-secondary/40 p-2.5 text-center">
-                  <p className="text-[10px] font-semibold text-muted-foreground">{cat.value}</p>
+                  <p className={`font-semibold text-muted-foreground ${comfortable ? 'text-xs' : 'text-[10px]'}`}>{cat.value}</p>
                   <p className="text-lg font-bold" style={{ color: statusColor(pct) }}>{pct}%</p>
-                  <p className="text-[9px] text-muted-foreground">
+                  <p className={`text-muted-foreground ${comfortable ? 'text-xs' : 'text-[9px]'}`}>
                     {hasStandardConcept ? `${meetsStandard}/${total}` : `${hasItem}/${facilityEligible}`}
                   </p>
                 </div>
@@ -100,20 +109,20 @@ export function ChecklistSummaryPanel({ items, templateDef, score }: {
           collapsed into one number — see the mini-dashboard comment above for why. */}
       {categoryBuckets.length > 0 && (
         <div className="mt-4 border-t border-border pt-4 text-left">
-          <p className="mb-2 text-xs font-semibold text-foreground">รายการตามหมวดหมู่</p>
+          <p className={`mb-2 font-semibold text-foreground ${comfortable ? 'text-sm' : 'text-xs'}`}>รายการตามหมวดหมู่</p>
           <div className="space-y-3">
             {categoryBuckets.map((cat) => (
               <div key={cat.value}>
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-foreground">{cat.label}</p>
-                  <p className="text-xs font-semibold text-muted-foreground">
+                  <p className={`font-medium text-foreground ${comfortable ? 'text-sm' : 'text-xs'}`}>{cat.label}</p>
+                  <p className={`font-semibold text-muted-foreground ${comfortable ? 'text-sm' : 'text-xs'}`}>
                     มี {cat.metrics.hasItem}{cat.metrics.total > 0 && <> · ได้มาตรฐาน {cat.metrics.meetsStandard}/{cat.metrics.total}</>}
                   </p>
                 </div>
                 {cat.groups.length > 1 && (
                   <div className="mt-1 space-y-1 pl-2">
                     {cat.groups.map((g) => (
-                      <div key={g.groupId} className="flex items-center justify-between text-[11px]">
+                      <div key={g.groupId} className={`flex items-center justify-between ${comfortable ? 'text-sm' : 'text-[11px]'}`}>
                         <span className="text-muted-foreground">{g.groupName}</span>
                         <span className="font-medium text-foreground">
                           มี {g.metrics.hasItem}{g.metrics.total > 0 && <> · ได้มาตรฐาน {g.metrics.meetsStandard}/{g.metrics.total}</>}

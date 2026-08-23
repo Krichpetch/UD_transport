@@ -16,9 +16,14 @@ const VISIBLE = 3
 //               เห็นชัดขึ้น"). These have to be legible at a glance on a phone WITHOUT tapping,
 //               so they render as a full-width grid of large tiles with every image visible —
 //               an instruction hidden behind a "+2" badge is an instruction nobody reads.
+//   'detail'   — the admin checklist-review table's detail row. Live feedback: the full-width
+//               'reference' grid read as too large there. size-16 tiles, every photo shown (no
+//               "+N" cap — unlike 'evidence' this isn't a cramped table cell) — matches PhotoPicker's
+//               OWN upload-preview tile size exactly, so a photo looks the same size reviewed here
+//               as it did when the auditor just uploaded it.
 //
-// Both variants keep the identical tap-to-open lightbox; only the inline presentation differs.
-export type PhotoGalleryVariant = 'evidence' | 'reference'
+// All three variants keep the identical tap-to-open lightbox; only the inline presentation differs.
+export type PhotoGalleryVariant = 'evidence' | 'reference' | 'detail'
 
 const VARIANT_STYLES: Record<PhotoGalleryVariant, { wrapper: string; tile: string; img: string }> = {
   evidence: {
@@ -34,6 +39,11 @@ const VARIANT_STYLES: Record<PhotoGalleryVariant, { wrapper: string; tile: strin
     // `contain`, not `cover`: a cropped diagram loses exactly the edges that carry the dimension
     // annotations these images exist to show.
     img:     'size-full object-contain',
+  },
+  detail: {
+    wrapper: 'flex flex-wrap gap-2',
+    tile:    'relative size-16 shrink-0 overflow-hidden rounded-lg border border-border shadow-sm',
+    img:     'size-full object-cover',
   },
 }
 
@@ -204,8 +214,9 @@ export function ChecklistPhotoGallery({ photos, onDelete, onCaptionChange, varia
   }
 
   const styles = VARIANT_STYLES[variant]
-  // Reference images are instructions: every one is shown, never collapsed behind a "+N".
-  const showAll  = variant === 'reference'
+  // Reference images are instructions, and 'detail' has the room a table cell doesn't — both show
+  // every photo, never collapsed behind a "+N". Only the dense 'evidence' strip caps + overflows.
+  const showAll  = variant === 'reference' || variant === 'detail'
   const visible  = showAll ? photos : photos.slice(0, VISIBLE)
   const overflow = showAll ? 0 : photos.length - VISIBLE
 

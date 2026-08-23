@@ -46,7 +46,6 @@ import {
   ChevronDown,
   ChevronsUpDown,
   Pencil,
-  Eye,
   MoreVertical,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -311,11 +310,12 @@ const PAGE_SIZE = 20
 type SortableCol = 'nameTh' | 'province' | 'responsibleAgency' | 'score' | 'status' | 'lastInspected'
 
 // ---- Page ----
-// Mutating controls (approve/reject/edit/import) live on this page — ADMIN-only, same
-// inner-guard pattern as users/page.tsx (redirects EXECUTIVE straight back to /dashboard).
+// Admin checklist-review refresh — REVIEWER admitted alongside ADMIN (she needs the approval-queue
+// tabs + approve button on this page); the add/edit/import controls stay hidden from her via the
+// isAdmin check further down, since the server still 403s those routes for her regardless.
 export default function StationsPage() {
   return (
-    <RequireRole roles={['ADMIN']}>
+    <RequireRole roles={['ADMIN', 'REVIEWER']}>
       <StationsPageContent />
     </RequireRole>
   )
@@ -323,6 +323,11 @@ export default function StationsPage() {
 
 function StationsPageContent() {
   const user = useAuthStore((s) => s.user)
+  // Admin checklist-review refresh — REVIEWER shares this page (approval tabs/table/filters) with
+  // ADMIN, but the station-management affordances (create/edit/bulk-import) stay ADMIN-only; the
+  // server already 403s those routes for her regardless (stations.controller.ts), this is UI
+  // hygiene so she isn't shown controls she can't actually use.
+  const isAdmin = user?.role === 'ADMIN'
   // Filters — declared before useStations so they can be passed as params
   // `search` is the live input value (updates every keystroke, keeps focus/UI responsive);
   // `debouncedSearch` is what actually drives the query, ~300ms after typing stops.
@@ -725,16 +730,18 @@ function StationsPageContent() {
             )}
             Export ทั้งหมด
           </button>
-          <button
-            onClick={() => {
-              setSheetOpen(true)
-              setSheetMode('single')
-            }}
-            className="bg-primary text-primary-foreground flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
-          >
-            <Building2 size={14} />
-            เพิ่มสถานี
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setSheetOpen(true)
+                setSheetMode('single')
+              }}
+              className="bg-primary text-primary-foreground flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+            >
+              <Building2 size={14} />
+              เพิ่มสถานี
+            </button>
+          )}
         </div>
       </div>
 
@@ -1079,19 +1086,14 @@ function StationsPageContent() {
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                {/* version=3 pins this to the latest checklist-migration-pipeline
-                                    template (nested sub-items, item-level pager) — the most
-                                    up-to-date draft, and the one actually worth previewing; the
-                                    ACTIVE template (v1, flat, no sub-items) is already fully
-                                    visible read-only via the "Checklist" item below. */}
-                                <Link href={`/audit?preview=1&version=3&station=${station.id}`}>
-                                  <Eye size={12} /> ดูตัวอย่างแบบประเมิน
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onSelect={() => setEditStation(station)}>
-                                <Pencil size={12} /> แก้ไข
-                              </DropdownMenuItem>
+                              {/* "ดูตัวอย่างแบบประเมิน" moved to the station's own checklist page
+                                  (stations/[id]/page.tsx) — it belongs next to the real submitted
+                                  answers it's being compared against, not in this list's row menu. */}
+                              {isAdmin && (
+                                <DropdownMenuItem onSelect={() => setEditStation(station)}>
+                                  <Pencil size={12} /> แก้ไข
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem asChild>
                                 <Link href={`/stations/${station.id}`}>
                                   <ClipboardList size={12} /> Checklist

@@ -22,7 +22,17 @@ export interface ChecklistRecord {
   proximityBypassed: boolean | null
   finalThoughts?: string | null
   appliedYearBuilt?: number | null
+  appliedYearBuiltDate?: string | null
   appliedLawRefs?: Record<string, string> | null
+  // Start-of-inspection proximity trail — distinct from the submit-time gps*/locationVerified/
+  // proximityBypassed fields above (see schema.prisma's doc): the system can prove presence at
+  // START, not throughout (Open Decision #17).
+  startGpsLat?: number | null
+  startGpsLng?: number | null
+  startGpsAccuracy?: number | null
+  startGpsDistanceM?: number | null
+  startLocationVerified?: boolean | null
+  startProximityBypassed?: boolean | null
   // Session E3, Part B.4 — set when this checklist is a resubmission, either fixing a rejection
   // or following the auditor's own self-unsubmit; the id of the prior checklist it responds to
   // (its `status` tells you which — REJECTED vs. DRAFT, see ResubmissionMarker), or null for an
@@ -34,6 +44,12 @@ export interface ChecklistRecord {
   // history list/detail. Never affects scoring/display logic beyond that badge — the underlying
   // record renders exactly like any other completed checklist.
   isTraining?: boolean
+  // Admin checklist-review refresh — the checklist's own FROZEN template (see
+  // checklists.service.ts#findLatest's doc, mirrors #findMyChecklistDetail), needed to drive the
+  // real readOnly E-form controls on the admin review screen. Only present on findLatest's
+  // response; other endpoints returning ChecklistRecord don't populate it. Null for a pre-E1
+  // pilot row with no templateId.
+  templateDef?: ChecklistTemplateDefinition | null
 }
 
 export interface PaginatedChecklistHistory {
@@ -52,8 +68,15 @@ export interface RejectedChecklistSummary {
   station: { nameTh: string; province: string; mode: string }
 }
 
+// Same empty-body quirk as getMyDraft below — ChecklistsService.findLatest returns `null` for a
+// station with no SUBMITTED/APPROVED/REJECTED checklist yet, but Nest serializes that as a
+// genuinely EMPTY response body (200, content-length 0), not JSON `null` — api.get's empty-body
+// handling (see request() in lib/api.ts) resolves this to `undefined`, not `null`. React Query
+// hard-rejects `undefined` query data ("Query data cannot be undefined"), which is exactly what
+// surfaced on the admin checklist-review page for any never-audited station. Coerced back to
+// `null` here, same fix/reasoning as getMyDraft.
 export function getLatestChecklist(stationId: string) {
-  return api.get<ChecklistRecord | null>(`/stations/${stationId}/checklist`)
+  return api.get<ChecklistRecord | null>(`/stations/${stationId}/checklist`).then((r) => r ?? null)
 }
 
 // 2026-08-06 — pre-existing, unrelated to the year-reload work: ChecklistsService.findDraft

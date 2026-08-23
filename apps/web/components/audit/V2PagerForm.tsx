@@ -47,13 +47,19 @@ function deriveChoice(status: ReturnType<typeof computeContainerStatus>): Contai
 // stored data — a pre-F3 draft, or a REJECTED checklist returned for fixes, whose descendants are
 // all N/A. Neither button lights up in that state, and clicking มี releases the subtree. Dropping
 // this branch would strand such a draft with a permanently collapsed, unanswerable subtree.
-function ContainerNode({ node, breadcrumb, disabled, readOnly = false }: {
+function ContainerNode({ node, breadcrumb, disabled, readOnly = false, getReviewFlag, onToggleFlag, isFlagPending }: {
   node: TemplateNode; breadcrumb: string[]; disabled: boolean
   // Live feedback follow-up ("look back on my submitted work") — see LeafAnswerRow's readOnly doc:
   // locks the มี/ไม่มี buttons without the `disabled` cascade's opacity dimming (a genuinely
   // answered container, not one auto-filled by an ancestor's ไม่มี). Threaded straight through to
   // every descendant unconditionally — there is no "read-only container, editable child" case.
   readOnly?: boolean
+  // Admin checklist-review refresh — accessor functions rather than a single value, since a
+  // container's page can hold many descendant leaves, each with its OWN reviewFlag (see
+  // LeafAnswerRow's reviewFlag doc). Threaded straight through, same as readOnly above.
+  getReviewFlag?: (code: string) => boolean
+  onToggleFlag?: (code: string) => void
+  isFlagPending?: (code: string) => boolean
 }) {
   const answers = useAuditFormStore((s) => s.answers)
   const stashAndCascade = useAuditFormStore((s) => s.stashAndCascade)
@@ -102,7 +108,7 @@ function ContainerNode({ node, breadcrumb, disabled, readOnly = false }: {
           {/* Part C.3 — a fully era-redacted child is never rendered as an answerable row (it's
               surfaced only in the per-group collapsed footer note, see the summary page). */}
           {node.subItems.filter((c) => !isNodeFullyRedacted(c)).map((c) => (
-            <CriterionNode key={c.code} node={c} breadcrumb={childBreadcrumb} disabled={disabled || childrenDisabledByParent} readOnly={readOnly} />
+            <CriterionNode key={c.code} node={c} breadcrumb={childBreadcrumb} disabled={disabled || childrenDisabledByParent} readOnly={readOnly} getReviewFlag={getReviewFlag} onToggleFlag={onToggleFlag} isFlagPending={isFlagPending} />
           ))}
         </div>
       )}
@@ -115,8 +121,11 @@ function ContainerNode({ node, breadcrumb, disabled, readOnly = false }: {
 // ContainerNode's buttons do — see LeafAnswerRow's handleSetAnswer). Part A default: children
 // always visible; ไม่มี keeps them visible+disabled. Session F3, Part B: a stored (legacy) N/A
 // still collapses them, but is no longer reachable from the form — see ContainerNode's doc.
-function LeafNode({ node, breadcrumb, disabled, readOnly = false }: {
+function LeafNode({ node, breadcrumb, disabled, readOnly = false, getReviewFlag, onToggleFlag, isFlagPending }: {
   node: TemplateNode; breadcrumb: string[]; disabled: boolean; readOnly?: boolean
+  getReviewFlag?: (code: string) => boolean
+  onToggleFlag?: (code: string) => void
+  isFlagPending?: (code: string) => boolean
 }) {
   const answer = useAuditFormStore((s) => s.answers[node.code])
   const isAbsent = node.answerType === 'choice' ? answer?.value === 'ไม่มี' : answer?.present === false
@@ -125,11 +134,19 @@ function LeafNode({ node, breadcrumb, disabled, readOnly = false }: {
 
   return (
     <div className={node.subItems ? 'border-b border-border last:border-0' : ''}>
-      <LeafAnswerRow node={node} disabled={disabled} readOnly={readOnly} breadcrumb={breadcrumb} />
+      <LeafAnswerRow
+        node={node}
+        disabled={disabled}
+        readOnly={readOnly}
+        breadcrumb={breadcrumb}
+        reviewFlag={getReviewFlag?.(node.code)}
+        onToggleFlag={onToggleFlag ? () => onToggleFlag(node.code) : undefined}
+        flagPending={isFlagPending?.(node.code)}
+      />
       {!isNA && node.subItems && (
         <div className="ml-4 border-l border-border pl-2">
           {node.subItems.filter((c) => !isNodeFullyRedacted(c)).map((c) => (
-            <CriterionNode key={c.code} node={c} breadcrumb={childBreadcrumb} disabled={disabled || isAbsent} readOnly={readOnly} />
+            <CriterionNode key={c.code} node={c} breadcrumb={childBreadcrumb} disabled={disabled || isAbsent} readOnly={readOnly} getReviewFlag={getReviewFlag} onToggleFlag={onToggleFlag} isFlagPending={isFlagPending} />
           ))}
         </div>
       )}
@@ -137,17 +154,29 @@ function LeafNode({ node, breadcrumb, disabled, readOnly = false }: {
   )
 }
 
-function CriterionNode({ node, breadcrumb, disabled, readOnly = false }: {
+function CriterionNode({ node, breadcrumb, disabled, readOnly = false, getReviewFlag, onToggleFlag, isFlagPending }: {
   node: TemplateNode; breadcrumb: string[]; disabled: boolean; readOnly?: boolean
+  getReviewFlag?: (code: string) => boolean
+  onToggleFlag?: (code: string) => void
+  isFlagPending?: (code: string) => boolean
 }) {
-  if (node.answerType) return <LeafNode node={node} breadcrumb={breadcrumb} disabled={disabled} readOnly={readOnly} />
-  return <ContainerNode node={node} breadcrumb={breadcrumb} disabled={disabled} readOnly={readOnly} />
+  if (node.answerType) return <LeafNode node={node} breadcrumb={breadcrumb} disabled={disabled} readOnly={readOnly} getReviewFlag={getReviewFlag} onToggleFlag={onToggleFlag} isFlagPending={isFlagPending} />
+  return <ContainerNode node={node} breadcrumb={breadcrumb} disabled={disabled} readOnly={readOnly} getReviewFlag={getReviewFlag} onToggleFlag={onToggleFlag} isFlagPending={isFlagPending} />
 }
 
-export function V2ItemPage({ item, groupLabel, readOnly = false }: { item: TemplateNode; groupLabel: string; readOnly?: boolean }) {
+export function V2ItemPage({ item, groupLabel, readOnly = false, getReviewFlag, onToggleFlag, isFlagPending }: {
+  item: TemplateNode
+  groupLabel: string
+  readOnly?: boolean
+  // Admin checklist-review refresh — see ContainerNode's doc above. Unused (all undefined) by the
+  // auditor's own read-only my-work view, so the flag toggle simply never renders there.
+  getReviewFlag?: (code: string) => boolean
+  onToggleFlag?: (code: string) => void
+  isFlagPending?: (code: string) => boolean
+}) {
   return (
     <div className="divide-y divide-border">
-      <CriterionNode node={item} breadcrumb={[groupLabel]} disabled={false} readOnly={readOnly} />
+      <CriterionNode node={item} breadcrumb={[groupLabel]} disabled={false} readOnly={readOnly} getReviewFlag={getReviewFlag} onToggleFlag={onToggleFlag} isFlagPending={isFlagPending} />
     </div>
   )
 }

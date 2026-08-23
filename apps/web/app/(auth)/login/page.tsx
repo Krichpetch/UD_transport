@@ -11,6 +11,9 @@ const ROLE_DESTINATIONS: Record<string, string> = {
   EXECUTIVE: '/dashboard',
   ADMIN: '/admin/overview',
   AUDITOR: '/audit',
+  // Admin checklist-review refresh — an auditor-reviewer lands in the field first, same as any
+  // other auditor; the review queue (/stations) is one tap away via the audit-layout header link.
+  REVIEWER: '/audit',
 }
 
 export default function LoginPage() {

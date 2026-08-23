@@ -37,14 +37,14 @@ export class StationsController {
 
   @Get('summary')
   summary(@Req() req: AuthRequest) {
-    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.stations.summary()
   }
 
   // Must come before @Get(':id') to avoid route conflict.
   @Get('metrics')
   metrics(@Query() query: MetricsQueryDto, @Req() req: AuthRequest) {
-    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     if (query.cabinetApproved !== undefined) {
       // TODO(executive-dashboard): wire when มติครม. field lands on Station.
       throw new NotImplementedException({
@@ -61,14 +61,14 @@ export class StationsController {
   // StationsService.findMapNodes for why this is exempt from findAll()'s 100-row cap.
   @Get('map-nodes')
   mapNodes(@Req() req: AuthRequest) {
-    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.stations.findMapNodes()
   }
 
   // Must come before @Get(':id') to avoid route conflict
   @Get('pending-reviews')
   pendingReviews(@Req() req: AuthRequest) {
-    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.stations.getPendingReviews()
   }
 
@@ -105,9 +105,9 @@ export class StationsController {
     @Query('sortOrder')       sortOrder?: string,
     @Query('includeTraining') includeTraining?: string,
   ) {
-    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
-    // The approval-state queue (SUBMITTED/REJECTED/APPROVED checklists) is an admin review tool.
-    if (checklistStatus && req.user.role !== 'ADMIN') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
+    // The approval-state queue (SUBMITTED/REJECTED/APPROVED checklists) is an admin/reviewer tool.
+    if (checklistStatus && req.user.role !== 'ADMIN' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     // Session S3b, Part A.4 — the "แสดงสถานีฝึกหัด" toggle is admin-only; an EXECUTIVE/AUDITOR
     // caller can never surface training fixtures through this endpoint regardless of query string.
     if (includeTraining === '1' && req.user.role !== 'ADMIN') throw new ForbiddenException()
@@ -125,13 +125,13 @@ export class StationsController {
   // Session S3b, Part A.5 — the 5 fixed tutorial stations for the auditor home's "แบบฝึกหัด" section.
   @Get('training-stations')
   trainingStations(@Req() req: AuthRequest) {
-    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.stations.findTrainingStations()
   }
 
   @Get('filters')
   getFilterOptions(@Req() req: AuthRequest) {
-    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.stations.getFilterOptions()
   }
 
@@ -146,7 +146,7 @@ export class StationsController {
     @Query('limit')       limit?: string,
     @Query('page')        page?: string,
   ) {
-    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.stations.searchSlim({
       q,
       mode,
@@ -166,7 +166,7 @@ export class StationsController {
     @Query('mode')        mode?: string,
     @Query('railSubtype') railSubtype?: string,
   ) {
-    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.stations.findLines({ mode, railSubtype })
   }
 
@@ -179,7 +179,7 @@ export class StationsController {
     @Query('lng')   lng?: string,
     @Query('limit') limit?: string,
   ) {
-    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     const latNum = lat ? parseFloat(lat) : NaN
     const lngNum = lng ? parseFloat(lng) : NaN
     if (isNaN(latNum) || isNaN(lngNum)) throw new BadRequestException('lat/lng required')
@@ -188,7 +188,7 @@ export class StationsController {
 
   @Get(':id')
   findOne(@Param('id') id: string, @Req() req: AuthRequest) {
-    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.stations.findOne(id)
   }
 
@@ -218,7 +218,7 @@ export class StationsController {
   // rest of this controller's mutations: build year is captured by the auditor in the field.
   @Patch(':id/year-built')
   async updateYearBuilt(@Param('id') id: string, @Body() dto: UpdateYearBuiltDto, @Req() req: AuthRequest) {
-    if (req.user.role !== 'ADMIN' && req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.stations.updateYearBuilt(id, dto.yearBuilt, req.user.id, dto.yearBuiltDate)
   }
 
@@ -235,7 +235,7 @@ export class StationsController {
     @Param('checklistId') checklistId: string,
     @Req() req: AuthRequest,
   ) {
-    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     const result = await this.stations.approveChecklist(stationId, checklistId)
     await this.auditLog.log({
       userId: req.user.id,
@@ -253,7 +253,7 @@ export class StationsController {
     @Body() body: { notes?: string },
     @Req() req: AuthRequest,
   ) {
-    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     const notes = (body.notes ?? '').trim()
     if (!notes) throw new BadRequestException('กรุณาระบุเหตุผลในการปฏิเสธ')
     const result = await this.stations.rejectChecklist(stationId, checklistId, notes)
@@ -275,7 +275,7 @@ export class StationsController {
     @Body() body: { reviewFlag?: boolean },
     @Req() req: AuthRequest,
   ) {
-    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     const reviewFlag = body.reviewFlag === true
     const { checklist, before, after } = await this.stations.setItemFlag(stationId, checklistId, itemId, reviewFlag)
     await this.auditLog.log({

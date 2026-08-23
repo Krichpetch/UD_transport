@@ -15,6 +15,9 @@ const ROLE_LABEL: Record<UserRole, string> = {
   ADMIN: 'ผู้ดูแลระบบ',
   AUDITOR: 'ผู้ตรวจสอบ',
   EXECUTIVE: 'ผู้บริหาร',
+  // Admin checklist-review refresh — an auditor who also reviews/approves checklists, without
+  // the full ADMIN template/station/user-management surface.
+  REVIEWER: 'ผู้ตรวจประเมิน-อนุมัติ',
 }
 
 function RoleBadge({ role }: { role: UserRole }) {
@@ -22,6 +25,7 @@ function RoleBadge({ role }: { role: UserRole }) {
     ADMIN: 'bg-violet-50 text-violet-700',
     AUDITOR: 'bg-blue-50 text-blue-700',
     EXECUTIVE: 'bg-amber-50 text-amber-700',
+    REVIEWER: 'bg-teal-50 text-teal-700',
   }
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${map[role]}`}>

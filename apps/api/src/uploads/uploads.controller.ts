@@ -39,7 +39,7 @@ export class UploadsController {
     @UploadedFile() file: Express.Multer.File,
     @Req() req: AuthRequest,
   ) {
-    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     if (!ALLOWED_MIME_TYPES.has(file.mimetype)) throw new BadRequestException('Invalid file type')
     const ext = file.originalname.split('.').pop() ?? 'jpg'
     const key = `checklist-photos/${randomBytes(16).toString('hex')}.${ext}`

@@ -21,7 +21,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!hydrated || !token) return null
 
   return (
-    <RequireRole roles={['ADMIN', 'EXECUTIVE']} redirectTo="/audit">
+    <RequireRole roles={['ADMIN', 'EXECUTIVE', 'REVIEWER']} redirectTo="/audit">
       <TooltipProvider>
         <SidebarProvider style={{ '--sidebar-width-icon': '4rem' } as React.CSSProperties}>
           <AppSidebar />

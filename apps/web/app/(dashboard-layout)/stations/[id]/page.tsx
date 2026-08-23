@@ -1,13 +1,12 @@
 'use client'
 
 import * as React from 'react'
-import { getChecklistTemplate } from '@/lib/constants'
 import { useStation } from '@/hooks/use-stations'
 import { useChecklist, useChecklistHistory, useChecklistHistoryPaginated } from '@/hooks/use-checklists'
 import { useApproveChecklist, useRejectChecklist, useSetItemFlag } from '@/hooks/use-stations'
 import { useQueryClient } from '@tanstack/react-query'
-import type { ChecklistGroup, ChecklistSubItem } from '@repo/types'
-import { buildHistogram, computeFacilityMetrics } from '@repo/types'
+import type { ChecklistGroup, ChecklistSubItem, ChecklistTemplateGroupDef, TemplateNode } from '@repo/types'
+import { buildHistogram, computeFacilityMetrics, computeScoreFromItems } from '@repo/types'
 import {
   ChevronLeft,
   Flag,
@@ -19,8 +18,14 @@ import {
   FileSpreadsheet,
   RotateCcw,
   StickyNote,
+  Eye,
 } from 'lucide-react'
 import { ChecklistPhotoGallery } from '@/components/checklist/ChecklistPhotoGallery'
+import { ChecklistSummaryPanel } from '@/components/checklist/ChecklistSummaryPanel'
+import { ChecklistAnswerTable } from '@/components/checklist/ChecklistAnswerTable'
+import { PageNavigatorTrigger, type NavigatorPage } from '@/components/audit/PageNavigator'
+import { useAuditFormStore } from '@/stores/audit-form.store'
+import { groupDisplayName, buildNavPages, buildV2Pages } from '@/lib/audit-form'
 import { useAuthStore } from '@/stores/auth.store'
 import { RequireRole } from '@/components/auth/require-role'
 import { countReviewFlags } from '@/lib/checklist-review-flags'
@@ -89,7 +94,10 @@ function ScoreCircle({ score }: { score: number }) {
   )
 }
 
-// ─── Checklist Row ────────────────────────────────────────────
+// ─── Legacy flat row (Checklist Row) — ONLY used for pre-E1 pilot rows with no frozen template
+// (checklist.templateDef === null). Every checklist submitted since the E-form redesign has one,
+// and gets the real paginated answer-review screen below instead. Kept byte-for-byte as the
+// pre-refresh admin grid so old pilot data keeps rendering exactly as it always has. ───
 function ChecklistRow({ item, onToggleFlag, flagPending }: {
   item: ChecklistSubItem; onToggleFlag: () => void; flagPending: boolean
 }) {
@@ -208,7 +216,7 @@ function ChecklistStatusBadge({ status }: { status: string }) {
     REJECTED: 'ถูกปฏิเสธ',
   }
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${map[status] ?? 'bg-secondary text-muted-foreground'}`}>
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${map[status] ?? 'bg-secondary text-muted-foreground'}`}>
       {label[status] ?? status}
     </span>
   )
@@ -234,15 +242,15 @@ function HistoryTab({ stationId, onViewCurrent }: { stationId: string; onViewCur
       ) : (
         <>
           <div className="themed-scrollbar overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="border-border bg-secondary/30 border-b">
-                  <th className="text-muted-foreground px-4 py-2.5 text-left font-medium uppercase tracking-wide">ผู้ตรวจ</th>
-                  <th className="text-muted-foreground px-3 py-2.5 text-left font-medium uppercase tracking-wide">สถานะ</th>
-                  <th className="text-muted-foreground px-3 py-2.5 text-right font-medium uppercase tracking-wide">คะแนน</th>
-                  <th className="text-muted-foreground px-3 py-2.5 text-left font-medium uppercase tracking-wide">ส่งเมื่อ</th>
-                  <th className="text-muted-foreground px-3 py-2.5 text-left font-medium uppercase tracking-wide">พิจารณาเมื่อ</th>
-                  <th className="text-muted-foreground px-4 py-2.5 text-left font-medium uppercase tracking-wide">แบบฟอร์ม</th>
+                  <th className="text-muted-foreground px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wide">ผู้ตรวจ</th>
+                  <th className="text-muted-foreground px-3 py-2.5 text-left text-xs font-medium uppercase tracking-wide">สถานะ</th>
+                  <th className="text-muted-foreground px-3 py-2.5 text-right text-xs font-medium uppercase tracking-wide">คะแนน</th>
+                  <th className="text-muted-foreground px-3 py-2.5 text-left text-xs font-medium uppercase tracking-wide">ส่งเมื่อ</th>
+                  <th className="text-muted-foreground px-3 py-2.5 text-left text-xs font-medium uppercase tracking-wide">พิจารณาเมื่อ</th>
+                  <th className="text-muted-foreground px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wide">แบบฟอร์ม</th>
                 </tr>
               </thead>
               <tbody>
@@ -256,10 +264,10 @@ function HistoryTab({ stationId, onViewCurrent }: { stationId: string; onViewCur
                         onClick={() => (isCurrent ? onViewCurrent() : setExpandedId(isExpanded ? null : cl.id))}
                         title={isCurrent ? 'ดูในแท็บรายการตรวจสอบ' : undefined}
                       >
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 font-medium text-foreground">
                           {cl.auditorUsername ?? '—'}
                           {isCurrent && (
-                            <span className="ml-1.5 rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-medium text-blue-700">
+                            <span className="ml-1.5 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
                               ล่าสุด
                             </span>
                           )}
@@ -318,16 +326,102 @@ function HistoryTab({ stationId, onViewCurrent }: { stationId: string; onViewCur
   )
 }
 
+// ─── Admin checklist-review refresh (post-launch, live-data fix) ──────────────────────────────
+// Generic, nesting-aware shapes for the stored `items` JSON — a checklist's real answer tree is
+// either flat v1 (ChecklistGroup[]/ChecklistSubItem[], structurally a subset of these) or a nested
+// v2/v3 StoredChecklistNode tree. Kept loose/local (mirrors my-work/[id]/page.tsx's own StoredNode/
+// StoredGroup) rather than importing the canonical StoredChecklistNode type, since this file only
+// needs the handful of fields the flag-lookup/legacy-render paths actually touch.
+interface StoredNode {
+  id: string
+  labelTh: string
+  reviewFlag?: boolean
+  subItems?: StoredNode[]
+}
+interface StoredGroup {
+  groupId: string
+  groupName: string
+  items: StoredNode[]
+}
+
+function findFlagNode(groups: StoredGroup[], code: string): StoredNode | undefined {
+  function visit(nodes: StoredNode[]): StoredNode | undefined {
+    for (const n of nodes) {
+      if (n.id === code) return n
+      if (n.subItems) {
+        const hit = visit(n.subItems)
+        if (hit) return hit
+      }
+    }
+    return undefined
+  }
+  for (const g of groups) {
+    const hit = visit(g.items)
+    if (hit) return hit
+  }
+  return undefined
+}
+
+function collectFlaggedLeaves(groups: StoredGroup[]): { id: string; labelTh: string }[] {
+  const out: { id: string; labelTh: string }[] = []
+  function visit(nodes: StoredNode[]) {
+    for (const n of nodes) {
+      if (n.reviewFlag) out.push({ id: n.id, labelTh: n.labelTh })
+      if (n.subItems) visit(n.subItems)
+    }
+  }
+  for (const g of groups) visit(g.items)
+  return out
+}
+
+// Live feedback follow-up — the RAW template fetched for review carries no per-audit redaction
+// (that only happens server-side, at submit time, keyed to THIS checklist's own frozen
+// appliedYearBuilt/appliedLawRefs — see StoredChecklistNode.applicable's doc). Rather than
+// re-deriving redaction from scratch client-side (risking a mismatch if law-reference data has
+// changed since this checklist was actually submitted), this copies the ALREADY-CORRECT, FROZEN
+// `applicable` flag from the stored answer nodes onto the matching template nodes by code —
+// exactly what was true when the auditor actually saw this form, guaranteed to match, never
+// re-derived. Unmatched nodes (shouldn't happen for a fully-submitted checklist) default to
+// applicable, the safe/visible default every other read path in this app already uses.
+// Mirrors my-work/[id]/page.tsx's identically-named helper — kept as a local copy rather than a
+// shared export, since the two pages' surrounding StoredNode shapes are independently local too.
+function withStoredApplicability(templateNodes: TemplateNode[], storedNodes: StoredNode[]): TemplateNode[] {
+  const byId = new Map(storedNodes.map((n) => [n.id, n]))
+  return templateNodes.map((t) => {
+    const s = byId.get(t.code)
+    return {
+      ...t,
+      applicable: (s as { applicable?: boolean } | undefined)?.applicable ?? true,
+      subItems: t.subItems ? withStoredApplicability(t.subItems, s?.subItems ?? []) : undefined,
+    }
+  })
+}
+
+function gpsTrailLabel(distanceM?: number | null, verified?: boolean | null, bypassed?: boolean | null): string | null {
+  if (bypassed) return 'ข้ามการตรวจสอบตำแหน่ง'
+  if (distanceM == null && verified == null) return null
+  return `${verified ? 'ยืนยันแล้ว' : 'ไม่ยืนยัน'}${distanceM != null ? ` (${Math.round(distanceM)} ม.)` : ''}`
+}
+
+// "จับไปที่รายการที่พบปัญหา" — whether `node` itself or any descendant carries `code`, used to
+// find which page (group, for v1; top-level item, for v2/v3) a flagged leaf lives on. Codes are
+// globally unique per template, so a single match is unambiguous.
+function nodeContainsCode(node: TemplateNode, code: string): boolean {
+  if (node.code === code) return true
+  return node.subItems?.some((c) => nodeContainsCode(c, code)) ?? false
+}
+
 // ─── Main Page ────────────────────────────────────────────────
-// Mutating controls (approve/reject/flag) live on this page — ADMIN-only, same inner-guard
-// pattern as users/page.tsx (redirects EXECUTIVE straight back to /dashboard).
+// Mutating controls on this page (approve/reject/flag) are all reviewer-appropriate — ADMIN and
+// REVIEWER both admitted; no control-hiding needed here the way stations/page.tsx needs one for
+// its ADMIN-only add/edit/import affordances.
 export default function StationChecklistPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
   return (
-    <RequireRole roles={['ADMIN']}>
+    <RequireRole roles={['ADMIN', 'REVIEWER']}>
       <StationChecklistPageContent params={params} />
     </RequireRole>
   )
@@ -341,42 +435,111 @@ function StationChecklistPageContent({
   const { id } = React.use(params)
   const { data: station, isLoading: stationLoading, error: stationError } = useStation(id)
   const { data: checklist } = useChecklist(id)
+  const user = useAuthStore((s) => s.user)
+  const isAdmin = user?.role === 'ADMIN'
   const qc = useQueryClient()
   const approveMutation = useApproveChecklist()
   const rejectMutation = useRejectChecklist()
   const flagMutation = useSetItemFlag()
 
-  const [groups, setGroups] = React.useState<ChecklistGroup[]>([])
+  const [items, setItems] = React.useState<StoredGroup[]>([])
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({})
   const [showNotesOnly, setShowNotesOnly] = React.useState(false)
   const [excelExporting, setExcelExporting] = React.useState(false)
-  const [flaggingId, setFlaggingId] = React.useState<string | null>(null)
+  const [flaggingCode, setFlaggingCode] = React.useState<string | null>(null)
   const [rejectOpen, setRejectOpen] = React.useState(false)
   const [rejectNotes, setRejectNotes] = React.useState('')
   const [pageTab, setPageTab] = React.useState<'checklist' | 'history'>('checklist')
+  // Admin checklist-review refresh — the summary is now page -1 of the SAME sequence as the item
+  // pages (0..totalPages-1), not a separate screen behind a "ดูคำตอบทั้งหมด" button. Lands here by
+  // default; ก่อนหน้า/ถัดไป and the navigator's pinned summary row all move through one continuous
+  // range instead of toggling a distinct view state.
+  const [currentPage, setCurrentPage] = React.useState(-1)
+  // Set by jumpToFlagged (sidebar's "รายการพบปัญหา" list) right after it changes currentPage —
+  // the scroll/highlight effect below picks it up once the target page's table has actually
+  // rendered into the DOM, then clears it so a later, unrelated page change never re-fires it.
+  const [scrollTargetCode, setScrollTargetCode] = React.useState<string | null>(null)
 
+  // Deliberately keyed on checklist?.id only — React Query hands back a new `checklist` object
+  // reference on every background refetch even when the data is unchanged, and re-seeding on
+  // every such reference change would clobber any flag-toggle update just written into local
+  // `items` state (see toggleFlag below) with the (possibly stale) refetched copy.
   React.useEffect(() => {
-    if (!station) return
-    setGroups(checklist?.items ?? getChecklistTemplate(station.mode))
-  }, [station?.id, checklist?.id])
+    if (!checklist) { setItems([]); return }
+    setItems((checklist.items as unknown as StoredGroup[]) ?? [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checklist?.id])
+
+  // Hydrates the SAME shared audit-form store /audit's editable pager reads from, exactly like
+  // the auditor's own my-work/[id] review does (see its doc) — safe for the identical reason: this
+  // is a read-only, one-shot snapshot, and /audit fully re-hydrates its own store on every mount.
+  //
+  // The "have I hydrated this checklist" guard reads the STORE'S OWN checklistId, not a local
+  // useRef (an earlier version used a ref here, and a ref survives React StrictMode's dev-mode
+  // double-invoke of effects while the store does not — the unmount-cleanup effect below calls
+  // resetForm() as part of that synthetic replay, wiping the store, but a ref-based guard would
+  // then wrongly think hydration already happened and skip re-hydrating, leaving the store
+  // permanently empty for that mount. Deriving the guard from the store's own state instead means
+  // it can never disagree with reality: if resetForm() wipes checklistId back to null, the guard
+  // correctly sees "not hydrated" and re-hydrates on the very next effect pass, regardless of what
+  // triggered the reset. This is what made the checklist review silently blank out on returning to
+  // an already-visited station's page.
+  const hydrate = useAuditFormStore((s) => s.hydrate)
+  const resetForm = useAuditFormStore((s) => s.reset)
+  const answers = useAuditFormStore((s) => s.answers)
+  const storeChecklistId = useAuditFormStore((s) => s.checklistId)
+  React.useEffect(() => {
+    if (!checklist?.templateDef || storeChecklistId === checklist.id) return
+    hydrate({
+      stationId: id,
+      templateDef: checklist.templateDef,
+      storedItems: checklist.items,
+      finalThoughts: checklist.finalThoughts ?? '',
+      yearBuilt: checklist.appliedYearBuilt ?? null,
+      eraUnresolved: false,
+      resumedFromDraft: false,
+      checklistId: checklist.id,
+    })
+  }, [checklist, id, hydrate, storeChecklistId])
+  React.useEffect(() => () => resetForm(), [resetForm])
+
+  // Fires once the target page's ChecklistAnswerTable has actually painted its rows (this effect
+  // runs after the SAME render that changed currentPage commits, so the child's new `nodes` are
+  // already in the DOM) — scrolls the flagged row into view and briefly rings it, then clears
+  // itself so an unrelated later page change never re-triggers on a stale target.
+  React.useEffect(() => {
+    if (!scrollTargetCode) return
+    const el = document.querySelector<HTMLElement>(`[data-code="${scrollTargetCode}"]`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.add('ring-2', 'ring-orange-400')
+      const t = setTimeout(() => el.classList.remove('ring-2', 'ring-orange-400'), 2000)
+      setScrollTargetCode(null)
+      return () => clearTimeout(t)
+    }
+    setScrollTargetCode(null)
+  }, [scrollTargetCode, currentPage])
 
   // Persists to the server (there is no local-only flag state — a refresh must not lose it),
-  // then syncs the returned items back into local state so the UI updates immediately.
-  async function toggleFlag(groupId: string, itemId: string) {
-    if (!checklist?.id || flaggingId) return
-    const group = groups.find(g => g.groupId === groupId)
-    const item = group?.items.find(i => i.id === itemId)
-    if (!item) return
-    setFlaggingId(itemId)
+  // then syncs the returned items back into local state so the UI updates immediately. Keyed by
+  // node code (StoredChecklistNode.id === TemplateNode.code) — setItemFlag recurses subItems
+  // server-side, so this reaches a flag at any depth, not just top-level items.
+  async function toggleFlag(code: string) {
+    if (!checklist?.id || flaggingCode) return
+    const node = findFlagNode(items, code)
+    if (!node) return
+    setFlaggingCode(code)
     try {
       const updated = await flagMutation.mutateAsync({
-        stationId: id, checklistId: checklist.id, itemId, reviewFlag: !item.reviewFlag,
+        stationId: id, checklistId: checklist.id, itemId: code, reviewFlag: !node.reviewFlag,
       })
-      setGroups(updated.items)
+      setItems((updated.items as unknown as StoredGroup[]) ?? [])
     } finally {
-      setFlaggingId(null)
+      setFlaggingCode(null)
     }
   }
+  const getReviewFlag = React.useCallback((code: string) => !!findFlagNode(items, code)?.reviewFlag, [items])
+  const isFlagPending = React.useCallback((code: string) => flaggingCode === code, [flaggingCode])
 
   async function handleReject() {
     if (!checklist?.id || !rejectNotes.trim() || rejectMutation.isPending) return
@@ -407,19 +570,24 @@ function StationChecklistPageContent({
     }
   }
 
-  // ── Derived stats — same computeFacilityMetrics/buildHistogram used server-side,
-  // so this page always matches the stored station.score exactly (Phase 0 fix). ──
-  const allItems  = groups.flatMap(g => g.items)
-  const histogram = buildHistogram(groups)
-  const facility  = computeFacilityMetrics(groups)
+  // ── Derived stats — same computeFacilityMetrics/buildHistogram used server-side (now passed the
+  // checklist's own frozen templateDef too, for accurate presence_standard/era-redaction handling
+  // on real v2/v3 data), so this page always matches the stored station.score exactly (Phase 0
+  // fix), and countReviewFlags/collectFlaggedLeaves recurse into subItems so a flag set on a
+  // nested leaf still blocks approval (see checklist-review-flags.ts's doc). ──
+  const templateDef = checklist?.templateDef ?? undefined
+  const histogram = buildHistogram(items, templateDef)
+  const facility  = computeFacilityMetrics(items, templateDef)
   const maiMiCount    = histogram.none
   const naCount       = histogram.na
-  const flaggedCount  = countReviewFlags(groups)
+  const flaggedCount  = countReviewFlags(items)
+  const flaggedLeaves = collectFlaggedLeaves(items)
 
   // 6 metrics per CLAUDE.md
   const pctSuccess       = Math.round(facility.pctSuccess)
   const pctHasFacility   = Math.round(facility.pctHasFacility)
   const pctMeetsStandard = Math.round(facility.pctMeetsStandard)
+  const summaryScore = checklist?.score ?? (checklist ? computeScoreFromItems(checklist.items, templateDef) : 0)
 
   function toggleGroup(groupId: string) {
     setOpenGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }))
@@ -431,6 +599,40 @@ function StationChecklistPageContent({
   if (stationError || !station) return (
     <div className="flex items-center justify-center p-16 text-sm text-red-500">ไม่พบสถานี</div>
   )
+
+  const isV1 = checklist?.templateDef?.schemaVersion === 1
+  const resolvedGroups: ChecklistTemplateGroupDef[] | null = checklist?.templateDef
+    ? checklist.templateDef.groups.map((g) => {
+        const storedGroup = items.find((sg) => sg.groupId === g.code)
+        return { ...g, items: withStoredApplicability(g.items, storedGroup?.items ?? []) }
+      })
+    : null
+  const v2Pages = resolvedGroups && !isV1 ? buildV2Pages(resolvedGroups) : []
+  const totalPages = resolvedGroups ? (isV1 ? resolvedGroups.length : v2Pages.length) : 0
+  const flaggedCodeSet = new Set(flaggedLeaves.map((f) => f.id))
+  const navPages: NavigatorPage[] = resolvedGroups ? buildNavPages(resolvedGroups, isV1, v2Pages, answers, flaggedCodeSet) : []
+  const pagerGroup = resolvedGroups && isV1 ? resolvedGroups[currentPage] : null
+  const pagerV2 = !isV1 ? v2Pages[currentPage] : undefined
+
+  // Sidebar's "รายการพบปัญหา" list — jump straight to the page a flagged item lives on (v1: the
+  // group containing it; v2/v3: the top-level item whose subtree contains it), switching off the
+  // history tab first if that's where the admin happened to be. Silently no-ops if the code can't
+  // be found on any page (shouldn't happen — flaggedLeaves is derived from the same `items` tree).
+  function jumpToFlagged(code: string) {
+    const idx = isV1
+      ? (resolvedGroups?.findIndex((g) => g.items.some((it) => nodeContainsCode(it, code))) ?? -1)
+      : v2Pages.findIndex(({ item }) => nodeContainsCode(item, code))
+    if (idx === -1) return
+    setPageTab('checklist')
+    setCurrentPage(idx)
+    setScrollTargetCode(code)
+  }
+
+  const startGpsLabel = gpsTrailLabel(checklist?.startGpsDistanceM, checklist?.startLocationVerified, checklist?.startProximityBypassed)
+  const submitGpsLabel = gpsTrailLabel(checklist?.gpsDistanceM, checklist?.locationVerified, checklist?.proximityBypassed)
+  const appliedYearBuiltDateLabel = checklist?.appliedYearBuiltDate
+    ? new Date(checklist.appliedYearBuiltDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long' })
+    : null
 
   // ── Render ─────────────────────────────────────────────────
   return (
@@ -461,6 +663,20 @@ function StationChecklistPageContent({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Moved here from the stations list row menu — belongs next to the real submitted
+              answers it's being compared against. version=3 pins the latest
+              checklist-migration-pipeline draft template (nested sub-items, item-level pager);
+              server-gated ADMIN-only (checklists.controller.ts's preview/version query flags),
+              so hidden from REVIEWER rather than shown-then-403. */}
+          {isAdmin && (
+            <Link
+              href={`/audit?preview=1&version=3&station=${id}`}
+              className="border-border text-muted-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors"
+            >
+              <Eye size={13} />
+              ดูตัวอย่างแบบประเมิน
+            </Link>
+          )}
           <button
             onClick={handleExcelExport}
             disabled={excelExporting}
@@ -500,34 +716,18 @@ function StationChecklistPageContent({
       {pageTab === 'history' && <HistoryTab stationId={id} onViewCurrent={() => setPageTab('checklist')} />}
 
       {/* ── Body: table + sidebar ── */}
-      {pageTab === 'checklist' && (
+      {pageTab === 'checklist' && !checklist && (
+        <div className="bg-card border-border flex items-center justify-center rounded-xl border p-16 text-sm text-muted-foreground">
+          ยังไม่มีรายงานที่ส่งเข้ามาสำหรับสถานีนี้ (อาจยังไม่มีการตรวจ หรือกำลังกรอกฉบับร่างอยู่)
+        </div>
+      )}
+
+      {pageTab === 'checklist' && checklist && (
       <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
 
-        {/* ── Left: checklist table ── */}
+        {/* ── Left: checklist review ── */}
         <div className="space-y-4">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <h2 className="text-foreground font-semibold">
-                รายการตรวจสอบสิ่งอำนวยความสะดวก ({station.mode})
-              </h2>
-              <p className="text-muted-foreground text-xs mt-0.5">
-                ตามพจนานุกรมข้อมูล OTP (อัปเดต 17 เม.ย. 2566)
-              </p>
-            </div>
-            <button
-              onClick={() => setShowNotesOnly((v) => !v)}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                showNotesOnly
-                  ? 'border-transparent bg-primary text-primary-foreground'
-                  : 'border-border text-muted-foreground hover:bg-secondary'
-              }`}
-            >
-              <StickyNote size={12} />
-              แสดงเฉพาะรายการที่มีบันทึก
-            </button>
-          </div>
-
-          {checklist && (checklist.auditorUsername || checklist.submittedAt) && (
+          {(checklist.auditorUsername || checklist.submittedAt || checklist.appliedYearBuilt || startGpsLabel || submitGpsLabel) && (
             <div className="flex flex-wrap gap-x-5 gap-y-1 rounded-lg bg-secondary/60 px-3 py-2 text-xs text-muted-foreground">
               {checklist.auditorUsername && (
                 <span>ผู้ตรวจ: <strong className="text-foreground">{checklist.auditorUsername}</strong></span>
@@ -535,75 +735,192 @@ function StationChecklistPageContent({
               {checklist.submittedAt && (
                 <span>ส่งเมื่อ: <strong className="text-foreground">{new Date(checklist.submittedAt).toLocaleString('th-TH')}</strong></span>
               )}
+              {checklist.appliedYearBuilt && (
+                <span>
+                  ปีที่ใช้ตรวจ (พ.ศ.): <strong className="text-foreground">
+                    {checklist.appliedYearBuilt}{appliedYearBuiltDateLabel ? ` (${appliedYearBuiltDateLabel})` : ''}
+                  </strong>
+                </span>
+              )}
+              {startGpsLabel && (
+                <span>ตำแหน่งเริ่มตรวจ: <strong className="text-foreground">{startGpsLabel}</strong></span>
+              )}
+              {submitGpsLabel && (
+                <span>ตำแหน่งตอนส่ง: <strong className="text-foreground">{submitGpsLabel}</strong></span>
+              )}
             </div>
           )}
 
           {/* Session E3, Part B.4 — "resubmission of <link>" marker: expands to the prior
               rejection's own notes/date, resolved from this station's history by id. */}
-          {checklist?.respondsToChecklistId && (
+          {checklist.respondsToChecklistId && (
             <ResubmissionMarker stationId={id} respondsToChecklistId={checklist.respondsToChecklistId} />
           )}
 
-          {groups.map(group => {
-            const isOpen = openGroups[group.groupId] ?? true
-            const groupAnswered = group.items.filter(i => i.value !== null).length
-            const visibleItems = showNotesOnly ? group.items.filter(i => !!i.note) : group.items
-            if (showNotesOnly && visibleItems.length === 0) return null
-            return (
-              <div key={group.groupId} className="bg-card border-border overflow-hidden rounded-xl border">
-                {/* Group header */}
+          {!checklist.templateDef ? (
+            // ── Pre-E1 pilot row — no frozen template to drive the real answer controls against;
+            // the original flat grid is the only thing that ever worked for these and still does. ──
+            <>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h2 className="text-foreground font-semibold">
+                    รายการตรวจสอบสิ่งอำนวยความสะดวก ({station.mode})
+                  </h2>
+                  <p className="text-muted-foreground text-xs mt-0.5">
+                    ตามพจนานุกรมข้อมูล OTP (อัปเดต 17 เม.ย. 2566)
+                  </p>
+                </div>
                 <button
-                  onClick={() => toggleGroup(group.groupId)}
-                  className="flex w-full items-center justify-between bg-secondary/40 px-4 py-3 hover:bg-secondary/60 transition-colors"
+                  onClick={() => setShowNotesOnly((v) => !v)}
+                  className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    showNotesOnly
+                      ? 'border-transparent bg-primary text-primary-foreground'
+                      : 'border-border text-muted-foreground hover:bg-secondary'
+                  }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-foreground">{group.groupId}</span>
-                    <span className="text-sm font-semibold text-foreground">
-                      {group.groupName.replace(/^\([^)]+\)\s*-?\s*/, '')}
-                    </span>
-                    <span className="text-muted-foreground text-xs">
-                      ({groupAnswered}/{group.items.length})
-                    </span>
-                  </div>
-                  {isOpen
-                    ? <ChevronUp size={14} className="text-muted-foreground" />
-                    : <ChevronDown size={14} className="text-muted-foreground" />
-                  }
+                  <StickyNote size={12} />
+                  แสดงเฉพาะรายการที่มีบันทึก
                 </button>
+              </div>
 
-                {isOpen && (
-                  <>
-                    {/* Column headers */}
-                    <div className="grid grid-cols-[3rem_1fr_3.5rem_3.5rem_5rem_7rem_4rem] border-b border-border bg-secondary/20 px-0">
-                      {[
-                        { label: 'รหัส', cls: 'px-3 py-2' },
-                        { label: 'รายการ', cls: 'px-3 py-2' },
-                        { label: 'มี', cls: 'text-center py-2' },
-                        { label: 'ไม่มี', cls: 'text-center py-2' },
-                        { label: 'ได้มาตรฐาน', cls: 'text-center py-2' },
-                        { label: 'หลักฐาน', cls: 'text-center py-2' },
-                        { label: 'พบปัญหา', cls: 'text-center py-2 pr-3' },
-                      ].map(({ label, cls }) => (
-                        <div key={label} className={`text-muted-foreground text-[10px] font-medium uppercase tracking-wide ${cls}`}>
-                          {label}
+              {(items as unknown as ChecklistGroup[]).map(group => {
+                const isOpen = openGroups[group.groupId] ?? true
+                const groupAnswered = group.items.filter(i => i.value !== null).length
+                const visibleItems = showNotesOnly ? group.items.filter(i => !!i.note) : group.items
+                if (showNotesOnly && visibleItems.length === 0) return null
+                return (
+                  <div key={group.groupId} className="bg-card border-border overflow-hidden rounded-xl border">
+                    <button
+                      onClick={() => toggleGroup(group.groupId)}
+                      className="flex w-full items-center justify-between bg-secondary/40 px-4 py-3 hover:bg-secondary/60 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-foreground">{group.groupId}</span>
+                        <span className="text-sm font-semibold text-foreground">
+                          {group.groupName.replace(/^\([^)]+\)\s*-?\s*/, '')}
+                        </span>
+                        <span className="text-muted-foreground text-xs">
+                          ({groupAnswered}/{group.items.length})
+                        </span>
+                      </div>
+                      {isOpen
+                        ? <ChevronUp size={14} className="text-muted-foreground" />
+                        : <ChevronDown size={14} className="text-muted-foreground" />
+                      }
+                    </button>
+
+                    {isOpen && (
+                      <>
+                        <div className="grid grid-cols-[3rem_1fr_3.5rem_3.5rem_5rem_7rem_4rem] border-b border-border bg-secondary/20 px-0">
+                          {[
+                            { label: 'รหัส', cls: 'px-3 py-2' },
+                            { label: 'รายการ', cls: 'px-3 py-2' },
+                            { label: 'มี', cls: 'text-center py-2' },
+                            { label: 'ไม่มี', cls: 'text-center py-2' },
+                            { label: 'ได้มาตรฐาน', cls: 'text-center py-2' },
+                            { label: 'หลักฐาน', cls: 'text-center py-2' },
+                            { label: 'พบปัญหา', cls: 'text-center py-2 pr-3' },
+                          ].map(({ label, cls }) => (
+                            <div key={label} className={`text-muted-foreground text-[10px] font-medium uppercase tracking-wide ${cls}`}>
+                              {label}
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
 
-                    {/* Rows */}
-                    {visibleItems.map(item => (
-                      <ChecklistRow
-                        key={item.id}
-                        item={item}
-                        onToggleFlag={() => toggleFlag(group.groupId, item.id)}
-                        flagPending={flaggingId === item.id}
-                      />
-                    ))}
-                  </>
+                        {visibleItems.map(item => (
+                          <ChecklistRow
+                            key={item.id}
+                            item={item}
+                            onToggleFlag={() => toggleFlag(item.id)}
+                            flagPending={isFlagPending(item.id)}
+                          />
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )
+              })}
+            </>
+          ) : (
+            // ── Answer review — the summary is page -1 of ONE continuous sequence (see
+            // currentPage's doc above), not a separate screen behind a button. Real item pages
+            // (0..totalPages-1) render TABLE-shaped, readOnly, with the "พบปัญหา" flag toggle
+            // still live on every row — see ChecklistAnswerTable's doc for why a table, not the
+            // stacked-card LeafAnswerRow/V2ItemPage the auditor's own read-only review still uses.
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-muted-foreground">หน้า {currentPage + 2} / {totalPages + 1}</span>
+                <PageNavigatorTrigger
+                  pages={navPages}
+                  currentPage={currentPage}
+                  onJump={setCurrentPage}
+                  summaryLabel="สรุปผลการตรวจสอบ"
+                  onSummaryClick={() => setCurrentPage(-1)}
+                  isSummaryActive={currentPage === -1}
+                />
+              </div>
+
+              {currentPage === -1 && (
+                <div className="bg-card border-border rounded-xl border p-5">
+                  <h2 className="text-foreground mb-1 text-sm font-semibold">
+                    สรุปผลการตรวจสอบ ({station.mode})
+                  </h2>
+                  <ChecklistSummaryPanel items={items} templateDef={checklist.templateDef} score={summaryScore} size="comfortable" />
+                  {checklist.finalThoughts && (
+                    <p className="mt-4 border-l-2 border-blue-300 bg-blue-50/60 rounded-r px-3 py-2 text-xs italic text-muted-foreground">
+                      📝 ความคิดเห็นเพิ่มเติมจากผู้ตรวจ: {checklist.finalThoughts}
+                    </p>
+                  )}
+                </div>
+              )}
+              {isV1 && pagerGroup && (
+                <div className="space-y-2">
+                  <span className="block px-1 text-sm font-semibold text-foreground">{groupDisplayName(pagerGroup)}</span>
+                  <ChecklistAnswerTable
+                    nodes={pagerGroup.items}
+                    getReviewFlag={getReviewFlag}
+                    onToggleFlag={toggleFlag}
+                    isFlagPending={isFlagPending}
+                  />
+                </div>
+              )}
+              {!isV1 && pagerV2 && (
+                <div className="space-y-2">
+                  <div className="px-1">
+                    <span className="text-sm font-semibold text-foreground">{groupDisplayName(pagerV2.group)}</span>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {pagerV2.item.num ? `${pagerV2.item.num}. ` : ''}{pagerV2.item.labelTh}
+                    </p>
+                  </div>
+                  <ChecklistAnswerTable
+                    nodes={[pagerV2.item]}
+                    getReviewFlag={getReviewFlag}
+                    onToggleFlag={toggleFlag}
+                    isFlagPending={isFlagPending}
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-3 pb-2">
+                {currentPage > -1 && (
+                  <button
+                    onClick={() => { setCurrentPage((p) => p - 1); window.scrollTo({ top: 0 }) }}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-4 py-3 text-sm font-medium text-foreground shadow-sm"
+                  >
+                    ← ก่อนหน้า
+                  </button>
+                )}
+                {currentPage < totalPages - 1 && (
+                  <button
+                    onClick={() => { setCurrentPage((p) => p + 1); window.scrollTo({ top: 0 }) }}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground"
+                  >
+                    ถัดไป →
+                  </button>
                 )}
               </div>
-            )
-          })}
+            </div>
+          )}
         </div>
 
         {/* ── Right: score summary ── */}
@@ -613,7 +930,7 @@ function StationChecklistPageContent({
 
             {/* Rejected banner — shows admin feedback so it's visible while the auditor's
                 resubmission is still in progress */}
-            {checklist?.status === 'REJECTED' && (
+            {checklist.status === 'REJECTED' && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3">
                 <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-red-700">
                   <XCircle size={12} /> ถูกปฏิเสธ — รอการแก้ไขจากผู้ตรวจ
@@ -625,7 +942,7 @@ function StationChecklistPageContent({
             )}
 
             {/* Approve / reject — only when checklist is awaiting approval */}
-            {checklist?.status === 'SUBMITTED' && (
+            {checklist.status === 'SUBMITTED' && (
               <div className="mb-4 space-y-2">
                 {flaggedCount > 0 && (
                   <p className="text-xs text-orange-600">
@@ -730,11 +1047,17 @@ function StationChecklistPageContent({
                 <p className="text-orange-700 text-xs font-semibold mb-1.5 flex items-center gap-1.5">
                   <Flag size={11} fill="currentColor" /> รายการพบปัญหา ({flaggedCount})
                 </p>
-                {allItems.filter(i => i.reviewFlag).map(i => (
-                  <p key={i.id} className="text-orange-600 text-[10px] flex items-start gap-1 mt-0.5">
+                {flaggedLeaves.map((i) => (
+                  <button
+                    key={i.id}
+                    type="button"
+                    onClick={() => jumpToFlagged(i.id)}
+                    title="ไปที่รายการนี้"
+                    className="flex w-full items-start gap-1 rounded px-1 py-0.5 -mx-1 mt-0.5 text-left text-orange-600 text-xs hover:bg-orange-100"
+                  >
                     <span className="font-mono shrink-0">{i.id}</span>
                     <span className="truncate">{i.labelTh}</span>
-                  </p>
+                  </button>
                 ))}
               </div>
             )}

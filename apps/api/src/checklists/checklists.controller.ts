@@ -17,7 +17,7 @@ export class ChecklistsController {
 
   @Get()
   findLatest(@Param('stationId') stationId: string, @Req() req: AuthRequest) {
-    if (req.user.role !== 'ADMIN' && req.user.role !== 'AUDITOR' && req.user.role !== 'EXECUTIVE') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'AUDITOR' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.checklists.findLatest(stationId)
   }
 
@@ -32,7 +32,7 @@ export class ChecklistsController {
     @Query('limit') limit: string | undefined,
     @Req() req: AuthRequest,
   ) {
-    if (req.user.role !== 'ADMIN' && req.user.role !== 'AUDITOR' && req.user.role !== 'EXECUTIVE') throw new ForbiddenException()
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'AUDITOR' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     if (page === undefined && limit === undefined) return this.checklists.findAll(stationId)
     const pageNum = page ? Math.max(1, parseInt(page, 10) || 1) : 1
     const limitNum = limit ? Math.min(Math.max(1, parseInt(limit, 10) || 20), 100) : 20
@@ -41,7 +41,7 @@ export class ChecklistsController {
 
   @Get('draft')
   findDraft(@Param('stationId') stationId: string, @Req() req: AuthRequest) {
-    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.checklists.findDraft(stationId, req.user.id)
   }
 
@@ -53,7 +53,7 @@ export class ChecklistsController {
   // another. AUDITOR-only, same guard as /draft — a no-op (null) when there's no draft yet.
   @Post('restamp-era')
   restampDraftEra(@Param('stationId') stationId: string, @Req() req: AuthRequest) {
-    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.checklists.restampDraftEra(stationId, req.user.id)
   }
 
@@ -75,7 +75,7 @@ export class ChecklistsController {
     @Query('buildDate') buildDate: string | undefined,
     @Req() req: AuthRequest,
   ) {
-    if (req.user.role !== 'AUDITOR' && req.user.role !== 'ADMIN') throw new ForbiddenException()
+    if (req.user.role !== 'AUDITOR' && req.user.role !== 'ADMIN' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     const wantsPreview = preview === '1' || version !== undefined
     if ((wantsPreview || yearBuilt !== undefined) && req.user.role !== 'ADMIN') throw new ForbiddenException()
 
@@ -117,7 +117,7 @@ export class ChecklistsController {
     @Body() body: SaveDraftChecklistDto,
     @Req() req: AuthRequest,
   ) {
-    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.checklists.saveDraft(stationId, req.user.id, body.items, body.finalThoughts, body.gps)
   }
 
@@ -127,7 +127,7 @@ export class ChecklistsController {
     @Body() body: SubmitChecklistDto,
     @Req() req: AuthRequest,
   ) {
-    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.checklists.submit(stationId, req.user.id, body.items, body.score, body.gps, body.finalThoughts)
   }
 
@@ -140,7 +140,7 @@ export class ChecklistsController {
     @Param('checklistId') checklistId: string,
     @Req() req: AuthRequest,
   ) {
-    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.checklists.unsubmitChecklist(stationId, checklistId, req.user.id)
   }
 
@@ -156,7 +156,7 @@ export class ChecklistsController {
     @Query('photoId') photoId: string,
     @Req() req: AuthRequest,
   ) {
-    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     if (!photoId) throw new BadRequestException('photoId is required')
     return this.checklists.deletePhoto(stationId, checklistId, req.user.id, itemId, photoId)
   }
@@ -174,13 +174,13 @@ export class MyChecklistsController {
   // every page, never the full list (see ChecklistsService.countMyRejected's doc).
   @Get('rejected/count')
   count(@Req() req: AuthRequest) {
-    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.checklists.countMyRejected(req.user.id)
   }
 
   @Get('rejected')
   list(@Req() req: AuthRequest) {
-    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.checklists.findMyRejected(req.user.id)
   }
 
@@ -195,7 +195,7 @@ export class MyChecklistsController {
     @Query('status') status: string | undefined,
     @Req() req: AuthRequest,
   ) {
-    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     const pageNum = page ? Math.max(1, parseInt(page, 10) || 1) : 1
     const limitNum = limit ? Math.min(Math.max(1, parseInt(limit, 10) || 20), 100) : 20
     const validStatuses = ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED']
@@ -210,7 +210,7 @@ export class MyChecklistsController {
   // Ownership-scoped inside the service query itself, not here — see findMyChecklistDetail's doc.
   @Get('mine/:id')
   mineDetail(@Param('id') id: string, @Req() req: AuthRequest) {
-    if (req.user.role !== 'AUDITOR') throw new ForbiddenException()
+    if (req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     return this.checklists.findMyChecklistDetail(req.user.id, id)
   }
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Check, ChevronDown, ChevronRight, ListChecks, Search, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Flag, ListChecks, Search, X } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 
 // Live feedback follow-up — a real (possibly nested) tree, not a pre-flattened list: A1's own
@@ -33,6 +33,12 @@ export interface NavigatorPage {
   // a metro container) be scanned/searched without opening every page to remember what's inside
   // it. Absent/empty = nothing to preview, the row renders exactly as before.
   leafItems?: NavigatorLeafPreview[]
+  // Admin checklist-review refresh — true when this page (or, for a grouped section/subgroup
+  // bundle, any page inside it) contains an item with an admin review flag. undefined for every
+  // caller without that concept (the auditor's own /audit and my-work views never set this), in
+  // which case the flag UI below simply never renders — same "absent = renders exactly as before"
+  // contract as leafItems above.
+  flagged?: boolean
 }
 
 const norm = (s: string | undefined) => (s ?? '').toLowerCase()
@@ -81,10 +87,25 @@ export function PageNavigatorTrigger({
   pages,
   currentPage,
   onJump,
+  summaryLabel,
+  onSummaryClick,
+  isSummaryActive,
 }: {
   pages: NavigatorPage[]
   currentPage: number
   onJump: (index: number) => void
+  // Admin checklist-review refresh — an optional PINNED row above the list/sections, for a
+  // caller that folds its own summary screen into the same page sequence as page "0" instead of
+  // a separate view (see stations/[id]/page.tsx). Deliberately NOT modeled as an entry in `pages`
+  // (which is 0-indexed 1:1 against the caller's real item pages, fed straight into onJump(i)) —
+  // giving it a fake index would either collide with a real page or need every consumer of
+  // `pages` (grouping, search, doneCount) to special-case index -1. A separate pinned element
+  // with its own click handler avoids all of that. Absent for every other caller (the auditor's
+  // own /audit and my-work views have no summary-as-a-page concept), in which case this renders
+  // exactly as before.
+  summaryLabel?: string
+  onSummaryClick?: () => void
+  isSummaryActive?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState('')
@@ -246,6 +267,7 @@ export function PageNavigatorTrigger({
                 {p.code && (
                   <span className="bg-secondary text-muted-foreground mr-1.5 rounded px-1.5 py-0.5 font-mono text-[11px]">{p.code}</span>
                 )}
+                {p.flagged && <Flag size={11} className="mr-1 inline-block shrink-0 text-orange-500" fill="currentColor" />}
                 {p.label}
               </p>
               {matchedLeaf ? (
@@ -298,6 +320,7 @@ export function PageNavigatorTrigger({
   function subGroupBlock(sub: { key: string; rows: { p: NavigatorPage; i: number }[] }) {
     const isOpen = openSubGroups.has(sub.key)
     const done = sub.rows.filter(({ p }) => p.total > 0 && p.answered === p.total).length
+    const subFlagged = sub.rows.some(({ p }) => p.flagged)
     const rawSublabel = sub.rows[0]?.p.sublabel
     const codePrefix = `(${sub.key}) `
     const name = rawSublabel?.startsWith(codePrefix) ? rawSublabel.slice(codePrefix.length) : rawSublabel
@@ -309,6 +332,7 @@ export function PageNavigatorTrigger({
           className="hover:bg-secondary/60 flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition-colors"
         >
           <span className="min-w-0 truncate text-xs">
+            {subFlagged && <Flag size={10} className="mr-1 inline-block shrink-0 text-orange-500" fill="currentColor" />}
             <span className="text-foreground font-semibold">{sub.key}</span>
             {name && <span className="text-muted-foreground ml-1 font-normal">{name}</span>}
           </span>
@@ -382,6 +406,8 @@ export function PageNavigatorTrigger({
       .filter(({ m }) => m.hit)
   }, [pages, needle])
 
+  const anyFlagged = pages.some((p) => p.flagged)
+
   return (
     <>
       <button
@@ -391,6 +417,7 @@ export function PageNavigatorTrigger({
       >
         <ListChecks size={15} />
         {doneCount}/{pages.length}
+        {anyFlagged && <Flag size={11} className="text-orange-500" fill="currentColor" />}
       </button>
 
       <Sheet open={open} onOpenChange={setOpen}>
@@ -419,6 +446,20 @@ export function PageNavigatorTrigger({
               </button>
             )}
           </div>
+          {summaryLabel && onSummaryClick && (
+            <div className="border-border shrink-0 border-b px-4 py-2">
+              <button
+                type="button"
+                onClick={() => { onSummaryClick(); setOpen(false) }}
+                className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left transition-colors ${
+                  isSummaryActive ? 'bg-primary/10' : 'hover:bg-secondary/60'
+                }`}
+              >
+                <span className="text-sm font-medium text-foreground">{summaryLabel}</span>
+                {anyFlagged && <Flag size={12} className="shrink-0 text-orange-500" fill="currentColor" />}
+              </button>
+            </div>
+          )}
           <div className="themed-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-1">
             {needle ? (
               searchResults.length > 0 ? (
@@ -429,6 +470,7 @@ export function PageNavigatorTrigger({
             ) : grouped ? (
               sections.map((s) => {
                 const sectionDone = s.rows.filter(({ p }) => p.total > 0 && p.answered === p.total).length
+                const sectionFlagged = s.rows.some(({ p }) => p.flagged)
                 const isOpen = openGroups.has(s.key)
                 return (
                   <div key={s.key} className="mb-1">
@@ -437,7 +479,10 @@ export function PageNavigatorTrigger({
                       onClick={() => toggleGroup(s.key)}
                       className="hover:bg-secondary/60 flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left transition-colors"
                     >
-                      <span className="text-foreground text-sm font-semibold">{s.label ?? s.key}</span>
+                      <span className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-foreground">
+                        {sectionFlagged && <Flag size={12} className="shrink-0 text-orange-500" fill="currentColor" />}
+                        {s.label ?? s.key}
+                      </span>
                       <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-xs">
                         {sectionDone}/{s.rows.length}
                         <ChevronDown size={14} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />

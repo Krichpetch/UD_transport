@@ -600,8 +600,12 @@ export default function AuditPage() {
     return (
       <div className="space-y-4">
         {stationPicker}
-        {!selectedId && user?.role === 'AUDITOR' && <MyWorkLink />}
-        {!selectedId && user?.role === 'AUDITOR' && <TutorialSection onSelect={setSelectedId} />}
+        {/* Admin checklist-review refresh — REVIEWER is a real auditor for fieldwork purposes
+            (see (audit-layout)/layout.tsx's RequireRole), so both of these belong to her too;
+            missing this was a live-reported bug (her own submission history and the practice
+            stations both silently vanished from her home screen after her role changed). */}
+        {!selectedId && (user?.role === 'AUDITOR' || user?.role === 'REVIEWER') && <MyWorkLink />}
+        {!selectedId && (user?.role === 'AUDITOR' || user?.role === 'REVIEWER') && <TutorialSection onSelect={setSelectedId} />}
         {selectedId && (
           <div className="rounded-xl bg-white p-6 text-center text-sm text-muted-foreground shadow-sm">
             กำลังโหลด…

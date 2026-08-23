@@ -13,7 +13,7 @@ import {
   SidebarGroupLabel,
   SidebarGroupContent,
 } from '@/components/ui/sidebar'
-import { LayoutDashboard, BarChart3, Building2, Settings, LogOut, User, Users, ClipboardCheck, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, BarChart3, Building2, Settings, LogOut, User, Users, ClipboardCheck, ClipboardList, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
@@ -23,6 +23,9 @@ const ROLE_LABEL: Record<string, string> = {
   ADMIN:     'ผู้ดูแลระบบ',
   AUDITOR:   'ผู้ตรวจสอบ',
   EXECUTIVE: 'ผู้บริหาร',
+  // Admin checklist-review refresh — an auditor who also reviews/approves checklists, without
+  // the full ADMIN template/station/user-management surface.
+  REVIEWER:  'ผู้ตรวจประเมิน-อนุมัติ',
 }
 
 // Role-driven nav — each item declares which roles see it, rather than one hardcoded
@@ -36,13 +39,18 @@ const ROLE_LABEL: Record<string, string> = {
 // ADMIN — this was purely a nav-visibility gap. /admin/overview stays ADMIN's login landing
 // (ROLE_DESTINATIONS unchanged); the dashboard is an ADDITIONAL entry, not a replacement, so the
 // two are relabelled to tell them apart (both used to read plain "ภาพรวม").
+// Admin checklist-review refresh — REVIEWER gets the executive dashboard + station/approval list
+// + settings, same as before, but NOT /admin/templates or /users (the template/era/station-editing
+// and user-management surfaces stay ADMIN-only). Her one ADDED entry is "โหมดตรวจประเมิน" below,
+// jumping back to /audit — every other role already has an obvious way back to their own home.
 const NAV_ITEMS: { labelTh: string; icon: LucideIcon; href: string; roles: UserRole[] }[] = [
   { labelTh: 'ภาพรวมระบบ',     icon: LayoutDashboard, href: '/admin/overview',  roles: ['ADMIN'] },
-  { labelTh: 'แดชบอร์ดผู้บริหาร', icon: BarChart3,       href: '/dashboard',       roles: ['ADMIN', 'EXECUTIVE'] },
-  { labelTh: 'จัดการสถานี',    icon: Building2,       href: '/stations',        roles: ['ADMIN'] },
+  { labelTh: 'แดชบอร์ดผู้บริหาร', icon: BarChart3,       href: '/dashboard',       roles: ['ADMIN', 'EXECUTIVE', 'REVIEWER'] },
+  { labelTh: 'จัดการสถานี',    icon: Building2,       href: '/stations',        roles: ['ADMIN', 'REVIEWER'] },
   { labelTh: 'จัดการแบบประเมิน', icon: ClipboardCheck,  href: '/admin/templates', roles: ['ADMIN'] },
   { labelTh: 'จัดการผู้ใช้งาน', icon: Users,           href: '/users',           roles: ['ADMIN'] },
-  { labelTh: 'ตั้งค่าระบบ',     icon: Settings,        href: '/settings',       roles: ['ADMIN', 'EXECUTIVE'] },
+  { labelTh: 'ตั้งค่าระบบ',     icon: Settings,        href: '/settings',       roles: ['ADMIN', 'EXECUTIVE', 'REVIEWER'] },
+  { labelTh: 'โหมดตรวจประเมิน', icon: ClipboardList,   href: '/audit',           roles: ['REVIEWER'] },
 ]
 
 export function AppSidebar() {

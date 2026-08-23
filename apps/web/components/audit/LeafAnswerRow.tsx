@@ -1,13 +1,13 @@
 'use client'
 
 import * as React from 'react'
-import { CheckCircle2, CheckSquare, Square, StickyNote, Ruler } from 'lucide-react'
+import { CheckCircle2, CheckSquare, Square, StickyNote, Ruler, Flag } from 'lucide-react'
 import type { TemplateNode, ChecklistValue, ChecklistPhoto } from '@repo/types'
 import { deriveMeasuredStandard, ratioRiseKey, ratioHypotenuseKey } from '@repo/types'
 import { isLeafAnswered, collectLeafCodes, collectLeaves, absentPatchFor } from '@/lib/audit-form'
 import { useAuditFormStore } from '@/stores/audit-form.store'
 import { PhotoPicker } from '@/components/audit/PhotoPicker'
-import { ThresholdModalTrigger } from '@/components/audit/ThresholdModal'
+import { ThresholdModalTrigger, measurementSummary } from '@/components/audit/ThresholdModal'
 import { NodeReferenceImages } from '@/components/audit/NodeReferenceImages'
 import { ChecklistPhotoGallery } from '@/components/checklist/ChecklistPhotoGallery'
 import { useDeleteChecklistPhoto } from '@/hooks/use-checklists'
@@ -67,7 +67,7 @@ function DerivedIndicator({ node, values }: { node: TemplateNode; values: Record
   )
 }
 
-export function LeafAnswerRow({ node, disabled = false, readOnly = false, breadcrumb }: {
+export function LeafAnswerRow({ node, disabled = false, readOnly = false, breadcrumb, reviewFlag, onToggleFlag, flagPending = false }: {
   node: TemplateNode
   disabled?: boolean
   // Live feedback follow-up ("look back on my submitted work") — locks every answer control
@@ -77,6 +77,13 @@ export function LeafAnswerRow({ node, disabled = false, readOnly = false, breadc
   // `disabled`, which still governs its own thing independently (see rowDisabledCls below).
   readOnly?: boolean
   breadcrumb?: string[]  // ancestor labels, for the threshold modal's "which item is this" context
+  // Admin checklist-review refresh — the admin's "พบปัญหา" review flag for THIS specific leaf.
+  // Independent of `readOnly`: the auditor's own read-only my-work view never passes
+  // `onToggleFlag`, so the toggle simply doesn't render there; the admin review page does, and it
+  // stays interactive even though every answer control on the same row is locked.
+  reviewFlag?: boolean
+  onToggleFlag?: () => void
+  flagPending?: boolean
 }) {
   const answer = useAuditFormStore((s) => s.answers[node.code])
   const setAnswer = useAuditFormStore((s) => s.setAnswer)
@@ -168,6 +175,20 @@ export function LeafAnswerRow({ node, disabled = false, readOnly = false, breadc
               <span className="inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">
                 มติ ครม.
               </span>
+            )}
+            {onToggleFlag && (
+              <button
+                type="button"
+                onClick={onToggleFlag}
+                disabled={flagPending}
+                className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-medium transition-colors disabled:opacity-50 ${
+                  reviewFlag
+                    ? 'bg-orange-100 text-orange-600'
+                    : 'bg-secondary text-muted-foreground/50 hover:bg-orange-50 hover:text-orange-500'
+                }`}
+              >
+                <Flag size={9} fill={reviewFlag ? 'currentColor' : 'none'} /> พบปัญหา
+              </button>
             )}
           </div>
         </div>
@@ -350,7 +371,10 @@ function PresenceStandardControl({ node, answer, setAnswer, readOnly = false }: 
   )
 }
 
-function MeasurementInput({ code, measurement, values, setAnswer, readOnly = false }: {
+// Exported — the admin checklist-review table reuses this directly (readOnly) for its measured-
+// value detail row, so the styling (labeled boxes, the blue "มาตรฐาน: …" line, slope/tiered
+// layouts) is never a second copy that can drift from what the live auditor form shows.
+export function MeasurementInput({ code, measurement, values, setAnswer, readOnly = false }: {
   code: string
   measurement: NonNullable<TemplateNode['measurements']>[number]
   values: Record<string, number>
@@ -367,7 +391,14 @@ function MeasurementInput({ code, measurement, values, setAnswer, readOnly = fal
 
   if (measurement.operator === 'tiered' && measurement.inputs) {
     return (
-      <div className="flex gap-2">
+      <div className="space-y-1.5">
+        {/* Admin checklist-review refresh — the resolved threshold, inline instead of behind the
+            (i) info-modal click, so approval doesn't require a second tap per item. Auditor's live
+            form is unchanged (readOnly only). */}
+        {readOnly && (
+          <p className="text-[11px] font-medium text-blue-700">มาตรฐาน: {measurementSummary(measurement)}</p>
+        )}
+        <div className="flex gap-2">
         {measurement.inputs.map((inp) => (
           <label key={inp.key} className="flex-1 text-[11px] text-muted-foreground">
             {inp.labelTh}
@@ -381,6 +412,7 @@ function MeasurementInput({ code, measurement, values, setAnswer, readOnly = fal
             />
           </label>
         ))}
+        </div>
       </div>
     )
   }
@@ -407,6 +439,9 @@ function MeasurementInput({ code, measurement, values, setAnswer, readOnly = fal
       : '-'
     return (
       <div className="space-y-1.5">
+        {readOnly && (
+          <p className="text-[11px] font-medium text-blue-700">มาตรฐาน: {measurementSummary(measurement)}</p>
+        )}
         {measurement.sourceText && <p className="text-[11px] text-muted-foreground">{measurement.sourceText}</p>}
         <div className="flex gap-2">
           <label className="flex-1 text-[11px] text-muted-foreground">
@@ -444,19 +479,24 @@ function MeasurementInput({ code, measurement, values, setAnswer, readOnly = fal
   }
 
   return (
-    <label className="block text-[11px] text-muted-foreground">
-      {measurement.sourceText ?? measurement.key}
-      <div className="mt-1 flex items-center gap-1.5">
-        <input
-          type="number"
-          inputMode="decimal"
-          disabled={readOnly}
-          value={values[measurement.key] ?? ''}
-          onChange={(e) => setValue(measurement.key, e.target.value)}
-          className="border-border focus:ring-ring w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 disabled:bg-secondary/30"
-        />
-        <span className="text-xs text-muted-foreground">{unitSuffix(measurement.unit).replace(/[()]/g, '')}</span>
-      </div>
-    </label>
+    <div className="space-y-1">
+      {readOnly && (
+        <p className="text-[11px] font-medium text-blue-700">มาตรฐาน: {measurementSummary(measurement)}</p>
+      )}
+      <label className="block text-[11px] text-muted-foreground">
+        {measurement.sourceText ?? measurement.key}
+        <div className="mt-1 flex items-center gap-1.5">
+          <input
+            type="number"
+            inputMode="decimal"
+            disabled={readOnly}
+            value={values[measurement.key] ?? ''}
+            onChange={(e) => setValue(measurement.key, e.target.value)}
+            className="border-border focus:ring-ring w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 disabled:bg-secondary/30"
+          />
+          <span className="text-xs text-muted-foreground">{unitSuffix(measurement.unit).replace(/[()]/g, '')}</span>
+        </div>
+      </label>
+    </div>
   )
 }

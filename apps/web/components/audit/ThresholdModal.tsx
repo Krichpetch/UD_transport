@@ -7,12 +7,15 @@ import type { TemplateNode, TemplateMeasurement } from '@repo/types'
 // E-form redesign (Session E2, Part C.8) — "คู่มือการตรวจประเมิน" info affordance. Read-only for
 // auditors: shows the (already era-resolved) threshold values, sourceText, and guidance text for
 // one leaf/criterion. Never editable here — admin threshold editing is out of scope (Workstream 2).
-function unitLabel(m: { unit: string }): string {
+// Exported (not just used locally) — the admin checklist-review screen also renders this inline
+// next to each measurement's entered value (readOnly only), so the threshold that was actually
+// checked against is visible without an extra click. See LeafAnswerRow.tsx's MeasurementInput.
+export function unitLabel(m: { unit: string }): string {
   if (m.unit === 'ratio_1_x') return 'อัตราส่วน 1 : X'
   return m.unit
 }
 
-function measurementSummary(m: TemplateMeasurement): string {
+export function measurementSummary(m: TemplateMeasurement): string {
   if (m.operator === 'tiered') {
     return `ตารางขั้นบันได (${m.inputs?.map((i) => i.labelTh).join(' / ') ?? ''})`
   }
