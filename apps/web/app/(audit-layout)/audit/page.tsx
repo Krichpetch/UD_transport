@@ -30,7 +30,7 @@ import type { SubmitGps } from '@/lib/geolocation'
 import type { ChecklistRecord } from '@/lib/api/checklists'
 import { YEAR_BUILT_MIN, yearBuiltMax, eraYearBrackets, buddhistYearOfIsoDate, type TemplateNode, type ChecklistTemplateGroupDef } from '@repo/types'
 
-const PROXIMITY_RADIUS_M = 1000
+const PROXIMITY_RADIUS_M = 2000
 const AUTOSAVE_DEBOUNCE_MS = 4000
 const FINAL_THOUGHTS_MAX = 4000
 

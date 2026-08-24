@@ -37,7 +37,7 @@ function toIsoDate(d: Date | null | undefined): string | null {
   return d ? d.toISOString().slice(0, 10) : null
 }
 
-const PROXIMITY_RADIUS_M = 1000
+const PROXIMITY_RADIUS_M = 2000
 // Part C — explicit size bound on the items payload, rather than relying solely on the global
 // 10mb body cap (main.ts) which is shared across every route.
 const MAX_ITEMS_JSON_BYTES = 512 * 1024
