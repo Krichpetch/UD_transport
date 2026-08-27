@@ -25,8 +25,11 @@ export class MinioService implements OnModuleInit {
     })
   }
 
-  async upload(buffer: Buffer, key: string, mimetype: string): Promise<string> {
-    await this.client.putObject(this.bucket, key, buffer, buffer.length, { 'Content-Type': mimetype })
+  // `metadata` — optional extra object metadata merged alongside Content-Type (e.g. the
+  // `X-Amz-Meta-Compressed` idempotency marker the image compressor sets; see
+  // uploads/image-compression.ts). Defaults to none, so existing callers are unaffected.
+  async upload(buffer: Buffer, key: string, mimetype: string, metadata: Record<string, string> = {}): Promise<string> {
+    await this.client.putObject(this.bucket, key, buffer, buffer.length, { 'Content-Type': mimetype, ...metadata })
     return key
   }
 

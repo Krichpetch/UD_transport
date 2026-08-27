@@ -16,6 +16,7 @@ import { FileInterceptor } from '@nestjs/platform-express'
 import { Request } from 'express'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { MinioService } from '../minio/minio.service'
+import { compressImage, compressedMeta } from './image-compression'
 
 interface AuthRequest extends Request {
   user: { id: string; username: string; role: string }
@@ -41,9 +42,14 @@ export class UploadsController {
   ) {
     if (req.user.role !== 'AUDITOR' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
     if (!ALLOWED_MIME_TYPES.has(file.mimetype)) throw new BadRequestException('Invalid file type')
-    const ext = file.originalname.split('.').pop() ?? 'jpg'
+    // Server-side compression backstop (see image-compression.ts). Client-side compression already
+    // runs before most uploads; this guarantees the stored object is capped/re-encoded regardless of
+    // client. On a successful transform the output is always JPEG, so the key's extension follows
+    // suit; on fallback we keep the original buffer/mimetype/extension untouched.
+    const { buffer, mimetype, compressed } = await compressImage(file.buffer, file.mimetype)
+    const ext = compressed ? 'jpg' : (file.originalname.split('.').pop() ?? 'jpg')
     const key = `checklist-photos/${randomBytes(16).toString('hex')}.${ext}`
-    await this.minio.upload(file.buffer, key, file.mimetype)
+    await this.minio.upload(buffer, key, mimetype, compressed ? compressedMeta() : {})
     const url = await this.minio.getPresignedUrl(key)
     return { id: key, url, filename: file.originalname, uploadedAt: new Date().toISOString() }
   }

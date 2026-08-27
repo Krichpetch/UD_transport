@@ -251,8 +251,22 @@ export class FacilityGroupsService {
   // only rail_metro's v3 has been activated; useful for a "current production blast radius" view,
   // NOT for grouping/conflict analysis (see the VersionScope doc). 'all' pools every row — analysis
   // only, never exposed as a normal default.
+  //
+  // RETIRED-exclusion (grouped-editing fix) — 'exact' additionally excludes RETIRED rows. 'exact' is
+  // the editor's only write scope, and a single RETIRED instance in a group used to poison the whole
+  // group: writeInstance/confirm/resolve all throw ForbiddenException on it (see their guards below),
+  // blocking edits to the group's still-ACTIVE/DRAFT siblings. A retired template is not an edit
+  // target, so it shouldn't be a group member here at all — excluding it lets the active siblings be
+  // edited, while a group whose ONLY members were retired simply disappears from the editor (correct:
+  // nothing there is editable). 'active' already excludes RETIRED by construction; 'all' deliberately
+  // still surfaces it — that scope is the read-only comparison/analysis view, never a write path.
   private async loadTemplates(scope: VersionScope): Promise<FacilityLoadedTemplate[]> {
-    const where = scope.kind === 'exact' ? { version: scope.version } : scope.kind === 'active' ? { status: 'ACTIVE' as const } : {}
+    const where =
+      scope.kind === 'exact'
+        ? { version: scope.version, status: { not: 'RETIRED' as const } }
+        : scope.kind === 'active'
+          ? { status: 'ACTIVE' as const }
+          : {}
     const rows = await this.prisma.checklistTemplate.findMany({
       where,
       orderBy: [{ mode: 'asc' }, { variantKey: 'asc' }, { version: 'asc' }],

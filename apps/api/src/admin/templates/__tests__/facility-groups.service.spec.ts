@@ -192,6 +192,32 @@ describe('FacilityGroupsService', () => {
     service = moduleRef.get(FacilityGroupsService)
   })
 
+  // Grouped-editing fix — a RETIRED instance in a group used to poison the whole group (writeInstance/
+  // confirm/resolve all throw ForbiddenException on it), blocking edits to its still-editable
+  // siblings. The fix excludes RETIRED at the DB query for the 'exact' scope (the editor's only write
+  // scope), so a retired row never becomes a group member here. The exclusion lives in loadTemplates'
+  // WHERE clause (server-side filter, not JS), so it's verified by the WHERE handed to findMany —
+  // 'active' already excludes RETIRED by construction, 'all' deliberately keeps it (read-only
+  // comparison scope).
+  describe('loadTemplates RETIRED exclusion (grouped-editing fix)', () => {
+    it("the 'exact' (editing) scope filters out RETIRED rows at the query", async () => {
+      await service.getGroups({ kind: 'exact', version: 3 })
+      expect(findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { version: 3, status: { not: 'RETIRED' } } }),
+      )
+    })
+
+    it("the 'active' scope filters to ACTIVE only (RETIRED already excluded)", async () => {
+      await service.getGroups({ kind: 'active' })
+      expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: 'ACTIVE' } }))
+    })
+
+    it("the 'all' (comparison) scope pools every row, RETIRED included", async () => {
+      await service.getGroups({ kind: 'all' })
+      expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }))
+    })
+  })
+
   it('getGroups reports two SHARED non-conflicted items and one SHARED conflicted item', async () => {
     const result = await service.getGroups({ kind: 'exact', version: 3 })
     expect(flattenLeaves(result.containerGroups)).toHaveLength(3)
