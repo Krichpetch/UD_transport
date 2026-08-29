@@ -1,8 +1,9 @@
 import { api } from '@/lib/api'
-import { useAuthStore } from '@/stores/auth.store'
 import type { ChecklistTemplateDefinition, MasterCriterionExport, TemplateTier, ThresholdOperator } from '@repo/types'
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+// Same-origin BFF proxy for the multipart uploads below — the httpOnly session
+// cookie is sent automatically and the proxy attaches the Bearer token upstream.
+const BASE_URL = '/api'
 
 // Mirrors MAX_IMAGES_PER_NODE in apps/api/src/admin/templates/templates.core.ts — the server is
 // the real enforcement point (this only drives the picker UI / early client-side stop).
@@ -212,12 +213,10 @@ export function exportTemplate(id: string) {
 
 // Multipart upload — same pattern as lib/api/uploads.ts#uploadPhoto, admin-only endpoint.
 export async function uploadTemplateImage(templateId: string, nodeCode: string, file: File) {
-  const token = useAuthStore.getState().token
   const form = new FormData()
   form.append('file', file)
   const res = await fetch(`${BASE_URL}/admin/templates/${templateId}/images/${encodeURIComponent(nodeCode)}`, {
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: form,
   })
   if (!res.ok) {
@@ -245,12 +244,10 @@ export function presignTemplateImage(key: string) {
 // instance is very often already attached, so it uploads bytes here and lets propagateItemEdit's
 // 'image' field (master-aware, no attach guard) write the key to every instance instead.
 export async function uploadGroupedImage(file: File) {
-  const token = useAuthStore.getState().token
   const form = new FormData()
   form.append('file', file)
   const res = await fetch(`${BASE_URL}/admin/template-groups/images`, {
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: form,
   })
   if (!res.ok) {

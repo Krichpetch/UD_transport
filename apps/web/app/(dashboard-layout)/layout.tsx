@@ -7,18 +7,18 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppSidebar } from '@/components/sidebar/AppSidebar'
 import { AppNavbar } from '@/components/navbar/AppNavbar'
 import { RequireRole } from '@/components/auth/require-role'
-import { useAuthStore, useAuthHasHydrated } from '@/stores/auth.store'
+import { useAuthStore } from '@/stores/auth.store'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const hydrated = useAuthHasHydrated()
-  const token = useAuthStore((s) => s.token)
+  const ready = useAuthStore((s) => s.ready)
+  const user = useAuthStore((s) => s.user)
 
   React.useEffect(() => {
-    if (hydrated && !token) router.replace('/login')
-  }, [hydrated, token, router])
+    if (ready && !user) router.replace('/login')
+  }, [ready, user, router])
 
-  if (!hydrated || !token) return null
+  if (!ready || !user) return null
 
   return (
     <RequireRole roles={['ADMIN', 'EXECUTIVE', 'REVIEWER']} redirectTo="/audit">

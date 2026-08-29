@@ -25,8 +25,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const auth = request.headers.get('authorization')
-  const headers: Record<string, string> = auth ? { Authorization: auth } : {}
+  // Auth now rides the httpOnly session cookie (sent same-origin), not a client
+  // Authorization header. Forward it upstream as a Bearer token.
+  const token = request.cookies.get('access_token')?.value
+  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
 
   const [stationRes, checklistsRes] = await Promise.all([
     fetch(`${API_URL}/stations/${id}`, { headers }),

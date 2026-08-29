@@ -8,13 +8,24 @@ export interface AuthUserResponse {
   displayName: string | null
 }
 
+// The BFF login route stores the JWT in an httpOnly cookie and returns only the
+// user — the token never reaches the browser.
 export interface LoginResponse {
-  access_token: string
   user: AuthUserResponse
 }
 
 export function login(username: string, password: string) {
   return api.post<LoginResponse>('/auth/login', { username, password })
+}
+
+// Rehydrates the current user from the httpOnly session cookie (fresh-tab bootstrap).
+export function getMe() {
+  return api.get<AuthUserResponse>('/auth/me')
+}
+
+// Clears the session cookie server-side.
+export function logout() {
+  return api.post<void>('/auth/logout', {})
 }
 
 export function changePassword(currentPassword: string, newPassword: string) {

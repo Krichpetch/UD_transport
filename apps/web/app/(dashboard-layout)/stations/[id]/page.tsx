@@ -553,10 +553,9 @@ function StationChecklistPageContent({
     if (!station || excelExporting) return
     setExcelExporting(true)
     try {
-      const token = useAuthStore.getState().token
-      const res = await fetch(`/api/export/station/${id}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
+      // Same-origin — the httpOnly session cookie is sent automatically and the
+      // export route forwards it upstream as a Bearer token.
+      const res = await fetch(`/api/export/station/${id}`)
       if (!res.ok) return
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)

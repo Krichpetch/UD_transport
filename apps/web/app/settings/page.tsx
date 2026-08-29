@@ -4,20 +4,19 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import { changePassword, updateProfile } from '@/lib/api/auth'
-import { useAuthStore, useAuthHasHydrated } from '@/stores/auth.store'
+import { useAuthStore } from '@/stores/auth.store'
+import { signOut } from '@/lib/sign-out'
 import { PasswordInput } from '@/components/ui/password-input'
 
 export default function SettingsPage() {
   const router = useRouter()
-  const hydrated = useAuthHasHydrated()
-  const token = useAuthStore((s) => s.token)
+  const ready = useAuthStore((s) => s.ready)
   const user = useAuthStore((s) => s.user)
   const updateUser = useAuthStore((s) => s.updateUser)
-  const logout = useAuthStore((s) => s.logout)
 
   React.useEffect(() => {
-    if (hydrated && !token) router.replace('/login')
-  }, [hydrated, token, router])
+    if (ready && !user) router.replace('/login')
+  }, [ready, user, router])
 
   // ── Display name ──────────────────────────────────────────────
   const [displayName, setDisplayName] = React.useState('')
@@ -47,10 +46,10 @@ export default function SettingsPage() {
 
   const passwordMutation = useMutation({
     mutationFn: () => changePassword(currentPassword, newPassword),
-    onSuccess: () => {
+    onSuccess: async () => {
       // Force re-login with the new password rather than leaving a stale
       // session sitting on the settings page with nowhere to go.
-      logout()
+      await signOut()
       router.push('/login?passwordChanged=1')
     },
   })
@@ -68,7 +67,7 @@ export default function SettingsPage() {
   const passwordErrorMsg =
     passwordMutation.error instanceof Error ? passwordMutation.error.message : null
 
-  if (!hydrated || !token) return null
+  if (!ready || !user) return null
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-8">

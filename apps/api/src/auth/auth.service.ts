@@ -35,6 +35,15 @@ export class AuthService {
     }
   }
 
+  // Rehydrates the current user for a fresh browser tab. Since the frontend moved
+  // auth to an httpOnly cookie (token no longer readable by JS), a newly opened tab
+  // calls this to recover who it is logged in as. isActive is re-checked here too.
+  async me(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (!user || !user.isActive) throw new UnauthorizedException()
+    return { id: user.id, username: user.username, role: user.role, displayName: user.displayName }
+  }
+
   async changePassword(userId: string, dto: ChangePasswordDto, ipAddress?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

@@ -12,10 +12,10 @@ interface RequireRoleProps {
   children: React.ReactNode
 }
 
-// Client-side defense-in-depth only — the API is the real boundary. Mirrors the /users
-// page's original inline guard exactly: `user` is null until the auth store's sessionStorage
-// rehydration finishes, so the `user &&` check below is naturally false pre-hydration —
-// no separate hydrated flag needed, no redirect-flash before the token loads.
+// Client-side defense-in-depth only — the API (and now middleware.ts) are the real
+// boundaries. `user` is null until AuthBootstrap's /auth/me call resolves, so the
+// `user &&` check below is naturally false pre-bootstrap — no separate ready flag
+// needed here, no redirect-flash before the session is known.
 export function RequireRole({ roles, redirectTo = '/dashboard', fallback = null, children }: RequireRoleProps) {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)

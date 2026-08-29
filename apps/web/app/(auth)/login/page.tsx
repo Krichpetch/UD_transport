@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import { login } from '@/lib/api/auth'
 import { useAuthStore } from '@/stores/auth.store'
+import { postAuthBroadcast } from '@/lib/auth-broadcast'
 import { PasswordInput } from '@/components/ui/password-input'
 
 const ROLE_DESTINATIONS: Record<string, string> = {
@@ -36,7 +37,8 @@ function LoginForm() {
   const mutation = useMutation({
     mutationFn: () => login(username, password),
     onSuccess: (data) => {
-      storeLogin(data.user, data.access_token)
+      storeLogin(data.user)
+      postAuthBroadcast({ type: 'login', user: data.user })
       router.push(ROLE_DESTINATIONS[data.user.role] ?? '/dashboard')
     },
   })

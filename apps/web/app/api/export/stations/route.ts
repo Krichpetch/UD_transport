@@ -20,8 +20,10 @@ interface ExportChecklistRow {
 }
 
 export async function GET(request: NextRequest) {
-  const auth = request.headers.get('authorization')
-  const headers: Record<string, string> = auth ? { Authorization: auth } : {}
+  // Auth now rides the httpOnly session cookie (sent same-origin), not a client
+  // Authorization header. Forward it upstream as a Bearer token.
+  const token = request.cookies.get('access_token')?.value
+  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
   const res = await fetch(`${API_URL}/stations/export/checklists`, { headers })
   if (!res.ok) {
     return NextResponse.json({ error: 'ไม่สามารถดึงข้อมูลสถานีได้' }, { status: res.status })

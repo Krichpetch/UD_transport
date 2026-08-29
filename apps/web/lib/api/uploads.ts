@@ -1,15 +1,16 @@
-import { useAuthStore } from '@/stores/auth.store'
 import type { ChecklistPhoto } from '@repo/types'
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+// Same-origin BFF proxy — the httpOnly session cookie is sent automatically and the
+// proxy streams the multipart body upstream, attaching the Bearer token itself.
+// No Authorization header and no manual Content-Type (the browser sets the
+// multipart boundary).
+const BASE_URL = '/api'
 
 export async function uploadPhoto(file: File): Promise<ChecklistPhoto> {
-  const token = useAuthStore.getState().token
   const form = new FormData()
   form.append('file', file)
   const res = await fetch(`${BASE_URL}/uploads/photo`, {
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: form,
   })
   if (!res.ok) {
