@@ -1,6 +1,4 @@
-import * as React from 'react'
 import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
 import type { UserRole } from '@repo/types'
 
 export interface AuthUser {
@@ -10,41 +8,27 @@ export interface AuthUser {
   displayName?: string | null
 }
 
+// In-memory only. The JWT now lives in an httpOnly cookie (invisible to JS), so
+// this store no longer holds a token or persists to web storage. `user` is
+// rehydrated on every page load by AuthBootstrap via GET /api/auth/me.
 interface AuthState {
   user: AuthUser | null
-  token: string | null
-  login: (user: AuthUser, token: string) => void
+  // false until the /auth/me bootstrap has resolved. Guards wait on this so they
+  // don't flash-redirect a logged-in user before their session is known.
+  ready: boolean
+  setUser: (user: AuthUser | null) => void
+  setReady: (ready: boolean) => void
+  login: (user: AuthUser) => void
   logout: () => void
   updateUser: (patch: Partial<AuthUser>) => void
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      user: null,
-      token: null,
-      login:  (user, token) => set({ user, token }),
-      logout: () => set({ user: null, token: null }),
-      updateUser: (patch) => set((s) => (s.user ? { user: { ...s.user, ...patch } } : s)),
-    }),
-    {
-      name:    'auth',
-      storage: createJSONStorage(() => sessionStorage),
-    }
-  )
-)
-
-// sessionStorage rehydration happens after mount — without this, a guard that
-// checks `token` on first render would flash-redirect a logged-in user on refresh.
-// `.persist` is only touched inside the effect: during SSR, createJSONStorage()
-// throws (no sessionStorage in Node) so zustand never attaches `.persist` at all.
-export function useAuthHasHydrated() {
-  const [hydrated, setHydrated] = React.useState(false)
-
-  React.useEffect(() => {
-    setHydrated(useAuthStore.persist.hasHydrated())
-    return useAuthStore.persist.onFinishHydration(() => setHydrated(true))
-  }, [])
-
-  return hydrated
-}
+export const useAuthStore = create<AuthState>()((set) => ({
+  user: null,
+  ready: false,
+  setUser: (user) => set({ user }),
+  setReady: (ready) => set({ ready }),
+  login: (user) => set({ user }),
+  logout: () => set({ user: null }),
+  updateUser: (patch) => set((s) => (s.user ? { user: { ...s.user, ...patch } } : s)),
+}))

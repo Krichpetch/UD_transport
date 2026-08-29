@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import 'reflect-metadata'
-import { json } from 'express'
+import { json, type Express } from 'express'
 import { NestFactory } from '@nestjs/core'
 import { ValidationPipe } from '@nestjs/common'
 import { AppModule } from './app.module'
@@ -15,6 +15,14 @@ async function bootstrap() {
     console.warn('='.repeat(60))
   }
   const app = await NestFactory.create(AppModule)
+
+  // The web app now proxies every browser request server-side (BFF), so without
+  // trust proxy every request would carry the Next server's IP — bucketing all
+  // users into one login-throttle key and writing the wrong IP to AuditLog.
+  // Trusting X-Forwarded-For (the BFF forwards the real client IP; Railway's edge
+  // appends its own) makes req.ip the real client again. Safe here: the API is
+  // only ever reached through Railway's proxy in every deployed environment.
+  ;(app.getHttpAdapter().getInstance() as Express).set('trust proxy', true)
 
   app.use(json({ limit: '10mb' }))
 

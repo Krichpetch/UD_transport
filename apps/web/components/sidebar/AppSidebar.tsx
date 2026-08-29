@@ -17,6 +17,7 @@ import { LayoutDashboard, BarChart3, Building2, Settings, LogOut, User, Users, C
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
+import { signOut } from '@/lib/sign-out'
 import type { UserRole } from '@repo/types'
 
 const ROLE_LABEL: Record<string, string> = {
@@ -55,11 +56,11 @@ const NAV_ITEMS: { labelTh: string; icon: LucideIcon; href: string; roles: UserR
 
 export function AppSidebar() {
   const router = useRouter()
-  const { user, logout } = useAuthStore()
+  const user = useAuthStore((s) => s.user)
   const items = NAV_ITEMS.filter((item) => !!user && item.roles.includes(user.role))
 
-  function handleLogout() {
-    logout()
+  async function handleLogout() {
+    await signOut()
     router.push('/login')
   }
 

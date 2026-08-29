@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Patch, Post, Req, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, HttpCode, Patch, Post, Req, UseGuards } from '@nestjs/common'
 import { Throttle } from '@nestjs/throttler'
 import { Request } from 'express'
 import { AuthService } from './auth.service'
@@ -30,6 +30,13 @@ export class AuthController {
   @Post('change-password')
   changePassword(@Body() dto: ChangePasswordDto, @Req() req: AuthRequest) {
     return this.auth.changePassword(req.user.id, dto, req.ip)
+  }
+
+  // Cookie-backed session rehydration for a freshly opened tab (see AuthService.me).
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  me(@Req() req: AuthRequest) {
+    return this.auth.me(req.user.id)
   }
 
   @UseGuards(JwtAuthGuard)

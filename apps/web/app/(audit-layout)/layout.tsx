@@ -5,30 +5,29 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Settings, LogOut, RotateCcw, ClipboardList, ClipboardCheck } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
-import { useAuthStore, useAuthHasHydrated } from '@/stores/auth.store'
+import { useAuthStore } from '@/stores/auth.store'
+import { signOut } from '@/lib/sign-out'
 import { useMyRejectedCount } from '@/hooks/use-checklists'
 
 export default function AuditLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const hydrated = useAuthHasHydrated()
-  const token = useAuthStore((s) => s.token)
+  const ready = useAuthStore((s) => s.ready)
   const user = useAuthStore((s) => s.user)
-  const logout = useAuthStore((s) => s.logout)
   // Session E3, Part B.1 — persistent header badge, one cheap dedicated query, never the full
   // rejected-checklist list (see ChecklistsService.countMyRejected's doc). AUDITOR/REVIEWER-only
   // endpoint; an ADMIN using this layout for the v2 preview flag simply never sees a nonzero count.
   const { data: rejectedCount } = useMyRejectedCount(user?.role === 'AUDITOR' || user?.role === 'REVIEWER')
 
   React.useEffect(() => {
-    if (hydrated && !token) router.replace('/login')
-  }, [hydrated, token, router])
+    if (ready && !user) router.replace('/login')
+  }, [ready, user, router])
 
-  function handleLogout() {
-    logout()
+  async function handleLogout() {
+    await signOut()
     router.push('/login')
   }
 
-  if (!hydrated || !token) return null
+  if (!ready || !user) return null
 
   return (
     // E-form redesign (Session E2, Part B.2) — ADMIN is let through this route-level gate too,

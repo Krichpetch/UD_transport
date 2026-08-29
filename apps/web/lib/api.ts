@@ -1,6 +1,7 @@
-import { useAuthStore } from '@/stores/auth.store'
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+// All API traffic goes through the same-origin BFF proxy (app/api/[...path]).
+// The httpOnly session cookie is sent automatically same-origin, so no
+// Authorization header is built here anymore — the proxy attaches the Bearer token.
+const BASE_URL = '/api'
 
 // Thrown instead of a plain Error when the API responds with a structured
 // { code, message, ... } body (e.g. the proximity gate's LOCATION_REQUIRED / OUT_OF_RANGE) —
@@ -19,10 +20,8 @@ export class ApiError extends Error {
 }
 
 function buildHeaders(extra?: HeadersInit): HeadersInit {
-  const token = useAuthStore.getState().token
   return {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...extra,
   }
 }
