@@ -6,6 +6,7 @@
 **Classification:** Official government inspection data — treat as confidential.
 
 Security rules that apply to every change:
+
 - No real inspection data or PII should appear in test fixtures, seed files, or logs
 - No `.env`, `.env.*`, or credential files should ever be committed to git
 - All API endpoints must be role-guarded (ADMIN / AUDITOR / EXECUTIVE)
@@ -16,15 +17,18 @@ Security rules that apply to every change:
 ---
 
 ## Project structure
+
 Turborepo monorepo. Main app is in `apps/web` (Next.js 16, TypeScript, Tailwind v4, shadcn/ui).
 Backend will live in `apps/api` (NestJS, Prisma, PostgreSQL) — not yet built.
 
 ## Dev commands
+
 - `cd apps/web && pnpm dev` — start frontend on localhost:3000
 - `cd apps/web && pnpm build` — build and type-check
 - `pnpm lint` — lint all packages
 
 ## Stack rules
+
 - Always use TypeScript. No `any` types.
 - Tailwind v4 only — CSS variables defined in `globals.css`. No tailwind.config file.
 - Use shadcn/ui components from `@/components/ui/` — never install MUI or other UI libs.
@@ -33,11 +37,13 @@ Backend will live in `apps/api` (NestJS, Prisma, PostgreSQL) — not yet built.
 - Client components that use hooks or browser APIs must have `'use client'` at the top.
 
 ## Route layout
+
 - `app/(auth)/` — login page, no sidebar
 - `app/(dashboard-layout)/` — admin/executive pages, shared sidebar + navbar layout
 - `app/(audit-layout)/` — auditor mobile views, max-w-sm gradient shell, no sidebar
 
 ## Role-based routing (login page)
+
 - EXECUTIVE → /dashboard (read-only home; no mutating controls anywhere in their nav/pages)
 - ADMIN → /admin/overview (operational home — see Part B of W2-S1)
 - AUDITOR → /audit
@@ -47,48 +53,57 @@ Backend will live in `apps/api` (NestJS, Prisma, PostgreSQL) — not yet built.
 ## Data model — read carefully before any checklist or scoring work
 
 ### Transport taxonomy
+
 ```ts
 type TransportMode = 'ทางบก' | 'ทางราง' | 'ทางน้ำ' | 'ทางอากาศ'
-type RailSubtype   = 'รถไฟฟ้า' | 'รถไฟ'  // only when mode === 'ทางราง'
+type RailSubtype = 'รถไฟฟ้า' | 'รถไฟ' // only when mode === 'ทางราง'
 ```
+
 The 5 station types for filtering are:
 สถานีขนส่งผู้โดยสาร (ทางบก), สถานีรถไฟ (ทางราง/รถไฟ),
 สถานีรถไฟฟ้า (ทางราง/รถไฟฟ้า), ท่าเรือโดยสาร (ทางน้ำ), ท่าอากาศยาน (ทางอากาศ)
 
 ### ChecklistValue — 4 states, not 3
+
 ```ts
 type ChecklistValue = 'มี' | 'ไม่มี' | 'N/A' | null
 ```
+
 - `meetsStandard: boolean` is a SEPARATE field — only meaningful when value === 'มี'
 - `meetsStandard` must reset to false when value changes away from 'มี'
 - N/A items must be EXCLUDED from all score calculations (denominator and numerator)
 - The 4 display states are: "มี และได้มาตรฐาน" / "มี แต่ไม่ได้มาตรฐาน" / "ไม่มี" / "ไม่เกี่ยวข้อง (N/A)"
 
 ### ChecklistSubItem fields
+
 ```ts
 interface ChecklistSubItem {
-  id: string            // e.g. 'A1.1'
+  id: string // e.g. 'A1.1'
   labelTh: string
   value: ChecklistValue
   meetsStandard: boolean
-  cabinetPriority: boolean  // true = mandated by มติ ครม.
+  cabinetPriority: boolean // true = mandated by มติ ครม.
   note: string
   photos: ChecklistPhoto[]
   flagged: boolean
 }
 ```
+
 Items with cabinetPriority = true:
 ที่จอดรถคนพิการ, ทางลาด, ห้องน้ำคนพิการ, ป้ายสัญลักษณ์, ข้อมูลข่าวสาร/การบริการข้อมูล
 
 ### Station fields (includes required agency)
+
 ```ts
 interface Station {
-  id, name, nameTh: string
+  id
+  name
+  nameTh: string
   mode: TransportMode
   railSubtype?: RailSubtype
   province: string
   region: string
-  responsibleAgency: string  // e.g. 'ขบ.' | 'รฟท.' | 'รฟม.' | 'ทอท.' etc.
+  responsibleAgency: string // e.g. 'ขบ.' | 'รฟท.' | 'รฟม.' | 'ทอท.' etc.
   score: number
   status: StationStatus
   lastInspected: string | null
@@ -106,14 +121,14 @@ Valid responsible agencies: ขบ., ขสมก., บขส., รฟท., ร�
 
 Given a filtered set of stations and a checklist item category:
 
-| Metric | Formula |
-|---|---|
-| จำนวนสถานีทั้งหมด | count of stations matching filter |
-| จำนวนสถานีที่มีรายการดังกล่าว | stations where value === 'มี' (either standard) |
-| จำนวนสถานีที่ได้มาตรฐาน | stations where value === 'มี' && meetsStandard === true |
-| ร้อยละความสำเร็จ | (ได้มาตรฐาน ÷ ทั้งหมด) × 100 |
-| ร้อยละการจัดให้มีสิ่งอำนวยความสะดวก | (มีรายการนั้น ÷ ทั้งหมด) × 100 |
-| ร้อยละการได้มาตรฐาน | (ได้มาตรฐาน ÷ มีรายการนั้น) × 100 |
+| Metric                              | Formula                                                 |
+| ----------------------------------- | ------------------------------------------------------- |
+| จำนวนสถานีทั้งหมด                   | count of stations matching filter                       |
+| จำนวนสถานีที่มีรายการดังกล่าว       | stations where value === 'มี' (either standard)         |
+| จำนวนสถานีที่ได้มาตรฐาน             | stations where value === 'มี' && meetsStandard === true |
+| ร้อยละความสำเร็จ                    | (ได้มาตรฐาน ÷ ทั้งหมด) × 100                            |
+| ร้อยละการจัดให้มีสิ่งอำนวยความสะดวก | (มีรายการนั้น ÷ ทั้งหมด) × 100                          |
+| ร้อยละการได้มาตรฐาน                 | (ได้มาตรฐาน ÷ มีรายการนั้น) × 100                       |
 
 All 6 metrics must be shown together whenever a score is displayed.
 N/A items are excluded from both numerator and denominator.
@@ -138,9 +153,11 @@ Dashboard must support clicking from coarse to fine:
 ---
 
 ## Checklist page (admin view — read-only)
+
 `app/(dashboard-layout)/stations/[id]/page.tsx` is ADMIN-ONLY and READ-ONLY.
 Auditors submit via the mobile audit view at `/audit`.
 Column order: รหัส | รายการ | มี | ไม่มี | ได้มาตรฐาน | หลักฐาน | พลิกฉาก
+
 - ได้มาตรฐาน checkbox is only active when มี is selected
 - หลักฐาน shows auditor-uploaded photo thumbnails (read-only, click to lightbox)
 - พลิกฉาก shows orange badge if flagged, — if not
@@ -148,6 +165,13 @@ Column order: รหัส | รายการ | มี | ไม่มี | ไ
 
 ---
 
-## Git
-- Work on feature branches. Commit before large changes.
-- Never commit .env or .env.* files.
+## Git workflow rules
+
+- **Always work in the main worktree.** Do not create or use separate
+  git worktrees (`git worktree add`). All work happens in the primary
+  working directory.
+- **Never commit directly to `master`.** Create a feature branch off
+  `master` for every unit of work:
+  `git checkout master && git pull && git checkout -b <descriptive-branch-name>`
+- Keep `master` as the integration branch; merge into it via PR/merge,
+  not direct commits.

@@ -267,6 +267,27 @@ export class StationsController {
     return result
   }
 
+  @Post(':id/checklist/:checklistId/revert-approval')
+  async revertApproval(
+    @Param('id') stationId: string,
+    @Param('checklistId') checklistId: string,
+    @Req() req: AuthRequest,
+  ) {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
+    const result = await this.stations.revertApproval(stationId, checklistId)
+    // The Checklist row has no approvedBy/approvedAt columns, so the AuditLog IS the who/when
+    // trail for the undo (CLAUDE.md: every mutation must audit).
+    await this.auditLog.log({
+      userId: req.user.id,
+      action: 'REVERT_APPROVAL',
+      entityType: 'Checklist',
+      entityId: checklistId,
+      before: { status: 'APPROVED' },
+      after: { status: 'SUBMITTED' },
+    })
+    return result
+  }
+
   @Patch(':id/checklist/:checklistId/items/:itemId/flag')
   async setItemFlag(
     @Param('id') stationId: string,

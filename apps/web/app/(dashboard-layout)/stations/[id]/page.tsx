@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { useStation } from '@/hooks/use-stations'
 import { useChecklist, useChecklistHistory, useChecklistHistoryPaginated } from '@/hooks/use-checklists'
-import { useApproveChecklist, useRejectChecklist, useSetItemFlag } from '@/hooks/use-stations'
+import { useApproveChecklist, useRejectChecklist, useSetItemFlag, useRevertApproval } from '@/hooks/use-stations'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ChecklistGroup, ChecklistSubItem, ChecklistTemplateGroupDef, TemplateNode } from '@repo/types'
 import { buildHistogram, computeFacilityMetrics, computeScoreFromItems } from '@repo/types'
@@ -28,6 +28,7 @@ import { useAuditFormStore } from '@/stores/audit-form.store'
 import { groupDisplayName, buildNavPages, buildV2Pages } from '@/lib/audit-form'
 import { useAuthStore } from '@/stores/auth.store'
 import { RequireRole } from '@/components/auth/require-role'
+import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { countReviewFlags } from '@/lib/checklist-review-flags'
 import Link from 'next/link'
 
@@ -440,6 +441,7 @@ function StationChecklistPageContent({
   const qc = useQueryClient()
   const approveMutation = useApproveChecklist()
   const rejectMutation = useRejectChecklist()
+  const revertMutation = useRevertApproval()
   const flagMutation = useSetItemFlag()
 
   const [items, setItems] = React.useState<StoredGroup[]>([])
@@ -449,6 +451,9 @@ function StationChecklistPageContent({
   const [flaggingCode, setFlaggingCode] = React.useState<string | null>(null)
   const [rejectOpen, setRejectOpen] = React.useState(false)
   const [rejectNotes, setRejectNotes] = React.useState('')
+  // UDT-55 — confirm guards for the one-and-done approve button and the new revert action.
+  const [approveConfirm, setApproveConfirm] = React.useState(false)
+  const [revertConfirm, setRevertConfirm] = React.useState(false)
   const [pageTab, setPageTab] = React.useState<'checklist' | 'history'>('checklist')
   // Admin checklist-review refresh — the summary is now page -1 of the SAME sequence as the item
   // pages (0..totalPages-1), not a separate screen behind a "ดูคำตอบทั้งหมด" button. Lands here by
@@ -950,9 +955,7 @@ function StationChecklistPageContent({
                 )}
                 <div className="flex gap-2">
                   <button
-                    onClick={() =>
-                      approveMutation.mutate({ stationId: id, checklistId: checklist.id })
-                    }
+                    onClick={() => setApproveConfirm(true)}
                     disabled={approveMutation.isPending || flaggedCount > 0}
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60"
                   >
@@ -987,6 +990,54 @@ function StationChecklistPageContent({
                     </button>
                   </div>
                 )}
+
+                <ConfirmDialog
+                  open={approveConfirm}
+                  onOpenChange={setApproveConfirm}
+                  title="ยืนยันการอนุมัติรายงาน?"
+                  body="เมื่ออนุมัติแล้ว คะแนนของสถานีจะถูกปรับปรุงตามผลการตรวจนี้ หากอนุมัติผิด สามารถยกเลิกการอนุมัติได้จากหน้านี้ภายหลัง"
+                  confirmLabel="ยืนยันอนุมัติ"
+                  pending={approveMutation.isPending}
+                  error={approveMutation.isError ? (approveMutation.error?.message || 'เกิดข้อผิดพลาดในการอนุมัติ') : null}
+                  onConfirm={() =>
+                    approveMutation.mutate(
+                      { stationId: id, checklistId: checklist.id },
+                      { onSuccess: () => setApproveConfirm(false) },
+                    )
+                  }
+                />
+              </div>
+            )}
+
+            {/* UDT-55 — revert an accidental approval; returns the report to the review queue. */}
+            {checklist.status === 'APPROVED' && (
+              <div className="mb-4 space-y-2">
+                <button
+                  onClick={() => setRevertConfirm(true)}
+                  disabled={revertMutation.isPending}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-700 transition-colors hover:bg-red-100 disabled:opacity-60"
+                >
+                  {revertMutation.isPending
+                    ? <Loader2 size={13} className="animate-spin" />
+                    : <RotateCcw size={13} />}
+                  ยกเลิกการอนุมัติ
+                </button>
+                <ConfirmDialog
+                  open={revertConfirm}
+                  onOpenChange={setRevertConfirm}
+                  title="ยกเลิกการอนุมัติรายงานนี้?"
+                  body="รายงานจะกลับไปอยู่ในสถานะรอการอนุมัติเพื่อให้ตรวจสอบใหม่ และคะแนนของสถานีจะถูกคำนวณใหม่จากรายงานที่อนุมัติก่อนหน้า (หากมี)"
+                  confirmLabel="ยืนยันยกเลิกการอนุมัติ"
+                  destructive
+                  pending={revertMutation.isPending}
+                  error={revertMutation.isError ? (revertMutation.error?.message || 'เกิดข้อผิดพลาดในการยกเลิกการอนุมัติ') : null}
+                  onConfirm={() =>
+                    revertMutation.mutate(
+                      { stationId: id, checklistId: checklist.id },
+                      { onSuccess: () => setRevertConfirm(false) },
+                    )
+                  }
+                />
               </div>
             )}
 

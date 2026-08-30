@@ -31,6 +31,7 @@ import { StationForm, StationCoordinateFields, type StationFormValue } from '@/c
 import { INPUT_CLS, DIALOG_HEADER_CLS, DIALOG_TITLE_CLS } from '@/lib/ui-classes'
 import { getLineColor } from '@/lib/line-colors'
 import { RequireRole } from '@/components/auth/require-role'
+import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { countReviewFlags } from '@/lib/checklist-review-flags'
 import {
   Search,
@@ -55,8 +56,11 @@ function ApproveButton({ stationId }: { stationId: string }) {
   const approveMutation = useApproveChecklist()
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  // UDT-55 — the SUBMITTED checklist id, set once the flag-precheck passes; a non-null value
+  // opens the confirm guard so a single stray click can no longer approve outright.
+  const [confirmId, setConfirmId] = React.useState<string | null>(null)
 
-  async function handleApprove(e: React.MouseEvent) {
+  async function handleClick(e: React.MouseEvent) {
     e.preventDefault()
     setError(null)
     setLoading(true)
@@ -72,7 +76,7 @@ function ApproveButton({ stationId }: { stationId: string }) {
           setError(`มีรายการพบปัญหา (${flaggedCount}) — กรุณาตรวจสอบในหน้ารายละเอียด`)
           return
         }
-        await approveMutation.mutateAsync({ stationId, checklistId: submitted.id })
+        setConfirmId(submitted.id)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการอนุมัติ')
@@ -84,16 +88,32 @@ function ApproveButton({ stationId }: { stationId: string }) {
   return (
     <div>
       <button
-        onClick={handleApprove}
-        disabled={loading}
+        onClick={handleClick}
+        disabled={loading || approveMutation.isPending}
         className="flex items-center gap-1 rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60"
       >
-        {loading ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle size={11} />}
+        {loading || approveMutation.isPending ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle size={11} />}
         อนุมัติ
       </button>
       {error && (
         <p className="mt-1 max-w-[200px] text-[10px] leading-tight text-red-600">{error}</p>
       )}
+      <ConfirmDialog
+        open={confirmId !== null}
+        onOpenChange={(o) => { if (!o) setConfirmId(null) }}
+        title="ยืนยันการอนุมัติรายงาน?"
+        body="เมื่ออนุมัติแล้ว คะแนนของสถานีจะถูกปรับปรุงตามผลการตรวจนี้ หากอนุมัติผิด สามารถยกเลิกการอนุมัติได้จากหน้ารายละเอียดสถานีภายหลัง"
+        confirmLabel="ยืนยันอนุมัติ"
+        pending={approveMutation.isPending}
+        error={approveMutation.isError ? (approveMutation.error?.message || 'เกิดข้อผิดพลาดในการอนุมัติ') : null}
+        onConfirm={() => {
+          if (!confirmId) return
+          approveMutation.mutate(
+            { stationId, checklistId: confirmId },
+            { onSuccess: () => setConfirmId(null) },
+          )
+        }}
+      />
     </div>
   )
 }

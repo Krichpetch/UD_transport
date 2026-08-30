@@ -6,6 +6,9 @@ export interface AuthUser {
   username: string
   role: UserRole
   displayName?: string | null
+  // UDT-53 — true when this ADMIN is a "sys admin" (governs user management). Drives the /users
+  // page gating; the API is still the real authority.
+  isSuperAdmin?: boolean
 }
 
 // In-memory only. The JWT now lives in an httpOnly cookie (invisible to JS), so

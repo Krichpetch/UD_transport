@@ -6,6 +6,8 @@ export interface AuthUserResponse {
   username: string
   role: UserRole
   displayName: string | null
+  // UDT-53 — sys-admin bit (only meaningful for ADMIN). Drives /users page gating.
+  isSuperAdmin: boolean
 }
 
 // The BFF login route stores the JWT in an httpOnly cookie and returns only the

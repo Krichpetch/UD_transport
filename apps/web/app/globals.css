@@ -103,6 +103,8 @@ a {
   --status-pass: #52aa4e;
   --status-warn: #ffc107;
   --status-fail: #f44336;
+  /* Amber text is unreadable on light tints, so status "warn" text uses a darkened amber. */
+  --status-warn-foreground: #b38600;
 
   --destructive: #f44336;
 
@@ -163,6 +165,13 @@ a {
 
   --destructive: #ef4444;
 
+  /* Status colors — brighter variants for dark surfaces; warn text no longer
+     needs darkening since it sits on a dark tint. */
+  --status-pass: #4ade80;
+  --status-warn: #facc15;
+  --status-fail: #ef4444;
+  --status-warn-foreground: #facc15;
+
   --chart-1: #60a5fa;
   --chart-2: #22d3ee;
   --chart-3: #4ade80;
@@ -220,6 +229,11 @@ a {
   --color-ring: var(--ring);
 
   --color-destructive: var(--destructive);
+
+  --color-status-pass: var(--status-pass);
+  --color-status-warn: var(--status-warn);
+  --color-status-fail: var(--status-fail);
+  --color-status-warn-foreground: var(--status-warn-foreground);
 
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);

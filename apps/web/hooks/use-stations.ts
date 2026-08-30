@@ -12,6 +12,7 @@ import {
   getPendingReviews,
   approveChecklist,
   rejectChecklist,
+  revertApproval,
   setItemFlag,
   getStationMetrics,
   getStationMapNodes,
@@ -148,6 +149,23 @@ export function useApproveChecklist() {
   return useMutation({
     mutationFn: ({ stationId, checklistId }: { stationId: string; checklistId: string }) =>
       approveChecklist(stationId, checklistId),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: ['stations'] })
+      void qc.invalidateQueries({ queryKey: ['stations', 'pending-reviews'] })
+      void qc.invalidateQueries({ queryKey: ['checklist', vars.stationId] })
+      void qc.invalidateQueries({ queryKey: ['checklist', vars.stationId, 'history'] })
+    },
+  })
+}
+
+// UDT-55 — undo an accidental approval. Returns the checklist to SUBMITTED, so it must
+// invalidate the same key set as approve to flip the station back into the pending-review
+// queue everywhere (list page, detail page, pending-reviews).
+export function useRevertApproval() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ stationId, checklistId }: { stationId: string; checklistId: string }) =>
+      revertApproval(stationId, checklistId),
     onSuccess: (_data, vars) => {
       void qc.invalidateQueries({ queryKey: ['stations'] })
       void qc.invalidateQueries({ queryKey: ['stations', 'pending-reviews'] })

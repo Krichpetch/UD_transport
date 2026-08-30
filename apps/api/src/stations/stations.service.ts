@@ -605,6 +605,56 @@ export class StationsService {
     })
   }
 
+  // UDT-55 — admin/reviewer undoes an accidental approval. Sends the checklist back to
+  // SUBMITTED (into the pending-review queue) so it can be re-decided; the auditor's data is
+  // untouched. The score written on approve is dropped (mirrors unsubmitChecklist). The station's
+  // denormalized score/status/lastInspected — which approveChecklist overwrote with no snapshot —
+  // are recomputed from the previous latest-approved checklist, or reset to the schema defaults
+  // when this was the only approved checklist.
+  async revertApproval(stationId: string, checklistId: string) {
+    const existing = await this.prisma.checklist.findFirst({ where: { id: checklistId, stationId } })
+    if (!existing) throw new NotFoundException()
+    if (existing.status !== 'APPROVED') {
+      throw new BadRequestException('มีเพียงรายงานที่อนุมัติแล้วเท่านั้นที่สามารถยกเลิกการอนุมัติได้')
+    }
+
+    // Both writes (checklist status + station denorm reset) go through the tx client, and the
+    // status is re-checked inside to close the race with a concurrent approve/revert — same
+    // pattern approveChecklist/rejectChecklist use.
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.checklist.findFirst({ where: { id: checklistId, stationId } })
+      if (!current || current.status !== 'APPROVED') {
+        throw new BadRequestException('มีเพียงรายงานที่อนุมัติแล้วเท่านั้นที่สามารถยกเลิกการอนุมัติได้')
+      }
+
+      const cl = await tx.checklist.update({
+        where: { id: checklistId, stationId },
+        data: { status: 'SUBMITTED', score: null },
+      })
+
+      // Recompute the station denorm from the newest OTHER approved checklist for this station.
+      const prevApproved = await tx.checklist.findFirst({
+        where: { stationId, status: 'APPROVED', NOT: { id: checklistId } },
+        orderBy: { submittedAt: 'desc' },
+      })
+      if (prevApproved) {
+        const score  = computeScoreFromItems(prevApproved.items)
+        const status = scoreToStatus(score)
+        await tx.station.update({
+          where: { id: stationId },
+          data: { score, status, lastInspected: prevApproved.submittedAt },
+        })
+      } else {
+        // No approved checklist remains — reset to the Station schema defaults.
+        await tx.station.update({
+          where: { id: stationId },
+          data: { score: 0, status: 'ต้องปรับปรุง', lastInspected: null },
+        })
+      }
+      return cl
+    })
+  }
+
   // Toggles reviewFlag on one item inside the items JSON blob (there is no dedicated column —
   // same storage model the existing `flagged` scoring field uses). Returns before/after for
   // the caller to write an AuditLog entry.
