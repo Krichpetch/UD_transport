@@ -204,6 +204,12 @@ export function rejectChecklist(stationId: string, checklistId: string, notes: s
   return api.post<ChecklistRecord>(`/stations/${stationId}/checklist/${checklistId}/reject`, { notes })
 }
 
+// UDT-55 — undo an accidental approval: sends the checklist back to SUBMITTED (pending-review
+// queue). ADMIN/REVIEWER only (guarded server-side, same as approve).
+export function revertApproval(stationId: string, checklistId: string) {
+  return api.post<void>(`/stations/${stationId}/checklist/${checklistId}/revert-approval`, {})
+}
+
 export function setItemFlag(
   stationId: string,
   checklistId: string,
