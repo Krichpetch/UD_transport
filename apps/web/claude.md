@@ -2,6 +2,7 @@
 
 See @package.json for all available scripts.
 See @lib/mock-data.ts for all types, interfaces, and mock station/checklist data.
+See @DESIGN.md for the visual design system — fonts, color tokens, spacing, radius, and component/domain color conventions. Read it before any styling work.
 
 ## Key imports
 - Types: `TransportMode`, `RailSubtype`, `ChecklistValue`, `ChecklistSubItem`, `ChecklistGroup`, `Station`

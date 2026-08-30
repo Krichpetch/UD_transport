@@ -4,9 +4,9 @@ import type { StationStatus, TransportMode, RailSubtype } from '@repo/types'
 
 export function StatusBadge({ status }: { status: StationStatus }) {
   const map: Record<StationStatus, string> = {
-    'ผ่านมาตรฐาน': 'bg-[#52aa4e]/10 text-[#52aa4e]',
-    'ต้องปรับปรุง': 'bg-[#ffc107]/10 text-[#b38600]',
-    'ไม่ผ่าน':      'bg-[#f44336]/10 text-[#f44336]',
+    'ผ่านมาตรฐาน': 'bg-status-pass/10 text-status-pass',
+    'ต้องปรับปรุง': 'bg-status-warn/10 text-status-warn-foreground',
+    'ไม่ผ่าน':      'bg-status-fail/10 text-status-fail',
   }
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${map[status] ?? 'bg-secondary text-muted-foreground'}`}>
@@ -34,7 +34,8 @@ export function TransportBadge({ type }: { type: string }) {
 }
 
 export function ScoreBar({ score }: { score: number }) {
-  const color = score >= 75 ? '#52aa4e' : score >= 50 ? '#ffc107' : '#f44336'
+  const color =
+    score >= 75 ? 'var(--status-pass)' : score >= 50 ? 'var(--status-warn)' : 'var(--status-fail)'
   return (
     <div className="flex items-center gap-2">
       <div className="bg-secondary h-1.5 w-16 overflow-hidden rounded-full">

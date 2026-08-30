@@ -97,18 +97,22 @@ interface UserFormState {
   role: UserRole
   password: string
   agency: ResponsibleAgency | ''
+  isSuperAdmin: boolean
 }
 
-const EMPTY_FORM: UserFormState = { username: '', email: '', role: 'AUDITOR', password: '', agency: '' }
+const EMPTY_FORM: UserFormState = { username: '', email: '', role: 'AUDITOR', password: '', agency: '', isSuperAdmin: false }
 
 function UserFormModal({
   mode,
   initial,
+  canManageAdmins,
   onClose,
   onCreated,
 }: {
   mode: 'create' | 'edit'
   initial: UserRecord | null
+  // UDT-53 — true only for sys admins. Gates the ADMIN role option + the sys-admin toggle.
+  canManageAdmins: boolean
   onClose: () => void
   onCreated: (user: CreatedUserRecord) => void
 }) {
@@ -116,9 +120,11 @@ function UserFormModal({
   const updateUser = useUpdateUser()
   const [form, setForm] = React.useState<UserFormState>(
     initial
-      ? { username: initial.username, email: initial.email, role: initial.role, password: '', agency: initial.agency ?? '' }
+      ? { username: initial.username, email: initial.email, role: initial.role, password: '', agency: initial.agency ?? '', isSuperAdmin: initial.isSuperAdmin }
       : EMPTY_FORM,
   )
+  // Regular admins may only pick non-admin roles; sys admins see all of them.
+  const roleOptions = canManageAdmins ? USER_ROLES : USER_ROLES.filter((r) => r !== 'ADMIN')
   const [error, setError] = React.useState('')
   const [saving, setSaving] = React.useState(false)
 
@@ -139,6 +145,9 @@ function UserFormModal({
     setError('')
     setSaving(true)
     try {
+      // The sys-admin bit only travels when the actor may set it and the role is ADMIN — otherwise
+      // it's meaningless (and the server would 403 a regular admin who sent it).
+      const isSuperAdmin = canManageAdmins && form.role === 'ADMIN' ? form.isSuperAdmin : undefined
       if (mode === 'create') {
         const user = await createUser.mutateAsync({
           username: form.username,
@@ -146,12 +155,13 @@ function UserFormModal({
           role: form.role,
           password: form.password || undefined,
           agency: form.agency || undefined,
+          isSuperAdmin,
         })
         onCreated(user)
       } else if (initial) {
         await updateUser.mutateAsync({
           id: initial.id,
-          data: { username: form.username, email: form.email, role: form.role, agency: form.agency || undefined },
+          data: { username: form.username, email: form.email, role: form.role, agency: form.agency || undefined, isSuperAdmin },
         })
         onClose()
       }
@@ -192,13 +202,28 @@ function UserFormModal({
           <div>
             <label className="text-foreground mb-1 block text-xs font-medium">บทบาท *</label>
             <select className={SELECT_CLS} value={form.role} onChange={(e) => patch({ role: e.target.value as UserRole })}>
-              {USER_ROLES.map((r) => (
+              {roleOptions.map((r) => (
                 <option key={r} value={r}>
                   {ROLE_LABEL[r]}
                 </option>
               ))}
             </select>
           </div>
+          {/* UDT-53 — sys-admin grant, only offered to sys admins and only for ADMIN accounts. */}
+          {canManageAdmins && form.role === 'ADMIN' && (
+            <label className="border-border bg-secondary/30 flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={form.isSuperAdmin}
+                onChange={(e) => patch({ isSuperAdmin: e.target.checked })}
+              />
+              <span className="text-xs">
+                <span className="text-foreground block font-medium">ผู้ดูแลระบบสูงสุด</span>
+                <span className="text-muted-foreground">จัดการบัญชีผู้ดูแลระบบอื่น และกำหนดสิทธิ์ผู้ดูแลระบบได้</span>
+              </span>
+            </label>
+          )}
           <div>
             <label className="text-foreground mb-1 block text-xs font-medium">หน่วยงานรับผิดชอบ</label>
             <select
@@ -262,6 +287,9 @@ function UsersPageContent() {
   const { user: currentUser } = useAuthStore()
   const { data: users = [], isLoading, error } = useUsers()
   const setUserActive = useSetUserActive()
+  // UDT-53 — only sys admins may act on admin-tier accounts. Mirrors the server 403 so the UI
+  // never dangles an action that will just fail; the API stays the real authority.
+  const canManageAdmins = !!currentUser?.isSuperAdmin
 
   const [formModal, setFormModal] = React.useState<{ mode: 'create' | 'edit'; initial: UserRecord | null } | null>(null)
   const [createdUser, setCreatedUser] = React.useState<CreatedUserRecord | null>(null)
@@ -335,12 +363,22 @@ function UsersPageContent() {
                     </td>
                   </tr>
                 ) : (
-                  users.map((u) => (
+                  users.map((u) => {
+                    // Regular admins can view admin rows but not act on them (server enforces too).
+                    const adminLocked = !canManageAdmins && u.role === 'ADMIN'
+                    return (
                     <tr key={u.id} className="border-border hover:bg-secondary/30 border-b transition-colors last:border-0">
                       <td className="text-foreground px-5 py-3.5 font-medium">{u.username}</td>
                       <td className="text-muted-foreground px-3 py-3.5">{u.email}</td>
                       <td className="px-3 py-3.5">
-                        <RoleBadge role={u.role} />
+                        <div className="flex items-center gap-1.5">
+                          <RoleBadge role={u.role} />
+                          {u.isSuperAdmin && (
+                            <span className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
+                              สูงสุด
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="text-muted-foreground px-3 py-3.5">{u.agency ?? '—'}</td>
                       <td className="px-3 py-3.5">
@@ -350,15 +388,23 @@ function UsersPageContent() {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => setFormModal({ mode: 'edit', initial: u })}
-                            className="border-border text-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors"
+                            disabled={adminLocked}
+                            title={adminLocked ? 'เฉพาะผู้ดูแลระบบสูงสุดเท่านั้นที่จัดการบัญชีผู้ดูแลระบบได้' : undefined}
+                            className="border-border text-foreground hover:bg-secondary flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
                           >
                             <Pencil size={12} />
                             แก้ไข
                           </button>
                           <button
                             onClick={() => handleToggleActive(u)}
-                            disabled={pendingToggleId === u.id || u.id === currentUser?.id}
-                            title={u.id === currentUser?.id ? 'ไม่สามารถปิดใช้งานบัญชีของตนเองได้' : undefined}
+                            disabled={pendingToggleId === u.id || u.id === currentUser?.id || adminLocked}
+                            title={
+                              u.id === currentUser?.id
+                                ? 'ไม่สามารถปิดใช้งานบัญชีของตนเองได้'
+                                : adminLocked
+                                  ? 'เฉพาะผู้ดูแลระบบสูงสุดเท่านั้นที่จัดการบัญชีผู้ดูแลระบบได้'
+                                  : undefined
+                            }
                             className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:opacity-40 ${
                               u.isActive
                                 ? 'border-border text-destructive hover:bg-destructive/5'
@@ -377,7 +423,8 @@ function UsersPageContent() {
                         </div>
                       </td>
                     </tr>
-                  ))
+                    )
+                  })
                 )}
               </tbody>
             </table>
@@ -389,6 +436,7 @@ function UsersPageContent() {
         <UserFormModal
           mode={formModal.mode}
           initial={formModal.initial}
+          canManageAdmins={canManageAdmins}
           onClose={() => setFormModal(null)}
           onCreated={(user) => {
             setFormModal(null)

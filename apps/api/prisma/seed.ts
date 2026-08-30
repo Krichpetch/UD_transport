@@ -13,7 +13,7 @@ async function main() {
   await prisma.user.upsert({
     where: { username: 'admin' },
     update: {},
-    create: { username: 'admin', email: 'admin@ud-transport.go.th', passwordHash, role: 'ADMIN' },
+    create: { username: 'admin', email: 'admin@ud-transport.go.th', passwordHash, role: 'ADMIN', isSuperAdmin: true },
   })
   await prisma.user.upsert({
     where: { username: 'auditor1' },

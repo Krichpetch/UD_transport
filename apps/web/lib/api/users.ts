@@ -7,6 +7,7 @@ export interface UserRecord {
   email: string
   role: UserRole
   isActive: boolean
+  isSuperAdmin: boolean
   agency: ResponsibleAgency | null
   createdAt: string
   updatedAt: string
@@ -24,6 +25,7 @@ export interface CreateUserInput {
   role?: UserRole
   password?: string
   agency?: ResponsibleAgency
+  isSuperAdmin?: boolean
 }
 
 export interface UpdateUserInput {
@@ -31,6 +33,7 @@ export interface UpdateUserInput {
   email?: string
   role?: UserRole
   agency?: ResponsibleAgency
+  isSuperAdmin?: boolean
 }
 
 export function getUsers() {

@@ -65,6 +65,10 @@ model User {
   displayName  String?
   role         UserRole  @default(AUDITOR)
   isActive     Boolean   @default(true)
+  // UDT-53 — "sys admin" bit on top of ADMIN. An ADMIN with this set governs user management
+  // (may manage admin-tier accounts + grant ADMIN/this bit); a plain ADMIN may only manage
+  // non-admin accounts. Only ever meaningful when role === 'ADMIN'. Enforced in users.service.ts.
+  isSuperAdmin Boolean   @default(false)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

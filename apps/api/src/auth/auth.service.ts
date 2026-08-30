@@ -31,7 +31,7 @@ export class AuthService {
     const payload = { sub: user.id, username: user.username, role: user.role }
     return {
       access_token: this.jwt.sign(payload),
-      user: { id: user.id, username: user.username, role: user.role, displayName: user.displayName },
+      user: { id: user.id, username: user.username, role: user.role, displayName: user.displayName, isSuperAdmin: user.isSuperAdmin },
     }
   }
 
@@ -41,7 +41,7 @@ export class AuthService {
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } })
     if (!user || !user.isActive) throw new UnauthorizedException()
-    return { id: user.id, username: user.username, role: user.role, displayName: user.displayName }
+    return { id: user.id, username: user.username, role: user.role, displayName: user.displayName, isSuperAdmin: user.isSuperAdmin }
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto, ipAddress?: string) {
