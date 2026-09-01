@@ -42,6 +42,21 @@ html body[data-scroll-locked] {
   margin-right: 0px !important;
 }
 
+/* ==========================================
+   Font scale (UDT-52)
+   User-selectable root font-size, applied SSR via the `data-font-scale`
+   attribute on <html> (set in app/layout.tsx from the `font-scale` cookie,
+   updated live from the Settings page). Tailwind's rem-based text and spacing
+   utilities scale off :root font-size, so this proportionally enlarges the UI.
+   100% = browser default (no rule needed).
+   ========================================== */
+:root[data-font-scale='125'] {
+  font-size: 125%;
+}
+:root[data-font-scale='150'] {
+  font-size: 150%;
+}
+
 a {
   text-decoration: none;
 }
@@ -89,7 +104,10 @@ a {
   --accent-foreground: #ffffff;
 
   --muted: #64748b;
-  --muted-foreground: #64748b;
+  /* Body/secondary text (text-muted-foreground). Darkened from slate-500
+     (#64748b, ~4.3:1 on the light canvas) to slate-600 for readable small
+     Thai text (~7:1). See DESIGN.md / UDT-57. --muted (surfaces) unchanged. */
+  --muted-foreground: #475569;
 
   --border: #e2e8f0;
   --input: #e2e8f0;
@@ -198,6 +216,13 @@ a {
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: var(--font-sans);
+
+  /* Typography scale — sub-xs floor (UDT-57). The documented steps
+     text-xs…text-3xl are Tailwind defaults; these add the two smaller
+     rem-based steps used by dense tables / mobile chrome, so nothing needs
+     a raw text-[Npx] literal (which wouldn't respond to the font scale). */
+  --text-2xs: 0.6875rem; /* 11px */
+  --text-3xs: 0.625rem; /* 10px */
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);

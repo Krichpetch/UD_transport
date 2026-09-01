@@ -247,7 +247,7 @@ export default function DashboardPage() {
               ผลการตรวจสอบ: {selectedSubItem?.labelTh ?? subItemFilter}
             </h2>
             {selectedSubItem?.cabinetPriority && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-3xs font-medium text-amber-700">
                 มติ ครม.
               </span>
             )}
@@ -271,12 +271,12 @@ export default function DashboardPage() {
                 <MetricRow label="3.6 ร้อยละการได้มาตรฐาน" value={metrics.metrics.meetsStandard} pct={metrics.metrics.pctMeetsStandard} />
               </div>
               <div className="border-border rounded-lg border px-4 py-3 sm:col-span-2 lg:col-span-1">
-                <p className="text-muted-foreground mb-2 text-[10px] font-medium uppercase tracking-wide">
+                <p className="text-muted-foreground mb-2 text-3xs font-medium uppercase tracking-wide">
                   สถานีที่ยังไม่ได้มาตรฐาน ({metrics.failingStations.length})
                 </p>
                 <div className="themed-scrollbar max-h-28 space-y-1 overflow-y-auto">
                   {metrics.failingStations.map(s => (
-                    <p key={s.id} className="text-foreground text-[10px]">
+                    <p key={s.id} className="text-foreground text-3xs">
                       · {s.nameTh} <span className="text-muted-foreground">({s.province})</span>
                     </p>
                   ))}
@@ -398,13 +398,13 @@ export default function DashboardPage() {
                     <p className="text-foreground text-xs font-medium leading-snug">{station.nameTh}</p>
                     <StatusBadge status={station.status} />
                   </div>
-                  <p className="text-muted-foreground mb-2 text-[10px]">
+                  <p className="text-muted-foreground mb-2 text-3xs">
                     {station.province} · {getTransportLabel(station)} · {station.responsibleAgency}
                   </p>
                   {station.urgentIssues.length > 0 && (
                     <ul className="space-y-0.5">
                       {station.urgentIssues.map((issue, i) => (
-                        <li key={i} className="text-muted-foreground flex items-start gap-1 text-[10px]">
+                        <li key={i} className="text-muted-foreground flex items-start gap-1 text-3xs">
                           <span className="mt-1 size-1 shrink-0 rounded-full bg-[#f44336]" />
                           {issue}
                         </li>

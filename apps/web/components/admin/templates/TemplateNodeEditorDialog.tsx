@@ -133,7 +133,7 @@ export function TemplateNodeEditorDialog({
         {node && (
           <>
             <div className={DIALOG_HEADER_CLS}>
-              {breadcrumb.length > 0 && <p className="text-muted-foreground mb-1 text-[10px]">{breadcrumb.join(' › ')}</p>}
+              {breadcrumb.length > 0 && <p className="text-muted-foreground mb-1 text-3xs">{breadcrumb.join(' › ')}</p>}
               <DialogTitle className={`flex items-center gap-2 ${DIALOG_TITLE_CLS}`}>
                 <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 font-mono text-xs">{node.code}</span>
                 {node.labelTh}

@@ -36,16 +36,16 @@ function unitSuffix(unit: string): string {
 // one that needs an entered measurement vs. one the auditor judges manually against a standard.
 function AnswerTypeBadge({ node }: { node: TemplateNode }) {
   if (node.answerType === 'presence') {
-    return <span className="shrink-0 rounded-full bg-secondary px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground">มี/ไม่มี</span>
+    return <span className="shrink-0 rounded-full bg-secondary px-1.5 py-0.5 text-3xs font-medium text-muted-foreground">มี/ไม่มี</span>
   }
   if (node.answerType === 'presence_standard') {
     const measured = node.measurements && node.measurements.length > 0
     return measured ? (
-      <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-700">
+      <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-blue-50 px-1.5 py-0.5 text-3xs font-medium text-blue-700">
         <Ruler size={9} /> ต้องวัดค่า
       </span>
     ) : (
-      <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">ประเมินโดยผู้ตรวจ</span>
+      <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-3xs font-medium text-amber-700">ประเมินโดยผู้ตรวจ</span>
     )
   }
   return null // 'choice' (v1) — no badge, matches today's live form exactly
@@ -58,11 +58,11 @@ function DerivedIndicator({ node, values }: { node: TemplateNode; values: Record
   if (!node.measurements?.some((m) => m.autoGrade)) return null
   const verdict = deriveMeasuredStandard(node.measurements, values)
   if (verdict === null) return (
-    <p className="mt-1.5 text-[10px] text-muted-foreground">ยังคำนวณไม่ได้ — กรอกค่าให้ครบ</p>
+    <p className="mt-1.5 text-3xs text-muted-foreground">ยังคำนวณไม่ได้ — กรอกค่าให้ครบ</p>
   )
   return (
-    <p className={`mt-1.5 flex items-center gap-1 text-[11px] font-medium ${verdict ? 'text-green-700' : 'text-red-600'}`}>
-      {verdict ? 'ได้มาตรฐาน' : 'ไม่ได้มาตรฐาน'} <span className="text-[9px] font-normal text-muted-foreground">(คำนวณอัตโนมัติ)</span>
+    <p className={`mt-1.5 flex items-center gap-1 text-2xs font-medium ${verdict ? 'text-green-700' : 'text-red-600'}`}>
+      {verdict ? 'ได้มาตรฐาน' : 'ไม่ได้มาตรฐาน'} <span className="text-3xs font-normal text-muted-foreground">(คำนวณอัตโนมัติ)</span>
     </p>
   )
 }
@@ -161,7 +161,7 @@ export function LeafAnswerRow({ node, disabled = false, readOnly = false, breadc
             <span className="border-border block size-4 rounded-full border-2" />
           )}
         </span>
-        <span className="text-muted-foreground bg-secondary mt-0.5 shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px]">
+        <span className="text-muted-foreground bg-secondary mt-0.5 shrink-0 rounded px-1.5 py-0.5 font-mono text-3xs">
           {node.code}{node.num ? ` (${node.num})` : ''}
         </span>
         <div className="flex-1">
@@ -172,7 +172,7 @@ export function LeafAnswerRow({ node, disabled = false, readOnly = false, breadc
           <div className="mt-1 flex flex-wrap items-center gap-1">
             <AnswerTypeBadge node={node} />
             {node.cabinetResolution && (
-              <span className="inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">
+              <span className="inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-3xs font-medium text-amber-700">
                 มติ ครม.
               </span>
             )}
@@ -181,7 +181,7 @@ export function LeafAnswerRow({ node, disabled = false, readOnly = false, breadc
                 type="button"
                 onClick={onToggleFlag}
                 disabled={flagPending}
-                className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-medium transition-colors disabled:opacity-50 ${
+                className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-3xs font-medium transition-colors disabled:opacity-50 ${
                   reviewFlag
                     ? 'bg-orange-100 text-orange-600'
                     : 'bg-secondary text-muted-foreground/50 hover:bg-orange-50 hover:text-orange-500'
@@ -242,7 +242,7 @@ export function LeafAnswerRow({ node, disabled = false, readOnly = false, breadc
       ) : (
         <button
           onClick={() => setNotesOpen(true)}
-          className="text-muted-foreground hover:text-foreground mt-2.5 flex items-center gap-1 text-[11px]"
+          className="text-muted-foreground hover:text-foreground mt-2.5 flex items-center gap-1 text-2xs"
         >
           <StickyNote size={11} /> เพิ่มบันทึก
         </button>
@@ -396,11 +396,11 @@ export function MeasurementInput({ code, measurement, values, setAnswer, readOnl
             (i) info-modal click, so approval doesn't require a second tap per item. Auditor's live
             form is unchanged (readOnly only). */}
         {readOnly && (
-          <p className="text-[11px] font-medium text-blue-700">มาตรฐาน: {measurementSummary(measurement)}</p>
+          <p className="text-2xs font-medium text-blue-700">มาตรฐาน: {measurementSummary(measurement)}</p>
         )}
         <div className="flex gap-2">
         {measurement.inputs.map((inp) => (
-          <label key={inp.key} className="flex-1 text-[11px] text-muted-foreground">
+          <label key={inp.key} className="flex-1 text-2xs text-muted-foreground">
             {inp.labelTh}
             <input
               type="number"
@@ -440,11 +440,11 @@ export function MeasurementInput({ code, measurement, values, setAnswer, readOnl
     return (
       <div className="space-y-1.5">
         {readOnly && (
-          <p className="text-[11px] font-medium text-blue-700">มาตรฐาน: {measurementSummary(measurement)}</p>
+          <p className="text-2xs font-medium text-blue-700">มาตรฐาน: {measurementSummary(measurement)}</p>
         )}
-        {measurement.sourceText && <p className="text-[11px] text-muted-foreground">{measurement.sourceText}</p>}
+        {measurement.sourceText && <p className="text-2xs text-muted-foreground">{measurement.sourceText}</p>}
         <div className="flex gap-2">
-          <label className="flex-1 text-[11px] text-muted-foreground">
+          <label className="flex-1 text-2xs text-muted-foreground">
             แนวดิ่ง (มม.)
             <input
               type="number"
@@ -455,7 +455,7 @@ export function MeasurementInput({ code, measurement, values, setAnswer, readOnl
               className="border-border focus:ring-ring mt-1 w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 disabled:bg-secondary/30"
             />
           </label>
-          <label className="flex-1 text-[11px] text-muted-foreground">
+          <label className="flex-1 text-2xs text-muted-foreground">
             ความยาวตามแนวลาด (มม.)
             <input
               type="number"
@@ -468,9 +468,9 @@ export function MeasurementInput({ code, measurement, values, setAnswer, readOnl
           </label>
         </div>
         {invalid ? (
-          <p className="text-[11px] text-red-600">ความยาวตามแนวลาดต้องมากกว่าแนวดิ่ง — ตรวจสอบตัวเลขอีกครั้ง</p>
+          <p className="text-2xs text-red-600">ความยาวตามแนวลาดต้องมากกว่าแนวดิ่ง — ตรวจสอบตัวเลขอีกครั้ง</p>
         ) : (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             {measurement.unit === 'percent' ? 'ความลาดชัน' : 'อัตราส่วน'}: <span className="font-medium text-foreground">{preview}</span>
           </p>
         )}
@@ -481,9 +481,9 @@ export function MeasurementInput({ code, measurement, values, setAnswer, readOnl
   return (
     <div className="space-y-1">
       {readOnly && (
-        <p className="text-[11px] font-medium text-blue-700">มาตรฐาน: {measurementSummary(measurement)}</p>
+        <p className="text-2xs font-medium text-blue-700">มาตรฐาน: {measurementSummary(measurement)}</p>
       )}
-      <label className="block text-[11px] text-muted-foreground">
+      <label className="block text-2xs text-muted-foreground">
         {measurement.sourceText ?? measurement.key}
         <div className="mt-1 flex items-center gap-1.5">
           <input

@@ -259,7 +259,7 @@ function TableHeaderRow() {
   return (
     <div className={`border-border bg-secondary/20 grid ${TABLE_GRID_COLS} border-b`}>
       {['รหัส', 'รายการ', 'ใช้ร่วมกัน', 'สถานะ', 'การดำเนินการ'].map((label) => (
-        <div key={label} className="text-muted-foreground px-3 py-2 text-[10px] font-medium tracking-wide uppercase">
+        <div key={label} className="text-muted-foreground px-3 py-2 text-3xs font-medium tracking-wide uppercase">
           {label}
         </div>
       ))}
@@ -305,7 +305,7 @@ function TableRow({
       <div className={`border-border grid ${TABLE_GRID_COLS} items-center border-b last:border-0`}>
         <div className="px-2 py-2.5">
           {representative && (
-            <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 font-mono text-[10px] whitespace-nowrap">{representative.nodeCode}</span>
+            <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 font-mono text-3xs whitespace-nowrap">{representative.nodeCode}</span>
           )}
         </div>
 

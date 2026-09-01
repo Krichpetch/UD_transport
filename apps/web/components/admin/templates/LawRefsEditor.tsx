@@ -39,7 +39,7 @@ export function LawRefsEditor({
   return (
     <div className="border-border bg-card space-y-2 rounded-xl border p-3">
       <p className="text-foreground text-sm font-semibold">ข้อยกเว้นทางกฎหมาย (lawRefs)</p>
-      <p className="text-muted-foreground text-[11px]">
+      <p className="text-muted-foreground text-2xs">
         กฎหมายที่กำหนดให้ต้องมีรายการนี้ — ใช้ในการซ่อนรายการที่ไม่เข้าข่ายตามปีที่ก่อสร้าง (มีผลกับการตรวจครั้งต่อไปเท่านั้น ไม่กระทบรายงานที่ตรวจไปแล้ว)
       </p>
 
@@ -49,7 +49,7 @@ export function LawRefsEditor({
           both the read-only and editable branches: an admin ticking lawRefs below needs to know
           they will have no redaction effect on this particular item. */}
       {isNeverEraGated(node.facilityCode) && (
-        <div className="flex items-start gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-[11px] text-emerald-800">
+        <div className="flex items-start gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-2xs text-emerald-800">
           <ShieldCheck size={13} className="mt-px shrink-0" />
           <span>
             รายการนี้<strong>ไม่ผูกกับปีที่ก่อสร้าง</strong> — พื้นผิวต่างสัมผัส/Guiding Block ต้องมีทุกสถานีเสมอ
@@ -95,7 +95,7 @@ export function LawRefsEditor({
               {editLawRefs.isPending ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
               บันทึกข้อยกเว้นทางกฎหมาย
             </button>
-            {editLawRefs.isError && <span className="text-[11px] text-red-500">{(editLawRefs.error as Error).message}</span>}
+            {editLawRefs.isError && <span className="text-2xs text-red-500">{(editLawRefs.error as Error).message}</span>}
           </div>
         </>
       )}

@@ -7,6 +7,15 @@ import { changePassword, updateProfile } from '@/lib/api/auth'
 import { useAuthStore } from '@/stores/auth.store'
 import { signOut } from '@/lib/sign-out'
 import { PasswordInput } from '@/components/ui/password-input'
+import { cn } from '@/lib/utils'
+import {
+  applyFontScale,
+  DEFAULT_FONT_SCALE,
+  FONT_SCALE_LABELS,
+  FONT_SCALES,
+  readFontScale,
+  type FontScale,
+} from '@/lib/font-scale'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -17,6 +26,19 @@ export default function SettingsPage() {
   React.useEffect(() => {
     if (ready && !user) router.replace('/login')
   }, [ready, user, router])
+
+  // ── Font size ─────────────────────────────────────────────────
+  // Initialized from the SSR-set <html data-font-scale> / cookie on mount.
+  const [fontScale, setFontScale] = React.useState<FontScale>(DEFAULT_FONT_SCALE)
+
+  React.useEffect(() => {
+    setFontScale(readFontScale())
+  }, [])
+
+  function handleFontScale(scale: FontScale) {
+    setFontScale(scale)
+    applyFontScale(scale) // live, no reload; persists to cookie
+  }
 
   // ── Display name ──────────────────────────────────────────────
   const [displayName, setDisplayName] = React.useState('')
@@ -70,13 +92,47 @@ export default function SettingsPage() {
   if (!ready || !user) return null
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-8">
+    <div className="flex min-h-dvh items-center justify-center px-4 py-8">
       <div className="bg-card flex w-full max-w-md flex-col items-center gap-6 rounded-xl p-6 shadow-lg sm:p-8">
         <div className="text-center">
           <h1 className="text-foreground text-xl font-bold tracking-tight">ตั้งค่าบัญชี</h1>
           <p className="text-muted-foreground mt-1 text-xs leading-snug">
             {user?.username ?? ''}
           </p>
+        </div>
+
+        <div className="border-border w-full border-t" />
+
+        {/* ── Font size ── */}
+        <div className="w-full space-y-3">
+          <h2 className="text-foreground text-sm font-semibold">ขนาดตัวอักษร</h2>
+          <p className="text-muted-foreground text-xs">
+            ปรับขนาดตัวอักษรทั้งระบบให้อ่านง่ายขึ้น
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {FONT_SCALES.map((scale) => {
+              const active = fontScale === scale
+              return (
+                <button
+                  key={scale}
+                  type="button"
+                  onClick={() => handleFontScale(scale)}
+                  aria-pressed={active}
+                  className={cn(
+                    'flex flex-col items-center gap-0.5 rounded-lg border px-2 py-2.5 transition-colors',
+                    active
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-input bg-background text-foreground hover:bg-secondary',
+                  )}
+                >
+                  <span className="text-sm font-medium">{FONT_SCALE_LABELS[scale]}</span>
+                  <span className={cn('text-2xs', active ? 'opacity-80' : 'text-muted-foreground')}>
+                    {scale}%
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         <div className="border-border w-full border-t" />

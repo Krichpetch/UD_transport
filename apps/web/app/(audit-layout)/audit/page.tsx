@@ -85,7 +85,7 @@ function PreviewYearControl({ value, onChange, appliedYearBuilt }: {
         </select>
       </label>
       {appliedYearBuilt != null && (
-        <span className="shrink-0 text-[10px] text-purple-600">ใช้จริง: พ.ศ. {appliedYearBuilt}</span>
+        <span className="shrink-0 text-3xs text-purple-600">ใช้จริง: พ.ศ. {appliedYearBuilt}</span>
       )}
     </div>
   )
@@ -106,7 +106,7 @@ function PreviewRedactionSummary({ groups }: { groups: ChecklistTemplateGroupDef
 
   if (total === 0) {
     return (
-      <div className="rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-[11px] text-purple-700 shadow-sm">
+      <div className="rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-2xs text-purple-700 shadow-sm">
         ไม่มีรายการที่ถูกซ่อนสำหรับปีที่เลือกนี้ — ทุกรายการเข้าข่ายตามกฎหมาย
       </div>
     )
@@ -116,7 +116,7 @@ function PreviewRedactionSummary({ groups }: { groups: ChecklistTemplateGroupDef
     <div className="overflow-hidden rounded-xl border border-purple-200 bg-purple-50 shadow-sm">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between px-3 py-2 text-[11px] font-semibold text-purple-700"
+        className="flex w-full items-center justify-between px-3 py-2 text-2xs font-semibold text-purple-700"
       >
         <span>รายการที่ถูกซ่อนตามปีที่เลือก ({total} รายการ)</span>
         <ChevronDown size={12} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -125,10 +125,10 @@ function PreviewRedactionSummary({ groups }: { groups: ChecklistTemplateGroupDef
         <div className="divide-y divide-purple-100 border-t border-purple-100">
           {byGroup.map(({ group, redacted }) => (
             <div key={group.code} className="px-3 py-2">
-              <p className="text-[10px] font-semibold text-purple-600">{group.labelTh} ({redacted.length})</p>
+              <p className="text-3xs font-semibold text-purple-600">{group.labelTh} ({redacted.length})</p>
               <ul className="mt-1 space-y-0.5">
                 {redacted.map((it) => (
-                  <li key={it.code} className="text-[11px] text-purple-700">
+                  <li key={it.code} className="text-2xs text-purple-700">
                     <span className="font-mono">{it.code}</span> {it.labelTh}
                   </li>
                 ))}
@@ -150,7 +150,7 @@ function RedactedFooter({ items }: { items: TemplateNode[] }) {
     <div className="border-t border-border bg-secondary/30 px-4 py-2">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between text-[11px] text-muted-foreground"
+        className="flex w-full items-center justify-between text-2xs text-muted-foreground"
       >
         <span>รายการที่ไม่เข้าข่ายตามกฎหมายที่ใช้บังคับ ({items.length} รายการ)</span>
         <ChevronDown size={12} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -158,7 +158,7 @@ function RedactedFooter({ items }: { items: TemplateNode[] }) {
       {open && (
         <ul className="mt-1.5 space-y-1">
           {items.map((it) => (
-            <li key={it.code} className="text-[11px] text-muted-foreground">
+            <li key={it.code} className="text-2xs text-muted-foreground">
               <span className="font-mono">{it.code}</span> {it.labelTh}
             </li>
           ))}
@@ -772,17 +772,17 @@ export default function AuditPage() {
               className="mt-1.5"
             />
             {yearBuiltDateInput && (
-              <p className="mt-1 text-[10px] text-muted-foreground">= พ.ศ. {buddhistYearOfIsoDate(yearBuiltDateInput)}</p>
+              <p className="mt-1 text-3xs text-muted-foreground">= พ.ศ. {buddhistYearOfIsoDate(yearBuiltDateInput)}</p>
             )}
             {eraUnresolved && (
-              <p className="mt-1.5 text-[10px] text-amber-600">
+              <p className="mt-1.5 text-3xs text-amber-600">
                 ⚠ ยังไม่สามารถระบุปีก่อสร้างที่แน่ชัดได้ — ระบบใช้เกณฑ์ตามกฎหมายฉบับล่าสุดเป็นการชั่วคราว
               </p>
             )}
             {/* Part B.1 — inline, always-visible reason the continue action is disabled, not a
                 toast fired after the fact. */}
             {!yearBuiltValid && (
-              <p className="mt-1.5 text-[10px] text-red-600">
+              <p className="mt-1.5 text-3xs text-red-600">
                 กรุณาระบุปีที่ก่อสร้าง (พ.ศ. {YEAR_BUILT_MIN}–{yearBuiltMax()}) ก่อนเริ่มการตรวจประเมิน
               </p>
             )}
@@ -811,7 +811,7 @@ export default function AuditPage() {
           </button>
 
           {PROXIMITY_BYPASS && (
-            <p className="text-center text-[10px] font-medium text-amber-600">
+            <p className="text-center text-3xs font-medium text-amber-600">
               โหมดทดสอบ: ข้ามการตรวจสอบตำแหน่ง (dev only)
             </p>
           )}
@@ -869,7 +869,7 @@ export default function AuditPage() {
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold text-primary">{progress}%</p>
-            <p className="text-[10px] text-muted-foreground">{answered}/{total} ข้อ</p>
+            <p className="text-3xs text-muted-foreground">{answered}/{total} ข้อ</p>
           </div>
         </div>
         <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
@@ -878,16 +878,16 @@ export default function AuditPage() {
         <div className="mt-3 flex items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
             {resumedFromDraft && (
-              <p className="text-[10px] text-muted-foreground">↩ ดำเนินการต่อจากร่างที่บันทึกไว้</p>
+              <p className="text-3xs text-muted-foreground">↩ ดำเนินการต่อจากร่างที่บันทึกไว้</p>
             )}
-            {saveStatus === 'saving' && <p className="text-[10px] text-muted-foreground">กำลังบันทึก…</p>}
-            {saveStatus === 'saved' && <p className="text-[10px] text-accent">✓ บันทึกอัตโนมัติแล้ว</p>}
-            {saveStatus === 'error' && <p className="text-[10px] text-red-500">บันทึกอัตโนมัติไม่สำเร็จ</p>}
+            {saveStatus === 'saving' && <p className="text-3xs text-muted-foreground">กำลังบันทึก…</p>}
+            {saveStatus === 'saved' && <p className="text-3xs text-accent">✓ บันทึกอัตโนมัติแล้ว</p>}
+            {saveStatus === 'error' && <p className="text-3xs text-red-500">บันทึกอัตโนมัติไม่สำเร็จ</p>}
           </div>
           <PageNavigatorTrigger pages={navPages} currentPage={currentPage} onJump={setCurrentPage} />
         </div>
         {locationUnverifiedMessage && (
-          <p className="mt-2 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[10px] text-amber-700">
+          <p className="mt-2 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-3xs text-amber-700">
             <AlertTriangle size={11} className="shrink-0" />
             {locationUnverifiedMessage}
           </p>
@@ -901,7 +901,7 @@ export default function AuditPage() {
           <div className="mt-2 border-t border-border pt-2">
             <button
               onClick={() => setEditingYearInline((v) => !v)}
-              className="text-[10px] font-medium text-muted-foreground underline decoration-dotted"
+              className="text-3xs font-medium text-muted-foreground underline decoration-dotted"
             >
               ปีที่ก่อสร้าง: พ.ศ. {effectiveYearBuiltInput || '-'} · แก้ไข (กรณีฉุกเฉิน)
             </button>
@@ -915,7 +915,7 @@ export default function AuditPage() {
                   minBuddhistYear={YEAR_BUILT_MIN}
                   className="mt-1"
                 />
-                <p className="mt-1 text-[10px] text-amber-600">
+                <p className="mt-1 text-3xs text-amber-600">
                   ⚠ ใช้เฉพาะกรณีจำเป็นเท่านั้น คำตอบบางรายการอาจสูญหายหากไม่มีอยู่ในแบบฟอร์มของปีใหม่
                 </p>
               </div>
@@ -988,7 +988,7 @@ export default function AuditPage() {
                     className="border-border placeholder:text-muted-foreground focus:ring-ring mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1"
                   />
                 </label>
-                <p className="mt-1 text-right text-[10px] text-muted-foreground">{finalThoughts.length}/{FINAL_THOUGHTS_MAX}</p>
+                <p className="mt-1 text-right text-3xs text-muted-foreground">{finalThoughts.length}/{FINAL_THOUGHTS_MAX}</p>
               </div>
               <div className="border-t px-4 py-4 space-y-3">
                 <p className="text-sm text-gray-500">

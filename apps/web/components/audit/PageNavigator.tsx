@@ -213,7 +213,7 @@ export function PageNavigatorTrigger({
               }}
               className="hover:bg-secondary/60 flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-3 py-2 text-left"
             >
-              <span className="bg-secondary text-muted-foreground shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px]">{n.code}</span>
+              <span className="bg-secondary text-muted-foreground shrink-0 rounded px-1.5 py-0.5 font-mono text-3xs">{n.code}</span>
               <span className="text-muted-foreground truncate text-xs">{n.labelTh}</span>
             </button>
             {hasChildren && !query && (
@@ -265,7 +265,7 @@ export function PageNavigatorTrigger({
             <div className="min-w-0">
               <p className="text-foreground truncate text-sm">
                 {p.code && (
-                  <span className="bg-secondary text-muted-foreground mr-1.5 rounded px-1.5 py-0.5 font-mono text-[11px]">{p.code}</span>
+                  <span className="bg-secondary text-muted-foreground mr-1.5 rounded px-1.5 py-0.5 font-mono text-2xs">{p.code}</span>
                 )}
                 {p.flagged && <Flag size={11} className="mr-1 inline-block shrink-0 text-orange-500" fill="currentColor" />}
                 {p.label}
@@ -336,7 +336,7 @@ export function PageNavigatorTrigger({
             <span className="text-foreground font-semibold">{sub.key}</span>
             {name && <span className="text-muted-foreground ml-1 font-normal">{name}</span>}
           </span>
-          <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-[11px]">
+          <span className="text-muted-foreground flex shrink-0 items-center gap-2 text-2xs">
             {done}/{sub.rows.length}
             <ChevronDown size={12} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           </span>

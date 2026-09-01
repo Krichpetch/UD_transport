@@ -154,7 +154,7 @@ export function PhotoLightbox({
             <button
               onClick={(e) => { e.stopPropagation(); void handleDelete() }}
               disabled={deleting}
-              className="flex items-center gap-1 rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-medium text-red-200 hover:bg-red-500/30 disabled:opacity-50"
+              className="flex items-center gap-1 rounded-full bg-red-500/20 px-2 py-0.5 text-2xs font-medium text-red-200 hover:bg-red-500/30 disabled:opacity-50"
             >
               {deleting ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
               ลบรูปนี้
@@ -210,7 +210,7 @@ export function ChecklistPhotoGallery({ photos, onDelete, onCaptionChange, varia
   const btnRefs = React.useRef<(HTMLButtonElement | null)[]>([])
 
   if (photos.length === 0) {
-    return <span className="text-[10px] text-muted-foreground/40">—</span>
+    return <span className="text-3xs text-muted-foreground/40">—</span>
   }
 
   const styles = VARIANT_STYLES[variant]
@@ -251,7 +251,7 @@ export function ChecklistPhotoGallery({ photos, onDelete, onCaptionChange, varia
                 </div>
               )}
               {showOverlay && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/55 text-[10px] font-bold text-white">
+                <div className="absolute inset-0 flex items-center justify-center bg-black/55 text-3xs font-bold text-white">
                   +{overflow}
                 </div>
               )}

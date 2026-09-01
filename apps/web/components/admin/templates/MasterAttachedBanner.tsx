@@ -51,7 +51,7 @@ export function MasterAttachedBanner({
           {detachMaster.isPending ? <Loader2 size={12} className="animate-spin" /> : <Unlink size={12} />}
           แยกออกจากต้นแบบ
         </button>
-        {detachMaster.isError && <span className="w-full text-[11px] text-red-600">{(detachMaster.error as Error).message}</span>}
+        {detachMaster.isError && <span className="w-full text-2xs text-red-600">{(detachMaster.error as Error).message}</span>}
       </div>
     )
   }
@@ -99,7 +99,7 @@ export function MasterAttachedBanner({
           </div>
         </div>
       )}
-      {attachMaster.isError && <span className="text-[11px] text-red-600">{(attachMaster.error as Error).message}</span>}
+      {attachMaster.isError && <span className="text-2xs text-red-600">{(attachMaster.error as Error).message}</span>}
       {/* Era-editor safety session, Part E — this node isn't master-attached (masterId absent),
           so besides re-linking to its OLD master above, it can also move onto a DIFFERENT
           existing group entirely. */}

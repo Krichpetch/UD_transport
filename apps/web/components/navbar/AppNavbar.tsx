@@ -88,7 +88,7 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
           >
             <Search size={13} />
             <span>ค้นหา...</span>
-            <kbd className="bg-muted rounded px-1 text-[10px]">⌘K</kbd>
+            <kbd className="bg-muted rounded px-1 text-3xs">⌘K</kbd>
           </button>
 
           {/* Notifications */}
@@ -99,7 +99,7 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
             >
               <Bell size={15} />
               {totalNotifs > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-amber-500 text-[8px] text-white">
+                <span className="absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-amber-500 text-3xs text-white">
                   {Math.min(totalNotifs, 99)}
                 </span>
               )}
@@ -129,7 +129,7 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
                       >
                         {label}
                         {count > 0 && (
-                          <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                          <span className={`rounded-full px-1.5 py-0.5 text-3xs font-semibold ${
                             notifTab === tab ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
                           }`}>
                             {count}
@@ -158,7 +158,7 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="text-foreground truncate text-xs font-medium">{s.nameTh}</p>
-                              <p className="text-muted-foreground text-[10px]">
+                              <p className="text-muted-foreground text-3xs">
                                 {s.province} · {isAmber ? 'รอการอนุมัติ' : s.status}
                               </p>
                             </div>

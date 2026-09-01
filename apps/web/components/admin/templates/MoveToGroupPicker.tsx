@@ -66,22 +66,22 @@ export function MoveToGroupPicker({
 
   return (
     <div className="border-border bg-secondary/30 space-y-1.5 rounded-lg border p-2">
-      <p className="text-muted-foreground text-[11px]">เลือกกลุ่มปลายทาง (ค้นหาได้ทุกกลุ่ม ไม่จำกัดเฉพาะรหัสเดียวกัน)</p>
-      {groupsQuery.isLoading && <p className="text-muted-foreground text-[11px]">กำลังโหลด…</p>}
+      <p className="text-muted-foreground text-2xs">เลือกกลุ่มปลายทาง (ค้นหาได้ทุกกลุ่ม ไม่จำกัดเฉพาะรหัสเดียวกัน)</p>
+      {groupsQuery.isLoading && <p className="text-muted-foreground text-2xs">กำลังโหลด…</p>}
       {!groupsQuery.isLoading && allCandidates.length > 0 && (
         <input
-          className={`${INPUT_CLS} py-1 text-[11px]`}
+          className={`${INPUT_CLS} py-1 text-2xs`}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="ค้นหาชื่อกลุ่มปลายทาง…"
         />
       )}
       {!groupsQuery.isLoading && candidates.length === 0 && (
-        <p className="text-muted-foreground text-[11px]">{allCandidates.length === 0 ? 'ไม่พบกลุ่มปลายทางอื่น' : 'ไม่พบกลุ่มที่ตรงกับคำค้นหา'}</p>
+        <p className="text-muted-foreground text-2xs">{allCandidates.length === 0 ? 'ไม่พบกลุ่มปลายทางอื่น' : 'ไม่พบกลุ่มที่ตรงกับคำค้นหา'}</p>
       )}
       {candidates.length > 0 && (
         <div className="flex items-center gap-1.5">
-          <select className={`${SELECT_CLS} py-1 text-[11px]`} value={targetItemId} onChange={(e) => setTargetItemId(e.target.value)}>
+          <select className={`${SELECT_CLS} py-1 text-2xs`} value={targetItemId} onChange={(e) => setTargetItemId(e.target.value)}>
             <option value="">เลือกกลุ่มปลายทาง… ({candidates.length} กลุ่ม)</option>
             {candidates.map((g) => (
               <option key={g.id} value={g.id}>
@@ -98,17 +98,17 @@ export function MoveToGroupPicker({
                 { onSuccess: () => { setOpen(false); setTargetItemId(''); setSearch('') } },
               )
             }
-            className="bg-primary text-primary-foreground flex shrink-0 items-center gap-1 rounded px-2 py-1 text-[11px] font-medium disabled:opacity-50"
+            className="bg-primary text-primary-foreground flex shrink-0 items-center gap-1 rounded px-2 py-1 text-2xs font-medium disabled:opacity-50"
           >
             {attachNodeToGroup.isPending ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
             ยืนยันย้าย
           </button>
         </div>
       )}
-      <button type="button" onClick={() => setOpen(false)} className="text-muted-foreground text-[11px] hover:underline">
+      <button type="button" onClick={() => setOpen(false)} className="text-muted-foreground text-2xs hover:underline">
         ยกเลิก
       </button>
-      {attachNodeToGroup.isError && <p className="text-[11px] text-red-500">{(attachNodeToGroup.error as Error).message}</p>}
+      {attachNodeToGroup.isError && <p className="text-2xs text-red-500">{(attachNodeToGroup.error as Error).message}</p>}
     </div>
   )
 }

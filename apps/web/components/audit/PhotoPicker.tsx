@@ -139,7 +139,7 @@ export function PhotoPicker({ onPhotosUploaded, disabled = false, existingCount 
           </label>
         </div>
         {atLimit && (
-          <p className="text-[10px] text-amber-600">ครบจำนวนรูปภาพสูงสุด ({MAX_PHOTOS_PER_ITEM} รูปต่อรายการ) แล้ว</p>
+          <p className="text-3xs text-amber-600">ครบจำนวนรูปภาพสูงสุด ({MAX_PHOTOS_PER_ITEM} รูปต่อรายการ) แล้ว</p>
         )}
       </div>
     )
@@ -189,7 +189,7 @@ export function PhotoPicker({ onPhotosUploaded, disabled = false, existingCount 
             )}
             {photo.status === 'failed' && (
               <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-red-500/20">
-                <span className="px-0.5 text-center text-[9px] font-bold leading-tight text-red-700">ล้มเหลว</span>
+                <span className="px-0.5 text-center text-3xs font-bold leading-tight text-red-700">ล้มเหลว</span>
               </div>
             )}
             {/* Remove button — only for photos not yet uploaded */}
@@ -219,7 +219,7 @@ export function PhotoPicker({ onPhotosUploaded, disabled = false, existingCount 
         )}
       </div>
       {limitMessage && (
-        <p className="px-3 pb-2 text-[10px] text-amber-600">{limitMessage}</p>
+        <p className="px-3 pb-2 text-3xs text-amber-600">{limitMessage}</p>
       )}
 
       {/* Action bar */}

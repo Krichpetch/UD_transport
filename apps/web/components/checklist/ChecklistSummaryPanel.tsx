@@ -92,9 +92,9 @@ export function ChecklistSummaryPanel({ items, templateDef, score, size = 'compa
               const pct = Math.round(hasStandardConcept ? cat.metrics.pctSuccess : cat.metrics.pctHasFacility)
               return (
                 <div key={cat.value} className="rounded-lg bg-secondary/40 p-2.5 text-center">
-                  <p className={`font-semibold text-muted-foreground ${comfortable ? 'text-xs' : 'text-[10px]'}`}>{cat.value}</p>
+                  <p className={`font-semibold text-muted-foreground ${comfortable ? 'text-xs' : 'text-3xs'}`}>{cat.value}</p>
                   <p className="text-lg font-bold" style={{ color: statusColor(pct) }}>{pct}%</p>
-                  <p className={`text-muted-foreground ${comfortable ? 'text-xs' : 'text-[9px]'}`}>
+                  <p className={`text-muted-foreground ${comfortable ? 'text-xs' : 'text-3xs'}`}>
                     {hasStandardConcept ? `${meetsStandard}/${total}` : `${hasItem}/${facilityEligible}`}
                   </p>
                 </div>
@@ -122,7 +122,7 @@ export function ChecklistSummaryPanel({ items, templateDef, score, size = 'compa
                 {cat.groups.length > 1 && (
                   <div className="mt-1 space-y-1 pl-2">
                     {cat.groups.map((g) => (
-                      <div key={g.groupId} className={`flex items-center justify-between ${comfortable ? 'text-sm' : 'text-[11px]'}`}>
+                      <div key={g.groupId} className={`flex items-center justify-between ${comfortable ? 'text-sm' : 'text-2xs'}`}>
                         <span className="text-muted-foreground">{g.groupName}</span>
                         <span className="font-medium text-foreground">
                           มี {g.metrics.hasItem}{g.metrics.total > 0 && <> · ได้มาตรฐาน {g.metrics.meetsStandard}/{g.metrics.total}</>}

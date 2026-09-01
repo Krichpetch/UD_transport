@@ -20,7 +20,7 @@ export function LineBadge({ line, className = '' }: { line?: string | null; clas
   const color = getLineColor(line)
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold leading-tight ${color ? '' : 'bg-primary/10 text-primary'} ${className}`}
+      className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-3xs font-semibold leading-tight ${color ? '' : 'bg-primary/10 text-primary'} ${className}`}
       style={color ? { backgroundColor: `${color}1a`, color } : undefined}
     >
       {line}

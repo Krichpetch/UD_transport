@@ -113,7 +113,7 @@ function ChecklistRow({ item, onToggleFlag, flagPending }: {
 
         {/* Code */}
         <div className="px-3 py-3">
-          <span className="font-mono text-[11px] text-muted-foreground bg-secondary rounded px-1.5 py-0.5">
+          <span className="font-mono text-2xs text-muted-foreground bg-secondary rounded px-1.5 py-0.5">
             {item.id}
           </span>
         </div>
@@ -123,7 +123,7 @@ function ChecklistRow({ item, onToggleFlag, flagPending }: {
           <div className="flex items-start gap-1.5">
             <p className="text-sm text-foreground leading-snug">{item.labelTh}</p>
             {item.cabinetPriority && (
-              <span className="mt-0.5 shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">
+              <span className="mt-0.5 shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-3xs font-medium text-amber-700">
                 มติ ครม.
               </span>
             )}
@@ -138,7 +138,7 @@ function ChecklistRow({ item, onToggleFlag, flagPending }: {
         {/* มี — or N/A badge spanning this cell */}
         <div className="flex items-center justify-center py-3">
           {isNA ? (
-            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-400">
+            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-3xs font-medium text-gray-400">
               N/A
             </span>
           ) : (
@@ -189,11 +189,11 @@ function ChecklistRow({ item, onToggleFlag, flagPending }: {
           className="flex w-full items-center justify-center py-3 pr-3 transition-colors hover:bg-orange-50/60 disabled:opacity-50"
         >
           {item.reviewFlag ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-600">
+            <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-3xs font-medium text-orange-600">
               <Flag size={9} fill="currentColor" /> พบปัญหา
             </span>
           ) : (
-            <span className="text-muted-foreground/30 text-[10px]">—</span>
+            <span className="text-muted-foreground/30 text-3xs">—</span>
           )}
         </button>
 
@@ -825,7 +825,7 @@ function StationChecklistPageContent({
                             { label: 'หลักฐาน', cls: 'text-center py-2' },
                             { label: 'พบปัญหา', cls: 'text-center py-2 pr-3' },
                           ].map(({ label, cls }) => (
-                            <div key={label} className={`text-muted-foreground text-[10px] font-medium uppercase tracking-wide ${cls}`}>
+                            <div key={label} className={`text-muted-foreground text-3xs font-medium uppercase tracking-wide ${cls}`}>
                               {label}
                             </div>
                           ))}

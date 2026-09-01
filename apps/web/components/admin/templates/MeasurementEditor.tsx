@@ -15,7 +15,7 @@ export function TierRowsEditor({ tiers, onChange }: { tiers: TemplateTier[]; onC
   }
   return (
     <div className="space-y-1.5">
-      <div className="text-muted-foreground grid grid-cols-[1fr_1fr_1fr_1fr_1fr_auto] gap-1 text-[10px]">
+      <div className="text-muted-foreground grid grid-cols-[1fr_1fr_1fr_1fr_1fr_auto] gap-1 text-3xs">
         <span>min</span>
         <span>max</span>
         <span>required</span>
@@ -54,7 +54,7 @@ export function TierRowsEditor({ tiers, onChange }: { tiers: TemplateTier[]; onC
       <button
         type="button"
         onClick={() => onChange([...tiers, { min: 0, max: null, required: 0 }])}
-        className="text-accent flex items-center gap-1 text-[11px] hover:underline"
+        className="text-accent flex items-center gap-1 text-2xs hover:underline"
       >
         <Plus size={11} />
         เพิ่มขั้น
@@ -109,13 +109,13 @@ export function EraEntryFields({
         </div>
       )}
       <input
-        className={`${INPUT_CLS} py-1 text-[11px]`}
+        className={`${INPUT_CLS} py-1 text-2xs`}
         value={entry.labelTh ?? ''}
         placeholder="ข้อความคำถามสำหรับกฎหมายนี้ (labelTh) — เว้นว่างถ้าใช้ข้อความเดิมของรายการ"
         onChange={(e) => onChange({ ...entry, labelTh: e.target.value })}
       />
       <input
-        className={`${INPUT_CLS} py-1 text-[11px]`}
+        className={`${INPUT_CLS} py-1 text-2xs`}
         value={entry.sourceText ?? ''}
         placeholder="ข้อความอ้างอิงจากเอกสารต้นฉบับ (sourceText) สำหรับกฎหมายนี้"
         onChange={(e) => onChange({ ...entry, sourceText: e.target.value })}
@@ -147,18 +147,18 @@ function EraOverridesSection({
   return (
     <div className="border-border mt-3 space-y-2 border-t pt-3">
       <p className="text-foreground text-xs font-semibold">ข้อยกเว้นตามยุคกฎหมาย (byLaw)</p>
-      {existingCodes.length === 0 && <p className="text-muted-foreground text-[11px]">ยังไม่มีข้อยกเว้นตามยุคกฎหมายสำหรับเกณฑ์นี้</p>}
+      {existingCodes.length === 0 && <p className="text-muted-foreground text-2xs">ยังไม่มีข้อยกเว้นตามยุคกฎหมายสำหรับเกณฑ์นี้</p>}
       {existingCodes.map((lawCode) => {
         const law = LAW_REFERENCE_SEED.find((l) => l.code === lawCode)
         return (
           <div key={lawCode} className="bg-secondary/40 rounded-lg p-2">
             <div className="mb-1.5 flex items-center justify-between">
-              <p className="text-foreground text-[11px] font-medium">{law?.nameTh ?? lawCode}</p>
+              <p className="text-foreground text-2xs font-medium">{law?.nameTh ?? lawCode}</p>
               <button
                 type="button"
                 disabled={editEra.isPending}
                 onClick={() => editEra.mutate({ nodeCode, measurementKey: measurement.key, body: { lawCode, entry: null } })}
-                className="flex items-center gap-1 text-[10px] text-red-500 hover:text-red-600 disabled:opacity-50"
+                className="flex items-center gap-1 text-3xs text-red-500 hover:text-red-600 disabled:opacity-50"
               >
                 <Trash2 size={11} />
                 ลบ
@@ -179,7 +179,7 @@ function EraOverridesSection({
                   body: { lawCode, entry: buildEraEntryPatch(measurement.operator, draftFor(lawCode)) },
                 })
               }
-              className="bg-primary text-primary-foreground mt-1.5 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium disabled:opacity-50"
+              className="bg-primary text-primary-foreground mt-1.5 flex items-center gap-1 rounded px-2 py-1 text-3xs font-medium disabled:opacity-50"
             >
               {editEra.isPending ? <Loader2 size={10} className="animate-spin" /> : null}
               บันทึกค่าตามกฎหมายนี้
@@ -190,7 +190,7 @@ function EraOverridesSection({
 
       {availableToAdd.length > 0 && (
         <div className="flex items-center gap-1.5">
-          <select className={`${SELECT_CLS} py-1 text-[11px]`} value={addingLaw} onChange={(e) => setAddingLaw(e.target.value)}>
+          <select className={`${SELECT_CLS} py-1 text-2xs`} value={addingLaw} onChange={(e) => setAddingLaw(e.target.value)}>
             <option value="">+ เพิ่มข้อยกเว้นตามกฎหมาย…</option>
             {availableToAdd.map((l) => (
               <option key={l.code} value={l.code}>
@@ -208,7 +208,7 @@ function EraOverridesSection({
                   { onSuccess: () => setAddingLaw('') },
                 )
               }}
-              className="border-border shrink-0 rounded border px-2 py-1 text-[11px]"
+              className="border-border shrink-0 rounded border px-2 py-1 text-2xs"
             >
               เพิ่ม
             </button>
@@ -292,7 +292,7 @@ export function MeasurementEditor({
           )}
         </div>
         <span
-          className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+          className={`rounded px-1.5 py-0.5 text-3xs font-medium ${
             measurement.confirmed ? 'bg-[#52aa4e]/10 text-[#52aa4e]' : 'bg-[#ffc107]/10 text-[#b38600]'
           }`}
         >
@@ -380,7 +380,7 @@ export function MeasurementEditor({
                 ยืนยันเกณฑ์นี้
               </button>
             )}
-            {editMeasurement.isError && <span className="text-[11px] text-red-500">{(editMeasurement.error as Error).message}</span>}
+            {editMeasurement.isError && <span className="text-2xs text-red-500">{(editMeasurement.error as Error).message}</span>}
           </div>
 
           <EraOverridesSection templateId={templateId} nodeCode={nodeCode} measurement={measurement} />
