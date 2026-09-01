@@ -18,26 +18,36 @@
 
 ## Typography
 
-**Font family:** LINE Seed Sans TH — a locally-hosted variable font (`app/fonts/*.woff2`),
-loaded via `next/font/local` in `app/layout.tsx` and exposed as `--font-sans`.
-`--font-heading` currently aliases `--font-sans` (headings use the same face, heavier weight).
+**Font family:** LINE Seed Sans TH — **three locally-hosted static weights** (400 / 700 / 800,
+`app/fonts/*.woff2`), loaded via `next/font/local` in `app/layout.tsx` and exposed as `--font-sans`.
+It is _not_ a variable font — there is no weight axis. `--font-heading` currently aliases
+`--font-sans` (headings use the same face, heavier weight).
 
-Weights shipped (only these three exist — do not use `font-light`, `font-semibold` maps to 700):
+Only three faces exist, so intermediate weights fall back via CSS font-matching (they are **not**
+interpolated): `font-medium` (500) renders as the **400** face, `font-semibold` (600) renders as
+the **700** face. Practically, `font-medium` looks identical to `font-normal` here — reach for
+`font-bold` when you need real emphasis. Don't use `font-light`.
 
-| Token / class | Weight | Use |
-| ------------- | ------ | --- |
-| `font-normal` | 400 | body text, table cells, inputs |
-| `font-medium` | 500 | buttons, badges, labels (renders via 400/700 interpolation) |
-| `font-bold`   | 700 | headings, emphasis, KPI numbers |
-| `font-extrabold` | 800 | large display numbers, hero figures |
+| Token / class | Weight | Renders as | Use |
+| ------------- | ------ | ---------- | --- |
+| `font-normal` | 400 | 400 | body text, table cells, inputs |
+| `font-medium` | 500 | 400 (fallback) | buttons, badges, labels |
+| `font-semibold` | 600 | 700 (fallback) | section headers |
+| `font-bold`   | 700 | 700 | headings, emphasis, KPI numbers |
+| `font-extrabold` | 800 | 800 | large display numbers, hero figures |
 
 **Language:** UI copy is **Thai** (`<html lang="th">`). Keep line-heights comfortable for Thai
 glyphs (tall ascenders/descenders) — prefer `leading-relaxed` on paragraphs.
 
-**Type scale** (Tailwind defaults — stick to these steps):
+**Type scale** — stick to these steps. `text-xs`…`text-3xl` are Tailwind defaults; `text-3xs`
+and `text-2xs` are **custom rem tokens** defined in `globals.css` `@theme` (`--text-3xs` /
+`--text-2xs`). They are the **tokenized floor** — never use a raw `text-[Npx]` literal (px doesn't
+respond to the user font-scale setting; rem tokens do).
 
 | Class | Size | Typical use |
 | ----- | ---- | ----------- |
+| `text-3xs` | 10px | dense table/chip meta, mobile counters (smallest allowed) |
+| `text-2xs` | 11px | dense secondary text, era chips, autosave status |
 | `text-xs` | 12px | badges, table meta, captions, mobile secondary text |
 | `text-sm` | 14px | default body, form labels, most UI text |
 | `text-base` | 16px | emphasized body, dialog body |
@@ -45,7 +55,13 @@ glyphs (tall ascenders/descenders) — prefer `leading-relaxed` on paragraphs.
 | `text-xl`–`text-2xl` | 20–24px | page titles |
 | `text-3xl`+ | 30px+ | dashboard KPI numbers (`font-bold`/`extrabold`) |
 
-Default UI text is `text-sm`; drop to `text-xs` for dense tables and mobile chrome.
+Default UI text is `text-sm`; drop to `text-xs` for dense tables and mobile chrome, and
+`text-2xs`/`text-3xs` only for the densest chips/counters.
+
+> **Font scale (UDT-52):** users can set a root font-size of 100 / 125 / 150% (Settings →
+> ขนาดตัวอักษร), stored in the `font-scale` cookie and applied to `<html data-font-scale>` in
+> `app/layout.tsx` (SSR, no flash). Because the whole scale is rem-based, everything enlarges
+> proportionally — which is why arbitrary `px` font sizes are banned.
 
 ---
 
@@ -68,7 +84,8 @@ classes, never by hex. Table below is the **light** theme; each has a `.dark` co
 | `--secondary-foreground` | `#1a3557` | text on secondary |
 | `--accent` | `#0097a7` | teal — highlights, active nav, focus accents |
 | `--accent-foreground` | `#ffffff` | text on accent |
-| `--muted` / `--muted-foreground` | `#64748b` | de-emphasized text, placeholders, icons |
+| `--muted` | `#64748b` | muted surface fills (`bg-muted`); dark: `#334155` |
+| `--muted-foreground` | `#475569` | de-emphasized/secondary text, placeholders, icons (`text-muted-foreground`); dark: `#94a3b8` |
 | `--border` / `--input` | `#e2e8f0` | dividers, card borders, input outlines |
 | `--ring` | `#0097a7` | focus ring (teal) |
 

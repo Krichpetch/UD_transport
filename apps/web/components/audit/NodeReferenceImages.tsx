@@ -27,7 +27,7 @@ export function NodeReferenceImages({ node, className }: { node: TemplateNode; c
     <div className={className}>
       <ChecklistPhotoGallery photos={photos} variant="reference" />
       {photos.length > 1 && (
-        <p className="mt-1 text-[10px] text-muted-foreground">แตะที่รูปเพื่อขยาย ({photos.length} รูป)</p>
+        <p className="mt-1 text-3xs text-muted-foreground">แตะที่รูปเพื่อขยาย ({photos.length} รูป)</p>
       )}
     </div>
   )

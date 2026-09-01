@@ -96,7 +96,7 @@ function ApproveButton({ stationId }: { stationId: string }) {
         อนุมัติ
       </button>
       {error && (
-        <p className="mt-1 max-w-[200px] text-[10px] leading-tight text-red-600">{error}</p>
+        <p className="mt-1 max-w-[200px] text-3xs leading-tight text-red-600">{error}</p>
       )}
       <ConfirmDialog
         open={confirmId !== null}
@@ -233,7 +233,7 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
           </div>
 
           <StationCoordinateFields value={form} onChange={patch} requireCoordinates={false} />
-          <p className="text-muted-foreground text-[11px]">
+          <p className="text-muted-foreground text-2xs">
             การแก้ไขพิกัดด้วยตนเองจะทำเครื่องหมายตำแหน่งนี้เป็น &quot;ยืนยันแล้ว&quot; (coordStatus: OK)
           </p>
 
@@ -250,7 +250,7 @@ function EditStationModal({ station, onClose }: { station: StationRow; onClose: 
               onChange={(e) => setYearBuiltInput(e.target.value)}
               placeholder="เช่น 2555"
             />
-            <p className="text-muted-foreground mt-1 text-[11px]">
+            <p className="text-muted-foreground mt-1 text-2xs">
               มีผลกับการตรวจครั้งถัดไปเท่านั้น — ไม่กระทบรายงานการตรวจที่มีอยู่แล้ว
             </p>
           </div>
@@ -730,7 +730,7 @@ function StationsPageContent() {
             </span>
             {isFetching && <Loader2 size={12} className="animate-spin" />}
             {pendingIds.length > 0 && (
-              <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-3xs font-medium text-amber-700">
                 {pendingIds.length} รายการรอรีวิว
               </span>
             )}
@@ -784,7 +784,7 @@ function StationsPageContent() {
           >
             {tab.label}
             {'count' in tab && tab.count > 0 && (
-              <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-3xs font-medium text-amber-700">
                 {tab.count}
               </span>
             )}
@@ -1036,18 +1036,18 @@ function StationsPageContent() {
                             </p>
                           </div>
                           {hasPending && (
-                            <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                            <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-3xs font-medium text-amber-700">
                               รอรีวิว
                             </span>
                           )}
                           {station.isTraining && (
-                            <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+                            <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-3xs font-medium text-accent">
                               ฝึกหัด
                             </span>
                           )}
                         </div>
                         {approvalTab && station.reviewChecklist && (
-                          <div className="mt-1 text-[10px] text-muted-foreground">
+                          <div className="mt-1 text-3xs text-muted-foreground">
                             <span>ผู้ตรวจ: {station.reviewChecklist.auditorUsername}</span>
                             {station.reviewChecklist.submittedAt && (
                               <span> · {new Date(station.reviewChecklist.submittedAt).toLocaleDateString('th-TH')}</span>
@@ -1251,7 +1251,7 @@ function StationsPageContent() {
                                   <td className="px-3 py-2">
                                     {'skipped' in r ? (
                                       <span
-                                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                        className={`rounded-full px-2 py-0.5 text-3xs font-medium ${
                                           r.reason === 'REVIEW'
                                             ? 'bg-amber-100 text-amber-700'
                                             : 'bg-gray-100 text-gray-700'
@@ -1260,7 +1260,7 @@ function StationsPageContent() {
                                         {r.reason === 'REVIEW' ? 'ต้องตรวจสอบ' : 'ไม่พบในบัญชีหลัก'}
                                       </span>
                                     ) : (
-                                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700">
+                                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-3xs font-medium text-red-700">
                                         ข้อผิดพลาด
                                       </span>
                                     )}
@@ -1357,7 +1357,7 @@ function StationsPageContent() {
                       <Upload size={20} className="text-muted-foreground" />
                       <span className="text-muted-foreground text-sm">คลิกเพื่อเลือกไฟล์</span>
                       {bulkFormat === 'otp' && (otpRows.length > 0 || bulkErrors.length > 0) && (
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-3xs font-medium text-amber-700">
                           ตรวจพบรูปแบบ OTP
                         </span>
                       )}
@@ -1376,12 +1376,12 @@ function StationsPageContent() {
                           พบข้อผิดพลาด {bulkErrors.length} รายการ
                         </p>
                         {bulkErrors.slice(0, 5).map((e, i) => (
-                          <p key={i} className="text-muted-foreground text-[10px]">
+                          <p key={i} className="text-muted-foreground text-3xs">
                             {e}
                           </p>
                         ))}
                         {bulkErrors.length > 5 && (
-                          <p className="text-muted-foreground text-[10px]">
+                          <p className="text-muted-foreground text-3xs">
                             และอีก {bulkErrors.length - 5} รายการ
                           </p>
                         )}
@@ -1418,25 +1418,25 @@ function StationsPageContent() {
                           {/* Value-class stats — OTP only */}
                           {bulkFormat === 'otp' && otpStats && (
                             <div className="flex flex-wrap gap-1.5 border-t pt-2">
-                              <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">
+                              <span className="rounded-full bg-green-100 px-2 py-0.5 text-3xs font-medium text-green-700">
                                 มี ได้มาตรฐาน {otpStats['มีได้มาตรฐาน']}
                               </span>
-                              <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-medium text-yellow-700">
+                              <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-3xs font-medium text-yellow-700">
                                 มี ไม่ได้มาตรฐาน {otpStats['มีไม่ได้มาตรฐาน']}
                               </span>
                               {otpStats['มีไม่ระบุ'] > 0 && (
-                                <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-700">
+                                <span className="rounded-full bg-orange-100 px-2 py-0.5 text-3xs font-medium text-orange-700">
                                   มี ไม่ระบุมาตรฐาน ⚑ {otpStats['มีไม่ระบุ']}
                                 </span>
                               )}
-                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700">
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-3xs font-medium text-red-700">
                                 ไม่มี {otpStats['ไม่มี']}
                               </span>
-                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-3xs font-medium text-gray-600">
                                 N/A {otpStats['na']}
                               </span>
                               {otpStats['other'] > 0 && (
-                                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-700">
+                                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-3xs font-medium text-purple-700">
                                   ไม่รู้จัก {otpStats['other']}
                                 </span>
                               )}
@@ -1445,7 +1445,7 @@ function StationsPageContent() {
 
                           {/* Unknown codes */}
                           {bulkFormat === 'otp' && otpUnknownCodes.length > 0 && (
-                            <p className="text-[10px] text-amber-600">
+                            <p className="text-3xs text-amber-600">
                               ⚠ พบรหัสที่ไม่รู้จัก: {otpUnknownCodes.slice(0, 8).join(', ')}
                               {otpUnknownCodes.length > 8
                                 ? ` และอีก ${otpUnknownCodes.length - 8} รหัส`
@@ -1455,7 +1455,7 @@ function StationsPageContent() {
 
                           {/* Out-of-timeframe rows */}
                           {bulkFormat === 'otp' && otpOutOfTimeframe.length > 0 && (
-                            <p className="text-[10px] text-red-600">
+                            <p className="text-3xs text-red-600">
                               ⚠ ปีนอกเหนือจากช่วงที่ยอมรับ: {otpOutOfTimeframe.length} แถว — ไม่นำเข้า
                             </p>
                           )}

@@ -103,7 +103,7 @@ function TemplatesAdminContent() {
             <div className="divide-border divide-y">
               {[...byVariant.entries()].map(([variantKey, rows]) => (
                 <div key={variantKey} className="px-5 py-3">
-                  <p className="text-muted-foreground mb-2 text-[11px] font-medium tracking-wide uppercase">
+                  <p className="text-muted-foreground mb-2 text-2xs font-medium tracking-wide uppercase">
                     {variantKey === 'standard' ? 'มาตรฐาน' : variantKey}
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">

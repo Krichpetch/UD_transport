@@ -47,7 +47,7 @@ function GroupedItemEditDialogContent({ version, item, onClose }: { version: num
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="flex max-h-[85vh] w-full flex-col overflow-hidden p-0 sm:max-w-2xl">
         <div className={DIALOG_HEADER_CLS}>
-          <p className="text-muted-foreground mb-1 text-[10px]">แก้ไขตามกลุ่ม · ใช้ร่วมกัน {item.instanceCount} จุด</p>
+          <p className="text-muted-foreground mb-1 text-3xs">แก้ไขตามกลุ่ม · ใช้ร่วมกัน {item.instanceCount} จุด</p>
           <DialogTitle className={DIALOG_TITLE_CLS}>{item.labelTh}</DialogTitle>
         </div>
 
@@ -177,7 +177,7 @@ function PropagateAction({
           </span>
         )}
       </div>
-      {isError && <p className="text-[11px] text-red-500">{errorMessage}</p>}
+      {isError && <p className="text-2xs text-red-500">{errorMessage}</p>}
     </div>
   )
 }
@@ -318,25 +318,25 @@ function GroupedEraSection({
 
   return (
     <div className="border-border mt-1 space-y-1.5 border-t pt-2">
-      <p className="text-muted-foreground text-[11px] font-semibold">ข้อยกเว้นตามยุคกฎหมาย (byLaw)</p>
+      <p className="text-muted-foreground text-2xs font-semibold">ข้อยกเว้นตามยุคกฎหมาย (byLaw)</p>
       {isNeverEraGated(facilityCode) && (
-        <div className="flex items-start gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[11px] text-emerald-800">
+        <div className="flex items-start gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-2xs text-emerald-800">
           <ShieldCheck size={12} className="mt-0.5 shrink-0" />
           <span>รายการนี้ไม่ผูกกับปีที่ก่อสร้าง — จะไม่ถูกซ่อนตามปีแม้ระบุกฎหมายไว้ก็ตาม</span>
         </div>
       )}
-      {existingCodes.length === 0 && <p className="text-muted-foreground text-[11px]">ยังไม่มีข้อยกเว้นตามยุคกฎหมายสำหรับเกณฑ์นี้</p>}
+      {existingCodes.length === 0 && <p className="text-muted-foreground text-2xs">ยังไม่มีข้อยกเว้นตามยุคกฎหมายสำหรับเกณฑ์นี้</p>}
       {existingCodes.map((lawCode) => {
         const law = LAW_REFERENCE_SEED.find((l) => l.code === lawCode)
         return (
           <div key={lawCode} className="bg-secondary/40 rounded-lg p-2">
             <div className="mb-1.5 flex items-center justify-between">
-              <p className="text-foreground text-[11px] font-medium">{law?.nameTh ?? lawCode}</p>
+              <p className="text-foreground text-2xs font-medium">{law?.nameTh ?? lawCode}</p>
               <button
                 type="button"
                 disabled={propagate.isPending}
                 onClick={() => save(lawCode, null)}
-                className="flex items-center gap-1 text-[10px] text-red-500 hover:text-red-600 disabled:opacity-50"
+                className="flex items-center gap-1 text-3xs text-red-500 hover:text-red-600 disabled:opacity-50"
               >
                 <Trash2 size={11} />
                 ลบ
@@ -361,7 +361,7 @@ function GroupedEraSection({
 
       {availableToAdd.length > 0 && (
         <div className="flex items-center gap-1.5">
-          <select className={`${SELECT_CLS} py-1 text-[11px]`} value={addingLaw} onChange={(e) => setAddingLaw(e.target.value)}>
+          <select className={`${SELECT_CLS} py-1 text-2xs`} value={addingLaw} onChange={(e) => setAddingLaw(e.target.value)}>
             <option value="">+ เพิ่มข้อยกเว้นตามกฎหมาย…</option>
             {availableToAdd.map((l) => (
               <option key={l.code} value={l.code}>
@@ -379,7 +379,7 @@ function GroupedEraSection({
                 save(addingLaw, seed)
                 setAddingLaw('')
               }}
-              className="border-border shrink-0 rounded border px-2 py-1 text-[11px] disabled:opacity-50"
+              className="border-border shrink-0 rounded border px-2 py-1 text-2xs disabled:opacity-50"
             >
               เพิ่ม
             </button>

@@ -35,20 +35,20 @@ export function LabelByLawEditor({ templateId, node, readOnly }: { templateId: s
       <p className="text-muted-foreground text-xs">
         สำหรับหัวข้อเงื่อนไข (เช่น &ldquo;กรณีทางลาดที่ความยาวไม่เกิน…&rdquo;) ที่ข้อความเปลี่ยนไปตามกฎหมายแต่ละยุค โดยไม่มีคำตอบ/คะแนนของตัวเอง
       </p>
-      {existingCodes.length === 0 && <p className="text-muted-foreground text-[11px]">ยังไม่มีข้อความตามยุคกฎหมายสำหรับรายการนี้</p>}
+      {existingCodes.length === 0 && <p className="text-muted-foreground text-2xs">ยังไม่มีข้อความตามยุคกฎหมายสำหรับรายการนี้</p>}
       {existingCodes.map((lawCode) => {
         const law = LAW_REFERENCE_SEED.find((l) => l.code === lawCode)
         const draft = draftFor(lawCode)
         return (
           <div key={lawCode} className="bg-secondary/40 rounded-lg p-2">
             <div className="mb-1.5 flex items-center justify-between">
-              <p className="text-foreground text-[11px] font-medium">{law?.nameTh ?? lawCode}</p>
+              <p className="text-foreground text-2xs font-medium">{law?.nameTh ?? lawCode}</p>
               {!readOnly && (
                 <button
                   type="button"
                   disabled={editLabelByLaw.isPending}
                   onClick={() => editLabelByLaw.mutate({ nodeCode: node.code, body: { lawCode, entry: null } })}
-                  className="flex items-center gap-1 text-[10px] text-red-500 hover:text-red-600 disabled:opacity-50"
+                  className="flex items-center gap-1 text-3xs text-red-500 hover:text-red-600 disabled:opacity-50"
                 >
                   <Trash2 size={11} />
                   ลบ
@@ -64,7 +64,7 @@ export function LabelByLawEditor({ templateId, node, readOnly }: { templateId: s
                 onChange={(e) => setDrafts((d) => ({ ...d, [lawCode]: { ...draft, labelTh: e.target.value } }))}
               />
               <input
-                className={`${INPUT_CLS} py-1 text-[11px]`}
+                className={`${INPUT_CLS} py-1 text-2xs`}
                 value={draft.sourceText ?? ''}
                 readOnly={readOnly}
                 placeholder="ข้อความอ้างอิงจากเอกสารต้นฉบับ (sourceText) สำหรับกฎหมายนี้"
@@ -81,7 +81,7 @@ export function LabelByLawEditor({ templateId, node, readOnly }: { templateId: s
                     body: { lawCode, entry: { labelTh: draft.labelTh, sourceText: draft.sourceText || undefined } },
                   })
                 }
-                className="bg-primary text-primary-foreground mt-1.5 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium disabled:opacity-50"
+                className="bg-primary text-primary-foreground mt-1.5 flex items-center gap-1 rounded px-2 py-1 text-3xs font-medium disabled:opacity-50"
               >
                 {editLabelByLaw.isPending ? <Loader2 size={10} className="animate-spin" /> : null}
                 บันทึกข้อความตามกฎหมายนี้
@@ -93,7 +93,7 @@ export function LabelByLawEditor({ templateId, node, readOnly }: { templateId: s
 
       {!readOnly && availableToAdd.length > 0 && (
         <div className="flex items-center gap-1.5">
-          <select className={`${SELECT_CLS} py-1 text-[11px]`} value={addingLaw} onChange={(e) => setAddingLaw(e.target.value)}>
+          <select className={`${SELECT_CLS} py-1 text-2xs`} value={addingLaw} onChange={(e) => setAddingLaw(e.target.value)}>
             <option value="">+ เพิ่มข้อความตามกฎหมาย…</option>
             {availableToAdd.map((l) => (
               <option key={l.code} value={l.code}>
@@ -108,14 +108,14 @@ export function LabelByLawEditor({ templateId, node, readOnly }: { templateId: s
                 setDrafts((d) => ({ ...d, [addingLaw]: { labelTh: node.labelTh } }))
                 setAddingLaw('')
               }}
-              className="border-border shrink-0 rounded border px-2 py-1 text-[11px]"
+              className="border-border shrink-0 rounded border px-2 py-1 text-2xs"
             >
               เพิ่ม
             </button>
           )}
         </div>
       )}
-      {editLabelByLaw.isError && <p className="text-[11px] text-red-500">{(editLabelByLaw.error as Error).message}</p>}
+      {editLabelByLaw.isError && <p className="text-2xs text-red-500">{(editLabelByLaw.error as Error).message}</p>}
     </div>
   )
 }

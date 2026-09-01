@@ -34,7 +34,7 @@ export function GuidanceEditor({
       <div className="bg-secondary/40 rounded-lg p-3 text-xs">
         <p className="text-foreground font-semibold">คำแนะนำในการตรวจ</p>
         <p className="text-muted-foreground mt-1">{guidance.text}</p>
-        {guidance.reference && <p className="text-muted-foreground mt-1 text-[10px]">อ้างอิง: {guidance.reference}</p>}
+        {guidance.reference && <p className="text-muted-foreground mt-1 text-3xs">อ้างอิง: {guidance.reference}</p>}
       </div>
     )
   }

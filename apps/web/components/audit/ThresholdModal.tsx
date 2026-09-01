@@ -56,10 +56,10 @@ export function ThresholdModalTrigger({ node, breadcrumb }: { node: TemplateNode
               </button>
             </div>
             {breadcrumb && breadcrumb.length > 0 && (
-              <p className="text-[10px] text-muted-foreground">{breadcrumb.join(' › ')}</p>
+              <p className="text-3xs text-muted-foreground">{breadcrumb.join(' › ')}</p>
             )}
             <div className="mt-0.5 flex items-center gap-1.5">
-              <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">{node.code}</span>
+              <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 font-mono text-3xs text-muted-foreground">{node.code}</span>
               <p className="text-xs font-medium text-gray-700">{node.labelTh}</p>
             </div>
 
@@ -78,7 +78,7 @@ export function ThresholdModalTrigger({ node, breadcrumb }: { node: TemplateNode
               <div className="mt-3 border-t border-border pt-3 text-xs text-gray-600">
                 <p>{node.guidance.text}</p>
                 {node.guidance.reference && (
-                  <p className="mt-1 text-[10px] text-muted-foreground">อ้างอิง: {node.guidance.reference}</p>
+                  <p className="mt-1 text-3xs text-muted-foreground">อ้างอิง: {node.guidance.reference}</p>
                 )}
               </div>
             )}

@@ -69,7 +69,7 @@ export function AppSidebar() {
       {/* ── Nav ── */}
       <SidebarContent>
         <SidebarGroup className="px-2 py-2">
-          <SidebarGroupLabel className="text-sidebar-foreground/50 mb-1 text-[10px] tracking-widest uppercase group-data-[collapsible=icon]:hidden">
+          <SidebarGroupLabel className="text-sidebar-foreground/50 mb-1 text-3xs tracking-widest uppercase group-data-[collapsible=icon]:hidden">
             เมนูหลัก
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -98,7 +98,7 @@ export function AppSidebar() {
             </div>
             <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
               <p className="text-sidebar-foreground truncate text-xs font-medium">{user?.displayName || user?.username || '—'}</p>
-              <p className="text-sidebar-foreground/60 truncate text-[10px]">{ROLE_LABEL[user?.role ?? ''] ?? ''}</p>
+              <p className="text-sidebar-foreground/60 truncate text-3xs">{ROLE_LABEL[user?.role ?? ''] ?? ''}</p>
             </div>
             <button
               onClick={handleLogout}

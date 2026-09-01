@@ -1,9 +1,11 @@
 import type { Metadata } from 'next'
 import localFont from 'next/font/local'
+import { cookies } from 'next/headers'
 import './globals.css'
 import 'leaflet/dist/leaflet.css'
 import { cn } from '@/lib/utils'
 import { Providers } from './providers'
+import { FONT_SCALE_COOKIE, normalizeFontScale } from '@/lib/font-scale'
 
 const lineSeed = localFont({
   src: [
@@ -32,13 +34,21 @@ export const metadata: Metadata = {
     'ระบบฐานข้อมูลติดตามสิ่งอำนวยความสะดวกด้านคมนาคมขนส่งสำหรับคนทุกคน — สำนักงานนโยบายและแผนการขนส่งและจราจร ',
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Read the persisted font-size preference so the scale is applied during SSR
+  // (no flash). Client updates it live from Settings — see lib/font-scale.ts.
+  const fontScale = normalizeFontScale((await cookies()).get(FONT_SCALE_COOKIE)?.value)
+
   return (
-    <html lang="th" className={cn('font-sans', lineSeed.variable)}>
+    <html
+      lang="th"
+      data-font-scale={fontScale}
+      className={cn('font-sans', lineSeed.variable)}
+    >
       <body>
         <Providers>{children}</Providers>
       </body>

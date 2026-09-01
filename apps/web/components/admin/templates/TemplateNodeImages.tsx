@@ -73,7 +73,7 @@ export function TemplateNodeImages({ templateId, node, readOnly }: { templateId:
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="border-border text-muted-foreground hover:text-foreground flex items-center gap-1 rounded-lg border border-dashed px-2 py-1.5 text-[11px] disabled:opacity-50"
+              className="border-border text-muted-foreground hover:text-foreground flex items-center gap-1 rounded-lg border border-dashed px-2 py-1.5 text-2xs disabled:opacity-50"
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
               เพิ่มรูป
@@ -81,7 +81,7 @@ export function TemplateNodeImages({ templateId, node, readOnly }: { templateId:
           </>
         )}
       </div>
-      {error && <p className="mt-1 text-[11px] text-red-500">{error}</p>}
+      {error && <p className="mt-1 text-2xs text-red-500">{error}</p>}
     </div>
   )
 }

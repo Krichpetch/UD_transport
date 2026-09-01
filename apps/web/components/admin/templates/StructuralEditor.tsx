@@ -31,7 +31,7 @@ function LabelEditor({ templateId, node }: { templateId: string; node: TemplateN
 
   return (
     <div className="space-y-1.5">
-      <p className="text-muted-foreground text-[11px]">ข้อความคำถาม (รหัสคงเดิม: <span className="font-mono">{node.code}</span>)</p>
+      <p className="text-muted-foreground text-2xs">ข้อความคำถาม (รหัสคงเดิม: <span className="font-mono">{node.code}</span>)</p>
       <div className="flex gap-2">
         <input className={`${INPUT_CLS} py-1.5 text-xs`} value={labelTh} onChange={(e) => setLabelTh(e.target.value)} placeholder="ข้อความคำถาม" />
         <input className={`${INPUT_CLS} w-16 py-1.5 text-xs`} value={num} onChange={(e) => setNum(e.target.value)} placeholder="เลข" />
@@ -46,7 +46,7 @@ function LabelEditor({ templateId, node }: { templateId: string; node: TemplateN
           {editLabel.isPending ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
           บันทึกข้อความ
         </button>
-        {editLabel.isError && <span className="text-[11px] text-red-500">{(editLabel.error as Error).message}</span>}
+        {editLabel.isError && <span className="text-2xs text-red-500">{(editLabel.error as Error).message}</span>}
       </div>
     </div>
   )
@@ -119,7 +119,7 @@ function NewMeasurementForm({ templateId, nodeCode, onDone }: { templateId: stri
         </div>
       )}
       {operator === 'tiered' && (
-        <p className="text-muted-foreground text-[11px]">จะสร้างตารางขั้นบันไดเปล่า 1 แถว — ปรับรายละเอียดได้จากตัวแก้ไขเกณฑ์หลังบันทึก</p>
+        <p className="text-muted-foreground text-2xs">จะสร้างตารางขั้นบันไดเปล่า 1 แถว — ปรับรายละเอียดได้จากตัวแก้ไขเกณฑ์หลังบันทึก</p>
       )}
       <label className="text-foreground flex items-center gap-1.5 text-xs">
         <input type="checkbox" checked={autoGrade} onChange={(e) => setAutoGrade(e.target.checked)} />
@@ -144,7 +144,7 @@ function NewMeasurementForm({ templateId, nodeCode, onDone }: { templateId: stri
         </button>
         <button type="button" onClick={onDone} className="text-muted-foreground text-xs hover:underline">ยกเลิก</button>
       </div>
-      {addMeasurement.isError && <p className="text-[11px] text-red-500">{(addMeasurement.error as Error).message}</p>}
+      {addMeasurement.isError && <p className="text-2xs text-red-500">{(addMeasurement.error as Error).message}</p>}
     </div>
   )
 }
@@ -167,7 +167,7 @@ function AddChildForm({ templateId, parentCode, onDone }: { templateId: string; 
       <select className={`${SELECT_CLS} py-1.5 text-xs`} value={type} onChange={(e) => setType(e.target.value as QuestionTypeSelector)}>
         {TYPE_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
       </select>
-      <p className="text-muted-foreground text-[11px]">รหัสจะถูกกำหนดโดยระบบอัตโนมัติ (ไม่ใช้ซ้ำแม้ลบไปแล้ว)</p>
+      <p className="text-muted-foreground text-2xs">รหัสจะถูกกำหนดโดยระบบอัตโนมัติ (ไม่ใช้ซ้ำแม้ลบไปแล้ว)</p>
       <div className="flex items-center gap-2">
         <button
           type="button"
@@ -180,7 +180,7 @@ function AddChildForm({ templateId, parentCode, onDone }: { templateId: string; 
         </button>
         <button type="button" onClick={() => onDone('')} className="text-muted-foreground text-xs hover:underline">ยกเลิก</button>
       </div>
-      {addChild.isError && <p className="text-[11px] text-red-500">{(addChild.error as Error).message}</p>}
+      {addChild.isError && <p className="text-2xs text-red-500">{(addChild.error as Error).message}</p>}
     </div>
   )
 }
@@ -245,7 +245,7 @@ export function StructuralEditor({
 
       {/* Part C.2 — question type selector */}
       <div>
-        <p className="text-muted-foreground mb-1 text-[11px]">ประเภทคำถาม</p>
+        <p className="text-muted-foreground mb-1 text-2xs">ประเภทคำถาม</p>
         <div className="flex flex-wrap gap-1.5">
           {TYPE_OPTIONS.map((t) => (
             <button
@@ -262,7 +262,7 @@ export function StructuralEditor({
           ))}
         </div>
         {confirmingDowngradeTo && (
-          <div className="mt-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-700">
+          <div className="mt-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-2xs text-amber-700">
             <AlertTriangle size={13} className="mt-0.5 shrink-0" />
             <div className="flex-1">
               <p>เปลี่ยนประเภทนี้จะลบเกณฑ์วัดค่าที่มีอยู่ ({node.measurements!.length} รายการ) ยืนยันหรือไม่?</p>
@@ -279,9 +279,9 @@ export function StructuralEditor({
       {(type === 'measured' || type === 'presence_standard') && (
         <div>
           <div className="mb-1 flex items-center justify-between">
-            <p className="text-muted-foreground text-[11px]">เกณฑ์วัดค่า</p>
+            <p className="text-muted-foreground text-2xs">เกณฑ์วัดค่า</p>
             {!addingMeasurement && (
-              <button type="button" onClick={() => setAddingMeasurement(true)} className="text-accent flex items-center gap-1 text-[11px] hover:underline">
+              <button type="button" onClick={() => setAddingMeasurement(true)} className="text-accent flex items-center gap-1 text-2xs hover:underline">
                 <Plus size={11} /> เพิ่มเกณฑ์วัดค่า
               </button>
             )}
@@ -295,7 +295,7 @@ export function StructuralEditor({
       {/* Part C.4 — add sub-question, reorder, delete */}
       <div className="border-border space-y-2 border-t pt-2">
         <div className="flex items-center justify-between">
-          <p className="text-muted-foreground text-[11px]">รายการย่อย</p>
+          <p className="text-muted-foreground text-2xs">รายการย่อย</p>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -326,7 +326,7 @@ export function StructuralEditor({
               <ArrowDown size={12} />
             </button>
             {!addingChild && (
-              <button type="button" onClick={() => setAddingChild(true)} className="text-accent flex items-center gap-1 text-[11px] hover:underline">
+              <button type="button" onClick={() => setAddingChild(true)} className="text-accent flex items-center gap-1 text-2xs hover:underline">
                 <Plus size={11} /> เพิ่มข้อย่อย
               </button>
             )}
@@ -351,7 +351,7 @@ export function StructuralEditor({
             <Trash2 size={13} /> ลบรายการนี้
           </button>
         ) : (
-          <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-2 text-[11px] text-red-700">
+          <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-2 text-2xs text-red-700">
             <AlertTriangle size={13} className="mt-0.5 shrink-0" />
             <div className="flex-1">
               <p>ลบ &ldquo;{node.labelTh}&rdquo; รวมรายการย่อยทั้งหมด ({countLeaves(node)} จุดตรวจ) ใช่หรือไม่? การลบนี้ย้อนกลับไม่ได้</p>
