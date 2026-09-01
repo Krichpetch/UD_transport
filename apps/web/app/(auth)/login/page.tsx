@@ -53,7 +53,7 @@ function LoginForm() {
     mutation.error instanceof Error ? mutation.error.message : null
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-8">
+    <div className="w-full max-w-md">
       <div className="bg-card flex w-full max-w-md flex-col items-center gap-6 rounded-xl p-6 shadow-lg sm:p-8">
         {/* Logo / Branding */}
         <div className="flex flex-col items-center gap-2">
