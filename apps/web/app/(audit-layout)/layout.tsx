@@ -78,7 +78,7 @@ export default function AuditLayout({ children }: { children: React.ReactNode })
               <ClipboardList size={15} />
             </Link>
             <Link
-              href="/settings"
+              href="/audit/settings"
               title="บัญชีของฉัน"
               className="border-border text-muted-foreground hover:bg-secondary hover:text-foreground rounded-lg border p-1.5 transition-colors"
             >
