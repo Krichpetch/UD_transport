@@ -429,17 +429,26 @@ export class FacilityGroupsService {
   // neither gate above applies to it.
   async propagateItemEdit(scope: VersionScope, canonicalItemId: string, actorId: string, dto: GroupedEditDto) {
     const { item } = await this.findCanonicalItem(scope, canonicalItemId)
+    if ((dto.field === 'measurement' || dto.field === 'era' || dto.field === 'guidance' || dto.field === 'lawRefs') && !item.isLeaf) {
+      throw new BadRequestException(`field "${dto.field}" only applies to a leaf item — this node is a container with its own sub-items`)
+    }
+
+    // UDT-61, Part 2 — a single-instance item exists in exactly one template: there is no second
+    // instance to fan out to, and no shared MasterCriterion is warranted (a master models data
+    // that's SHARED across instances — see propagateThroughMaster's doc). Route straight to the
+    // same plain per-instance write path 'hidden' already used below; it degrades correctly to "one
+    // write, one audit row" when item.instances has exactly one element. This used to be a hard
+    // BadRequestException ("รายการนี้มีอยู่ในแบบประเมินเดียว ไม่มีที่ให้เผยแพร่การแก้ไข") — a single-
+    // mode item was, until now, permanently uneditable from this endpoint.
+    if (item.instances.length === 1) {
+      return this.propagateDirectFieldEdit(item, actorId, dto)
+    }
+
     if (!isPropagatable(item)) {
       throw new BadRequestException({
         code: 'ITEM_NOT_PROPAGATABLE',
-        message:
-          item.instances.length < 2
-            ? 'รายการนี้มีอยู่ในแบบประเมินเดียว ไม่มีที่ให้เผยแพร่การแก้ไข'
-            : 'รายการนี้มีข้อมูลไม่ตรงกันระหว่างแบบประเมิน ต้องแก้ไขความขัดแย้งก่อนจึงจะเผยแพร่การแก้ไขพร้อมกันได้',
+        message: 'รายการนี้มีข้อมูลไม่ตรงกันระหว่างแบบประเมิน ต้องแก้ไขความขัดแย้งก่อนจึงจะเผยแพร่การแก้ไขพร้อมกันได้',
       })
-    }
-    if ((dto.field === 'measurement' || dto.field === 'era' || dto.field === 'guidance' || dto.field === 'lawRefs') && !item.isLeaf) {
-      throw new BadRequestException(`field "${dto.field}" only applies to a leaf item — this node is a container with its own sub-items`)
     }
 
     if (dto.field === 'hidden') {

@@ -2,19 +2,18 @@
 // Kept as one small file since all three read directly off GroupNodeRow and are used together
 // everywhere the item appears (group list, item detail, conflict queue) — a container node (round
 // 2) carries these exactly the same way a leaf does.
+//
+// UDT-61, Part 1 — ClassificationBadge used to also restate the SHARED count ("ใช้ร่วมกัน N จุด"),
+// duplicating the count already shown by InstanceBreakdownChips in the neighboring column. It now
+// only flags the MODE_SPECIFIC case (the one piece of information this badge alone carries); a
+// SHARED item renders no classification badge at all — its count lives solely in that other column.
 import type { GroupNodeRow } from '@/lib/api/facility-groups'
 
 export function ClassificationBadge({ item }: { item: GroupNodeRow }) {
-  if (item.classification === 'MODE_SPECIFIC') {
-    return (
-      <span className="bg-secondary text-muted-foreground inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
-        เฉพาะโหมดนี้
-      </span>
-    )
-  }
+  if (item.classification !== 'MODE_SPECIFIC') return null
   return (
-    <span className="bg-accent/10 text-accent inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
-      ใช้ร่วมกัน {item.instanceCount} จุด
+    <span className="bg-secondary text-muted-foreground inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
+      เฉพาะโหมดนี้
     </span>
   )
 }

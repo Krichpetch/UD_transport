@@ -2,11 +2,12 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, ChevronUp, ListChecks, Plus, Search, Trash2, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, ChevronUp, ExternalLink, ListChecks, Plus, Search, Trash2, X } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
 import { useFacilityGroups } from '@/hooks/use-facility-groups'
 import { ClassificationBadge, ConflictBadge } from '@/components/admin/templates/GroupedItemBadges'
 import { InstanceBreakdownChips } from '@/components/admin/templates/InstanceBreakdownChips'
+import { ModesUsedBadge } from '@/components/admin/templates/ModesUsedBadge'
 import { GroupedItemEditDialog } from '@/components/admin/templates/GroupedItemEditDialog'
 import { AddAndPlaceDialog } from '@/components/admin/templates/AddAndPlaceDialog'
 import { DeleteGroupDialog } from '@/components/admin/templates/DeleteGroupDialog'
@@ -28,7 +29,12 @@ const VERSION = 3
 // Session S5-fix (round 6) — รหัส widened (real node codes like "B6.10-4.8" were wrapping onto a
 // second line in the old 3.5rem column); ใช้ร่วมกัน narrowed to match InstanceBreakdownChips'
 // new single-badge-plus-tooltip rendering, which no longer needs the old multi-chip width.
-const TABLE_GRID_COLS = 'grid-cols-[6rem_1fr_7rem_9rem_11rem]'
+// UDT-61, Part 1 — that same column is now ModesUsedBadge (one chip per mode, potentially several
+// per row) instead of a single count pill, so it's widened back out; สถานะ narrowed since it lost
+// the redundant "ใช้ร่วมกัน N จุด" text and now only ever shows a count chip plus at most one badge.
+// UDT-61, Part 2 — การดำเนินการ widened slightly to fit a single-mode row's new แก้ไข button plus
+// its "go to this template" link icon alongside the delete button.
+const TABLE_GRID_COLS = 'grid-cols-[6rem_1fr_11rem_10rem_13rem]'
 
 export default function TemplateGroupsPage() {
   return (
@@ -258,7 +264,7 @@ function TemplateGroupsContent() {
 function TableHeaderRow() {
   return (
     <div className={`border-border bg-secondary/20 grid ${TABLE_GRID_COLS} border-b`}>
-      {['รหัส', 'รายการ', 'ใช้ร่วมกัน', 'สถานะ', 'การดำเนินการ'].map((label) => (
+      {['รหัส', 'รายการ', 'โหมดที่ใช้งาน', 'สถานะ', 'การดำเนินการ'].map((label) => (
         <div key={label} className="text-muted-foreground px-3 py-2 text-3xs font-medium tracking-wide uppercase">
           {label}
         </div>
@@ -272,7 +278,7 @@ function TableHeaderRow() {
 // grid-column format as the station checklist table instead of a stacked card. A container's own
 // length-tier sub-groups (e.g. the ramp's ≤2500mm/2500-6000mm/≥6000mm cases) still render as their
 // own expandable rows — hierarchy lives entirely inside the "รายการ" cell (indent + chevron), so
-// the รหัส/ใช้ร่วมกัน/สถานะ/การดำเนินการ columns stay aligned no matter how deep a row sits.
+// the รหัส/โหมดที่ใช้งาน/สถานะ/การดำเนินการ columns stay aligned no matter how deep a row sits.
 function TableRow({
   node,
   depth,
@@ -326,10 +332,11 @@ function TableRow({
         </div>
 
         <div className="px-3 py-2.5">
-          <InstanceBreakdownChips breakdown={node.breakdown} compact />
+          <ModesUsedBadge breakdown={node.breakdown} compact />
         </div>
 
         <div className="flex flex-wrap items-center gap-1 px-3 py-2.5">
+          <InstanceBreakdownChips breakdown={node.breakdown} compact />
           <ClassificationBadge item={node} />
           <ConflictBadge item={node} />
         </div>
@@ -350,6 +357,27 @@ function TableRow({
             >
               แก้ไขความขัดแย้งก่อน
             </Link>
+          ) : node.instances.length === 1 ? (
+            // UDT-61, Part 2 — a single-mode item has nothing to fan out to, but that's no reason
+            // to leave it uneditable: the edit dialog now writes directly to its one instance (see
+            // facility-groups.service.ts#propagateItemEdit), and the link jumps straight to that
+            // instance's own template in the individual per-template editor.
+            <>
+              <button
+                type="button"
+                onClick={() => onEdit(node)}
+                className="border-border hover:bg-secondary/60 rounded-lg border px-3 py-1.5 text-xs font-medium"
+              >
+                แก้ไข
+              </button>
+              <Link
+                href={`/admin/templates/${node.instances[0]!.templateId}`}
+                title="ไปที่แบบประเมินนี้"
+                className="text-muted-foreground hover:bg-secondary/60 hover:text-foreground rounded-lg border border-transparent p-1.5"
+              >
+                <ExternalLink size={13} />
+              </Link>
+            </>
           ) : (
             <span className="text-muted-foreground text-xs">แก้ไขทีละแบบประเมิน</span>
           )}
