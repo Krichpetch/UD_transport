@@ -1808,17 +1808,17 @@
       {
        "answerType": "presence_standard",
        "code": "B1.1-4",
-       "labelTh": "กรณีมีธรณีประตูความสูงต้องไม่เกิน 20 มิลลิเมตร และขอบทั้งสองด้านมีความลาดเอียงไม่เกิน 45 องศา",
+       "labelTh": "กรณีมีธรณีประตูความสูงต้องไม่เกิน 13 มิลลิเมตร และขอบทั้งสองด้านมีความลาดเอียงไม่เกิน 45 องศา",
        "measurements": [
         {
          "autoGrade": true,
-         "confirmed": false,
+         "confirmed": true,
          "extracted": true,
          "key": "m1",
          "operator": "lte",
-         "sourceText": "ไม่เกิน 20 มิลลิเมตร",
+         "sourceText": "ไม่เกิน 13 มิลลิเมตร",
          "unit": "mm",
-         "value": 20
+         "value": 13
         },
         {
          "autoGrade": true,
@@ -1827,6 +1827,7 @@
          "key": "m2",
          "note": "angle — confirm operator with สนข.",
          "operator": "lte",
+         "slopeAngle": true,
          "sourceText": "45 องศา",
          "unit": "degree",
          "value": 45
