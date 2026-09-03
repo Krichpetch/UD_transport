@@ -130,6 +130,14 @@ function TemplateGroupsContent() {
             <ListChecks size={15} />
             คิวยืนยันเกณฑ์ (แบบกลุ่ม)
           </Link>
+          {/* UDT-60 — same items, viewed by law reference instead of by facility container. */}
+          <Link
+            href="/admin/templates/laws"
+            className="border-border bg-card hover:bg-secondary/60 flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium"
+          >
+            <Scale size={15} />
+            ดูตามกฎหมายอ้างอิง
+          </Link>
           <button
             type="button"
             onClick={() => setAddingNew(true)}

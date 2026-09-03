@@ -109,7 +109,8 @@ export function deriveMeasuredStandard(
       // along the sloped surface itself (ความยาวตามแนวลาด, the hypotenuse). run is derived via
       // Pythagoras: run = sqrt(hypotenuse² − rise²), then graded exactly as before — ratio_1_x's
       // X = run ÷ rise (unchanged formula, just a derived run instead of an entered one), percent
-      // = (rise ÷ run) × 100. NOT extended to unit:'degree' — see ratioRiseKey's doc.
+      // = (rise ÷ run) × 100. unit:'degree' has its OWN slope treatment (arctangent) gated behind
+      // the slopeAngle flag — see the degree branch below and slopeRunKey's doc.
       const rise = values[ratioRiseKey(m.key)]
       const hypotenuse = values[ratioHypotenuseKey(m.key)]
       let run: number, riseValue: number
@@ -131,6 +132,21 @@ export function deriveMeasuredStandard(
         riseValue = height
       }
       v = m.unit === 'percent' ? (riseValue / run) * 100 : run / riseValue
+    } else if (m.unit === 'degree' && m.slopeAngle) {
+      // UDT-30 — slope-ANGLE degree measurement (e.g. ธรณีประตู's 45° door-edge slope). Two entry
+      // modes, mutually exclusive per the form: cm-input stores the vertical rise (ratioRiseKey)
+      // and horizontal run (slopeRunKey), and the angle is derived here via arctangent
+      // (atan(rise ÷ run) in degrees); direct entry stores the angle straight under m.key. Legs
+      // present and valid => use the derived angle; otherwise fall back to the direct value. Only
+      // reached for measurements explicitly flagged slopeAngle — plain door-hinge degree items
+      // never carry the flag and drop to the direct-value branch below, unchanged.
+      const rise = values[ratioRiseKey(m.key)]
+      const run = values[slopeRunKey(m.key)]
+      if (typeof rise === 'number' && typeof run === 'number' && run > 0 && rise >= 0) {
+        v = Math.atan(rise / run) * (180 / Math.PI)
+      } else {
+        v = values[m.key]
+      }
     } else {
       v = values[m.key]
     }
@@ -157,6 +173,15 @@ export function ratioRiseKey(measurementKey: string): string {
 }
 export function ratioHypotenuseKey(measurementKey: string): string {
   return `${measurementKey}__hypotenuse`
+}
+
+// UDT-30 — the horizontal run (ระยะแนวราบ) leg of a slope-ANGLE degree measurement's cm-input
+// mode. Paired with ratioRiseKey (the vertical rise); the angle is derived as atan(rise ÷ run).
+// Distinct from ratioHypotenuseKey (ratio/percent slopes are measured ALONG the sloped face, not
+// across the run) and from the legacy length/height keys. Only slopeAngle-flagged degree
+// measurements ever write it — see deriveMeasuredStandard's degree branch.
+export function slopeRunKey(measurementKey: string): string {
+  return `${measurementKey}__run`
 }
 
 // Legacy key pair (pre-2026-08-09) — the auditor form entered raw run/rise directly under these

@@ -7,6 +7,7 @@ const GROUPS_KEY = ['admin', 'template-groups'] as const
 const groupsKey = (version: number) => [...GROUPS_KEY, version] as const
 const conflictsKey = (version: number) => [...GROUPS_KEY, 'conflicts', version] as const
 const reviewQueueKey = (version: number) => [...GROUPS_KEY, 'review-queue', version] as const
+const byLawKey = (version: number) => [...GROUPS_KEY, 'by-law', version] as const
 
 // Session S4b-fix, Fix 4 — `enabled` lets the individual template editor reuse this same query
 // (for the provenance banner) without firing it against a non-v3 template, which the grouping
@@ -17,6 +18,11 @@ export function useFacilityGroups(version: number, options?: { enabled?: boolean
     queryFn: () => groupsApi.getFacilityGroups(version),
     enabled: options?.enabled ?? true,
   })
+}
+
+// UDT-60 — same underlying canonical leaves as useFacilityGroups, re-bucketed by law code.
+export function useGroupsByLaw(version: number) {
+  return useQuery({ queryKey: byLawKey(version), queryFn: () => groupsApi.getGroupsByLaw(version) })
 }
 
 export function useGroupConflicts(version: number) {

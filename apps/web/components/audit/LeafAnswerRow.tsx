@@ -3,7 +3,8 @@
 import * as React from 'react'
 import { CheckCircle2, CheckSquare, Square, StickyNote, Ruler, Flag } from 'lucide-react'
 import type { TemplateNode, ChecklistValue, ChecklistPhoto } from '@repo/types'
-import { deriveMeasuredStandard, ratioRiseKey, ratioHypotenuseKey } from '@repo/types'
+import { deriveMeasuredStandard, ratioRiseKey, ratioHypotenuseKey, slopeRunKey } from '@repo/types'
+import { cn } from '@/lib/utils'
 import { isLeafAnswered, collectLeafCodes, collectLeaves, absentPatchFor } from '@/lib/audit-form'
 import { useAuditFormStore } from '@/stores/audit-form.store'
 import { PhotoPicker } from '@/components/audit/PhotoPicker'
@@ -371,6 +372,136 @@ function PresenceStandardControl({ node, answer, setAnswer, readOnly = false }: 
   )
 }
 
+const MEASUREMENT_INPUT_CLASS =
+  'border-border focus:ring-ring mt-1 w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 disabled:bg-secondary/30'
+
+// UDT-30 — the slope-ANGLE degree measurement's two-mode entry, split out as its own component so
+// its hooks (the mode toggle's useState) are always called unconditionally, regardless of which
+// MeasurementInput branch renders. cm mode stores rise (ratioRiseKey) + run (slopeRunKey) and
+// previews the derived angle atan(rise ÷ run); direct mode stores the angle under measurement.key.
+// scoring.ts#deriveMeasuredStandard re-derives from the SAME keys, never trusting this preview.
+function DegreeSlopeInput({ code, measurement, values, setAnswer, readOnly }: {
+  code: string
+  measurement: NonNullable<TemplateNode['measurements']>[number]
+  values: Record<string, number>
+  setAnswer: (code: string, patch: Record<string, unknown>) => void
+  readOnly: boolean
+}) {
+  const riseKey = ratioRiseKey(measurement.key)
+  const runKey = slopeRunKey(measurement.key)
+  const rise = values[riseKey]
+  const run = values[runKey]
+  const direct = values[measurement.key]
+
+  // Mode is inferred from stored values on mount (legs present => cm), then user-controlled.
+  const [mode, setMode] = React.useState<'direct' | 'cm'>(
+    typeof rise === 'number' || typeof run === 'number' ? 'cm' : 'direct',
+  )
+
+  // Single write path so a mode switch can clear several keys atomically off ONE `values` snapshot
+  // — two sequential setValue calls would each spread the same stale `values` and lose the first.
+  function writeValues(mutate: (next: Record<string, number>) => void) {
+    const next = { ...values }
+    mutate(next)
+    setAnswer(code, { values: next })
+  }
+  function setKey(key: string, raw: string) {
+    const n = raw === '' ? undefined : Number(raw)
+    writeValues((next) => {
+      if (n === undefined || Number.isNaN(n)) delete next[key]
+      else next[key] = n
+    })
+  }
+  function switchMode(next: 'direct' | 'cm') {
+    if (readOnly || next === mode) return
+    // Clear the other mode's keys so scoring reads the chosen mode unambiguously (legs win when
+    // present, per deriveMeasuredStandard).
+    writeValues((v) => {
+      if (next === 'direct') { delete v[riseKey]; delete v[runKey] }
+      else delete v[measurement.key]
+    })
+    setMode(next)
+  }
+
+  const bothLegs = typeof rise === 'number' && typeof run === 'number'
+  const invalid = bothLegs && run! <= 0
+  const angle = bothLegs && !invalid ? Math.atan(rise! / run!) * (180 / Math.PI) : null
+
+  return (
+    <div className="space-y-1.5">
+      {readOnly && (
+        <p className="text-2xs font-medium text-blue-700">มาตรฐาน: {measurementSummary(measurement)}</p>
+      )}
+      {measurement.sourceText && <p className="text-2xs text-muted-foreground">{measurement.sourceText}</p>}
+      <div className="border-border inline-flex rounded-lg border bg-white p-0.5 text-2xs">
+        {([['direct', 'องศา'], ['cm', 'วัด (มม.)']] as const).map(([m, label]) => (
+          <button
+            key={m}
+            type="button"
+            disabled={readOnly}
+            aria-pressed={mode === m}
+            onClick={() => switchMode(m)}
+            className={cn(
+              'rounded-md px-2.5 py-1 font-medium transition-colors',
+              mode === m ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'direct' ? (
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            inputMode="decimal"
+            disabled={readOnly}
+            value={direct ?? ''}
+            onChange={(e) => setKey(measurement.key, e.target.value)}
+            className={MEASUREMENT_INPUT_CLASS}
+          />
+          <span className="text-xs text-muted-foreground">องศา</span>
+        </div>
+      ) : (
+        <>
+          <div className="flex gap-2">
+            <label className="text-2xs text-muted-foreground flex-1">
+              แนวดิ่ง (มม.)
+              <input
+                type="number"
+                inputMode="decimal"
+                disabled={readOnly}
+                value={rise ?? ''}
+                onChange={(e) => setKey(riseKey, e.target.value)}
+                className={MEASUREMENT_INPUT_CLASS}
+              />
+            </label>
+            <label className="text-2xs text-muted-foreground flex-1">
+              ระยะแนวราบ (มม.)
+              <input
+                type="number"
+                inputMode="decimal"
+                disabled={readOnly}
+                value={run ?? ''}
+                onChange={(e) => setKey(runKey, e.target.value)}
+                className={MEASUREMENT_INPUT_CLASS}
+              />
+            </label>
+          </div>
+          {invalid ? (
+            <p className="text-2xs text-red-600">ระยะแนวราบต้องมากกว่า 0 — ตรวจสอบตัวเลขอีกครั้ง</p>
+          ) : (
+            <p className="text-2xs text-muted-foreground">
+              มุม: <span className="text-foreground font-medium">{angle !== null ? `${angle.toFixed(1)}°` : '-'}</span>
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // Exported — the admin checklist-review table reuses this directly (readOnly) for its measured-
 // value detail row, so the styling (labeled boxes, the blue "มาตรฐาน: …" line, slope/tiered
 // layouts) is never a second copy that can drift from what the live auditor form shows.
@@ -475,6 +606,22 @@ export function MeasurementInput({ code, measurement, values, setAnswer, readOnl
           </p>
         )}
       </div>
+    )
+  }
+
+  // UDT-30 — a slope-ANGLE degree measurement (only the ธรณีประตู 45° door edge today) offers a
+  // mode switch so the auditor can either enter the angle directly OR enter rise + run and have it
+  // derived via arctangent. Plain degree items (door-hinge opening) are NOT flagged and fall
+  // through to the single direct-entry field below, exactly as before.
+  if (measurement.unit === 'degree' && measurement.slopeAngle) {
+    return (
+      <DegreeSlopeInput
+        code={code}
+        measurement={measurement}
+        values={values}
+        setAnswer={setAnswer}
+        readOnly={readOnly}
+      />
     )
   }
 

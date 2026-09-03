@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'crypto'
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma, type MasterCriterion } from '@prisma/client'
 import type { ChecklistTemplateDefinition, TemplateAnswerType, TransportMode } from '@repo/types'
-import { ChecklistTemplateValidationError, indexTemplateNodesByCode } from '@repo/types'
+import { ChecklistTemplateValidationError, indexTemplateNodesByCode, LAW_REFERENCE_SEED } from '@repo/types'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditLogService } from '../../audit/audit.service'
 import { MinioService } from '../../minio/minio.service'
@@ -12,6 +12,7 @@ import {
   buildFacilityGroups,
   detectConflicts,
   extendedFieldsAgree,
+  flattenLeaves,
   flattenTree,
   isPropagatable,
   type CanonicalItem,
@@ -289,38 +290,91 @@ export class FacilityGroupsService {
     return { templates, result, conflicts }
   }
 
-  // Session S5-fix (round 2) — the response is now the RECURSIVE tree itself (depth-0 roots, each
-  // carrying its own subtree via `children`), not a flat container-list + flat leaf-list. A leaf
-  // and a container are the same DTO shape (isLeaf discriminates); the frontend renders/edits both
-  // uniformly, matching TemplateTree.tsx's own "every node is selectable" behavior. `sortKey`
-  // orders siblings by where they actually appear in the source checklist, not by id or count.
+  // Session S5-fix (round 2) — the recursive tree DTO builder (depth-0 roots, each carrying its own
+  // subtree via `children`). A leaf and a container are the same DTO shape (isLeaf discriminates);
+  // the frontend renders/edits both uniformly, matching TemplateTree.tsx's own "every node is
+  // selectable" behavior. `sortKey` orders siblings by where they actually appear in the source
+  // checklist, not by id or count. Extracted to its own method (UDT-60) so getGroupsByLaw below can
+  // reuse the exact same node shape for its law-bucketed `items[]`, rather than re-deriving it.
+  private toGroupNodeDto(node: CanonicalItem, conflictByItem: Map<string, ItemConflict>): GroupNodeDto {
+    return {
+      id: node.id,
+      parentId: node.parentId,
+      depth: node.depth,
+      labelTh: node.labelTh,
+      isLeaf: node.isLeaf,
+      classification: node.classification,
+      instanceCount: node.instances.length,
+      breakdown: node.breakdown,
+      facilityTagged: node.facilityTagged,
+      facilityCode: node.facilityCode,
+      masterId: node.masterId,
+      sortKey: node.sortKey,
+      instances: node.instances.map(toInstanceDto),
+      hasConflict: conflictByItem.has(node.id),
+      conflictAcknowledged: conflictByItem.get(node.id)?.acknowledged ?? false,
+      propagatable: isPropagatable(node),
+      children: node.children.map((c) => this.toGroupNodeDto(c, conflictByItem)),
+    }
+  }
+
   async getGroups(scope: VersionScope) {
     const { result, conflicts } = await this.computeGroups(scope)
     const conflictByItem = new Map(conflicts.map((c) => [c.canonicalItemId, c]))
-    const toDto = (node: CanonicalItem): GroupNodeDto => {
-      return {
-        id: node.id,
-        parentId: node.parentId,
-        depth: node.depth,
-        labelTh: node.labelTh,
-        isLeaf: node.isLeaf,
-        classification: node.classification,
-        instanceCount: node.instances.length,
-        breakdown: node.breakdown,
-        facilityTagged: node.facilityTagged,
-        facilityCode: node.facilityCode,
-        masterId: node.masterId,
-        sortKey: node.sortKey,
-        instances: node.instances.map(toInstanceDto),
-        hasConflict: conflictByItem.has(node.id),
-        conflictAcknowledged: conflictByItem.get(node.id)?.acknowledged ?? false,
-        propagatable: isPropagatable(node),
-        children: node.children.map(toDto),
-      }
-    }
     return {
       stats: result.stats,
-      containerGroups: result.containerGroups.map(toDto),
+      containerGroups: result.containerGroups.map((n) => this.toGroupNodeDto(n, conflictByItem)),
+    }
+  }
+
+  // UDT-60 — law-centric lens onto the SAME canonical leaves getGroups() already computes: no new
+  // persisted data model, this just re-buckets the existing grouped-editor leaves by the law codes
+  // present in each one's `lawRefs` (leaf-only, same invariant propagateItemEdit's field guard and
+  // GroupedItemEditDialog rely on — see this file's propagateItemEdit doc). A leaf can legitimately
+  // require more than one law and so appears under more than one bucket; a leaf with no lawRefs at
+  // all surfaces under `unassigned` instead of silently vanishing from this view. Editing happens
+  // through the SAME propagateItemEdit endpoint (field 'lawRefs'/'era') the grouped editor already
+  // uses — this endpoint is read-only, a different lens on the same writable items.
+  async getGroupsByLaw(scope: VersionScope) {
+    const { result, conflicts } = await this.computeGroups(scope)
+    const conflictByItem = new Map(conflicts.map((c) => [c.canonicalItemId, c]))
+    const leaves = flattenLeaves(result.containerGroups)
+
+    const byCode = new Map<string, CanonicalItem[]>()
+    const unassigned: CanonicalItem[] = []
+    for (const leaf of leaves) {
+      const lawRefs = leaf.instances[0]?.node.lawRefs ?? []
+      if (lawRefs.length === 0) {
+        unassigned.push(leaf)
+        continue
+      }
+      for (const code of lawRefs) {
+        if (!byCode.has(code)) byCode.set(code, [])
+        byCode.get(code)!.push(leaf)
+      }
+    }
+
+    const laws = LAW_REFERENCE_SEED.map((law) => {
+      const items = (byCode.get(law.code) ?? []).map((n) => this.toGroupNodeDto(n, conflictByItem))
+      return {
+        code: law.code,
+        nameTh: law.nameTh,
+        ministry: law.ministry,
+        buddhistYear: law.buddhistYear,
+        effectiveYear: law.effectiveYear ?? null,
+        effectiveDate: law.effectiveDate ?? null,
+        isFloor: law.isFloor ?? false,
+        itemCount: items.length,
+        items,
+      }
+    })
+
+    return {
+      laws,
+      unassigned: {
+        itemCount: unassigned.length,
+        items: unassigned.map((n) => this.toGroupNodeDto(n, conflictByItem)),
+      },
     }
   }
 

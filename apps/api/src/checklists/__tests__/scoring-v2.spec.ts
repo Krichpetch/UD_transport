@@ -9,7 +9,7 @@
  * pass byte-for-byte, proving these additions never touched the v1 (flat, no subItems, no
  * templateDef) code path.
  */
-import { computeScoreFromItems, buildHistogram, computeFacilityMetrics, deriveMeasuredStandard, ratioLengthKey, ratioHeightKey, ratioRiseKey, ratioHypotenuseKey } from '../scoring'
+import { computeScoreFromItems, buildHistogram, computeFacilityMetrics, deriveMeasuredStandard, ratioLengthKey, ratioHeightKey, ratioRiseKey, ratioHypotenuseKey, slopeRunKey } from '../scoring'
 import type { ChecklistTemplateDefinition } from '@repo/types'
 
 describe('deriveMeasuredStandard', () => {
@@ -123,12 +123,42 @@ describe('deriveMeasuredStandard', () => {
     expect(deriveMeasuredStandard(ratio, values)).toBe(true)
   })
 
-  it('unit:degree is left alone (not treated as a slope) — direct entry, not length/height-derived', () => {
-    // Door hinge-opening angle (e.g. B2.1-5's 90 องศา) has no length/height to derive from; the
-    // plain single-value path (values[m.key]) must still apply to unit:'degree'.
+  it('unit:degree WITHOUT slopeAngle is left alone (not treated as a slope) — direct entry', () => {
+    // Door hinge-opening angle (e.g. a 90 องศา opening) has no rise/run to derive from; an
+    // unflagged unit:'degree' measurement must still use the plain single-value path (values[m.key]).
     const angle = [{ key: 'm1', operator: 'gte' as const, value: 90, unit: 'degree', autoGrade: true }]
     expect(deriveMeasuredStandard(angle, { m1: 90 })).toBe(true)
     expect(deriveMeasuredStandard(angle, { m1: 89 })).toBe(false)
+  })
+
+  // UDT-30 — the ธรณีประตู 45° door-edge slope is a genuine slope-ANGLE degree measurement. When
+  // flagged slopeAngle, deriveMeasuredStandard gains a mode switch: cm-input (rise + run, angle
+  // derived via arctangent) OR the auditor's directly-entered angle. Only slopeAngle-flagged
+  // degree measurements take this path — the unflagged test above proves hinge angles are untouched.
+  it('slopeAngle degree: cm-input derives the angle via arctangent from rise + run (rise 1, run 1 -> 45°)', () => {
+    const edge = [{ key: 'm1', operator: 'lte' as const, value: 45, unit: 'degree', autoGrade: true, slopeAngle: true }]
+    // rise 1 / run 1 -> atan(1) = 45° -> exactly at the boundary, passes lte 45
+    expect(deriveMeasuredStandard(edge, { [ratioRiseKey('m1')]: 1, [slopeRunKey('m1')]: 1 })).toBe(true)
+    // rise 2 / run 1 -> atan(2) ≈ 63.4° -> steeper than 45°, fails
+    expect(deriveMeasuredStandard(edge, { [ratioRiseKey('m1')]: 2, [slopeRunKey('m1')]: 1 })).toBe(false)
+  })
+
+  it('slopeAngle degree: falls back to the directly-entered angle when no legs are present', () => {
+    const edge = [{ key: 'm1', operator: 'lte' as const, value: 45, unit: 'degree', autoGrade: true, slopeAngle: true }]
+    expect(deriveMeasuredStandard(edge, { m1: 45 })).toBe(true)
+    expect(deriveMeasuredStandard(edge, { m1: 46 })).toBe(false)
+  })
+
+  it('slopeAngle degree: leg-derived angle takes priority over any stray direct value', () => {
+    const edge = [{ key: 'm1', operator: 'lte' as const, value: 45, unit: 'degree', autoGrade: true, slopeAngle: true }]
+    // legs -> 45° (passes) even though the direct m1:80 would fail lte 45 on its own
+    expect(deriveMeasuredStandard(edge, { [ratioRiseKey('m1')]: 1, [slopeRunKey('m1')]: 1, m1: 80 })).toBe(true)
+  })
+
+  it('slopeAngle degree: null (ungraded) when run is zero or nothing is entered', () => {
+    const edge = [{ key: 'm1', operator: 'lte' as const, value: 45, unit: 'degree', autoGrade: true, slopeAngle: true }]
+    expect(deriveMeasuredStandard(edge, {})).toBeNull()
+    expect(deriveMeasuredStandard(edge, { [ratioRiseKey('m1')]: 1, [slopeRunKey('m1')]: 0 })).toBeNull()
   })
 })
 
