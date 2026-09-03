@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, ChevronUp, ExternalLink, ListChecks, Plus, Search, Trash2, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, ChevronUp, ExternalLink, ListChecks, Plus, Scale, Search, Trash2, X } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
 import { useFacilityGroups } from '@/hooks/use-facility-groups'
 import { ClassificationBadge, ConflictBadge } from '@/components/admin/templates/GroupedItemBadges'
