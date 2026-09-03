@@ -6,7 +6,7 @@ import { RequireRole } from '@/components/auth/require-role'
 import { useTemplateList } from '@/hooks/use-templates-admin'
 import { TemplateStatusBadge } from '@/components/admin/templates/TemplateStatusBadge'
 import { TransportBadge } from '@/components/shared/badges'
-import { LayoutGrid, ListChecks } from 'lucide-react'
+import { LayoutGrid, ListChecks, Scale } from 'lucide-react'
 import type { TemplateListRow } from '@/lib/api/templates'
 
 export default function TemplatesAdminPage() {
@@ -73,6 +73,15 @@ function TemplatesAdminContent() {
           >
             <LayoutGrid size={14} />
             แก้ไขตามกลุ่มสิ่งอำนวยความสะดวก
+          </Link>
+          {/* UDT-60 — the same canonical items, re-bucketed by law reference (MHT_2548/PSD_2555/
+              MOT_2556/MHT_2564/PROJECT) instead of by facility container. */}
+          <Link
+            href="/admin/templates/laws"
+            className="border-border bg-card hover:bg-secondary/60 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
+          >
+            <Scale size={14} />
+            แก้ไขตามกฎหมายอ้างอิง
           </Link>
           {unconfirmedTotal > 0 ? (
             <Link
