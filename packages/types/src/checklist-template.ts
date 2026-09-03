@@ -96,6 +96,14 @@ export interface TemplateMeasurement {
   autoGrade: boolean        // false => guidance only; never feeds a standards verdict
   extracted?: boolean       // true => machine-extracted from source doc, pending human review
   confirmed?: boolean       // admin has reviewed/corrected this threshold
+  // UDT-30 — enables the direct/cm-input mode switch on a genuine slope-ANGLE degree measurement
+  // (e.g. the ธรณีประตู 45° door-edge slope). When true and unit === 'degree', the auditor may
+  // enter the angle directly OR enter the vertical rise + horizontal run and have the angle derived
+  // via arctangent (angle = atan(rise ÷ run)) — deriveMeasuredStandard uses the leg-derived angle
+  // when both legs are present, otherwise the directly-entered value. Left absent/false on
+  // door-hinge-opening degree items, which have no rise/run and must stay direct-entry only (see
+  // the load-bearing note in scoring.ts#deriveMeasuredStandard / MeasurementInput).
+  slopeAngle?: boolean
 }
 
 // A single-threshold shape for hypothetical non-presence 'measured' items (kept for forward
@@ -427,6 +435,7 @@ export function parseMeasurement(raw: unknown, path: string): TemplateMeasuremen
     autoGrade: o.autoGrade as boolean,
     extracted: typeof o.extracted === 'boolean' ? o.extracted : undefined,
     confirmed: typeof o.confirmed === 'boolean' ? o.confirmed : undefined,
+    slopeAngle: typeof o.slopeAngle === 'boolean' ? o.slopeAngle : undefined,
   }
 }
 
