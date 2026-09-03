@@ -232,6 +232,54 @@ describe('FacilityGroupsService', () => {
     expect(conflicted.propagatable).toBe(false)
   })
 
+  // UDT-60 — the law-centric lens re-buckets the SAME canonical leaves getGroups() computes; no
+  // new write path, so these only cover the read/bucketing shape.
+  describe('getGroupsByLaw', () => {
+    it('lists every LAW_REFERENCE_CODES entry (even ones with zero items yet), carrying its effective-date metadata', async () => {
+      const result = await service.getGroupsByLaw({ kind: 'exact', version: 3 })
+      expect(result.laws.map((l) => l.code)).toEqual(['MHT_2548', 'PSD_2555', 'MOT_2556', 'MHT_2564', 'PROJECT'])
+      const mht2564 = result.laws.find((l) => l.code === 'MHT_2564')!
+      expect(mht2564.effectiveDate).toBe('2021-05-03')
+      expect(mht2564.effectiveYear).toBe(2564)
+      const mht2548 = result.laws.find((l) => l.code === 'MHT_2548')!
+      expect(mht2548.isFloor).toBe(true)
+    })
+
+    it('none of the fixture leaves carry lawRefs, so every one lands in `unassigned`, not silently dropped', async () => {
+      const result = await service.getGroupsByLaw({ kind: 'exact', version: 3 })
+      expect(result.laws.every((l) => l.itemCount === 0)).toBe(true)
+      expect(result.unassigned.itemCount).toBe(3)
+    })
+
+    describe('with a leaf that references two law codes', () => {
+      const lawDef = () => ({
+        schemaVersion: 2,
+        mode: 'ทางอากาศ',
+        groups: [
+          {
+            code: 'A1',
+            labelTh: 'กลุ่มทดสอบ',
+            items: [{ code: 'L1', labelTh: 'รายการติดกฎหมายสองฉบับ', answerType: 'presence', lawRefs: ['MHT_2548', 'MHT_2564'] }],
+          },
+        ],
+      })
+      const LAW_ROW = { id: 'air-law-1', mode: 'ทางอากาศ', variantKey: 'standard', version: 3, status: 'DRAFT', definition: lawDef() }
+
+      beforeEach(() => {
+        findMany.mockResolvedValue([LAND_ROW, WATER_ROW, LAW_ROW])
+      })
+
+      it('places the leaf under every law code it references, and no others', async () => {
+        const result = await service.getGroupsByLaw({ kind: 'exact', version: 3 })
+        const label = 'รายการติดกฎหมายสองฉบับ'
+        expect(result.laws.find((l) => l.code === 'MHT_2548')!.items.map((i) => i.labelTh)).toContain(label)
+        expect(result.laws.find((l) => l.code === 'MHT_2564')!.items.map((i) => i.labelTh)).toContain(label)
+        expect(result.laws.find((l) => l.code === 'PSD_2555')!.items.map((i) => i.labelTh)).not.toContain(label)
+        expect(result.unassigned.items.map((i) => i.labelTh)).not.toContain(label)
+      })
+    })
+  })
+
   it('propagateItemEdit (measurement field) promotes on first edit, writes every instance via the tx client, and shares one correlationId', async () => {
     const groups = await service.getGroups({ kind: 'exact', version: 3 })
     const clean = flattenLeaves(groups.containerGroups).find((it) => it.labelTh.includes('900 มิลลิเมตร'))!

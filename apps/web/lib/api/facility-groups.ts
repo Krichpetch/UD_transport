@@ -140,6 +140,33 @@ export function flattenLeafNodes(nodes: GroupNodeRow[]): GroupNodeRow[] {
   return flattenGroupNodes(nodes).filter((n) => n.isLeaf)
 }
 
+// ---- UDT-60 — law-centric lens ----------------------------------------------------------------
+//
+// Same GroupNodeRow shape getFacilityGroups returns, just re-bucketed by law code instead of by
+// facility container — see facility-groups.service.ts#getGroupsByLaw's doc. `items` here are always
+// LEAVES (lawRefs is a leaf-only concept throughout this codebase), so GroupedItemEditDialog's
+// existing lawRefs/era sections work unchanged against them.
+export interface LawGroupRow {
+  code: string
+  nameTh: string
+  ministry: string
+  buddhistYear: number
+  effectiveYear: number | null
+  effectiveDate: string | null
+  isFloor: boolean
+  itemCount: number
+  items: GroupNodeRow[]
+}
+
+export interface GroupsByLawResponse {
+  laws: LawGroupRow[]
+  unassigned: { itemCount: number; items: GroupNodeRow[] }
+}
+
+export function getGroupsByLaw(version: number) {
+  return api.get<GroupsByLawResponse>(`/admin/template-groups/by-law?version=${version}`)
+}
+
 export interface ConflictVariantRow {
   signature: string
   instances: ItemInstanceRow[]

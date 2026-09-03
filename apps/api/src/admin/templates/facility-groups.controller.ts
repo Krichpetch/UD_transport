@@ -57,6 +57,14 @@ export class FacilityGroupsController {
     return this.groups.getGroupedReviewQueue(parseScope(scope, version))
   }
 
+  // UDT-60 — same canonical leaves as GET / (getGroups), re-bucketed by law code instead of by
+  // facility container. Read-only: editing still goes through items/:itemId/propagate below.
+  @Get('by-law')
+  getGroupsByLaw(@Query('version') version: string | undefined, @Query('scope') scope: string | undefined, @Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException()
+    return this.groups.getGroupsByLaw(parseScope(scope, version))
+  }
+
   // Upload-only (no nodeCode/version — see FacilityGroupsService#uploadImage's doc for why this
   // is a separate route from templates.controller.ts's per-node one). Front end calls this to get
   // a key, then propagates it via 'items/:itemId/propagate' below with field 'image'.
