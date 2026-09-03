@@ -47,7 +47,11 @@ function GroupedItemEditDialogContent({ version, item, onClose }: { version: num
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="flex max-h-[85vh] w-full flex-col overflow-hidden p-0 sm:max-w-2xl">
         <div className={DIALOG_HEADER_CLS}>
-          <p className="text-muted-foreground mb-1 text-3xs">แก้ไขตามกลุ่ม · ใช้ร่วมกัน {item.instanceCount} จุด</p>
+          {/* UDT-61, Part 2 — a single-instance item isn't "shared" with anything; saying so here
+              (and "publish" below) would misdescribe what's actually a plain single-template edit. */}
+          <p className="text-muted-foreground mb-1 text-3xs">
+            {item.instanceCount > 1 ? `แก้ไขตามกลุ่ม · ใช้ร่วมกัน ${item.instanceCount} จุด` : 'แก้ไขรายการนี้ · มีเฉพาะแบบประเมินนี้'}
+          </p>
           <DialogTitle className={DIALOG_TITLE_CLS}>{item.labelTh}</DialogTitle>
         </div>
 
@@ -102,7 +106,9 @@ function GroupedItemEditDialogContent({ version, item, onClose }: { version: num
 function InstanceListPanel({ instances }: { instances: ItemInstanceRow[] }) {
   return (
     <div>
-      <p className="text-foreground mb-1.5 text-sm font-semibold">จะเขียนไปยัง {instances.length} จุด (ทุกแบบประเมินที่มีรายการนี้)</p>
+      <p className="text-foreground mb-1.5 text-sm font-semibold">
+        {instances.length > 1 ? `จะเขียนไปยัง ${instances.length} จุด (ทุกแบบประเมินที่มีรายการนี้)` : 'มีอยู่ในแบบประเมินนี้แบบเดียว'}
+      </p>
       <div className="border-border max-h-28 space-y-1 overflow-y-auto rounded-lg border p-2">
         {instances.map((inst) => (
           <div key={`${inst.templateId}-${inst.nodeCode}`} className="flex items-center gap-1.5 text-xs">
@@ -140,6 +146,9 @@ function PropagateAction({
   onConfirm: () => void
 }) {
   const [confirming, setConfirming] = React.useState(false)
+  // UDT-61, Part 2 — a single-instance item isn't being "published" to anywhere else; it's a plain
+  // save to its one template. Same action, different, non-misleading wording.
+  const single = instanceCount <= 1
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
@@ -150,7 +159,7 @@ function PropagateAction({
             onClick={() => setConfirming(true)}
             className="border-border rounded-lg border px-3 py-1.5 text-xs font-medium disabled:opacity-40"
           >
-            เผยแพร่ไปยัง {instanceCount} จุด
+            {single ? 'บันทึก' : `เผยแพร่ไปยัง ${instanceCount} จุด`}
           </button>
         ) : (
           <>
@@ -164,7 +173,7 @@ function PropagateAction({
               className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               {isPending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-              ยืนยันเผยแพร่ไปยัง {instanceCount} จุด
+              {single ? 'ยืนยันบันทึก' : `ยืนยันเผยแพร่ไปยัง ${instanceCount} จุด`}
             </button>
             <button type="button" onClick={() => setConfirming(false)} className="text-muted-foreground text-xs hover:underline">
               ยกเลิก
@@ -173,7 +182,7 @@ function PropagateAction({
         )}
         {isSuccess && (
           <span className="flex items-center gap-1 text-xs text-[#52aa4e]">
-            <Check size={12} /> เผยแพร่แล้ว {wroteCount ?? instanceCount} จุด
+            <Check size={12} /> {single ? 'บันทึกแล้ว' : `เผยแพร่แล้ว ${wroteCount ?? instanceCount} จุด`}
           </span>
         )}
       </div>

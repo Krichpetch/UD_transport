@@ -428,6 +428,72 @@ describe('FacilityGroupsService', () => {
     ).rejects.toThrow(NotFoundException)
   })
 
+  // UDT-61, Part 2 — a single-instance (MODE_SPECIFIC) canonical item used to be permanently
+  // rejected by propagateItemEdit ("รายการนี้มีอยู่ในแบบประเมินเดียว ไม่มีที่ให้เผยแพร่การแก้ไข"), leaving
+  // it uneditable from the grouped editor. It now routes through the same plain per-instance write
+  // path 'hidden' already used (propagateDirectFieldEdit), degrading correctly to "one write, one
+  // audit row" — and, crucially, never creates or touches a MasterCriterion, since a master models
+  // data SHARED across instances and there is exactly one here.
+  describe('propagateItemEdit — single-instance (MODE_SPECIFIC) items', () => {
+    const soloDef = () => ({
+      schemaVersion: 2,
+      mode: 'ทางอากาศ',
+      groups: [
+        {
+          code: 'A1',
+          labelTh: 'กลุ่มทดสอบ',
+          items: [{ code: 'S1', labelTh: 'รายการเฉพาะโหมดนี้', answerType: 'presence' }],
+        },
+      ],
+    })
+    const SOLO_ROW = { id: 'air-solo-1', mode: 'ทางอากาศ', variantKey: 'standard', version: 3, status: 'DRAFT', definition: soloDef() }
+
+    beforeEach(() => {
+      findMany.mockResolvedValue([LAND_ROW, WATER_ROW, SOLO_ROW])
+      findUnique.mockImplementation(({ where: { id } }: { where: { id: string } }) =>
+        Promise.resolve(id === LAND_ROW.id ? LAND_ROW : id === WATER_ROW.id ? WATER_ROW : id === SOLO_ROW.id ? SOLO_ROW : null),
+      )
+    })
+
+    it('is reported as MODE_SPECIFIC, not propagatable, and without a conflict', async () => {
+      const result = await service.getGroups({ kind: 'exact', version: 3 })
+      const solo = flattenLeaves(result.containerGroups).find((it) => it.labelTh === 'รายการเฉพาะโหมดนี้')!
+      expect(solo.classification).toBe('MODE_SPECIFIC')
+      expect(solo.propagatable).toBe(false)
+      expect(solo.hasConflict).toBe(false)
+    })
+
+    it('writes directly to its one template instead of being rejected, and never touches a master', async () => {
+      const result = await service.getGroups({ kind: 'exact', version: 3 })
+      const solo = flattenLeaves(result.containerGroups).find((it) => it.labelTh === 'รายการเฉพาะโหมดนี้')!
+
+      const outcome = await service.propagateItemEdit({ kind: 'exact', version: 3 }, solo.id, 'admin1', {
+        field: 'label',
+        label: { labelTh: 'รายการเฉพาะโหมดนี้ (แก้ไขแล้ว)' },
+      })
+
+      expect(outcome.wroteCount).toBe(1)
+      expect(outcome.masterId).toBeUndefined()
+      expect(update).toHaveBeenCalledTimes(1)
+      expect(update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: SOLO_ROW.id } }))
+      expect(transactionMock).not.toHaveBeenCalled() // no MasterCriterion transaction for a lone instance
+      expect(auditLog).toHaveBeenCalledWith(expect.objectContaining({ action: 'TEMPLATE_GROUPED_EDIT' }))
+    })
+
+    it('also accepts a leaf-only field (lawRefs) for a single-instance item, same direct-write path', async () => {
+      const result = await service.getGroups({ kind: 'exact', version: 3 })
+      const solo = flattenLeaves(result.containerGroups).find((it) => it.labelTh === 'รายการเฉพาะโหมดนี้')!
+
+      const outcome = await service.propagateItemEdit({ kind: 'exact', version: 3 }, solo.id, 'admin1', {
+        field: 'lawRefs',
+        lawRefs: { lawRefs: ['MHT_2564'], beyondLaw: false },
+      })
+
+      expect(outcome.wroteCount).toBe(1)
+      expect(transactionMock).not.toHaveBeenCalled()
+    })
+  })
+
   describe('resolveConflict', () => {
     it('"split" only stamps conflictSplitAcknowledged on every instance — no data changes, and it is audit-logged', async () => {
       const groups = await service.getGroups({ kind: 'exact', version: 3 })

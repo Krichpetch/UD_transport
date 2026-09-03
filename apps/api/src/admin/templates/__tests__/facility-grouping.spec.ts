@@ -248,3 +248,76 @@ describeIfPresent('detectConflicts — reproduces report §7b\'s 19-text conflic
     }
   })
 })
+
+// ---- UDT-61, Part 3 — does a new item in a fresh DRAFT join an existing group's count? -----------
+//
+// The ticket asked to verify: "if a mode's new draft is created, and a checklist item is created
+// using an existing facility group, does the count get added to the number of items of the group?"
+// getGroups recomputes buildFacilityGroups fresh from every non-RETIRED row on every call (see
+// facility-groups.service.ts#loadTemplates's `status: { not: 'RETIRED' }` scope), so a DRAFT row is
+// always in scope for grouping — the only open question was whether the grouping engine itself
+// actually folds a DRAFT's new item into an existing canonical item's `instances`/`breakdown.total`,
+// or silently leaves it orphaned. These synthetic fixtures (no real v3 JSON needed — small enough to
+// hand-build) answer that directly for both of the engine's join mechanisms — fuzzy label match
+// (clusterByFuzzyLabel/composeMasterAndFuzzyClusters) and explicit masterId linkage
+// (groupByMasterId) — plus a negative control proving a genuinely different new item correctly does
+// NOT get force-joined into an unrelated group. All three pass against the CURRENT engine — the
+// counting mechanism already works correctly; no code change was needed here.
+function makeLeaf(code: string, labelTh: string, extra: Partial<TemplateNode> = {}): TemplateNode {
+  return { code, labelTh, answerType: 'presence', ...extra }
+}
+
+function makeSyntheticTemplate(templateId: string, mode: TransportMode, status: 'DRAFT' | 'ACTIVE', items: TemplateNode[]): FacilityLoadedTemplate {
+  return {
+    templateId,
+    mode,
+    variantKey: 'standard',
+    version: 3,
+    status,
+    definition: { schemaVersion: 2, mode, groups: [{ code: 'A1', labelTh: 'หมวดทดสอบ', items }] },
+  }
+}
+
+describe('buildFacilityGroups — UDT-61 Part 3: new-draft items joining an existing group\'s count', () => {
+  it('a new DRAFT item with matching label text joins the existing SHARED canonical item (count increments)', () => {
+    const active1 = makeSyntheticTemplate('t-land', 'ทางบก', 'ACTIVE', [makeLeaf('A1.1', 'ราวจับ')])
+    const active2 = makeSyntheticTemplate('t-water', 'ทางน้ำ', 'ACTIVE', [makeLeaf('A1.1', 'ราวจับ')])
+    const draft = makeSyntheticTemplate('t-air-draft', 'ทางอากาศ', 'DRAFT', [makeLeaf('A1.1', 'ราวจับ')])
+
+    const before = buildFacilityGroups([active1, active2])
+    expect(before.canonicalItems.find((it) => it.labelTh === 'ราวจับ')!.instances.length).toBe(2)
+
+    const after = buildFacilityGroups([active1, active2, draft])
+    const matches = after.canonicalItems.filter((it) => it.labelTh === 'ราวจับ')
+    expect(matches).toHaveLength(1) // joined, not a second orphaned standalone item for the same text
+    expect(matches[0]!.instances.length).toBe(3)
+    expect(matches[0]!.breakdown.total).toBe(3)
+    expect(matches[0]!.classification).toBe('SHARED')
+    const airMode = matches[0]!.breakdown.byMode.find((m) => m.mode === 'ทางอากาศ')
+    expect(airMode?.byVariant[0]?.byVersion[0]).toMatchObject({ version: 3, status: 'DRAFT', count: 1 })
+  })
+
+  it('a new DRAFT item carrying an existing masterId joins that group even with drifted label text', () => {
+    const active1 = makeSyntheticTemplate('t-land', 'ทางบก', 'ACTIVE', [makeLeaf('B1', 'ทางลาด 1:12', { masterId: 'm-slope' })])
+    const active2 = makeSyntheticTemplate('t-water', 'ทางน้ำ', 'ACTIVE', [makeLeaf('B1', 'ทางลาด 1:12', { masterId: 'm-slope' })])
+    // Deliberately DIFFERENT text from the master's — masterId linkage must not depend on it agreeing.
+    const draft = makeSyntheticTemplate('t-air-draft', 'ทางอากาศ', 'DRAFT', [makeLeaf('B1', 'ทางลาด (ฉบับร่างใหม่)', { masterId: 'm-slope' })])
+
+    const result = buildFacilityGroups([active1, active2, draft])
+    const master = result.canonicalItems.find((it) => it.masterId === 'm-slope')!
+    expect(master.instances.length).toBe(3)
+    expect(master.instances.some((i) => i.templateId === 't-air-draft')).toBe(true)
+  })
+
+  it('a new DRAFT item with genuinely different text does NOT get force-joined into an unrelated group', () => {
+    const active1 = makeSyntheticTemplate('t-land', 'ทางบก', 'ACTIVE', [makeLeaf('A1.1', 'ราวจับ')])
+    const active2 = makeSyntheticTemplate('t-water', 'ทางน้ำ', 'ACTIVE', [makeLeaf('A1.1', 'ราวจับ')])
+    const draft = makeSyntheticTemplate('t-air-draft', 'ทางอากาศ', 'DRAFT', [makeLeaf('A1.2', 'ป้ายบอกทางสำหรับผู้พิการ')])
+
+    const result = buildFacilityGroups([active1, active2, draft])
+    expect(result.canonicalItems.find((it) => it.labelTh === 'ราวจับ')!.instances.length).toBe(2)
+    const newItem = result.canonicalItems.find((it) => it.labelTh === 'ป้ายบอกทางสำหรับผู้พิการ')!
+    expect(newItem.instances.length).toBe(1)
+    expect(newItem.classification).toBe('MODE_SPECIFIC')
+  })
+})
