@@ -13,7 +13,7 @@
 //   npx ts-node prisma/reset-stations.ts --confirm --force     # deletes them anyway
 //
 // Every run (that gets past the guards) writes a timestamped JSON backup of the current
-// stations + checklists to apps/api/backups/ (gitignored) BEFORE deleting anything.
+// stations + checklists to apps/api/backups/stations/ (gitignored) BEFORE deleting anything.
 
 import { PrismaClient, ChecklistStatus } from '@prisma/client'
 import * as fs from 'fs'
@@ -178,7 +178,7 @@ export async function resetAndSeed(
   }, { timeout: 120_000, maxWait: 10_000 })
 }
 
-const BACKUP_DIR = path.resolve(__dirname, '..', 'backups')
+const BACKUP_DIR = path.resolve(__dirname, '..', 'backups', 'stations')
 const STATIONS_JSON_PATH = path.resolve(__dirname, 'seed-data', 'stations_master_v2.json')
 
 export async function run(prisma: ResetPrismaClient, argv: string[]): Promise<void> {

@@ -13,8 +13,8 @@
  *
  *   ts-node prisma/dump-template-backup.ts [outDir]
  *
- * outDir defaults to apps/api/backups/ (gitignored — see the confidentiality note in that
- * directory's sibling files). Read-only: does not write to the database.
+ * outDir defaults to apps/api/backups/templates/ (gitignored — see the confidentiality note in
+ * that directory's sibling files). Read-only: does not write to the database.
  */
 import { PrismaClient } from '@prisma/client'
 import * as fs from 'fs'
@@ -23,7 +23,7 @@ import * as path from 'path'
 const prisma = new PrismaClient()
 
 async function main(): Promise<void> {
-  const outDir = process.argv[2] ?? path.join(__dirname, '..', 'backups')
+  const outDir = process.argv[2] ?? path.join(__dirname, '..', 'backups', 'templates')
   fs.mkdirSync(outDir, { recursive: true })
 
   const url = process.env.DATABASE_URL ?? ''

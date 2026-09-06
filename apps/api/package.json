@@ -20,6 +20,7 @@
     "db:drift-check": "node prisma/db-drift-check.cjs",
     "db:seed": "ts-node prisma/seed.ts",
     "reimport:legacy-checklists": "ts-node prisma/reimport-legacy-checklists.ts",
+    "backup:minio": "ts-node prisma/backup-minio.ts",
     "postinstall": "prisma generate",
     "test": "jest",
     "test:watch": "jest --watch"
