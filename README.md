@@ -206,6 +206,52 @@ covers the parts that aren't obvious from the var names alone.
    `validate-env.ts` refuses to boot if `PROXIMITY_BYPASS=true` is ever combined with
    `APP_ENV=production`, so the same misconfiguration can't reach the production environment.
 
+## Backups
+
+Two independent copies of the data at all times:
+
+1. **Railway cloud (on-platform, automatic).** Enable Railway **scheduled volume backups** on both
+   the Postgres volume and the MinIO `/data` volume (copy-on-write snapshots; daily/weekly/monthly
+   with retention, and you can *lock* a snapshot so it can't be deleted). This is the primary
+   short-term safety net while on Railway — no code, just enable it in the service's Backups tab.
+   (Note: this is *volume snapshots*, which work for our custom PostGIS/MinIO images — distinct from
+   the first-party Postgres plugin's PITR, which does not apply here.)
+
+2. **Local copy (off-platform, this repo's scripts).** DB dumps and the MinIO mirror pulled down to
+   `apps/api/backups/` (gitignored, PII-bearing — keep local/offline, never commit or share):
+   - `backups/db/` — `pnpm --filter api exec ts-node prisma/dump-full-backup.ts` (full `pg_dump`).
+   - `backups/templates/` — `pnpm --filter api exec ts-node prisma/dump-template-backup.ts`.
+   - `backups/stations/` — safety dumps from `prisma/reset-stations.ts`.
+   - `backups/minio/` — the object store (evidence photos + template images), see below.
+
+An **offsite** third copy (Backblaze B2) is a separate, deferred ticket.
+
+### Local MinIO backup
+
+`pnpm --filter api backup:minio` mirrors the whole bucket into `apps/api/backups/minio/`, preserving
+each object's key as its path. It's **incremental** (re-runs only download changed/new objects, via
+`_manifest.json`) and **additive** (objects deleted from the bucket are kept locally; pass `--prune`
+for a true mirror). Flags: `--dry-run`, `--prune`, `--verify` (sample-check that DB-referenced photo
+keys resolve locally), `--verify-all`.
+
+Point the `MINIO_*` env at the bucket you want to back up. For the Railway bucket, use the **public**
+endpoint (these are secrets — set them in the environment, never commit them):
+
+```bash
+MINIO_ENDPOINT=<minio-public-host> MINIO_PORT=443 MINIO_USE_SSL=true \
+MINIO_ACCESS_KEY=<key> MINIO_SECRET_KEY=<secret> MINIO_BUCKET=ud-transport \
+  pnpm --filter api backup:minio
+```
+
+**Scheduling (portable across Railway → HCI).** The script is the artifact; a host trigger on the
+machine that owns the backup folder runs it — no Railway cron (a Railway job can't write to your
+local disk). It pulls over MinIO's public HTTPS endpoint from anywhere.
+- **Now (dev PC):** a **Windows Task Scheduler** task running the command above (weekly is plenty —
+  Railway's daily snapshots cover the short term). Store the `MINIO_*` secrets in the task's
+  environment, not in a committed file.
+- **Later (HCI host):** a **systemd timer** / crontab invoking the identical command. Nothing in the
+  script changes on migration.
+
 ## Syncing Railway's DB to local dev state
 
 Use this whenever local dev has moved ahead of the deployed DB (new Station columns, new
@@ -256,22 +302,23 @@ Postgres host, stop and fix `.env.railway` first.
 
 ```powershell
 $stamp = Get-Date -Format yyyyMMdd-HHmmss
-New-Item -ItemType Directory -Force apps\api\backups | Out-Null
+New-Item -ItemType Directory -Force apps\api\backups\db | Out-Null
 docker run --rm postgis/postgis:16-3.4 pg_dump "$env:DATABASE_URL" --no-owner --no-privileges `
-  | Out-File -Encoding utf8 "apps\api\backups\railway-pre-sync-$stamp.sql"
+  | Out-File -Encoding utf8 "apps\api\backups\db\railway-pre-sync-$stamp.sql"
 ```
 
 ```bash
 stamp=$(date +%Y%m%d-%H%M%S)
-mkdir -p apps/api/backups
+mkdir -p apps/api/backups/db
 docker run --rm postgis/postgis:16-3.4 pg_dump "$DATABASE_URL" --no-owner --no-privileges \
-  > "apps/api/backups/railway-pre-sync-$stamp.sql"
+  > "apps/api/backups/db/railway-pre-sync-$stamp.sql"
 ```
 
-`apps/api/backups/` is already gitignored. Verify before proceeding:
+`apps/api/backups/` is already gitignored (the whole tree, including the `db/`, `templates/`,
+`stations/`, and `minio/` subfolders the backup scripts write into). Verify before proceeding:
 ```powershell
-(Get-Item "apps\api\backups\railway-pre-sync-$stamp.sql").Length   # must be > 0
-Select-String -Path "apps\api\backups\railway-pre-sync-$stamp.sql" -Pattern 'CREATE TABLE' | Select-Object -First 3
+(Get-Item "apps\api\backups\db\railway-pre-sync-$stamp.sql").Length   # must be > 0
+Select-String -Path "apps\api\backups\db\railway-pre-sync-$stamp.sql" -Pattern 'CREATE TABLE' | Select-Object -First 3
 ```
 If the file is empty or has no `CREATE TABLE` lines, stop — something's wrong with the
 connection string or Docker's outbound network, not with the target DB. Don't proceed to step 3

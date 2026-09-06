@@ -10,7 +10,7 @@
  *
  *   ts-node prisma/dump-full-backup.ts [outDir]
  *
- * outDir defaults to apps/api/backups/ (gitignored). Read-only against the DB.
+ * outDir defaults to apps/api/backups/db/ (gitignored). Read-only against the DB.
  *
  * OUTPUT FORMAT
  * -------------
@@ -47,7 +47,7 @@ function main(): void {
     process.exit(1)
   }
 
-  const outDir = process.argv[2] ?? path.join(__dirname, '..', 'backups')
+  const outDir = process.argv[2] ?? path.join(__dirname, '..', 'backups', 'db')
   fs.mkdirSync(outDir, { recursive: true })
 
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
