@@ -135,11 +135,20 @@ async function main(): Promise<void> {
     if (processed >= args.limit) break
     scanned++
 
+    // Heartbeat: every stat is a network round-trip, so long runs of skipped (already-compressed or
+    // small) objects would otherwise look frozen. Print a running tally periodically.
+    if (scanned % 50 === 0) {
+      console.log(
+        `  … ${scanned}/${keys.length} scanned | ${args.confirm ? 'recompressed' : 'candidates'} ${processed}, ` +
+          `skipped ${skippedMarked} compressed + ${skippedSmall} small${errors ? `, ${errors} err` : ''}`,
+      )
+    }
+
     let stat: Minio.BucketItemStat
     try {
       stat = await client.statObject(bucket, key)
     } catch (e) {
-      console.log(`  ${key.padEnd(48)} | ERROR stat: ${(e as Error).message}`)
+      console.log(`[${scanned}/${keys.length}] ${key} | ERROR stat: ${(e as Error).message}`)
       errors++
       continue
     }
@@ -154,32 +163,35 @@ async function main(): Promise<void> {
     }
 
     processed++
+    // Print the object being worked on BEFORE the (slow, network-bound) download, then complete the
+    // same line with the result — so you can see which file it's on during the wait, not just after.
+    process.stdout.write(`[${scanned}/${keys.length}] ${key} … `)
     try {
       const original = await streamToBuffer(await client.getObject(bucket, key))
       const out = await compress(original)
       bytesBefore += original.length
       bytesAfter += out.length
-      console.log(`  ${key.padEnd(48)} | ${fmt(original.length)} -> ${fmt(out.length)}${args.confirm ? '' : '  (dry run)'}`)
 
-      if (!args.confirm) continue
-
-      // 1. Back up the original first (skip if a backup already exists — resumable). Reuses the buffer
-      //    we already downloaded rather than a server-side copyObject.
-      const bkey = backupKey(key)
-      if (!(await objectExists(bkey))) {
-        await client.putObject(bucket, bkey, original, original.length, {
-          'Content-Type': (stat.metaData?.['content-type'] as string) ?? 'application/octet-stream',
+      if (args.confirm) {
+        // 1. Back up the original first (skip if a backup already exists — resumable). Reuses the buffer
+        //    we already downloaded rather than a server-side copyObject.
+        const bkey = backupKey(key)
+        if (!(await objectExists(bkey))) {
+          await client.putObject(bucket, bkey, original, original.length, {
+            'Content-Type': (stat.metaData?.['content-type'] as string) ?? 'application/octet-stream',
+          })
+        }
+        // 2. Overwrite the live key in place (same key -> every DB reference stays valid), now JPEG +
+        //    marked so a future run skips it.
+        await client.putObject(bucket, key, out, out.length, {
+          'Content-Type': 'image/jpeg',
+          [COMPRESSED_HEADER]: COMPRESSED_META_VALUE,
         })
+        recompressed++
       }
-      // 2. Overwrite the live key in place (same key -> every DB reference stays valid), now JPEG +
-      //    marked so a future run skips it.
-      await client.putObject(bucket, key, out, out.length, {
-        'Content-Type': 'image/jpeg',
-        [COMPRESSED_HEADER]: COMPRESSED_META_VALUE,
-      })
-      recompressed++
+      process.stdout.write(`${fmt(original.length)} -> ${fmt(out.length)}${args.confirm ? '' : '  (dry run)'}\n`)
     } catch (e) {
-      console.log(`  ${key.padEnd(48)} | ERROR: ${(e as Error).message}`)
+      process.stdout.write(`ERROR: ${(e as Error).message}\n`)
       errors++
     }
   }
