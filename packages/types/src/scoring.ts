@@ -208,7 +208,10 @@ function buildLeafTemplateIndex(templateDef?: ChecklistTemplateDefinition): Map<
 // A node CAN be answerable AND still have subItems below it (a criterion with its own มี/ไม่มี
 // plus finer measured sub-criteria — see checklist-template.ts's hybrid-node note); both the node
 // itself and its children are then counted, never one at the expense of the other.
-function flattenLeaves(items: StoredItem[]): StoredItem[] {
+// Exported (UDT-17/18) so StationsService can flatten stored answer trees the same way
+// computeFacilityMetrics/buildHistogram do internally, for cross-station item/cabinet-priority
+// aggregation — never re-derive this traversal at the call site.
+export function flattenLeaves(items: StoredItem[]): StoredItem[] {
   const leaves: StoredItem[] = []
   const visit = (it: StoredItem) => {
     const isAnswerable = it.answerType !== undefined || it.value !== undefined || it.present !== undefined

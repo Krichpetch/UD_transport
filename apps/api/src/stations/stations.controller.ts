@@ -4,7 +4,6 @@ import {
   Controller,
   ForbiddenException,
   Get,
-  NotImplementedException,
   Param,
   Patch,
   Post,
@@ -45,15 +44,8 @@ export class StationsController {
   @Get('metrics')
   metrics(@Query() query: MetricsQueryDto, @Req() req: AuthRequest) {
     if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
-    if (query.cabinetApproved !== undefined) {
-      // TODO(executive-dashboard): wire when มติครม. field lands on Station.
-      throw new NotImplementedException({
-        code: 'CABINET_APPROVED_NOT_IMPLEMENTED',
-        message: 'ยังไม่รองรับการกรองตามมติ ครม. ในขณะนี้',
-      })
-    }
-    const { cabinetApproved: _cabinetApproved, ...filters } = query
-    return this.stations.computeMetrics(filters)
+    const { cabinetApproved, ...rest } = query
+    return this.stations.computeMetrics({ ...rest, cabinetApproved: cabinetApproved === 'true' })
   }
 
   // Must come before @Get(':id') to avoid route conflict.
@@ -184,6 +176,27 @@ export class StationsController {
     const lngNum = lng ? parseFloat(lng) : NaN
     if (isNaN(latNum) || isNaN(lngNum)) throw new BadRequestException('lat/lng required')
     return this.stations.findNearby(latNum, lngNum, limit ? Math.min(parseInt(limit, 10), 50) : 20)
+  }
+
+  // Must come before @Get(':id') to avoid route conflict.
+  // UDT-18 — station ids that "ผ่านมติ ครม." under the given scope; the dashboard fetches this
+  // lazily only when its cabinet-priority filter is switched on (no DB migration/denormalized
+  // column — computed per request from each station's latest checklist).
+  @Get('cabinet-approved-ids')
+  cabinetApprovedIds(@Query() query: MetricsQueryDto, @Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
+    const { subItem: _subItem, cabinetApproved: _cabinetApproved, ...filters } = query
+    return this.stations.cabinetApprovedStationIds(filters)
+  }
+
+  // Must come before @Get(':id') to avoid route conflict.
+  // UDT-17 — "ประเด็นที่ควรปรับปรุง": both the group-level "bigger picture" ranking and the
+  // per-item drill-down, worst-first by ร้อยละความสำเร็จ, across the filtered station set.
+  @Get('issue-summary')
+  issueSummary(@Query() query: MetricsQueryDto, @Req() req: AuthRequest) {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'EXECUTIVE' && req.user.role !== 'REVIEWER') throw new ForbiddenException()
+    const { subItem: _subItem, cabinetApproved, ...rest } = query
+    return this.stations.computeIssueSummary({ ...rest, cabinetApproved: cabinetApproved === 'true' })
   }
 
   @Get(':id')

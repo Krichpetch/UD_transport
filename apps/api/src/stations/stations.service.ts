@@ -7,8 +7,8 @@ import { CreateStationDto } from './dto/create-station.dto'
 import { UpdateStationDto } from './dto/update-station.dto'
 import { OtpRowDto } from './dto/otp-row.dto'
 import { computeScoreFromItems, scoreToStatus, hasReviewFlag } from '../checklists/scoring'
-import { computeFacilityMetrics, parseChecklistItems, isValidYearBuilt, isValidYearBuiltDate, deriveRegion, UNSPECIFIED_REGION, RESPONSIBLE_AGENCIES, OTHER_AGENCY } from '@repo/types'
-import type { ParsedChecklistGroup, StoredChecklistNode } from '@repo/types'
+import { computeFacilityMetrics, buildHistogram, flattenLeaves, parseChecklistItems, isValidYearBuilt, isValidYearBuiltDate, deriveRegion, UNSPECIFIED_REGION, RESPONSIBLE_AGENCIES, OTHER_AGENCY } from '@repo/types'
+import type { ParsedChecklistGroup, StoredChecklistNode, FacilityMetrics, ValueHistogram } from '@repo/types'
 import { resolveStationMatch, type MasterlistStation } from './masterlist-match'
 import { applyOtpRowToStation } from './import-otp-row'
 import { writeReconciliationCsv, writePendingPayloads, type ReconciliationRow } from './import-reconciliation'
@@ -34,6 +34,30 @@ function agencyWhere(agency: string): { responsibleAgency: string | { notIn: str
   return {
     responsibleAgency: agency === OTHER_AGENCY ? { notIn: NAMED_AGENCIES } : agency,
   }
+}
+
+// UDT-17 — one ranked row of the "ประเด็นที่ควรปรับปรุง" summary: a single checklist item id,
+// aggregated across every scoped station's latest checklist.
+export interface ItemSummaryEntry {
+  id: string
+  labelTh: string
+  category: string // 'A' | 'B' | 'C' derived from the id prefix (CLAUDE.md categories), else ''
+  cabinetPriority: boolean
+  metrics: FacilityMetrics
+  histogram: ValueHistogram
+}
+
+// UDT-17 (follow-up) — the "bigger picture" ranked row: a named facility GROUP (groupId/
+// groupName, e.g. "(B2) ห้องน้ำ"), aggregated the same way but across every leaf the group
+// contains rather than one leaf id. This is the default view; ItemSummaryEntry stays available
+// as the drill-down.
+export interface GroupSummaryEntry {
+  groupId: string
+  groupName: string
+  category: string
+  cabinetPriority: boolean // true when at least one leaf in the group is cabinet-priority
+  metrics: FacilityMetrics
+  histogram: ValueHistogram
 }
 
 // AND-combines id sets from independent filters (e.g. search + subItem) that each narrow
@@ -881,21 +905,22 @@ export class StationsService {
     return [...byYear.values()]
   }
 
-  // Bounded aggregation for the executive/admin dashboard's facility-metrics panel — exactly
-  // 2 Prisma queries regardless of how many stations match, replacing the old client-side
-  // useQueries-per-station fan-out (1 + N requests). See metrics-aggregation.spec.ts for the
-  // missing-data convention (a station with no checklist, or whose latest checklist doesn't
-  // contain the requested sub-item, contributes nothing — it's dropped, not counted as ไม่มี).
-  async computeMetrics(filters: {
+  // Shared filter→station→latest-checklist loader for every executive-dashboard aggregation
+  // (computeMetrics, computeItemSummary, cabinetApprovedStationIds) — exactly 2 Prisma queries
+  // regardless of how many stations match. Malformed items rows are skipped, not thrown — one
+  // bad historical row must never take a whole dashboard aggregate down.
+  private async loadLatestChecklists(filters: {
     mode?: string
     railSubtype?: string
     region?: string
     province?: string
     responsibleAgency?: string
-    subItem?: string
     from?: string
     to?: string
-  }) {
+  }): Promise<{
+    totalStations: number
+    rows: { id: string; nameTh: string; province: string | null; groups: ParsedChecklistGroup[] }[]
+  }> {
     const stationWhere = {
       ...(filters.mode              && { mode:              filters.mode }),
       ...(filters.railSubtype       && { railSubtype:       filters.railSubtype }),
@@ -913,16 +938,7 @@ export class StationsService {
       select: { id: true, nameTh: true, province: true },
     })
     const totalStations = stations.length
-
-    if (totalStations === 0) {
-      return {
-        totalStations: 0,
-        evaluatedStations: 0,
-        metrics: computeFacilityMetrics([]),
-        appliedFilters: filters,
-        failingStations: [],
-      }
-    }
+    if (totalStations === 0) return { totalStations: 0, rows: [] }
     const stationById = new Map(stations.map(s => [s.id, s]))
 
     // DISTINCT ON (stationId) ORDER BY stationId, submittedAt DESC — one row per station, the
@@ -943,46 +959,225 @@ export class StationsService {
       orderBy: [{ stationId: 'asc' }, { submittedAt: 'desc' }],
     })
 
-    const collected: StoredChecklistNode[] = []
-    // Only meaningful (and only populated) when subItem is set — the per-station names behind
-    // the aggregate "has the item but isn't standard yet" count, for the dashboard's drill-down
-    // list. Mirrors the old client-side fan-out's equivalent list exactly.
-    const failingStations: { id: string; nameTh: string; province: string | null }[] = []
-    let evaluatedStations = 0
+    const rows: { id: string; nameTh: string; province: string | null; groups: ParsedChecklistGroup[] }[] = []
     for (const cl of checklists) {
-      // Malformed rows are skipped, not thrown — this aggregates across every historical
-      // checklist for the dashboard, so one bad row must never take the whole aggregate down
-      // (same resilience the old `if (!Array.isArray(groups)) continue` defensive check gave).
       let groups: ParsedChecklistGroup[]
       try {
         groups = parseChecklistItems(cl.items)
       } catch {
         continue
       }
+      const station = stationById.get(cl.stationId)
+      if (!station) continue
+      rows.push({ id: station.id, nameTh: station.nameTh, province: station.province, groups })
+    }
+    return { totalStations, rows }
+  }
 
+  // UDT-18 — a station "ผ่านมติ ครม." when every non-N/A, non-redacted cabinet-priority leaf
+  // (the 5 มติ ครม. facilities — CLAUDE.md) in its latest checklist is 'มี' AND meetsStandard,
+  // and it has at least one such leaf to judge at all (a station with zero cabinet-priority
+  // answers can't be said to have passed anything). cabinetPriority is read straight off the
+  // stored leaf — denormalized at answer time, the same source every other cabinet-priority UI
+  // already reads (ChecklistAnswerTable/LeafAnswerRow/dashboard's ★ marker) — never re-derived
+  // from facilityCode, which isn't part of the stored answer shape.
+  private cabinetApprovedIdsFromRows(rows: { id: string; groups: ParsedChecklistGroup[] }[]): string[] {
+    const passing: string[] = []
+    for (const row of rows) {
+      // flattenLeaves's declared return type (StoredItem[], scoring.ts) is deliberately minimal
+      // (scoring never needs labelTh/cabinetPriority) — the objects it hands back are still the
+      // exact StoredChecklistNode references passed in, never transformed, so this cast is safe.
+      const leaves = row.groups.flatMap(g => flattenLeaves(g.items ?? [])) as StoredChecklistNode[]
+      const cabinetLeaves = leaves.filter(
+        l => l.cabinetPriority === true && l.value !== 'N/A' && l.applicable !== false,
+      )
+      if (cabinetLeaves.length === 0) continue
+      if (cabinetLeaves.every(l => l.value === 'มี' && l.meetsStandard === true)) passing.push(row.id)
+    }
+    return passing
+  }
+
+  // UDT-18 — computed on the fly (no denormalized Station column / migration): the dashboard
+  // fetches this only when its "ผ่านมติ ครม." toggle is on.
+  async cabinetApprovedStationIds(filters: {
+    mode?: string
+    railSubtype?: string
+    region?: string
+    province?: string
+    responsibleAgency?: string
+    from?: string
+    to?: string
+  }): Promise<string[]> {
+    const { rows } = await this.loadLatestChecklists(filters)
+    return this.cabinetApprovedIdsFromRows(rows)
+  }
+
+  // Bounded aggregation for the executive/admin dashboard's facility-metrics panel — exactly
+  // 2 Prisma queries regardless of how many stations match, replacing the old client-side
+  // useQueries-per-station fan-out (1 + N requests). See metrics-aggregation.spec.ts for the
+  // missing-data convention (a station with no checklist, or whose latest checklist doesn't
+  // contain the requested sub-item, contributes nothing — it's dropped, not counted as ไม่มี).
+  async computeMetrics(filters: {
+    mode?: string
+    railSubtype?: string
+    region?: string
+    province?: string
+    responsibleAgency?: string
+    subItem?: string
+    from?: string
+    to?: string
+    cabinetApproved?: boolean
+  }) {
+    const { totalStations, rows } = await this.loadLatestChecklists(filters)
+
+    if (totalStations === 0) {
+      return {
+        totalStations: 0,
+        evaluatedStations: 0,
+        metrics: computeFacilityMetrics([]),
+        histogram: buildHistogram([]),
+        appliedFilters: filters,
+        failingStations: [],
+      }
+    }
+
+    // UDT-18 — narrow to cabinet-passing stations before aggregating anything else.
+    let scopedRows = rows
+    if (filters.cabinetApproved) {
+      const passingIds = new Set(this.cabinetApprovedIdsFromRows(rows))
+      scopedRows = rows.filter(r => passingIds.has(r.id))
+    }
+
+    const collected: StoredChecklistNode[] = []
+    // Only meaningful (and only populated) when subItem is set — the per-station names behind
+    // the aggregate "has the item but isn't standard yet" count, for the dashboard's drill-down
+    // list. Mirrors the old client-side fan-out's equivalent list exactly.
+    const failingStations: { id: string; nameTh: string; province: string | null }[] = []
+    let evaluatedStations = 0
+    for (const row of scopedRows) {
       if (filters.subItem) {
-        const found = findItemInGroups(groups, filters.subItem)
+        const found = findItemInGroups(row.groups, filters.subItem)
         if (found) {
           collected.push(found)
           evaluatedStations++
           if (found.value === 'มี' && !found.meetsStandard && !found.flagged) {
-            const station = stationById.get(cl.stationId)
-            if (station) failingStations.push(station)
+            failingStations.push({ id: row.id, nameTh: row.nameTh, province: row.province })
           }
         }
       } else {
-        for (const g of groups) collected.push(...(g.items ?? []))
+        for (const g of row.groups) collected.push(...(g.items ?? []))
         evaluatedStations++
       }
     }
 
+    const aggInput = [{ groupId: 'agg', groupName: 'agg', items: collected }]
     return {
       totalStations,
       evaluatedStations,
-      metrics: computeFacilityMetrics([{ groupId: 'agg', groupName: 'agg', items: collected }]),
+      metrics: computeFacilityMetrics(aggInput),
+      histogram: buildHistogram(aggInput),
       appliedFilters: filters,
       failingStations,
     }
+  }
+
+  // Derives the CLAUDE.md category (A/B/C) from a checklist id/groupId's prefix — shared by both
+  // the group- and item-level rollups below, which key off the same id space.
+  private static categoryOf(id: string): string {
+    return /^[A-C]/.exec(id)?.[0] ?? ''
+  }
+
+  // UDT-17 — "ประเด็นที่ควรปรับปรุง" ranked both ways, off one shared latest-checklist load
+  // (computeMetrics uses the same loader):
+  //   - groups: the "bigger picture" — ranked by the checklist's own named facility groups
+  //     (groupId/groupName, e.g. "(B2) ห้องน้ำ", "(A1) ที่จอดรถ") — the default view.
+  //   - items: the finer per-leaf drill-down (what UDT-17 originally shipped as) — kept as an
+  //     option, not the headline.
+  // A bucket with zero eligible (non-N/A/redacted/unanswered) samples is omitted rather than
+  // shown as a misleading 0%. Known limitation (same class as the old item-only version):
+  // groupId/leaf id are template-defined per transport mode, so aggregating across MULTIPLE
+  // modes at once assumes a shared id/group naming convention — true of every seeded template
+  // today, not enforced by this code. groupName/labelTh use the first station's text seen for
+  // that id — real templates keep these consistent for the same id, so this never actually
+  // varies in practice, but note it's non-authoritative if that assumption is ever broken.
+  async computeIssueSummary(filters: {
+    mode?: string
+    railSubtype?: string
+    region?: string
+    province?: string
+    responsibleAgency?: string
+    from?: string
+    to?: string
+    cabinetApproved?: boolean
+  }): Promise<{ totalStations: number; groups: GroupSummaryEntry[]; items: ItemSummaryEntry[] }> {
+    const { totalStations, rows } = await this.loadLatestChecklists(filters)
+    if (totalStations === 0 || rows.length === 0) return { totalStations, groups: [], items: [] }
+
+    let scopedRows = rows
+    if (filters.cabinetApproved) {
+      const passingIds = new Set(this.cabinetApprovedIdsFromRows(rows))
+      scopedRows = rows.filter(r => passingIds.has(r.id))
+    }
+
+    const byGroup = new Map<string, { groupName: string; leaves: StoredChecklistNode[] }>()
+    const byItem = new Map<string, { labelTh: string; cabinetPriority: boolean; leaves: StoredChecklistNode[] }>()
+
+    for (const row of scopedRows) {
+      for (const g of row.groups) {
+        // See the matching cast comment in cabinetApprovedIdsFromRows above.
+        const leaves = flattenLeaves(g.items ?? []) as StoredChecklistNode[]
+        if (leaves.length > 0) {
+          let groupBucket = byGroup.get(g.groupId)
+          if (!groupBucket) {
+            groupBucket = { groupName: g.groupName, leaves: [] }
+            byGroup.set(g.groupId, groupBucket)
+          }
+          groupBucket.leaves.push(...leaves)
+        }
+        for (const leaf of leaves) {
+          let itemBucket = byItem.get(leaf.id)
+          if (!itemBucket) {
+            itemBucket = { labelTh: leaf.labelTh, cabinetPriority: leaf.cabinetPriority === true, leaves: [] }
+            byItem.set(leaf.id, itemBucket)
+          }
+          itemBucket.leaves.push(leaf)
+        }
+      }
+    }
+
+    const groups: GroupSummaryEntry[] = []
+    for (const [groupId, bucket] of byGroup) {
+      const aggInput = [{ groupId: 'agg', groupName: 'agg', items: bucket.leaves }]
+      const metrics = computeFacilityMetrics(aggInput)
+      if (metrics.total === 0) continue
+      groups.push({
+        groupId,
+        groupName: bucket.groupName,
+        category: StationsService.categoryOf(groupId),
+        cabinetPriority: bucket.leaves.some(l => l.cabinetPriority === true),
+        metrics,
+        histogram: buildHistogram(aggInput),
+      })
+    }
+    groups.sort((a, b) => a.metrics.pctSuccess - b.metrics.pctSuccess)
+
+    const items: ItemSummaryEntry[] = []
+    for (const [id, bucket] of byItem) {
+      const aggInput = [{ groupId: 'agg', groupName: 'agg', items: bucket.leaves }]
+      const metrics = computeFacilityMetrics(aggInput)
+      if (metrics.total === 0) continue
+      items.push({
+        id,
+        labelTh: bucket.labelTh,
+        category: StationsService.categoryOf(id),
+        cabinetPriority: bucket.cabinetPriority,
+        metrics,
+        histogram: buildHistogram(aggInput),
+      })
+    }
+    items.sort((a, b) => a.metrics.pctSuccess - b.metrics.pctSuccess)
+
+    return { totalStations, groups, items }
   }
 
   // Slim scalar-only projection (no checklist join, no JSON blobs) for the dashboard's map/

@@ -17,10 +17,13 @@ import {
   getStationMetrics,
   getStationMapNodes,
   getTrainingStations,
+  getCabinetApprovedIds,
+  getIssueSummary,
   type CreateStationInput,
   type UpdateStationInput,
   type StationFilters,
   type StationMetricsFilters,
+  type DashboardScopeFilters,
 } from '@/lib/api/stations'
 
 export function useStations(filters?: StationFilters) {
@@ -88,6 +91,24 @@ export function useStationMapNodes() {
   return useQuery({
     queryKey: ['stations', 'map-nodes'],
     queryFn:  getStationMapNodes,
+  })
+}
+
+// UDT-18 — lazy: only enabled while the dashboard's "ผ่านมติ ครม." toggle is on, so the
+// per-request cabinet computation never runs unless someone actually asked for it.
+export function useCabinetApprovedIds(filters: DashboardScopeFilters, enabled: boolean) {
+  return useQuery({
+    queryKey: ['stations', 'cabinet-approved-ids', filters],
+    queryFn:  () => getCabinetApprovedIds(filters),
+    enabled,
+  })
+}
+
+// UDT-17 — "ประเด็นที่ควรปรับปรุง" ranked issue summary (groups + items) for the dashboard.
+export function useIssueSummary(filters: DashboardScopeFilters) {
+  return useQuery({
+    queryKey: ['stations', 'issue-summary', filters],
+    queryFn:  () => getIssueSummary(filters),
   })
 }
 

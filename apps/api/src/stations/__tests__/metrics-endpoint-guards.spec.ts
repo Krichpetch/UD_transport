@@ -1,8 +1,11 @@
 /**
  * Session 3 (CODE_REVIEW.md 4.4) — GET /stations/metrics and GET /stations/map-nodes must
- * mirror GET /stations/summary's role guard (ADMIN/EXECUTIVE only, AUDITOR → 403), and
- * cabinetApproved must 501 rather than silently returning misleading data (no มติครม. field
- * exists on Station yet — see TODO(executive-dashboard) in stations.controller.ts).
+ * mirror GET /stations/summary's role guard (ADMIN/EXECUTIVE only, AUDITOR → 403).
+ *
+ * UDT-18 follow-up: cabinetApproved is now implemented (computed on the fly per request — see
+ * StationsService.cabinetApprovedIdsFromRows), so it's forwarded to computeMetrics as a real
+ * boolean instead of 501-ing. The two new UDT-17/18 endpoints (issue-summary,
+ * cabinet-approved-ids) share the exact same ADMIN/EXECUTIVE/REVIEWER guard.
  */
 
 import { Test, TestingModule } from '@nestjs/testing'
@@ -30,8 +33,10 @@ const emptyMetrics = {
 }
 
 const mockStationsService = {
-  computeMetrics: jest.fn().mockResolvedValue(emptyMetrics),
-  findMapNodes:   jest.fn().mockResolvedValue([]),
+  computeMetrics:            jest.fn().mockResolvedValue(emptyMetrics),
+  findMapNodes:              jest.fn().mockResolvedValue([]),
+  cabinetApprovedStationIds: jest.fn().mockResolvedValue([]),
+  computeIssueSummary:       jest.fn().mockResolvedValue({ totalStations: 0, groups: [], items: [] }),
 }
 
 describe('GET /stations/metrics and /stations/map-nodes — role guards + cabinetApproved gate', () => {
@@ -70,13 +75,47 @@ describe('GET /stations/metrics and /stations/map-nodes — role guards + cabine
     it('rejects an invalid mode value (400)', () =>
       request(app.getHttpServer()).get('/stations/metrics?mode=NOT_A_MODE').set('x-test-role', 'ADMIN').expect(400))
 
-    it('returns 501 when cabinetApproved is sent, without calling computeMetrics', async () => {
+    it('forwards cabinetApproved=true to computeMetrics as a boolean (UDT-18, no longer 501)', async () => {
       await request(app.getHttpServer())
         .get('/stations/metrics?cabinetApproved=true')
         .set('x-test-role', 'ADMIN')
-        .expect(501)
-      expect(mockStationsService.computeMetrics).not.toHaveBeenCalled()
+        .expect(200)
+      expect(mockStationsService.computeMetrics).toHaveBeenCalledWith(
+        expect.objectContaining({ cabinetApproved: true }),
+      )
     })
+
+    it('omitting cabinetApproved forwards it as false', async () => {
+      await request(app.getHttpServer())
+        .get('/stations/metrics')
+        .set('x-test-role', 'ADMIN')
+        .expect(200)
+      expect(mockStationsService.computeMetrics).toHaveBeenCalledWith(
+        expect.objectContaining({ cabinetApproved: false }),
+      )
+    })
+  })
+
+  describe('GET /stations/cabinet-approved-ids', () => {
+    it('allows ADMIN', () =>
+      request(app.getHttpServer()).get('/stations/cabinet-approved-ids').set('x-test-role', 'ADMIN').expect(200))
+
+    it('allows EXECUTIVE', () =>
+      request(app.getHttpServer()).get('/stations/cabinet-approved-ids').set('x-test-role', 'EXECUTIVE').expect(200))
+
+    it('blocks AUDITOR (403)', () =>
+      request(app.getHttpServer()).get('/stations/cabinet-approved-ids').set('x-test-role', 'AUDITOR').expect(403))
+  })
+
+  describe('GET /stations/issue-summary', () => {
+    it('allows ADMIN', () =>
+      request(app.getHttpServer()).get('/stations/issue-summary').set('x-test-role', 'ADMIN').expect(200))
+
+    it('allows EXECUTIVE', () =>
+      request(app.getHttpServer()).get('/stations/issue-summary').set('x-test-role', 'EXECUTIVE').expect(200))
+
+    it('blocks AUDITOR (403)', () =>
+      request(app.getHttpServer()).get('/stations/issue-summary').set('x-test-role', 'AUDITOR').expect(403))
   })
 
   describe('GET /stations/map-nodes', () => {
