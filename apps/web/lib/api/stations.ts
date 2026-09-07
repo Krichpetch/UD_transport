@@ -1,5 +1,5 @@
 import { api } from '@/lib/api'
-import type { Station, KpiSummary, TransportMode, StationStatus } from '@repo/types'
+import type { Station, KpiSummary, TransportMode, StationStatus, ValueHistogram } from '@repo/types'
 import type { ChecklistRecord } from './checklists'
 
 export interface StationFilters {
@@ -122,36 +122,87 @@ export interface FailingStation {
   province: string
 }
 
-export interface StationMetricsResponse {
-  totalStations: number
-  evaluatedStations: number
-  metrics: FacilityMetrics
-  appliedFilters: Record<string, string | undefined>
-  failingStations: FailingStation[]
-}
-
-export interface StationMetricsFilters {
+// Shared scope for every executive-dashboard aggregation endpoint (metrics, item-summary,
+// cabinet-approved-ids) — the dashboard's whole filter bar (UDT-16 timeframe, UDT-18 cabinet).
+export interface DashboardScopeFilters {
   mode?: TransportMode | ''
   railSubtype?: string
   region?: string
   province?: string
   responsibleAgency?: string
-  subItem?: string
   from?: string
   to?: string
+  cabinetApproved?: boolean
 }
 
-export function getStationMetrics(filters: StationMetricsFilters) {
+function scopeParams(filters: DashboardScopeFilters): URLSearchParams {
   const params = new URLSearchParams()
   if (filters.mode)              params.set('mode',              filters.mode)
   if (filters.railSubtype)       params.set('railSubtype',       filters.railSubtype)
   if (filters.region)            params.set('region',            filters.region)
   if (filters.province)          params.set('province',          filters.province)
   if (filters.responsibleAgency) params.set('responsibleAgency', filters.responsibleAgency)
-  if (filters.subItem)           params.set('subItem',           filters.subItem)
   if (filters.from)              params.set('from',              filters.from)
   if (filters.to)                params.set('to',                filters.to)
+  if (filters.cabinetApproved)   params.set('cabinetApproved',   'true')
+  return params
+}
+
+export interface StationMetricsResponse {
+  totalStations: number
+  evaluatedStations: number
+  metrics: FacilityMetrics
+  histogram: ValueHistogram
+  appliedFilters: Record<string, string | undefined>
+  failingStations: FailingStation[]
+}
+
+export interface StationMetricsFilters extends DashboardScopeFilters {
+  subItem?: string
+}
+
+export function getStationMetrics(filters: StationMetricsFilters) {
+  const params = scopeParams(filters)
+  if (filters.subItem) params.set('subItem', filters.subItem)
   return api.get<StationMetricsResponse>(`/stations/metrics?${params}`)
+}
+
+// UDT-18 — station ids that "ผ่านมติ ครม." under the given scope. Fetch lazily, only when the
+// dashboard's cabinet-priority toggle is on (see useCabinetApprovedIds).
+export function getCabinetApprovedIds(filters: DashboardScopeFilters) {
+  return api.get<string[]>(`/stations/cabinet-approved-ids?${scopeParams(filters)}`)
+}
+
+// UDT-17 — one ranked row of "ประเด็นที่ควรปรับปรุง", per checklist item id (the drill-down
+// option — mirrors StationsService.ItemSummaryEntry).
+export interface ItemSummaryEntry {
+  id: string
+  labelTh: string
+  category: string
+  cabinetPriority: boolean
+  metrics: FacilityMetrics
+  histogram: ValueHistogram
+}
+
+// UDT-17 (follow-up) — the "bigger picture" ranked row: a named facility group (e.g.
+// "(B2) ห้องน้ำ") rather than one leaf item — mirrors StationsService.GroupSummaryEntry.
+export interface GroupSummaryEntry {
+  groupId: string
+  groupName: string
+  category: string
+  cabinetPriority: boolean
+  metrics: FacilityMetrics
+  histogram: ValueHistogram
+}
+
+export interface IssueSummaryResponse {
+  totalStations: number
+  groups: GroupSummaryEntry[]
+  items: ItemSummaryEntry[]
+}
+
+export function getIssueSummary(filters: DashboardScopeFilters) {
+  return api.get<IssueSummaryResponse>(`/stations/issue-summary?${scopeParams(filters)}`)
 }
 
 // Slim uncapped projection for the dashboard's map/table/filter-dropdown/urgent-issues

@@ -10,8 +10,8 @@ export class MetricsQueryDto {
   @IsOptional() @IsString() subItem?: string
   @IsOptional() @IsISO8601() from?: string
   @IsOptional() @IsISO8601() to?: string
-  // TODO(executive-dashboard): wire when มติครม. field lands on Station. Accepted so the
-  // executive dashboard's timeframe/filter UI can send it forward-compatibly; the controller
-  // rejects with 501 whenever this is actually sent, rather than silently ignoring it.
+  // UDT-18 — 'true' scopes the aggregation to stations that "ผ่านมติ ครม.", computed on the fly
+  // per request from each station's latest checklist (see
+  // StationsService.cabinetApprovedIdsFromRows) — there is no denormalized Station column.
   @IsOptional() @IsBooleanString() cabinetApproved?: string
 }

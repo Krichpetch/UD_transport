@@ -74,6 +74,12 @@ describe('StationsService.computeMetrics', () => {
     expect(call.where.status).toEqual({ in: ['SUBMITTED', 'APPROVED', 'REJECTED'] })
   })
 
+  const emptyHistogram = {
+    hasStandard: 0, hasSubstandard: 0, standardUnspecified: 0,
+    none: 0, na: 0, redacted: 0, nullOrOther: 0, total: 0,
+    presenceHas: 0, presenceNone: 0, presenceUnanswered: 0,
+  }
+
   it('empty station set (zero matches) → zeros, not NaN, and skips the checklist query', async () => {
     stationFindMany.mockResolvedValue([])
 
@@ -84,6 +90,7 @@ describe('StationsService.computeMetrics', () => {
       totalStations: 0,
       evaluatedStations: 0,
       metrics: { total: 0, hasItem: 0, meetsStandard: 0, pctSuccess: 0, pctHasFacility: 0, pctMeetsStandard: 0, facilityEligible: 0 },
+      histogram: emptyHistogram,
       appliedFilters: { mode: 'ทางอากาศ' },
       failingStations: [],
     })
@@ -188,5 +195,67 @@ describe('StationsService.computeMetrics', () => {
     const where = checklistFindMany.mock.calls[0][0].where
     expect(where.submittedAt.gte).toEqual(new Date('2026-01-01'))
     expect(where.submittedAt.lte).toEqual(new Date('2026-06-30'))
+  })
+
+  it('response carries a histogram sibling to metrics (UDT-19 pie source)', async () => {
+    stationFindMany.mockResolvedValue([{ id: 's1', nameTh: 'สถานี 1', province: 'กรุงเทพมหานคร' }])
+    checklistFindMany.mockResolvedValue([
+      { stationId: 's1', items: group([item('A1.1', { value: 'มี', meetsStandard: true })]), submittedAt: new Date() },
+    ])
+
+    const result = await service.computeMetrics({ subItem: 'A1.1' })
+
+    expect(result.histogram.hasStandard).toBe(1)
+    expect(result.histogram.total).toBe(1)
+  })
+
+  describe('cabinetApproved (UDT-18)', () => {
+    it('narrows to stations whose cabinet-priority leaves are all มี+meetsStandard', async () => {
+      stationFindMany.mockResolvedValue([
+        { id: 's1', nameTh: 'สถานี 1', province: 'กรุงเทพมหานคร' },
+        { id: 's2', nameTh: 'สถานี 2', province: 'เชียงใหม่' },
+      ])
+      checklistFindMany.mockResolvedValue([
+        // s1: its only cabinet-priority leaf passes.
+        { stationId: 's1', items: group([
+          item('A1.1', { value: 'มี', meetsStandard: true, cabinetPriority: true }),
+        ]), submittedAt: new Date() },
+        // s2: its cabinet-priority leaf does NOT meet standard.
+        { stationId: 's2', items: group([
+          item('A1.1', { value: 'มี', meetsStandard: false, cabinetPriority: true }),
+        ]), submittedAt: new Date() },
+      ])
+
+      const result = await service.computeMetrics({ subItem: 'A1.1', cabinetApproved: true })
+
+      expect(result.evaluatedStations).toBe(1)
+      expect(result.metrics.meetsStandard).toBe(1)
+    })
+
+    it('a station with zero cabinet-priority answers never counts as passing', async () => {
+      stationFindMany.mockResolvedValue([{ id: 's1', nameTh: 'สถานี 1', province: 'กรุงเทพมหานคร' }])
+      checklistFindMany.mockResolvedValue([
+        { stationId: 's1', items: group([
+          item('B1.1', { value: 'มี', meetsStandard: true, cabinetPriority: false }),
+        ]), submittedAt: new Date() },
+      ])
+
+      const result = await service.computeMetrics({ subItem: 'B1.1', cabinetApproved: true })
+
+      expect(result.evaluatedStations).toBe(0)
+    })
+
+    it('when cabinetApproved is falsy, no narrowing happens', async () => {
+      stationFindMany.mockResolvedValue([{ id: 's1', nameTh: 'สถานี 1', province: 'กรุงเทพมหานคร' }])
+      checklistFindMany.mockResolvedValue([
+        { stationId: 's1', items: group([
+          item('A1.1', { value: 'มี', meetsStandard: false, cabinetPriority: true }),
+        ]), submittedAt: new Date() },
+      ])
+
+      const result = await service.computeMetrics({ subItem: 'A1.1' })
+
+      expect(result.evaluatedStations).toBe(1)
+    })
   })
 })

@@ -1,11 +1,89 @@
 'use client'
 
 import { SidebarTrigger } from '@/components/ui/sidebar'
-import { Bell, Search, X, ChevronRight } from 'lucide-react'
+import { Bell, Search, X, ChevronRight, CalendarRange, ChevronDown } from 'lucide-react'
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useStations, usePendingReviews } from '@/hooks/use-stations'
 import { useAuthStore } from '@/stores/auth.store'
+import { useDashboardFiltersStore } from '@/stores/dashboard-filters.store'
+import { TIMEFRAME_PRESETS, resolveTimeframeRange, formatTimeframeLabel } from '@/lib/timeframe'
+
+// UDT-16 — the executive dashboard's timeframe control, hosted in the navbar (per user request)
+// rather than inline in the page's own filter bar. Reads/writes the shared
+// useDashboardFiltersStore so dashboard/page.tsx's filtering logic sees the same value. Follows
+// the exact same "toggle button + absolutely-positioned panel below it" idiom as this file's own
+// notification bell, for visual/behavioral consistency.
+function DashboardTimeframeControl() {
+  const { timeframe, customFrom, customTo, setTimeframe, setCustomFrom, setCustomTo } = useDashboardFiltersStore()
+  const [open, setOpen] = React.useState(false)
+  const range = React.useMemo(
+    () => resolveTimeframeRange(timeframe, customFrom, customTo),
+    [timeframe, customFrom, customTo],
+  )
+
+  React.useEffect(() => {
+    if (!open) return
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="border-border text-foreground hover:bg-secondary flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors"
+      >
+        <CalendarRange size={13} className="text-muted-foreground" />
+        <span>{formatTimeframeLabel(range)}</span>
+        <ChevronDown size={12} className="text-muted-foreground" />
+      </button>
+
+      {open && (
+        <div className="bg-card border-border absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border p-3 shadow-lg">
+          <p className="text-muted-foreground mb-2 text-3xs font-medium uppercase tracking-wide">
+            ช่วงเวลาข้อมูล
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {TIMEFRAME_PRESETS.map(p => (
+              <button
+                key={p.value}
+                onClick={() => { setTimeframe(p.value); if (p.value !== 'custom') setOpen(false) }}
+                className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
+                  timeframe === p.value
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'border-border text-muted-foreground hover:bg-secondary hover:text-foreground'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {timeframe === 'custom' && (
+            <div className="mt-2 flex items-center gap-1.5">
+              <input
+                type="date"
+                value={customFrom}
+                onChange={e => setCustomFrom(e.target.value)}
+                className="border-border bg-background text-foreground w-full rounded-lg border px-2 py-1 text-xs"
+                aria-label="วันที่เริ่มต้น"
+              />
+              <span className="text-muted-foreground text-xs">–</span>
+              <input
+                type="date"
+                value={customTo}
+                onChange={e => setCustomTo(e.target.value)}
+                className="border-border bg-background text-foreground w-full rounded-lg border px-2 py-1 text-xs"
+                aria-label="วันที่สิ้นสุด"
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface AppNavbarProps {
   title?: string
@@ -14,6 +92,7 @@ interface AppNavbarProps {
 
 export function AppNavbar({ title, subtitle }: AppNavbarProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const { data: stationsPage } = useStations({ limit: 9999 })
   const stations = stationsPage?.data ?? []
 
@@ -80,8 +159,10 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
           </div>
         </div>
 
-        {/* Right: Search + Bell */}
+        {/* Right: [Dashboard timeframe] + Search + Bell */}
         <div className="flex items-center gap-3">
+          {pathname === '/dashboard' && <DashboardTimeframeControl />}
+
           <button
             onClick={() => setSearchOpen(true)}
             className="border-border text-muted-foreground hover:bg-secondary hidden items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors sm:flex"
