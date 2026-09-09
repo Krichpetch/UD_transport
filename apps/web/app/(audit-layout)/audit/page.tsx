@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'next/navigation'
 import { getStationTypeLabel } from '@/lib/constants'
 import { useStation } from '@/hooks/use-stations'
@@ -183,6 +184,7 @@ function TrainingBanner() {
 
 export default function AuditPage() {
   const user = useAuthStore((s) => s.user)
+  const qc = useQueryClient()
   const searchParams = useSearchParams()
   // Part B.2 / Session E4 — preview is admin-only and gated behind an explicit query flag; the
   // server additionally 403s a non-admin caller, so this client-side check is UX only, not the
@@ -317,9 +319,15 @@ export default function AuditPage() {
   // refetch of the same data (Part D P0 fix #1: tab-switch reset). The preview-year override is
   // included in the seed key so changing it in preview mode re-hydrates with the newly resolved
   // template (redaction/applicable flags) instead of reusing the previous year's render.
+  //
+  // UDT-71/UDT-54 fix — `appliedYearBuilt`/`appliedYearBuiltDate` are also in the key: a real
+  // audit's first template fetch resolves provisionally (null yearBuilt → latest law, no
+  // redaction) before the auditor enters a build year; once they do, the template refetches
+  // correctly but the store never picked it up. Autosave's own refetches don't change these
+  // fields, so this doesn't affect the tab-switch P0 fix.
   React.useEffect(() => {
     if (!station || draftLoading || templateLoading || !templateResp?.template) return
-    const key = `${station.id}:${v2PreviewAllowed}:${previewVersion ?? ''}:${previewYearBuiltOverride ?? ''}:${previewBuildDateOverride ?? ''}`
+    const key = `${station.id}:${v2PreviewAllowed}:${previewVersion ?? ''}:${previewYearBuiltOverride ?? ''}:${previewBuildDateOverride ?? ''}:${templateResp.appliedYearBuilt ?? ''}:${templateResp.appliedYearBuiltDate ?? ''}`
     if (seededForRef.current === key) return
     seededForRef.current = key
     // A pending carry-over (set by confirmYearChange below) wins over the real draft — it IS the
@@ -469,22 +477,21 @@ export default function AuditPage() {
     const { next } = pendingYearChange
     carryOverRef.current = { items: buildStoredGroups(templateDef, answers), finalThoughts }
     setPendingYearChange(null)
-    // Lets the hydrate effect re-run once the invalidated template query (useUpdateYearBuilt's
-    // onSuccess already invalidates it) resolves with the new era's resolution — the effect's own
-    // `key` never changes on a real yearBuilt edit (it's not part of the key), so without this the
-    // fresh data would arrive and sit there unused, which is the actual bug this whole feature
-    // exists to fix.
-    seededForRef.current = null
+    // No manual seededForRef reset needed — the hydrate effect's key now reacts to
+    // templateResp.appliedYearBuilt itself (UDT-71/UDT-54 fix).
     await saveYearBuilt(next)
-    // Re-stamps an EXISTING draft's frozen appliedYearBuilt too — the reload above only changes
-    // what's shown on screen; without this, submit() would still score against whichever era the
-    // draft was originally created under (see restampDraftEra's doc in checklists.service.ts). A
-    // no-op when there's no draft yet, since a fresh saveDraft() stamps correctly at creation.
+    // Re-stamps an EXISTING draft's frozen appliedYearBuilt (submit scores off the draft's stamp,
+    // not the station's live yearBuilt). getTemplateForAudit prefers the draft's stamp when one
+    // exists, so saveYearBuilt's own refetch above still resolved against the OLD stamp.
     await restampDraftEra(station.id).catch(() => {
-      // Best-effort: the reload/merge above already succeeded and is the visible, important part.
-      // A failure here just means submit() would (rarely) still need a subsequent autosave tick to
-      // catch up the stamp — not worth failing the whole confirm over.
+      // Best-effort — a failure here just delays the fix to the next autosave tick.
     })
+    // cancel first: the still-in-flight refetch from saveYearBuilt's invalidation resolved (or is
+    // resolving) against the pre-restamp stamp, and invalidateQueries alone would dedupe against
+    // it instead of firing a fresh one — leaving the stale era on screen until some unrelated
+    // refetch happens to occur later ("takes several tries").
+    await qc.cancelQueries({ queryKey: ['checklist', station.id, 'template'] })
+    await qc.invalidateQueries({ queryKey: ['checklist', station.id, 'template'] })
   }
 
   function cancelYearChange(): void {
