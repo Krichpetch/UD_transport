@@ -37,11 +37,11 @@ function TemplatesAdminContent() {
   const { data, isLoading, error } = useTemplateList()
 
   if (isLoading) {
-    return <div className="text-muted-foreground flex items-center justify-center p-16 text-sm">กำลังโหลด…</div>
+    return <div className="text-muted-foreground flex items-center justify-center p-16 text-base">กำลังโหลด…</div>
   }
   if (error || !data) {
     return (
-      <div className="flex items-center justify-center p-16 text-sm text-red-500">
+      <div className="flex items-center justify-center p-16 text-base text-red-500">
         เกิดข้อผิดพลาด: {(error as Error)?.message ?? 'ไม่สามารถโหลดข้อมูลได้'}
       </div>
     )
@@ -60,7 +60,7 @@ function TemplatesAdminContent() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-foreground text-xl font-bold">จัดการแบบประเมิน</h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-base">
             แก้ไขเกณฑ์ตัวเลข ข้อยกเว้นตามยุคกฎหมาย รูปภาพประกอบ และคำอธิบายของแบบประเมินแต่ละเวอร์ชัน
           </p>
         </div>
@@ -112,7 +112,7 @@ function TemplatesAdminContent() {
             <div className="divide-border divide-y">
               {[...byVariant.entries()].map(([variantKey, rows]) => (
                 <div key={variantKey} className="px-5 py-3">
-                  <p className="text-muted-foreground mb-2 text-2xs font-medium tracking-wide uppercase">
+                  <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
                     {variantKey === 'standard' ? 'มาตรฐาน' : variantKey}
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">

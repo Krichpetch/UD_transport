@@ -53,7 +53,7 @@ function SliceTooltip({ active, payload }: { active?: boolean; payload?: SliceTo
 // render this once above the list instead of showLegend-ing every row's own pie.
 export function HistogramLegend() {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-3xs">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
       {HISTOGRAM_SLICE_DEFS.map(d => (
         <span key={d.label} className="text-muted-foreground flex items-center gap-1.5">
           <span className="size-2 shrink-0 rounded-full" style={{ background: d.color }} />
@@ -78,7 +78,7 @@ export function ChecklistItemPieChart({
 }) {
   const slices = toSlices(histogram)
   if (slices.length === 0) {
-    return <p className="text-muted-foreground flex h-full items-center justify-center text-3xs">ไม่มีข้อมูล</p>
+    return <p className="text-muted-foreground flex h-full items-center justify-center text-xs">ไม่มีข้อมูล</p>
   }
   return (
     <ResponsiveContainer width="100%" height={height}>

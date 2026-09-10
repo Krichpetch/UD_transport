@@ -36,14 +36,14 @@ function AdminOverviewContent() {
 
   if (isLoading) {
     return (
-      <div className="text-muted-foreground flex items-center justify-center p-16 text-sm">
+      <div className="text-muted-foreground flex items-center justify-center p-16 text-base">
         กำลังโหลด…
       </div>
     )
   }
   if (error || !data) {
     return (
-      <div className="flex items-center justify-center p-16 text-sm text-red-500">
+      <div className="flex items-center justify-center p-16 text-base text-red-500">
         เกิดข้อผิดพลาด: {(error as Error)?.message ?? 'ไม่สามารถโหลดข้อมูลได้'}
       </div>
     )
@@ -53,7 +53,7 @@ function AdminOverviewContent() {
     <div className="space-y-6">
       <div>
         <h1 className="text-foreground text-xl font-bold">ภาพรวมงานผู้ดูแลระบบ</h1>
-        <p className="text-muted-foreground text-sm">สรุปงานที่ต้องดำเนินการและสถานะข้อมูลสถานี</p>
+        <p className="text-muted-foreground text-base">สรุปงานที่ต้องดำเนินการและสถานะข้อมูลสถานี</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
@@ -78,7 +78,7 @@ function AdminOverviewContent() {
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="bg-card border-border rounded-xl border">
           <div className="border-border flex items-center justify-between border-b px-5 py-3">
-            <h2 className="text-foreground text-sm font-semibold">รอการอนุมัติ</h2>
+            <h2 className="text-foreground text-base font-semibold">รอการอนุมัติ</h2>
             <Link href="/stations" className="text-accent text-xs hover:underline">
               ดูทั้งหมด →
             </Link>
@@ -108,7 +108,7 @@ function AdminOverviewContent() {
 
         <div className="bg-card border-border rounded-xl border">
           <div className="border-border flex items-center justify-between border-b px-5 py-3">
-            <h2 className="text-foreground text-sm font-semibold">ถูกปฏิเสธ รอส่งใหม่</h2>
+            <h2 className="text-foreground text-base font-semibold">ถูกปฏิเสธ รอส่งใหม่</h2>
             <Link href="/stations" className="text-accent text-xs hover:underline">
               ดูทั้งหมด →
             </Link>

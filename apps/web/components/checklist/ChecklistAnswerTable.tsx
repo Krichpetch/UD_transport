@@ -192,7 +192,7 @@ function AnswerRow({
         </td>
         <td className="px-3 py-3" style={{ paddingLeft: indentPx }}>
           <div className="flex items-start gap-2">
-            <p className="text-sm text-foreground leading-snug">{node.labelTh}</p>
+            <p className="text-base text-foreground leading-snug">{node.labelTh}</p>
             {node.cabinetResolution && (
               <span className="mt-0.5 shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
                 มติ ครม.
@@ -240,12 +240,12 @@ function AnswerRow({
             ) : thresholdText && (
               // No measured value to show a styled box around (ไม่มี/unanswered on an item that
               // still has a defined threshold) — the threshold itself must still be visible.
-              <p className="py-1.5 text-sm font-medium text-blue-700">มาตรฐาน: {thresholdText}</p>
+              <p className="py-1.5 text-base font-medium text-blue-700">มาตรฐาน: {thresholdText}</p>
             )}
             {answer?.note && (
               <div className="mt-3">
                 <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">บันทึกของผู้ตรวจ</p>
-                <p className="border-l-4 border-blue-300 bg-blue-50/60 rounded-r-lg px-3 py-2.5 text-sm text-foreground">
+                <p className="border-l-4 border-blue-300 bg-blue-50/60 rounded-r-lg px-3 py-2.5 text-base text-foreground">
                   {answer.note}
                 </p>
               </div>
@@ -334,7 +334,7 @@ export function ChecklistAnswerTable({ nodes, getReviewFlag, onToggleFlag, isFla
         </thead>
         <tbody>
           {visible.length === 0 ? (
-            <tr><td colSpan={HEADERS.length} className="py-8 text-center text-sm text-muted-foreground">ไม่มีรายการ</td></tr>
+            <tr><td colSpan={HEADERS.length} className="py-8 text-center text-base text-muted-foreground">ไม่มีรายการ</td></tr>
           ) : (
             visible.map((n) => (
               <AnswerRows

@@ -36,7 +36,7 @@ export function ConfirmDialog({
   return (
     <Dialog open={open} onOpenChange={(o) => !pending && onOpenChange(o)}>
       <DialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-xl p-5">
-        <DialogTitle className="text-sm font-bold text-foreground">{title}</DialogTitle>
+        <DialogTitle className="text-lg font-bold text-foreground">{title}</DialogTitle>
         {body && <div className="mt-2 text-xs leading-relaxed text-muted-foreground">{body}</div>}
         {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
         <div className="mt-4 flex gap-2">

@@ -52,7 +52,7 @@ function UnsubmitButton({ stationId, checklistId }: { stationId: string; checkli
 
       <Dialog open={confirming} onOpenChange={(o) => !unsubmit.isPending && setConfirming(o)}>
         <DialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-xl p-5">
-          <DialogTitle className="text-sm font-bold text-foreground">เรียกคืนรายงานเป็นฉบับร่าง?</DialogTitle>
+          <DialogTitle className="text-lg font-bold text-foreground">เรียกคืนรายงานเป็นฉบับร่าง?</DialogTitle>
           <p className="mt-2 text-xs text-muted-foreground">
             รายงานนี้จะกลับไปเป็นฉบับร่าง และผู้ดูแลระบบจะไม่สามารถตรวจสอบได้จนกว่าคุณจะส่งใหม่อีกครั้ง
           </p>
@@ -101,19 +101,19 @@ interface StoredNode {
 interface StoredGroup { groupId: string; groupName: string; items: StoredNode[] }
 
 function Verdict({ node }: { node: StoredNode }) {
-  if (node.applicable === false) return <span className="text-3xs text-muted-foreground">ไม่เข้าข่ายตามกฎหมายที่ใช้บังคับ</span>
-  if (node.value === 'N/A') return <span className="flex items-center gap-1 text-2xs text-gray-500"><MinusCircle size={12} /> ไม่เกี่ยวข้อง</span>
+  if (node.applicable === false) return <span className="text-xs text-muted-foreground">ไม่เข้าข่ายตามกฎหมายที่ใช้บังคับ</span>
+  if (node.value === 'N/A') return <span className="flex items-center gap-1 text-xs text-gray-500"><MinusCircle size={12} /> ไม่เกี่ยวข้อง</span>
   const has = node.value === 'มี' || node.present === true
   const none = node.value === 'ไม่มี' || node.present === false
   if (has) {
     return node.meetsStandard ? (
-      <span className="flex items-center gap-1 text-2xs text-green-700"><CheckCircle2 size={12} /> มี — ได้มาตรฐาน</span>
+      <span className="flex items-center gap-1 text-xs text-green-700"><CheckCircle2 size={12} /> มี — ได้มาตรฐาน</span>
     ) : (
-      <span className="flex items-center gap-1 text-2xs text-amber-600"><CheckCircle2 size={12} /> มี — ไม่ได้มาตรฐาน</span>
+      <span className="flex items-center gap-1 text-xs text-amber-600"><CheckCircle2 size={12} /> มี — ไม่ได้มาตรฐาน</span>
     )
   }
-  if (none) return <span className="flex items-center gap-1 text-2xs text-red-600"><XCircle size={12} /> ไม่มี</span>
-  return <span className="text-2xs text-muted-foreground">ยังไม่ได้ตอบ</span>
+  if (none) return <span className="flex items-center gap-1 text-xs text-red-600"><XCircle size={12} /> ไม่มี</span>
+  return <span className="text-xs text-muted-foreground">ยังไม่ได้ตอบ</span>
 }
 
 function NodeRow({ node, depth }: { node: StoredNode; depth: number }) {
@@ -126,7 +126,7 @@ function NodeRow({ node, depth }: { node: StoredNode; depth: number }) {
             <p className="text-xs text-foreground">{node.labelTh}</p>
           </div>
           <div className="mt-1"><Verdict node={node} /></div>
-          {node.note && <p className="mt-1 text-2xs text-muted-foreground">บันทึก: {node.note}</p>}
+          {node.note && <p className="mt-1 text-xs text-muted-foreground">บันทึก: {node.note}</p>}
           {node.photos && node.photos.length > 0 && (
             <div className="mt-1.5"><ChecklistPhotoGallery photos={node.photos} /></div>
           )}
@@ -230,7 +230,7 @@ export default function MyWorkDetailPage() {
         {isV1 && group && (
           <div className="overflow-hidden rounded-xl bg-white shadow-sm">
             <div className="flex items-center justify-between border-b px-4 py-3">
-              <span className="text-sm font-semibold text-gray-700">{groupDisplayName(group)}</span>
+              <span className="text-base font-semibold text-gray-700">{groupDisplayName(group)}</span>
               <span className="text-xs text-gray-400">หน้า {currentPage + 1} / {totalPages}</span>
             </div>
             <div className="divide-border divide-y">
@@ -242,7 +242,7 @@ export default function MyWorkDetailPage() {
           <div className="overflow-hidden rounded-xl bg-white shadow-sm">
             <div className="border-b px-4 py-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold text-gray-700">{groupDisplayName(page.group)}</span>
+                <span className="text-base font-semibold text-gray-700">{groupDisplayName(page.group)}</span>
                 <span className="text-xs text-gray-400">รายการ {currentPage + 1} / {totalPages}</span>
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">
@@ -284,9 +284,9 @@ export default function MyWorkDetailPage() {
 
       <div className="rounded-xl bg-white p-4 shadow-sm">
         <div className="flex items-center gap-1.5">
-          <h1 className="text-sm font-bold text-foreground">{data.station.nameTh}</h1>
+          <h1 className="text-xl font-bold text-foreground">{data.station.nameTh}</h1>
           {data.isTraining && (
-            <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-3xs font-semibold text-accent">
+            <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
               ฝึกหัด
             </span>
           )}
@@ -294,7 +294,7 @@ export default function MyWorkDetailPage() {
         <p className="mt-0.5 text-xs text-muted-foreground">
           {data.station.mode}{data.station.railSubtype ? ` — ${data.station.railSubtype}` : ''} · {data.station.province ?? 'ไม่ระบุ'}
         </p>
-        <p className="mt-1 text-2xs text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           ส่งเมื่อ {data.submittedAt ? new Date(data.submittedAt).toLocaleString('th-TH') : '-'}
         </p>
 

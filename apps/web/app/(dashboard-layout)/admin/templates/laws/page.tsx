@@ -77,10 +77,10 @@ function TemplateLawsContent() {
     setClosedSections((cur) => ({ ...cur, [key]: !(cur[key] ?? false) }))
   }
 
-  if (isLoading) return <div className="text-muted-foreground flex items-center justify-center p-16 text-sm">กำลังโหลด…</div>
+  if (isLoading) return <div className="text-muted-foreground flex items-center justify-center p-16 text-base">กำลังโหลด…</div>
   if (error || !data) {
     return (
-      <div className="flex items-center justify-center p-16 text-sm text-red-500">
+      <div className="flex items-center justify-center p-16 text-base text-red-500">
         เกิดข้อผิดพลาด: {(error as Error)?.message ?? 'ไม่สามารถโหลดข้อมูลได้'}
       </div>
     )
@@ -107,7 +107,7 @@ function TemplateLawsContent() {
         </Link>
         <div>
           <h1 className="text-foreground text-xl font-bold">แก้ไขตามกฎหมายอ้างอิง</h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-base">
             ดูรายการตรวจสอบแยกตามกฎหมายที่บังคับใช้ — แก้ไขข้อยกเว้นทางกฎหมาย (lawRefs) และข้อยกเว้นตามยุคกฎหมาย (byLaw) ได้จากที่นี่ รายการเดียวกันอาจปรากฏได้มากกว่าหนึ่งกฎหมาย
           </p>
         </div>
@@ -199,7 +199,7 @@ function LawSection({
         }`}
       >
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="text-foreground text-sm font-semibold">{section.title}</span>
+          <span className="text-foreground text-base font-semibold">{section.title}</span>
           {section.isFloor && (
             <span
               title="กฎหมายฐาน — บังคับใช้กับทุกสถานีไม่ว่าจะสร้างก่อนปีใด"
@@ -218,7 +218,7 @@ function LawSection({
         <>
           <TableHeaderRow />
           {items.length === 0 ? (
-            <div className="text-muted-foreground px-4 py-3 text-sm">ไม่มีรายการภายใต้กฎหมายนี้</div>
+            <div className="text-muted-foreground px-4 py-3 text-base">ไม่มีรายการภายใต้กฎหมายนี้</div>
           ) : (
             items.map((item) => <LawItemRow key={item.id} item={item} onEdit={onEdit} />)
           )}
@@ -232,7 +232,7 @@ function TableHeaderRow() {
   return (
     <div className={`border-border bg-secondary/20 grid ${TABLE_GRID_COLS} border-b`}>
       {['รหัส', 'รายการ', 'สถานะ', 'การดำเนินการ'].map((label) => (
-        <div key={label} className="text-muted-foreground px-3 py-2 text-3xs font-medium tracking-wide uppercase">
+        <div key={label} className="text-muted-foreground px-3 py-2 text-xs font-medium tracking-wide uppercase">
           {label}
         </div>
       ))}
@@ -248,12 +248,12 @@ function LawItemRow({ item, onEdit }: { item: GroupNodeRow; onEdit: (n: GroupNod
     <div className={`border-border grid ${TABLE_GRID_COLS} items-center border-b last:border-0`}>
       <div className="px-2 py-2.5">
         {representative && (
-          <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 font-mono text-3xs whitespace-nowrap">{representative.nodeCode}</span>
+          <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 font-mono text-xs whitespace-nowrap">{representative.nodeCode}</span>
         )}
       </div>
 
       <div className="min-w-0 py-2.5 pr-3 pl-3">
-        <p className="text-foreground text-sm leading-snug">{item.labelTh}</p>
+        <p className="text-foreground text-base leading-snug">{item.labelTh}</p>
         {representative && <p className="text-muted-foreground mt-0.5 text-xs">{describeAnswerSpec(representative.answerType, representative.measurements)}</p>}
       </div>
 

@@ -68,13 +68,13 @@ function GeneratedPasswordNotice({ user, onClose }: { user: CreatedUserRecord; o
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <DialogTitle className="mb-2 text-lg">สร้างบัญชีสำเร็จ</DialogTitle>
-        <p className="text-muted-foreground mb-4 text-sm">
+        <p className="text-muted-foreground mb-4 text-base">
           บัญชี <span className="font-medium">{user.username}</span> ถูกสร้างแล้ว รหัสผ่านชั่วคราวจะแสดงเพียงครั้งเดียวเท่านั้น
           กรุณาคัดลอกและส่งให้ผู้ใช้งานอย่างปลอดภัย
         </p>
         {user.generatedPassword && (
           <div className="bg-secondary mb-4 flex items-center justify-between gap-2 rounded-lg px-3 py-2">
-            <code className="text-foreground text-sm">{user.generatedPassword}</code>
+            <code className="text-foreground text-base">{user.generatedPassword}</code>
             <button onClick={copy} className="text-muted-foreground hover:text-foreground transition-colors">
               {copied ? <Check size={14} /> : <Copy size={14} />}
             </button>
@@ -309,7 +309,7 @@ function UsersPageContent() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-foreground text-xl font-bold">จัดการผู้ใช้งาน</h1>
-          <p className="text-muted-foreground text-sm">พบ {users.length} บัญชี</p>
+          <p className="text-muted-foreground text-base">พบ {users.length} บัญชี</p>
         </div>
         <button
           onClick={() => setFormModal({ mode: 'create', initial: null })}
@@ -321,10 +321,10 @@ function UsersPageContent() {
       </div>
 
       {isLoading && (
-        <div className="text-muted-foreground flex items-center justify-center p-16 text-sm">กำลังโหลด…</div>
+        <div className="text-muted-foreground flex items-center justify-center p-16 text-base">กำลังโหลด…</div>
       )}
       {error && (
-        <div className="flex items-center justify-center p-16 text-sm text-red-500">
+        <div className="flex items-center justify-center p-16 text-base text-red-500">
           เกิดข้อผิดพลาด: {(error as Error).message}
         </div>
       )}
@@ -358,7 +358,7 @@ function UsersPageContent() {
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-muted-foreground py-12 text-center text-sm">
+                    <td colSpan={6} className="text-muted-foreground py-12 text-center text-base">
                       ไม่พบผู้ใช้งาน
                     </td>
                   </tr>

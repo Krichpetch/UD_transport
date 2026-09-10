@@ -130,10 +130,10 @@ export function AddAndPlaceDialog({
       <DialogContent className="flex max-h-[85vh] w-full flex-col overflow-hidden p-0 sm:max-w-2xl">
         <div className={DIALOG_HEADER_CLS}>
           <DialogTitle className={DIALOG_TITLE_CLS}>เพิ่มรายการ / เพิ่มกลุ่มข้อย่อย</DialogTitle>
-          <p className="text-muted-foreground mt-1 text-sm">สร้างรายการใหม่ครั้งเดียว แล้ววางในตำแหน่งที่เลือกของทุกแบบประเมินที่เลือกไว้</p>
+          <p className="text-muted-foreground mt-1 text-base">สร้างรายการใหม่ครั้งเดียว แล้ววางในตำแหน่งที่เลือกของทุกแบบประเมินที่เลือกไว้</p>
         </div>
 
-        <div className="themed-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4 text-sm">
+        <div className="themed-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4 text-base">
           <div>
             <label className="text-muted-foreground mb-1 block text-sm">กลุ่มสิ่งอำนวยความสะดวก</label>
             <select className={`${SELECT_CLS} text-sm`} value={groupId} onChange={(e) => onGroupChange(e.target.value)}>
@@ -202,7 +202,7 @@ export function AddAndPlaceDialog({
               </div>
 
               <div className="border-border space-y-2.5 border-t pt-3">
-                <p className="text-foreground text-sm font-semibold">เนื้อหารายการใหม่</p>
+                <p className="text-foreground text-base font-semibold">เนื้อหารายการใหม่</p>
                 <input
                   className={`${INPUT_CLS} text-sm`}
                   value={labelTh}

@@ -30,10 +30,10 @@ function ConflictQueueContent() {
   const [notesById, setNotesById] = React.useState<Record<string, string>>({})
   const [pendingId, setPendingId] = React.useState<string | null>(null)
 
-  if (isLoading) return <div className="text-muted-foreground flex items-center justify-center p-16 text-sm">กำลังโหลด…</div>
+  if (isLoading) return <div className="text-muted-foreground flex items-center justify-center p-16 text-base">กำลังโหลด…</div>
   if (error || !data) {
     return (
-      <div className="flex items-center justify-center p-16 text-sm text-red-500">
+      <div className="flex items-center justify-center p-16 text-base text-red-500">
         เกิดข้อผิดพลาด: {(error as Error)?.message ?? 'ไม่สามารถโหลดข้อมูลได้'}
       </div>
     )
@@ -59,17 +59,17 @@ function ConflictQueueContent() {
         </Link>
         <div>
           <h1 className="text-foreground text-xl font-bold">แก้ไขข้อมูลที่ขัดแย้งกัน</h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-base">
             รายการคำถามเดียวกันแต่มีประเภทคำตอบหรือเกณฑ์ตัวเลขไม่ตรงกันระหว่างแบบประเมิน — เลือกค่าที่ถูกต้อง หรือระบุว่าแตกต่างกันจริงโดยเจตนา
           </p>
         </div>
       </div>
 
-      <p className="text-muted-foreground text-sm">
+      <p className="text-muted-foreground text-base">
         ทั้งหมด {data.length} รายการ — รอดำเนินการ {unresolved.length} รายการ
       </p>
 
-      {data.length === 0 && <div className="text-muted-foreground p-8 text-center text-sm">ไม่พบข้อมูลที่ขัดแย้งกัน ✓</div>}
+      {data.length === 0 && <div className="text-muted-foreground p-8 text-center text-base">ไม่พบข้อมูลที่ขัดแย้งกัน ✓</div>}
 
       <div className="space-y-3">
         {data.map((conflict) => (
@@ -84,10 +84,10 @@ function ConflictQueueContent() {
             <div className="grid gap-2 sm:grid-cols-2">
               {conflict.variants.map((v) => (
                 <div key={v.signature} className="border-border rounded-lg border p-3">
-                  <p className="text-foreground mb-1.5 text-sm font-medium">
+                  <p className="text-foreground mb-1.5 text-base font-medium">
                     {describeAnswerSpec(v.instances[0]?.answerType, v.instances[0]?.measurements ?? [])}
                   </p>
-                  <p className="text-foreground mb-2 text-sm">{v.instances.length} จุด</p>
+                  <p className="text-foreground mb-2 text-base">{v.instances.length} จุด</p>
                   <div className="mb-2 flex flex-wrap gap-1">
                     {sortByNodeCode(v.instances, (i) => i.nodeCode).slice(0, 8).map((i) => (
                       <span key={`${i.templateId}-${i.nodeCode}`} className="bg-secondary/60 flex items-center gap-1 rounded px-1.5 py-0.5 text-xs">

@@ -61,10 +61,10 @@ export function DeleteGroupDialog({
       <DialogContent className="flex max-h-[85vh] w-full flex-col overflow-hidden p-0 sm:max-w-xl">
         <div className={DIALOG_HEADER_CLS}>
           <DialogTitle className={DIALOG_TITLE_CLS}>ลบกลุ่ม: &ldquo;{item.labelTh}&rdquo;</DialogTitle>
-          <p className="text-muted-foreground mt-1 text-sm">ลบรายการนี้ออกจากแบบประเมินที่เลือกไว้ ทำได้เฉพาะเวอร์ชันร่างเท่านั้น</p>
+          <p className="text-muted-foreground mt-1 text-base">ลบรายการนี้ออกจากแบบประเมินที่เลือกไว้ ทำได้เฉพาะเวอร์ชันร่างเท่านั้น</p>
         </div>
 
-        <div className="themed-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4 text-sm">
+        <div className="themed-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4 text-base">
           {!item.isLeaf && (
             <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-amber-800">
               <AlertTriangle size={14} className="mt-0.5 shrink-0" />
@@ -93,7 +93,7 @@ export function DeleteGroupDialog({
             <div className="border-border space-y-2 border-t pt-3">
               {result.resolved.length > 0 && (
                 <div>
-                  <p className="text-foreground text-sm font-semibold">{previewed ? 'จะลบจาก' : 'ลบแล้วจาก'} {result.resolved.length} แบบประเมิน</p>
+                  <p className="text-foreground text-base font-semibold">{previewed ? 'จะลบจาก' : 'ลบแล้วจาก'} {result.resolved.length} แบบประเมิน</p>
                   <ul className="mt-1 space-y-0.5">
                     {result.resolved.map((r) => (
                       <li key={r.templateId} className="text-muted-foreground text-xs">
@@ -105,7 +105,7 @@ export function DeleteGroupDialog({
               )}
               {result.skipped.length > 0 && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-amber-800">
-                  <p className="flex items-center gap-1.5 text-sm font-semibold">
+                  <p className="flex items-center gap-1.5 text-base font-semibold">
                     <AlertTriangle size={13} /> ข้าม {result.skipped.length} แบบประเมิน
                   </p>
                   <ul className="mt-1 space-y-0.5 text-xs">

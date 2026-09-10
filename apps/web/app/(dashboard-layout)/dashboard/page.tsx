@@ -231,7 +231,7 @@ export default function DashboardPage() {
       {/* Page Header */}
       <div>
         <h1 className="text-foreground text-xl font-bold">ภาพรวมระบบ</h1>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-muted-foreground text-base">
           ข้อมูลจากระบบฐานข้อมูล · สถานี {summary?.totalStations.toLocaleString() ?? '…'} แห่งทั่วประเทศ
         </p>
       </div>
@@ -350,11 +350,11 @@ export default function DashboardPage() {
           {subItemFilter && (
             <div className="bg-card border-border rounded-xl border p-5">
               <div className="mb-4 flex items-center gap-2">
-                <h2 className="text-foreground text-sm font-semibold">
+                <h2 className="text-foreground text-base font-semibold">
                   ผลการตรวจสอบ: {selectedSubItem?.labelTh ?? subItemFilter}
                 </h2>
                 {selectedSubItem?.cabinetPriority && (
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-3xs font-medium text-amber-700">
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
                     มติ ครม.
                   </span>
                 )}
@@ -378,12 +378,12 @@ export default function DashboardPage() {
                     <MetricRow label="3.6 ร้อยละการได้มาตรฐาน" value={metrics.metrics.meetsStandard} pct={metrics.metrics.pctMeetsStandard} />
                   </div>
                   <div className="border-border rounded-lg border px-4 py-3 sm:col-span-2 lg:col-span-1">
-                    <p className="text-muted-foreground mb-2 text-3xs font-medium uppercase tracking-wide">
+                    <p className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
                       สถานีที่ยังไม่ได้มาตรฐาน ({metrics.failingStations.length})
                     </p>
                     <div className="themed-scrollbar max-h-28 space-y-1 overflow-y-auto">
                       {metrics.failingStations.map(s => (
-                        <p key={s.id} className="text-foreground text-3xs">
+                        <p key={s.id} className="text-foreground text-xs">
                           · {s.nameTh} <span className="text-muted-foreground">({s.province})</span>
                         </p>
                       ))}
@@ -391,7 +391,7 @@ export default function DashboardPage() {
                   </div>
                   {/* UDT-19 — per-ข้อ pie chart, off the same histogram computeMetrics already builds. */}
                   <div className="border-border rounded-lg border p-3">
-                    <p className="text-muted-foreground mb-1 text-3xs font-medium uppercase tracking-wide">
+                    <p className="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-wide">
                       สัดส่วนผลการตรวจ
                     </p>
                     <div className="h-28">
@@ -467,7 +467,7 @@ export default function DashboardPage() {
           <div className="grid gap-4 lg:grid-cols-5">
             <div className={`bg-card border-border ${DASHBOARD_CARD_H} flex flex-col rounded-xl border p-5 lg:col-span-3`}>
               <div className="mb-4 shrink-0">
-                <h2 className="text-foreground text-sm font-semibold">สถานะสิ่งอำนวยความสะดวก แยกตามประเภทการขนส่ง</h2>
+                <h2 className="text-foreground text-base font-semibold">สถานะสิ่งอำนวยความสะดวก แยกตามประเภทการขนส่ง</h2>
                 <p className="text-muted-foreground text-xs">จำแนกตามสถานะการตรวจสอบล่าสุด</p>
               </div>
               <div className="min-h-0 flex-1">
@@ -478,7 +478,7 @@ export default function DashboardPage() {
             <div className={`bg-card border-border ${DASHBOARD_CARD_H} flex flex-col rounded-xl border p-5 lg:col-span-2`}>
               <div className="mb-4 flex shrink-0 items-center justify-between">
                 <div>
-                  <h2 className="text-foreground text-sm font-semibold">แผนที่สถานีทั่วประเทศ</h2>
+                  <h2 className="text-foreground text-base font-semibold">แผนที่สถานีทั่วประเทศ</h2>
                   <p className="text-muted-foreground text-xs">แสดงสถานะตามพื้นที่</p>
                 </div>
                 <button
@@ -501,7 +501,7 @@ export default function DashboardPage() {
             <div className={`bg-card border-border ${STATION_LIST_CARD_H} flex flex-col rounded-xl border p-5 lg:col-span-2`}>
               <div className="mb-4 flex shrink-0 items-center gap-2">
                 <AlertCircle size={14} className="text-[#f44336]" />
-                <h2 className="text-foreground text-sm font-semibold">
+                <h2 className="text-foreground text-base font-semibold">
                   สถานีที่ต้องดำเนินการเร่งด่วน
                   {hasFilters && <span className="ml-1 text-muted-foreground font-normal">({urgentStations.length})</span>}
                 </h2>
@@ -516,13 +516,13 @@ export default function DashboardPage() {
                         <p className="text-foreground text-xs font-medium leading-snug">{station.nameTh}</p>
                         <StatusBadge status={station.status} />
                       </div>
-                      <p className="text-muted-foreground mb-2 text-3xs">
+                      <p className="text-muted-foreground mb-2 text-xs">
                         {station.province} · {getTransportLabel(station)} · {station.responsibleAgency}
                       </p>
                       {station.urgentIssues.length > 0 && (
                         <ul className="space-y-0.5">
                           {station.urgentIssues.map((issue, i) => (
-                            <li key={i} className="text-muted-foreground flex items-start gap-1 text-3xs">
+                            <li key={i} className="text-muted-foreground flex items-start gap-1 text-xs">
                               <span className="mt-1 size-1 shrink-0 rounded-full bg-[#f44336]" />
                               {issue}
                             </li>
@@ -537,7 +537,7 @@ export default function DashboardPage() {
 
             <div className={`bg-card border-border ${STATION_LIST_CARD_H} flex flex-col rounded-xl border lg:col-span-3`}>
               <div className="border-border flex h-14 shrink-0 items-center justify-between border-b px-5">
-                <h2 className="text-foreground text-sm font-semibold">
+                <h2 className="text-foreground text-base font-semibold">
                   รายการสถานี
                   {hasFilters && <span className="ml-1 text-muted-foreground font-normal text-xs">({filteredStations.length})</span>}
                 </h2>
@@ -653,7 +653,7 @@ export default function DashboardPage() {
               <div className="flex h-full flex-col">
                 <div className="border-border flex items-center justify-between border-b px-5 py-3 pr-12">
                   <div>
-                    <DialogTitle>แผนที่สถานีทั่วประเทศ</DialogTitle>
+                    <DialogTitle className="text-lg">แผนที่สถานีทั่วประเทศ</DialogTitle>
                     <p className="text-muted-foreground text-xs">
                       แสดง {filteredStations.length} สถานี
                       {filteredStations.length !== stations.length && ` (กรองจาก ${stations.length})`}

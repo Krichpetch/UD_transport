@@ -56,7 +56,7 @@ export function IssueSummaryPanel({
     <div className="bg-card border-border rounded-xl border p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-foreground text-sm font-semibold">ประเด็นที่ควรปรับปรุง</h2>
+          <h2 className="text-foreground text-base font-semibold">ประเด็นที่ควรปรับปรุง</h2>
           <p className="text-muted-foreground text-xs">
             {mode === 'groups'
               ? 'กลุ่มสิ่งอำนวยความสะดวกที่ได้มาตรฐานต่ำที่สุดในกลุ่มสถานีที่กรองไว้ (เรียงจากแย่ที่สุด)'
@@ -107,12 +107,12 @@ export function IssueSummaryPanel({
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-foreground text-xs font-medium">{row.label}</span>
                     {row.cabinetPriority && (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-3xs font-medium text-amber-700">
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
                         มติ ครม.
                       </span>
                     )}
                   </div>
-                  <p className="text-muted-foreground mt-0.5 text-3xs">
+                  <p className="text-muted-foreground mt-0.5 text-xs">
                     ได้มาตรฐาน {row.metrics.meetsStandard}/{row.metrics.total} · มีสิ่งอำนวยความสะดวก {row.metrics.hasItem}
                   </p>
                 </div>

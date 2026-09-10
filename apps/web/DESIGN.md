@@ -39,24 +39,28 @@ the **700** face. Practically, `font-medium` looks identical to `font-normal` he
 **Language:** UI copy is **Thai** (`<html lang="th">`). Keep line-heights comfortable for Thai
 glyphs (tall ascenders/descenders) — prefer `leading-relaxed` on paragraphs.
 
-**Type scale** — stick to these steps. `text-xs`…`text-3xl` are Tailwind defaults; `text-3xs`
-and `text-2xs` are **custom rem tokens** defined in `globals.css` `@theme` (`--text-3xs` /
-`--text-2xs`). They are the **tokenized floor** — never use a raw `text-[Npx]` literal (px doesn't
-respond to the user font-scale setting; rem tokens do).
+**Type scale** — three anchors, YouTube-style (UDT-69): **12px** smallest general text,
+**16px** content/reading text, **20px** titles. Every step is a Tailwind v4 default — there
+are **no custom font-size tokens** and never a raw `text-[Npx]` literal (px doesn't respond
+to the user font-scale setting; rem tokens do). `text-xs` (12px) is the **floor — nothing
+goes smaller**. The old `text-3xs` (10px) / `text-2xs` (11px) tokens were retired in UDT-69.
 
 | Class | Size | Typical use |
 | ----- | ---- | ----------- |
-| `text-3xs` | 10px | dense table/chip meta, mobile counters (smallest allowed) |
-| `text-2xs` | 11px | dense secondary text, era chips, autosave status |
-| `text-xs` | 12px | badges, table meta, captions, mobile secondary text |
-| `text-sm` | 14px | default body, form labels, most UI text |
-| `text-base` | 16px | emphasized body, dialog body |
+| `text-xs` | 12px | the floor — captions, badges, dense table/chip meta, counters, mobile secondary text |
+| `text-sm` | 14px | compact functional UI — buttons, form labels, inputs, table cells, nav/menu |
+| `text-base` | 16px | **content / reading text (default)** — paragraphs, descriptions, dialog & card body, primary values |
 | `text-lg` | 18px | card titles, section subheads |
-| `text-xl`–`text-2xl` | 20–24px | page titles |
+| `text-xl` | 20px | **page & section titles (default)** |
+| `text-2xl` | 24px | occasional larger hero title |
 | `text-3xl`+ | 30px+ | dashboard KPI numbers (`font-bold`/`extrabold`) |
 
-Default UI text is `text-sm`; drop to `text-xs` for dense tables and mobile chrome, and
-`text-2xs`/`text-3xs` only for the densest chips/counters.
+Reading content is `text-base` (16px); page & section titles are `text-xl` (20px). `text-sm`
+(14px) is for compact functional chrome only — controls, labels, table cells, nav — **not** prose.
+`text-xs` (12px) is the smallest size anywhere. **In dense areas, show hierarchy with
+font-weight and `text-muted-foreground`, never a smaller size** — e.g. a `font-medium` /
+`font-semibold` primary line over a `font-normal text-muted-foreground` secondary line, both
+at `text-xs`.
 
 > **Font scale (UDT-52):** users can set a root font-size of 100 / 125 / 150% (Settings →
 > ขนาดตัวอักษร), stored in the `font-scale` cookie and applied to `<html data-font-scale>` in

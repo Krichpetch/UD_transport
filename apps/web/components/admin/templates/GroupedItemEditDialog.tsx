@@ -49,7 +49,7 @@ function GroupedItemEditDialogContent({ version, item, onClose }: { version: num
         <div className={DIALOG_HEADER_CLS}>
           {/* UDT-61, Part 2 — a single-instance item isn't "shared" with anything; saying so here
               (and "publish" below) would misdescribe what's actually a plain single-template edit. */}
-          <p className="text-muted-foreground mb-1 text-3xs">
+          <p className="text-muted-foreground mb-1 text-xs">
             {item.instanceCount > 1 ? `แก้ไขตามกลุ่ม · ใช้ร่วมกัน ${item.instanceCount} จุด` : 'แก้ไขรายการนี้ · มีเฉพาะแบบประเมินนี้'}
           </p>
           <DialogTitle className={DIALOG_TITLE_CLS}>{item.labelTh}</DialogTitle>
@@ -71,7 +71,7 @@ function GroupedItemEditDialogContent({ version, item, onClose }: { version: num
               wholesale-push that empty value over sibling instances the moment ANY other field on
               that container got edited. Measurements/guidance/lawRefs are ALL leaf-only here now. */}
           {!item.isLeaf && (
-            <div className="bg-secondary/60 text-muted-foreground rounded-lg p-2.5 text-sm">
+            <div className="bg-secondary/60 text-muted-foreground rounded-lg p-2.5 text-base">
               รายการนี้เป็นหมวดหมู่ (ไม่มีคำตอบของตัวเอง) — แก้ไขได้เฉพาะข้อความ รูปภาพ และการซ่อน/แสดง
               ข้อยกเว้นทางกฎหมายกำหนดที่รายการย่อย (leaf) เท่านั้น
             </div>
@@ -79,7 +79,7 @@ function GroupedItemEditDialogContent({ version, item, onClose }: { version: num
 
           {item.isLeaf && representative.measurements.length > 0 && (
             <div className="space-y-2">
-              <p className="text-foreground text-sm font-semibold">เกณฑ์ตัวเลข</p>
+              <p className="text-foreground text-base font-semibold">เกณฑ์ตัวเลข</p>
               {representative.measurements.map((m) => (
                 <GroupedMeasurementCard key={m.key} version={version} item={item} measurementKey={m.key} initial={m} facilityCode={representative.facilityCode} />
               ))}
@@ -106,7 +106,7 @@ function GroupedItemEditDialogContent({ version, item, onClose }: { version: num
 function InstanceListPanel({ instances }: { instances: ItemInstanceRow[] }) {
   return (
     <div>
-      <p className="text-foreground mb-1.5 text-sm font-semibold">
+      <p className="text-foreground mb-1.5 text-base font-semibold">
         {instances.length > 1 ? `จะเขียนไปยัง ${instances.length} จุด (ทุกแบบประเมินที่มีรายการนี้)` : 'มีอยู่ในแบบประเมินนี้แบบเดียว'}
       </p>
       <div className="border-border max-h-28 space-y-1 overflow-y-auto rounded-lg border p-2">
@@ -186,7 +186,7 @@ function PropagateAction({
           </span>
         )}
       </div>
-      {isError && <p className="text-2xs text-red-500">{errorMessage}</p>}
+      {isError && <p className="text-xs text-red-500">{errorMessage}</p>}
     </div>
   )
 }
@@ -327,25 +327,25 @@ function GroupedEraSection({
 
   return (
     <div className="border-border mt-1 space-y-1.5 border-t pt-2">
-      <p className="text-muted-foreground text-2xs font-semibold">ข้อยกเว้นตามยุคกฎหมาย (byLaw)</p>
+      <p className="text-muted-foreground text-xs font-semibold">ข้อยกเว้นตามยุคกฎหมาย (byLaw)</p>
       {isNeverEraGated(facilityCode) && (
-        <div className="flex items-start gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-2xs text-emerald-800">
+        <div className="flex items-start gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-xs text-emerald-800">
           <ShieldCheck size={12} className="mt-0.5 shrink-0" />
           <span>รายการนี้ไม่ผูกกับปีที่ก่อสร้าง — จะไม่ถูกซ่อนตามปีแม้ระบุกฎหมายไว้ก็ตาม</span>
         </div>
       )}
-      {existingCodes.length === 0 && <p className="text-muted-foreground text-2xs">ยังไม่มีข้อยกเว้นตามยุคกฎหมายสำหรับเกณฑ์นี้</p>}
+      {existingCodes.length === 0 && <p className="text-muted-foreground text-xs">ยังไม่มีข้อยกเว้นตามยุคกฎหมายสำหรับเกณฑ์นี้</p>}
       {existingCodes.map((lawCode) => {
         const law = LAW_REFERENCE_SEED.find((l) => l.code === lawCode)
         return (
           <div key={lawCode} className="bg-secondary/40 rounded-lg p-2">
             <div className="mb-1.5 flex items-center justify-between">
-              <p className="text-foreground text-2xs font-medium">{law?.nameTh ?? lawCode}</p>
+              <p className="text-foreground text-xs font-medium">{law?.nameTh ?? lawCode}</p>
               <button
                 type="button"
                 disabled={propagate.isPending}
                 onClick={() => save(lawCode, null)}
-                className="flex items-center gap-1 text-3xs text-red-500 hover:text-red-600 disabled:opacity-50"
+                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 disabled:opacity-50"
               >
                 <Trash2 size={11} />
                 ลบ
@@ -370,7 +370,7 @@ function GroupedEraSection({
 
       {availableToAdd.length > 0 && (
         <div className="flex items-center gap-1.5">
-          <select className={`${SELECT_CLS} py-1 text-2xs`} value={addingLaw} onChange={(e) => setAddingLaw(e.target.value)}>
+          <select className={`${SELECT_CLS} py-1 text-xs`} value={addingLaw} onChange={(e) => setAddingLaw(e.target.value)}>
             <option value="">+ เพิ่มข้อยกเว้นตามกฎหมาย…</option>
             {availableToAdd.map((l) => (
               <option key={l.code} value={l.code}>
@@ -388,7 +388,7 @@ function GroupedEraSection({
                 save(addingLaw, seed)
                 setAddingLaw('')
               }}
-              className="border-border shrink-0 rounded border px-2 py-1 text-2xs disabled:opacity-50"
+              className="border-border shrink-0 rounded border px-2 py-1 text-xs disabled:opacity-50"
             >
               เพิ่ม
             </button>
@@ -407,7 +407,7 @@ function GroupedGuidanceSection({ version, item }: { version: number; item: Grou
 
   return (
     <div className="border-border bg-card space-y-2 rounded-xl border p-3">
-      <p className="text-foreground text-sm font-semibold">คำแนะนำในการตรวจ (คู่มือการตรวจประเมิน)</p>
+      <p className="text-foreground text-base font-semibold">คำแนะนำในการตรวจ (คู่มือการตรวจประเมิน)</p>
       <textarea
         className={`${INPUT_CLS} min-h-[64px] resize-y text-xs`}
         value={text}
@@ -435,7 +435,7 @@ function GroupedLawRefsSection({ version, item, representative }: { version: num
 
   return (
     <div className="border-border bg-card space-y-2 rounded-xl border p-3">
-      <p className="text-foreground text-sm font-semibold">ข้อยกเว้นทางกฎหมาย (lawRefs)</p>
+      <p className="text-foreground text-base font-semibold">ข้อยกเว้นทางกฎหมาย (lawRefs)</p>
       {isNeverEraGated(representative.facilityCode) && (
         <div className="flex items-start gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs text-emerald-800">
           <ShieldCheck size={13} className="mt-0.5 shrink-0" />
@@ -479,7 +479,7 @@ function GroupedHiddenSection({ version, item, representative }: { version: numb
 
   return (
     <div className="border-border bg-card space-y-2 rounded-xl border p-3">
-      <p className="text-foreground text-sm font-semibold">ซ่อน/แสดงรายการ</p>
+      <p className="text-foreground text-base font-semibold">ซ่อน/แสดงรายการ</p>
       <label className="text-foreground flex items-center gap-2 text-xs">
         <input type="checkbox" className="h-4 w-4" checked={hidden} onChange={(e) => setHidden(e.target.checked)} />
         ซ่อนรายการนี้จากฟอร์มผู้ตรวจทุกแบบประเมินที่ใช้ร่วมกัน
@@ -504,7 +504,7 @@ function GroupedLabelSection({ version, item, initialLabel }: { version: number;
 
   return (
     <div className="border-border bg-card space-y-2 rounded-xl border p-3">
-      <p className="text-foreground text-sm font-semibold">ข้อความคำถาม</p>
+      <p className="text-foreground text-base font-semibold">ข้อความคำถาม</p>
       <input className={`${INPUT_CLS} text-xs`} value={labelTh} onChange={(e) => setLabelTh(e.target.value)} />
       <PropagateAction
         instanceCount={item.instanceCount}
@@ -568,7 +568,7 @@ function GroupedImageEditor({
 
   return (
     <div className="border-border bg-card space-y-2.5 rounded-xl border p-3">
-      <p className="text-foreground text-sm font-semibold">รูปภาพประกอบ</p>
+      <p className="text-foreground text-base font-semibold">รูปภาพประกอบ</p>
       <p className="text-muted-foreground text-xs">อัปโหลดครั้งเดียว ระบบจะคัดลอกรูปเดียวกันไปยังทุกจุดที่ใช้รายการนี้ร่วมกันโดยอัตโนมัติ (ไม่ต้องอัปโหลดซ้ำ)</p>
       <div className="flex flex-wrap gap-3">
         {representative.imageKeys.map((key) => (

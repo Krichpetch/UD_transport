@@ -217,12 +217,14 @@ a {
   --font-heading: var(--font-sans);
   --font-sans: var(--font-sans);
 
-  /* Typography scale — sub-xs floor (UDT-57). The documented steps
-     text-xs…text-3xl are Tailwind defaults; these add the two smaller
-     rem-based steps used by dense tables / mobile chrome, so nothing needs
-     a raw text-[Npx] literal (which wouldn't respond to the font scale). */
-  --text-2xs: 0.6875rem; /* 11px */
-  --text-3xs: 0.625rem; /* 10px */
+  /* Typography scale (UDT-69). Role anchors, YouTube-style: text-xs 12px = smallest
+     general text (the floor — nothing goes below it), text-sm 14px = compact chrome,
+     text-base 16px = content/reading default, text-xl 20px = titles. All are Tailwind
+     v4 rem defaults, deliberately NOT overridden here so their values stay
+     font-scale-correct. In dense areas use font-weight + muted color for hierarchy,
+     not a smaller size. The old sub-xs tokens (--text-2xs 11px / --text-3xs 10px,
+     UDT-57) were retired here. Never use a raw text-[Npx] literal — px wouldn't
+     respond to the font scale. */
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
