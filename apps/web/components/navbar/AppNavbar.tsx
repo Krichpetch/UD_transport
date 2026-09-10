@@ -42,7 +42,7 @@ function DashboardTimeframeControl() {
 
       {open && (
         <div className="bg-card border-border absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border p-3 shadow-lg">
-          <p className="text-muted-foreground mb-2 text-3xs font-medium uppercase tracking-wide">
+          <p className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
             ช่วงเวลาข้อมูล
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -169,7 +169,7 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
           >
             <Search size={13} />
             <span>ค้นหา...</span>
-            <kbd className="bg-muted rounded px-1 text-3xs">⌘K</kbd>
+            <kbd className="bg-muted rounded px-1 text-xs">⌘K</kbd>
           </button>
 
           {/* Notifications */}
@@ -180,7 +180,7 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
             >
               <Bell size={15} />
               {totalNotifs > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-amber-500 text-3xs text-white">
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-xs leading-none text-white">
                   {Math.min(totalNotifs, 99)}
                 </span>
               )}
@@ -210,7 +210,7 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
                       >
                         {label}
                         {count > 0 && (
-                          <span className={`rounded-full px-1.5 py-0.5 text-3xs font-semibold ${
+                          <span className={`rounded-full px-1.5 py-0.5 text-xs font-semibold ${
                             notifTab === tab ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
                           }`}>
                             {count}
@@ -239,7 +239,7 @@ export function AppNavbar({ title, subtitle }: AppNavbarProps) {
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="text-foreground truncate text-xs font-medium">{s.nameTh}</p>
-                              <p className="text-muted-foreground text-3xs">
+                              <p className="text-muted-foreground text-xs">
                                 {s.province} · {isAmber ? 'รอการอนุมัติ' : s.status}
                               </p>
                             </div>

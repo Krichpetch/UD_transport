@@ -25,10 +25,10 @@ export function HiddenToggle({
 
   return (
     <div className="border-border bg-card space-y-2 rounded-xl border p-3">
-      <p className="text-foreground flex items-center gap-1.5 text-sm font-semibold">
+      <p className="text-foreground flex items-center gap-1.5 text-base font-semibold">
         <EyeOff size={13} /> ซ่อนจากแบบฟอร์ม
       </p>
-      <p className="text-muted-foreground text-2xs">
+      <p className="text-muted-foreground text-xs">
         ซ่อนรายการนี้ (และรายการย่อยทั้งหมด) ออกจากแบบฟอร์มผู้ตรวจโดยสมบูรณ์ ไม่ผูกกับปีที่ก่อสร้าง
         และไม่แสดงแม้เป็นหมายเหตุท้ายกลุ่ม — มีผลกับการตรวจครั้งต่อไปเท่านั้น ไม่กระทบรายงานที่ตรวจไปแล้ว
       </p>
@@ -47,7 +47,7 @@ export function HiddenToggle({
             {editHidden.isPending ? <Loader2 size={12} className="animate-spin" /> : <EyeOff size={12} />}
             {hidden ? 'ยกเลิกการซ่อน' : 'ซ่อนรายการนี้'}
           </button>
-          {editHidden.isError && <span className="text-2xs text-red-500">{(editHidden.error as Error).message}</span>}
+          {editHidden.isError && <span className="text-xs text-red-500">{(editHidden.error as Error).message}</span>}
         </div>
       )}
     </div>

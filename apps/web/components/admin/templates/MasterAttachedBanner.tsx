@@ -37,7 +37,7 @@ export function MasterAttachedBanner({
 
   if (node.masterId) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-base text-rose-800">
         <span className="flex items-center gap-1.5">
           <Lock size={14} />
           รายการนี้เชื่อมโยงกับรายการต้นแบบ — แก้ไขที่นี่ไม่ได้ กรุณาแยกออกก่อนแก้ไข
@@ -51,7 +51,7 @@ export function MasterAttachedBanner({
           {detachMaster.isPending ? <Loader2 size={12} className="animate-spin" /> : <Unlink size={12} />}
           แยกออกจากต้นแบบ
         </button>
-        {detachMaster.isError && <span className="w-full text-2xs text-red-600">{(detachMaster.error as Error).message}</span>}
+        {detachMaster.isError && <span className="w-full text-xs text-red-600">{(detachMaster.error as Error).message}</span>}
       </div>
     )
   }
@@ -59,7 +59,7 @@ export function MasterAttachedBanner({
   // detachedFromMasterId set, masterId absent — Part D2's "แยกออกแล้ว" case, surfaced here too so
   // an admin editing the node directly (not via the master editor) can still re-attach it.
   return (
-    <div className="space-y-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+    <div className="space-y-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-base text-amber-800">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="flex items-center gap-1.5">
           <Unlink size={14} />
@@ -99,7 +99,7 @@ export function MasterAttachedBanner({
           </div>
         </div>
       )}
-      {attachMaster.isError && <span className="text-2xs text-red-600">{(attachMaster.error as Error).message}</span>}
+      {attachMaster.isError && <span className="text-xs text-red-600">{(attachMaster.error as Error).message}</span>}
       {/* Era-editor safety session, Part E — this node isn't master-attached (masterId absent),
           so besides re-linking to its OLD master above, it can also move onto a DIFFERENT
           existing group entirely. */}

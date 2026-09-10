@@ -107,7 +107,7 @@ export function SettingsPanel() {
 
       {/* ── Font size ── */}
       <div className="w-full space-y-3">
-        <h2 className="text-foreground text-sm font-semibold">ขนาดตัวอักษร</h2>
+        <h2 className="text-foreground text-base font-semibold">ขนาดตัวอักษร</h2>
         <p className="text-muted-foreground text-xs">
           ปรับขนาดตัวอักษรทั้งระบบให้อ่านง่ายขึ้น
         </p>
@@ -128,7 +128,7 @@ export function SettingsPanel() {
                 )}
               >
                 <span className="text-sm font-medium">{FONT_SCALE_LABELS[scale]}</span>
-                <span className={cn('text-2xs', active ? 'opacity-80' : 'text-muted-foreground')}>
+                <span className={cn('text-xs', active ? 'opacity-80' : 'text-muted-foreground')}>
                   {scale}%
                 </span>
               </button>
@@ -141,7 +141,7 @@ export function SettingsPanel() {
 
       {/* ── Display name ── */}
       <form onSubmit={handleNameSubmit} className="w-full space-y-4">
-        <h2 className="text-foreground text-sm font-semibold">ชื่อที่แสดง</h2>
+        <h2 className="text-foreground text-base font-semibold">ชื่อที่แสดง</h2>
 
         <div className="space-y-1.5">
           <label className="text-foreground text-sm font-medium">ชื่อ-นามสกุล</label>
@@ -178,7 +178,7 @@ export function SettingsPanel() {
 
       {/* ── Password ── */}
       <form onSubmit={handlePasswordSubmit} className="w-full space-y-4">
-        <h2 className="text-foreground text-sm font-semibold">เปลี่ยนรหัสผ่าน</h2>
+        <h2 className="text-foreground text-base font-semibold">เปลี่ยนรหัสผ่าน</h2>
 
         <div className="space-y-1.5">
           <label className="text-foreground text-sm font-medium">รหัสผ่านปัจจุบัน</label>

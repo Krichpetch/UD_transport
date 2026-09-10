@@ -27,10 +27,10 @@ function GroupedReviewQueueContent() {
   const confirmItem = useConfirmGroupedMeasurement(VERSION)
   const [pendingKey, setPendingKey] = React.useState<string | null>(null)
 
-  if (isLoading) return <div className="text-muted-foreground flex items-center justify-center p-16 text-sm">กำลังโหลด…</div>
+  if (isLoading) return <div className="text-muted-foreground flex items-center justify-center p-16 text-base">กำลังโหลด…</div>
   if (error || !data) {
     return (
-      <div className="flex items-center justify-center p-16 text-sm text-red-500">
+      <div className="flex items-center justify-center p-16 text-base text-red-500">
         เกิดข้อผิดพลาด: {(error as Error)?.message ?? 'ไม่สามารถโหลดข้อมูลได้'}
       </div>
     )
@@ -50,12 +50,12 @@ function GroupedReviewQueueContent() {
         </Link>
         <div>
           <h1 className="text-foreground text-xl font-bold">คิวยืนยันเกณฑ์ตัวเลข (แบบกลุ่ม)</h1>
-          <p className="text-muted-foreground text-sm">ยืนยันเกณฑ์ที่ใช้ร่วมกันครั้งเดียว เพื่อยืนยันทุกจุดที่ใช้เกณฑ์นี้พร้อมกัน</p>
+          <p className="text-muted-foreground text-base">ยืนยันเกณฑ์ที่ใช้ร่วมกันครั้งเดียว เพื่อยืนยันทุกจุดที่ใช้เกณฑ์นี้พร้อมกัน</p>
         </div>
       </div>
 
       <div className="bg-card border-border rounded-xl border p-4">
-        <p className="text-foreground text-sm">
+        <p className="text-foreground text-base">
           {data.totalUnconfirmedRows} แถวที่ยังไม่ยืนยัน ย่อเหลือ <span className="font-semibold">{data.distinctRows}</span> รายการให้ยืนยัน
           {data.totalUnconfirmedRows > 0 && (
             <span className="text-muted-foreground">
@@ -66,7 +66,7 @@ function GroupedReviewQueueContent() {
         </p>
       </div>
 
-      {data.rows.length === 0 && <div className="text-muted-foreground p-8 text-center text-sm">ยืนยันครบทุกเกณฑ์แล้ว ✓</div>}
+      {data.rows.length === 0 && <div className="text-muted-foreground p-8 text-center text-base">ยืนยันครบทุกเกณฑ์แล้ว ✓</div>}
 
       <div className="bg-card border-border overflow-hidden rounded-xl border">
         <table className="w-full text-sm">

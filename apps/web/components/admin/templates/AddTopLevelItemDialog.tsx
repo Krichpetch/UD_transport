@@ -132,10 +132,10 @@ export function AddTopLevelItemDialog({
       <DialogContent className="flex max-h-[85vh] w-full flex-col overflow-hidden p-0 sm:max-w-xl">
         <div className={DIALOG_HEADER_CLS}>
           <DialogTitle className={DIALOG_TITLE_CLS}>เพิ่มรายการใหม่ (ระดับบนสุดของกลุ่ม)</DialogTitle>
-          <p className="text-muted-foreground mt-1 text-sm">เพิ่มรายการใหม่ในแบบประเมินนี้เท่านั้น วางในตำแหน่งที่เลือกภายในกลุ่ม</p>
+          <p className="text-muted-foreground mt-1 text-base">เพิ่มรายการใหม่ในแบบประเมินนี้เท่านั้น วางในตำแหน่งที่เลือกภายในกลุ่ม</p>
         </div>
 
-        <div className="themed-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4 text-sm">
+        <div className="themed-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4 text-base">
           <div>
             <label className="text-muted-foreground mb-1 block text-sm">กลุ่ม</label>
             <select

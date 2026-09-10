@@ -33,7 +33,7 @@ function ReviewQueueContent() {
         </Link>
         <div>
           <h1 className="text-foreground text-xl font-bold">คิวรอตรวจสอบเกณฑ์ตัวเลข</h1>
-          <p className="text-muted-foreground text-sm">เกณฑ์ที่สกัดอัตโนมัติหรือยังไม่ได้รับการยืนยันจากผู้ดูแลระบบ</p>
+          <p className="text-muted-foreground text-base">เกณฑ์ที่สกัดอัตโนมัติหรือยังไม่ได้รับการยืนยันจากผู้ดูแลระบบ</p>
         </div>
       </div>
 
@@ -46,14 +46,14 @@ function ReviewQueueContent() {
         ))}
       </select>
 
-      {isLoading && <div className="text-muted-foreground p-8 text-center text-sm">กำลังโหลด…</div>}
-      {error && <div className="p-8 text-center text-sm text-red-500">{(error as Error).message}</div>}
+      {isLoading && <div className="text-muted-foreground p-8 text-center text-base">กำลังโหลด…</div>}
+      {error && <div className="p-8 text-center text-base text-red-500">{(error as Error).message}</div>}
 
       {data && (
         <>
           <div className="bg-card border-border rounded-xl border p-4">
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-foreground text-sm font-semibold">ความคืบหน้าโดยรวม</p>
+              <p className="text-foreground text-base font-semibold">ความคืบหน้าโดยรวม</p>
               <p className="text-muted-foreground text-xs">
                 {data.overall.confirmed}/{data.overall.total} (
                 {data.overall.total > 0 ? Math.round((data.overall.confirmed / data.overall.total) * 100) : 0}%)

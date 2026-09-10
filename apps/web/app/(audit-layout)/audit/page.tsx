@@ -86,7 +86,7 @@ function PreviewYearControl({ value, onChange, appliedYearBuilt }: {
         </select>
       </label>
       {appliedYearBuilt != null && (
-        <span className="shrink-0 text-3xs text-purple-600">ใช้จริง: พ.ศ. {appliedYearBuilt}</span>
+        <span className="shrink-0 text-xs text-purple-600">ใช้จริง: พ.ศ. {appliedYearBuilt}</span>
       )}
     </div>
   )
@@ -107,7 +107,7 @@ function PreviewRedactionSummary({ groups }: { groups: ChecklistTemplateGroupDef
 
   if (total === 0) {
     return (
-      <div className="rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-2xs text-purple-700 shadow-sm">
+      <div className="rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-xs text-purple-700 shadow-sm">
         ไม่มีรายการที่ถูกซ่อนสำหรับปีที่เลือกนี้ — ทุกรายการเข้าข่ายตามกฎหมาย
       </div>
     )
@@ -117,7 +117,7 @@ function PreviewRedactionSummary({ groups }: { groups: ChecklistTemplateGroupDef
     <div className="overflow-hidden rounded-xl border border-purple-200 bg-purple-50 shadow-sm">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between px-3 py-2 text-2xs font-semibold text-purple-700"
+        className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold text-purple-700"
       >
         <span>รายการที่ถูกซ่อนตามปีที่เลือก ({total} รายการ)</span>
         <ChevronDown size={12} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -126,10 +126,10 @@ function PreviewRedactionSummary({ groups }: { groups: ChecklistTemplateGroupDef
         <div className="divide-y divide-purple-100 border-t border-purple-100">
           {byGroup.map(({ group, redacted }) => (
             <div key={group.code} className="px-3 py-2">
-              <p className="text-3xs font-semibold text-purple-600">{group.labelTh} ({redacted.length})</p>
+              <p className="text-xs font-semibold text-purple-600">{group.labelTh} ({redacted.length})</p>
               <ul className="mt-1 space-y-0.5">
                 {redacted.map((it) => (
-                  <li key={it.code} className="text-2xs text-purple-700">
+                  <li key={it.code} className="text-xs text-purple-700">
                     <span className="font-mono">{it.code}</span> {it.labelTh}
                   </li>
                 ))}
@@ -151,7 +151,7 @@ function RedactedFooter({ items }: { items: TemplateNode[] }) {
     <div className="border-t border-border bg-secondary/30 px-4 py-2">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between text-2xs text-muted-foreground"
+        className="flex w-full items-center justify-between text-xs text-muted-foreground"
       >
         <span>รายการที่ไม่เข้าข่ายตามกฎหมายที่ใช้บังคับ ({items.length} รายการ)</span>
         <ChevronDown size={12} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -159,7 +159,7 @@ function RedactedFooter({ items }: { items: TemplateNode[] }) {
       {open && (
         <ul className="mt-1.5 space-y-1">
           {items.map((it) => (
-            <li key={it.code} className="text-2xs text-muted-foreground">
+            <li key={it.code} className="text-xs text-muted-foreground">
               <span className="font-mono">{it.code}</span> {it.labelTh}
             </li>
           ))}
@@ -614,7 +614,7 @@ export default function AuditPage() {
         {!selectedId && (user?.role === 'AUDITOR' || user?.role === 'REVIEWER') && <MyWorkLink />}
         {!selectedId && (user?.role === 'AUDITOR' || user?.role === 'REVIEWER') && <TutorialSection onSelect={setSelectedId} />}
         {selectedId && (
-          <div className="rounded-xl bg-white p-6 text-center text-sm text-muted-foreground shadow-sm">
+          <div className="rounded-xl bg-white p-6 text-center text-base text-muted-foreground shadow-sm">
             กำลังโหลด…
           </div>
         )}
@@ -626,7 +626,7 @@ export default function AuditPage() {
     return (
       <div className="space-y-4">
         {stationPicker}
-        <div className="rounded-xl bg-white p-6 text-center text-sm text-muted-foreground shadow-sm">
+        <div className="rounded-xl bg-white p-6 text-center text-base text-muted-foreground shadow-sm">
           ยังไม่มีแบบฟอร์มตรวจสอบสำหรับประเภทสถานีนี้ กรุณาติดต่อผู้ดูแลระบบ
         </div>
       </div>
@@ -643,7 +643,7 @@ export default function AuditPage() {
         {station.isTraining && <TrainingBanner />}
         <div className="rounded-xl bg-white p-6 shadow-sm">
           <p className="text-center text-lg font-bold text-foreground">ส่งรายงานสำเร็จ ✓</p>
-          <p className="mt-1 text-center text-sm text-muted-foreground">{station.nameTh}</p>
+          <p className="mt-1 text-center text-base text-muted-foreground">{station.nameTh}</p>
           <p className="mt-1 text-center text-xs text-muted-foreground">
             ส่งเมื่อ {submitResult.submittedAt ? new Date(submitResult.submittedAt).toLocaleString('th-TH') : '-'}
           </p>
@@ -677,7 +677,7 @@ export default function AuditPage() {
   const yearChangeDialog = (
     <Dialog open={!!pendingYearChange} onOpenChange={(o) => { if (!o) cancelYearChange() }}>
       <DialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-xl p-5">
-        <DialogTitle className="text-sm font-bold text-foreground">เปลี่ยนปีที่ก่อสร้าง?</DialogTitle>
+        <DialogTitle className="text-lg font-bold text-foreground">เปลี่ยนปีที่ก่อสร้าง?</DialogTitle>
         <p className="mt-2 text-xs text-muted-foreground">
           การเปลี่ยนเดือน/ปีที่ก่อสร้างจะโหลดแบบฟอร์มใหม่ตามเกณฑ์กฎหมายที่ใช้บังคับในปีนั้น
           คำตอบที่กรอกไว้แล้วจะถูกโอนมาเฉพาะรายการที่ยังคงมีอยู่ในแบบฟอร์มใหม่ —
@@ -743,14 +743,14 @@ export default function AuditPage() {
 
         <div className="space-y-4 rounded-xl bg-white p-6 shadow-sm">
           <div>
-            <h1 className="text-lg font-bold text-foreground">{station.nameTh}</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">
+            <h1 className="text-xl font-bold text-foreground">{station.nameTh}</h1>
+            <p className="mt-0.5 text-base text-muted-foreground">
               {getStationTypeLabel(station)}
               {station.railSubtype ? ` — ${station.railSubtype}` : ''}
             </p>
           </div>
 
-          <div className="space-y-2.5 border-t border-border pt-4 text-sm">
+          <div className="space-y-2.5 border-t border-border pt-4 text-base">
             <div className="flex items-center gap-2">
               <Clock size={14} className="shrink-0 text-muted-foreground" />
               <span className="text-foreground">{new Date().toLocaleString('th-TH')}</span>
@@ -779,17 +779,17 @@ export default function AuditPage() {
               className="mt-1.5"
             />
             {yearBuiltDateInput && (
-              <p className="mt-1 text-3xs text-muted-foreground">= พ.ศ. {buddhistYearOfIsoDate(yearBuiltDateInput)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">= พ.ศ. {buddhistYearOfIsoDate(yearBuiltDateInput)}</p>
             )}
             {eraUnresolved && (
-              <p className="mt-1.5 text-3xs text-amber-600">
+              <p className="mt-1.5 text-xs text-amber-600">
                 ⚠ ยังไม่สามารถระบุปีก่อสร้างที่แน่ชัดได้ — ระบบใช้เกณฑ์ตามกฎหมายฉบับล่าสุดเป็นการชั่วคราว
               </p>
             )}
             {/* Part B.1 — inline, always-visible reason the continue action is disabled, not a
                 toast fired after the fact. */}
             {!yearBuiltValid && (
-              <p className="mt-1.5 text-3xs text-red-600">
+              <p className="mt-1.5 text-xs text-red-600">
                 กรุณาระบุปีที่ก่อสร้าง (พ.ศ. {YEAR_BUILT_MIN}–{yearBuiltMax()}) ก่อนเริ่มการตรวจประเมิน
               </p>
             )}
@@ -818,7 +818,7 @@ export default function AuditPage() {
           </button>
 
           {PROXIMITY_BYPASS && (
-            <p className="text-center text-3xs font-medium text-amber-600">
+            <p className="text-center text-xs font-medium text-amber-600">
               โหมดทดสอบ: ข้ามการตรวจสอบตำแหน่ง (dev only)
             </p>
           )}
@@ -876,7 +876,7 @@ export default function AuditPage() {
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold text-primary">{progress}%</p>
-            <p className="text-3xs text-muted-foreground">{answered}/{total} ข้อ</p>
+            <p className="text-xs text-muted-foreground">{answered}/{total} ข้อ</p>
           </div>
         </div>
         <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
@@ -885,16 +885,16 @@ export default function AuditPage() {
         <div className="mt-3 flex items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
             {resumedFromDraft && (
-              <p className="text-3xs text-muted-foreground">↩ ดำเนินการต่อจากร่างที่บันทึกไว้</p>
+              <p className="text-xs text-muted-foreground">↩ ดำเนินการต่อจากร่างที่บันทึกไว้</p>
             )}
-            {saveStatus === 'saving' && <p className="text-3xs text-muted-foreground">กำลังบันทึก…</p>}
-            {saveStatus === 'saved' && <p className="text-3xs text-accent">✓ บันทึกอัตโนมัติแล้ว</p>}
-            {saveStatus === 'error' && <p className="text-3xs text-red-500">บันทึกอัตโนมัติไม่สำเร็จ</p>}
+            {saveStatus === 'saving' && <p className="text-xs text-muted-foreground">กำลังบันทึก…</p>}
+            {saveStatus === 'saved' && <p className="text-xs text-accent">✓ บันทึกอัตโนมัติแล้ว</p>}
+            {saveStatus === 'error' && <p className="text-xs text-red-500">บันทึกอัตโนมัติไม่สำเร็จ</p>}
           </div>
           <PageNavigatorTrigger pages={navPages} currentPage={currentPage} onJump={setCurrentPage} />
         </div>
         {locationUnverifiedMessage && (
-          <p className="mt-2 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-3xs text-amber-700">
+          <p className="mt-2 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700">
             <AlertTriangle size={11} className="shrink-0" />
             {locationUnverifiedMessage}
           </p>
@@ -908,7 +908,7 @@ export default function AuditPage() {
           <div className="mt-2 border-t border-border pt-2">
             <button
               onClick={() => setEditingYearInline((v) => !v)}
-              className="text-3xs font-medium text-muted-foreground underline decoration-dotted"
+              className="text-xs font-medium text-muted-foreground underline decoration-dotted"
             >
               ปีที่ก่อสร้าง: พ.ศ. {effectiveYearBuiltInput || '-'} · แก้ไข (กรณีฉุกเฉิน)
             </button>
@@ -922,7 +922,7 @@ export default function AuditPage() {
                   minBuddhistYear={YEAR_BUILT_MIN}
                   className="mt-1"
                 />
-                <p className="mt-1 text-3xs text-amber-600">
+                <p className="mt-1 text-xs text-amber-600">
                   ⚠ ใช้เฉพาะกรณีจำเป็นเท่านั้น คำตอบบางรายการอาจสูญหายหากไม่มีอยู่ในแบบฟอร์มของปีใหม่
                 </p>
               </div>
@@ -944,7 +944,7 @@ export default function AuditPage() {
         /* Summary page — shared between v1 and v2 (per-group progress list is mode-agnostic) */
         <div className="overflow-hidden rounded-xl bg-white shadow-sm">
           <div className="border-b px-4 py-3">
-            <p className="text-sm font-bold text-gray-900">สรุปผลการตรวจสอบ</p>
+            <p className="text-base font-bold text-gray-900">สรุปผลการตรวจสอบ</p>
             <p className="mt-0.5 text-xs text-gray-500">ตรวจสอบความครบถ้วนก่อนส่งรายงาน</p>
           </div>
           <div className="divide-y">
@@ -959,7 +959,7 @@ export default function AuditPage() {
               return (
                 <div key={g.code}>
                   <div className="flex items-center justify-between px-4 py-3">
-                    <span className="text-sm text-gray-800">{groupDisplayName(g)}</span>
+                    <span className="text-base text-gray-800">{groupDisplayName(g)}</span>
                     <span
                       className={`text-xs font-semibold ${
                         done ? 'text-green-600' : optional ? 'text-gray-400' : 'text-amber-600'
@@ -995,10 +995,10 @@ export default function AuditPage() {
                     className="border-border placeholder:text-muted-foreground focus:ring-ring mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1"
                   />
                 </label>
-                <p className="mt-1 text-right text-3xs text-muted-foreground">{finalThoughts.length}/{FINAL_THOUGHTS_MAX}</p>
+                <p className="mt-1 text-right text-xs text-muted-foreground">{finalThoughts.length}/{FINAL_THOUGHTS_MAX}</p>
               </div>
               <div className="border-t px-4 py-4 space-y-3">
-                <p className="text-sm text-gray-500">
+                <p className="text-base text-gray-500">
                   คะแนน UD (ประมาณ): <span className="font-bold text-gray-900">{score}%</span>
                 </p>
                 <button
@@ -1031,7 +1031,7 @@ export default function AuditPage() {
           return (
             <div className="overflow-hidden rounded-xl bg-white shadow-sm">
               <div className="flex items-center justify-between border-b px-4 py-3">
-                <span className="text-sm font-semibold text-gray-700">{groupDisplayName(group)}</span>
+                <span className="text-base font-semibold text-gray-700">{groupDisplayName(group)}</span>
                 <span className="text-xs text-gray-400">หน้า {currentPage + 1} / {groups.length}</span>
               </div>
               <div className="divide-border divide-y">
@@ -1049,7 +1049,7 @@ export default function AuditPage() {
             <div className="overflow-hidden rounded-xl bg-white shadow-sm">
               <div className="border-b px-4 py-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-gray-700">{groupDisplayName(page.group)}</span>
+                  <span className="text-base font-semibold text-gray-700">{groupDisplayName(page.group)}</span>
                   <span className="text-xs text-gray-400">รายการ {currentPage + 1} / {v2Pages.length}</span>
                 </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">

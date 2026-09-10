@@ -29,7 +29,7 @@ function statusBadge(status: MyChecklistStatus) {
     REJECTED:  { label: 'ถูกตีกลับ', cls: 'bg-red-50 text-red-700' },
   }
   const { label, cls } = map[status]
-  return <span className={`shrink-0 rounded-full px-2 py-0.5 text-3xs font-semibold ${cls}`}>{label}</span>
+  return <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{label}</span>
 }
 
 function modeLabel(mode: string, railSubtype: string | null) {
@@ -71,7 +71,7 @@ export default function MyWorkPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-base font-bold text-foreground">งานของฉัน</h1>
+      <h1 className="text-xl font-bold text-foreground">งานของฉัน</h1>
 
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         {STATUS_TABS.map((t) => (
@@ -90,7 +90,7 @@ export default function MyWorkPage() {
       {isLoading ? (
         <div className="flex justify-center py-10"><Loader2 size={20} className="animate-spin text-muted-foreground" /></div>
       ) : !data || data.data.length === 0 ? (
-        <div className="rounded-xl bg-white p-6 text-center text-sm text-muted-foreground shadow-sm">
+        <div className="rounded-xl bg-white p-6 text-center text-base text-muted-foreground shadow-sm">
           ไม่พบรายการ
         </div>
       ) : (
@@ -109,12 +109,12 @@ export default function MyWorkPage() {
                       other completed work, just visibly marked so they're never mistaken for a
                       real audit. */}
                   {row.isTraining && (
-                    <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-3xs font-semibold text-accent">
+                    <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
                       ฝึกหัด
                     </span>
                   )}
                 </div>
-                <p className="mt-0.5 truncate text-2xs text-muted-foreground">
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
                   {modeLabel(row.station.mode, row.station.railSubtype)}
                   {row.station.line && (
                     <>
@@ -125,19 +125,19 @@ export default function MyWorkPage() {
                   {row.station.province ? ` · ${row.station.province}` : ''}
                 </p>
                 <div className="mt-1 flex items-center gap-2">
-                  <span className="text-3xs text-muted-foreground">{rowDate(row)}</span>
+                  <span className="text-xs text-muted-foreground">{rowDate(row)}</span>
                   {row.status === 'DRAFT' && row.progress && (
-                    <span className="text-3xs font-medium text-primary">
+                    <span className="text-xs font-medium text-primary">
                       {row.progress.answered}/{row.progress.total} ข้อ
                     </span>
                   )}
                   {row.status === 'REJECTED' && (
-                    <span className="flex items-center gap-0.5 text-3xs font-medium text-red-600">
+                    <span className="flex items-center gap-0.5 text-xs font-medium text-red-600">
                       <RotateCcw size={10} /> ต้องแก้ไข
                     </span>
                   )}
                   {(row.status === 'APPROVED' || row.status === 'SUBMITTED') && row.score != null && (
-                    <span className="text-3xs font-medium text-foreground">คะแนน {row.score}%</span>
+                    <span className="text-xs font-medium text-foreground">คะแนน {row.score}%</span>
                   )}
                 </div>
               </div>

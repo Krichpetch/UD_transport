@@ -113,7 +113,7 @@ function ChecklistRow({ item, onToggleFlag, flagPending }: {
 
         {/* Code */}
         <div className="px-3 py-3">
-          <span className="font-mono text-2xs text-muted-foreground bg-secondary rounded px-1.5 py-0.5">
+          <span className="font-mono text-xs text-muted-foreground bg-secondary rounded px-1.5 py-0.5">
             {item.id}
           </span>
         </div>
@@ -121,9 +121,9 @@ function ChecklistRow({ item, onToggleFlag, flagPending }: {
         {/* Label + note (read-only) */}
         <div className="px-3 py-3">
           <div className="flex items-start gap-1.5">
-            <p className="text-sm text-foreground leading-snug">{item.labelTh}</p>
+            <p className="text-base text-foreground leading-snug">{item.labelTh}</p>
             {item.cabinetPriority && (
-              <span className="mt-0.5 shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-3xs font-medium text-amber-700">
+              <span className="mt-0.5 shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700">
                 มติ ครม.
               </span>
             )}
@@ -138,7 +138,7 @@ function ChecklistRow({ item, onToggleFlag, flagPending }: {
         {/* มี — or N/A badge spanning this cell */}
         <div className="flex items-center justify-center py-3">
           {isNA ? (
-            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-3xs font-medium text-gray-400">
+            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-400">
               N/A
             </span>
           ) : (
@@ -189,11 +189,11 @@ function ChecklistRow({ item, onToggleFlag, flagPending }: {
           className="flex w-full items-center justify-center py-3 pr-3 transition-colors hover:bg-orange-50/60 disabled:opacity-50"
         >
           {item.reviewFlag ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-3xs font-medium text-orange-600">
+            <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-600">
               <Flag size={9} fill="currentColor" /> พบปัญหา
             </span>
           ) : (
-            <span className="text-muted-foreground/30 text-3xs">—</span>
+            <span className="text-muted-foreground/30 text-xs">—</span>
           )}
         </button>
 
@@ -237,9 +237,9 @@ function HistoryTab({ stationId, onViewCurrent }: { stationId: string; onViewCur
   return (
     <div className="bg-card border-border overflow-hidden rounded-xl border">
       {isLoading ? (
-        <p className="text-muted-foreground p-8 text-center text-sm">กำลังโหลด…</p>
+        <p className="text-muted-foreground p-8 text-center text-base">กำลังโหลด…</p>
       ) : !data || data.data.length === 0 ? (
-        <p className="text-muted-foreground p-8 text-center text-sm">ไม่มีประวัติการตรวจสอบ</p>
+        <p className="text-muted-foreground p-8 text-center text-base">ไม่มีประวัติการตรวจสอบ</p>
       ) : (
         <>
           <div className="themed-scrollbar overflow-x-auto">
@@ -598,10 +598,10 @@ function StationChecklistPageContent({
   }
 
   if (stationLoading) return (
-    <div className="flex items-center justify-center p-16 text-sm text-muted-foreground">กำลังโหลด…</div>
+    <div className="flex items-center justify-center p-16 text-base text-muted-foreground">กำลังโหลด…</div>
   )
   if (stationError || !station) return (
-    <div className="flex items-center justify-center p-16 text-sm text-red-500">ไม่พบสถานี</div>
+    <div className="flex items-center justify-center p-16 text-base text-red-500">ไม่พบสถานี</div>
   )
 
   const isV1 = checklist?.templateDef?.schemaVersion === 1
@@ -651,7 +651,7 @@ function StationChecklistPageContent({
             <ChevronLeft size={13} /> กลับรายการสถานี
           </Link>
           <h1 className="text-foreground text-xl font-bold">{station.nameTh}</h1>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-base text-muted-foreground">
             <span>ประเภท: <strong className="text-foreground">{station.mode}</strong>
               {station.railSubtype && <> — <strong className="text-foreground">{station.railSubtype}</strong></>}
             </span>
@@ -721,7 +721,7 @@ function StationChecklistPageContent({
 
       {/* ── Body: table + sidebar ── */}
       {pageTab === 'checklist' && !checklist && (
-        <div className="bg-card border-border flex items-center justify-center rounded-xl border p-16 text-sm text-muted-foreground">
+        <div className="bg-card border-border flex items-center justify-center rounded-xl border p-16 text-base text-muted-foreground">
           ยังไม่มีรายงานที่ส่งเข้ามาสำหรับสถานีนี้ (อาจยังไม่มีการตรวจ หรือกำลังกรอกฉบับร่างอยู่)
         </div>
       )}
@@ -767,7 +767,7 @@ function StationChecklistPageContent({
             <>
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <h2 className="text-foreground font-semibold">
+                  <h2 className="text-foreground text-base font-semibold">
                     รายการตรวจสอบสิ่งอำนวยความสะดวก ({station.mode})
                   </h2>
                   <p className="text-muted-foreground text-xs mt-0.5">
@@ -800,7 +800,7 @@ function StationChecklistPageContent({
                     >
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-xs font-bold text-foreground">{group.groupId}</span>
-                        <span className="text-sm font-semibold text-foreground">
+                        <span className="text-base font-semibold text-foreground">
                           {group.groupName.replace(/^\([^)]+\)\s*-?\s*/, '')}
                         </span>
                         <span className="text-muted-foreground text-xs">
@@ -825,7 +825,7 @@ function StationChecklistPageContent({
                             { label: 'หลักฐาน', cls: 'text-center py-2' },
                             { label: 'พบปัญหา', cls: 'text-center py-2 pr-3' },
                           ].map(({ label, cls }) => (
-                            <div key={label} className={`text-muted-foreground text-3xs font-medium uppercase tracking-wide ${cls}`}>
+                            <div key={label} className={`text-muted-foreground text-xs font-medium uppercase tracking-wide ${cls}`}>
                               {label}
                             </div>
                           ))}
@@ -866,7 +866,7 @@ function StationChecklistPageContent({
 
               {currentPage === -1 && (
                 <div className="bg-card border-border rounded-xl border p-5">
-                  <h2 className="text-foreground mb-1 text-sm font-semibold">
+                  <h2 className="text-foreground mb-1 text-base font-semibold">
                     สรุปผลการตรวจสอบ ({station.mode})
                   </h2>
                   <ChecklistSummaryPanel items={items} templateDef={checklist.templateDef} score={summaryScore} size="comfortable" />
@@ -879,7 +879,7 @@ function StationChecklistPageContent({
               )}
               {isV1 && pagerGroup && (
                 <div className="space-y-2">
-                  <span className="block px-1 text-sm font-semibold text-foreground">{groupDisplayName(pagerGroup)}</span>
+                  <span className="block px-1 text-base font-semibold text-foreground">{groupDisplayName(pagerGroup)}</span>
                   <ChecklistAnswerTable
                     nodes={pagerGroup.items}
                     getReviewFlag={getReviewFlag}
@@ -891,7 +891,7 @@ function StationChecklistPageContent({
               {!isV1 && pagerV2 && (
                 <div className="space-y-2">
                   <div className="px-1">
-                    <span className="text-sm font-semibold text-foreground">{groupDisplayName(pagerV2.group)}</span>
+                    <span className="text-base font-semibold text-foreground">{groupDisplayName(pagerV2.group)}</span>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {pagerV2.item.num ? `${pagerV2.item.num}. ` : ''}{pagerV2.item.labelTh}
                     </p>
@@ -930,7 +930,7 @@ function StationChecklistPageContent({
         {/* ── Right: score summary ── */}
         <div className="space-y-4">
           <div className="bg-card border-border sticky top-20 rounded-xl border p-5">
-            <h2 className="text-foreground mb-4 text-sm font-semibold">สรุปผลการตรวจสอบ</h2>
+            <h2 className="text-foreground mb-4 text-base font-semibold">สรุปผลการตรวจสอบ</h2>
 
             {/* Rejected banner — shows admin feedback so it's visible while the auditor's
                 resubmission is still in progress */}

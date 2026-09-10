@@ -136,11 +136,11 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
   }
 
   if (isLoading) {
-    return <div className="text-muted-foreground flex items-center justify-center p-16 text-sm">กำลังโหลด…</div>
+    return <div className="text-muted-foreground flex items-center justify-center p-16 text-base">กำลังโหลด…</div>
   }
   if (error || !data) {
     return (
-      <div className="flex items-center justify-center p-16 text-sm text-red-500">
+      <div className="flex items-center justify-center p-16 text-base text-red-500">
         เกิดข้อผิดพลาด: {(error as Error)?.message ?? 'ไม่สามารถโหลดข้อมูลได้'}
       </div>
     )
@@ -156,7 +156,7 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <TransportBadge type={data.mode} />
-              <span className="text-muted-foreground text-sm">{data.variantKey === 'standard' ? 'มาตรฐาน' : data.variantKey}</span>
+              <span className="text-muted-foreground text-base">{data.variantKey === 'standard' ? 'มาตรฐาน' : data.variantKey}</span>
               <span className="text-foreground text-base font-semibold">เวอร์ชัน {data.version}</span>
               <TemplateStatusBadge status={data.status} />
               {/* 2026-08-05 — same clause as the ฉบับร่าง badge: the activation-gate reason, not a
@@ -168,7 +168,7 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
                 </span>
               )}
             </div>
-            {data.notes && <p className="text-muted-foreground mt-1 truncate text-sm">{data.notes}</p>}
+            {data.notes && <p className="text-muted-foreground mt-1 truncate text-base">{data.notes}</p>}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -267,7 +267,7 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
       </div>
 
       {data.status === 'RETIRED' && (
-        <div className="bg-secondary text-muted-foreground rounded-lg p-3 text-sm">
+        <div className="bg-secondary text-muted-foreground rounded-lg p-3 text-base">
           แบบประเมินนี้เลิกใช้แล้ว — แสดงผลได้อย่างเดียว ไม่มีปุ่มแก้ไข
         </div>
       )}
@@ -314,7 +314,7 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
           <div className={`${DIALOG_HEADER_CLS} -mx-6 -mt-6 mb-4`}>
             <DialogTitle className={DIALOG_TITLE_CLS}>เปิดใช้งานเวอร์ชัน {data.version}?</DialogTitle>
           </div>
-          <div className="space-y-3 text-sm">
+          <div className="space-y-3 text-base">
             <p className="text-muted-foreground">
               การเปิดใช้งานจะเปลี่ยนแบบฟอร์มที่ผู้ตรวจทุกคนของ <TransportBadge type={data.mode} /> (
               {data.variantKey === 'standard' ? 'มาตรฐาน' : data.variantKey}) เห็นในการตรวจครั้งถัดไปทันที
@@ -389,7 +389,7 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
           <div className={`${DIALOG_HEADER_CLS} -mx-6 -mt-6 mb-4`}>
             <DialogTitle className={DIALOG_TITLE_CLS}>แบบร่างที่ได้รับผลกระทบ</DialogTitle>
           </div>
-          <div className="space-y-3 text-sm">
+          <div className="space-y-3 text-base">
             <p className="text-muted-foreground text-xs">
               แบบร่างที่ยังตรวจไม่เสร็จบนแบบประเมินเวอร์ชันอื่นของ <TransportBadge type={data.mode} /> (
               {data.variantKey === 'standard' ? 'มาตรฐาน' : data.variantKey}) หากเปิดใช้งานเวอร์ชัน {data.version} ตอนนี้

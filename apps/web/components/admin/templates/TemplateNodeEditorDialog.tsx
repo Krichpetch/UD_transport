@@ -43,7 +43,7 @@ function GroupProvenanceBanner({
 
   if (isStandalone) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-base text-amber-800">
         <span className="flex items-center gap-1.5">
           <Unlink size={14} /> แยกออกจากกลุ่มแล้ว — แก้ไขแยกจากรายการอื่นโดยเฉพาะ
         </span>
@@ -61,7 +61,7 @@ function GroupProvenanceBanner({
   }
 
   return (
-    <div className="space-y-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+    <div className="space-y-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-base text-blue-800">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="flex items-center gap-1.5">
           <Layers size={14} />
@@ -133,7 +133,7 @@ export function TemplateNodeEditorDialog({
         {node && (
           <>
             <div className={DIALOG_HEADER_CLS}>
-              {breadcrumb.length > 0 && <p className="text-muted-foreground mb-1 text-3xs">{breadcrumb.join(' › ')}</p>}
+              {breadcrumb.length > 0 && <p className="text-muted-foreground mb-1 text-xs">{breadcrumb.join(' › ')}</p>}
               <DialogTitle className={`flex items-center gap-2 ${DIALOG_TITLE_CLS}`}>
                 <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 font-mono text-xs">{node.code}</span>
                 {node.labelTh}
@@ -142,7 +142,7 @@ export function TemplateNodeEditorDialog({
 
             <div className="themed-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4">
               {retired && (
-                <div className="bg-secondary text-muted-foreground rounded-lg p-2.5 text-sm">
+                <div className="bg-secondary text-muted-foreground rounded-lg p-2.5 text-base">
                   แบบประเมินนี้เลิกใช้แล้ว — ดูได้อย่างเดียว ไม่สามารถแก้ไขได้
                 </div>
               )}
@@ -152,7 +152,7 @@ export function TemplateNodeEditorDialog({
 
               {!node.answerType && (
                 <>
-                  <div className="bg-secondary/60 text-muted-foreground rounded-lg p-2.5 text-sm">
+                  <div className="bg-secondary/60 text-muted-foreground rounded-lg p-2.5 text-base">
                     รายการนี้เป็นหมวดหมู่ (ไม่มีคำตอบของตัวเอง) — แนบได้เฉพาะรูปภาพประกอบเท่านั้น
                   </div>
                   <LabelByLawEditor templateId={templateId} node={node} readOnly={retired} />
@@ -171,10 +171,10 @@ export function TemplateNodeEditorDialog({
 
               {(node.measurements ?? []).length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-foreground text-sm font-semibold">เกณฑ์ตัวเลข</p>
+                  <p className="text-foreground text-base font-semibold">เกณฑ์ตัวเลข</p>
 
                   {templateStatus === 'ACTIVE' && !activeAckd && (
-                    <div className="space-y-2 rounded-lg bg-[#ffc107]/10 p-3 text-sm text-[#8a6d00]">
+                    <div className="space-y-2 rounded-lg bg-[#ffc107]/10 p-3 text-base text-[#8a6d00]">
                       <p className="font-semibold">แบบประเมินนี้ &ldquo;ใช้งานอยู่&rdquo; — จะมีผลเมื่อคำนวณคะแนนใหม่</p>
                       <p>
                         มีรายการตรวจสอบที่ผูกกับแบบประเมินนี้อยู่ {stampedChecklistCount.toLocaleString()} รายการ
@@ -220,7 +220,7 @@ export function TemplateNodeEditorDialog({
                   onNodeMoved={onNodeMoved}
                 />
               ) : !retired && (
-                <div className="bg-secondary/60 text-muted-foreground rounded-lg p-2.5 text-sm">
+                <div className="bg-secondary/60 text-muted-foreground rounded-lg p-2.5 text-base">
                   โครงสร้างแก้ไขได้ในเวอร์ชันร่างเท่านั้น — สร้างเวอร์ชันร่างใหม่จากหน้ารายละเอียดแบบประเมินเพื่อแก้ไขโครงสร้าง
                 </div>
               )}

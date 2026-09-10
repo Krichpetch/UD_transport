@@ -88,10 +88,10 @@ function TemplateGroupsContent() {
     setOpenGroups((cur) => ({ ...cur, [id]: !(cur[id] ?? false) }))
   }
 
-  if (isLoading) return <div className="text-muted-foreground flex items-center justify-center p-16 text-sm">กำลังโหลด…</div>
+  if (isLoading) return <div className="text-muted-foreground flex items-center justify-center p-16 text-base">กำลังโหลด…</div>
   if (error || !data) {
     return (
-      <div className="flex items-center justify-center p-16 text-sm text-red-500">
+      <div className="flex items-center justify-center p-16 text-base text-red-500">
         เกิดข้อผิดพลาด: {(error as Error)?.message ?? 'ไม่สามารถโหลดข้อมูลได้'}
       </div>
     )
@@ -110,7 +110,7 @@ function TemplateGroupsContent() {
           </Link>
           <div>
             <h1 className="text-foreground text-xl font-bold">แก้ไขตามกลุ่มสิ่งอำนวยความสะดวก</h1>
-            <p className="text-muted-foreground text-sm">แก้ไขรายการที่ซ้ำกันข้ามแบบประเมินครั้งเดียว แล้วเผยแพร่ไปยังทุกจุดที่ใช้ร่วมกัน — เหมือนหน้าแก้ไขทีละแบบประเมิน แต่แก้ครั้งเดียวได้ทุกจุด</p>
+            <p className="text-muted-foreground text-base">แก้ไขรายการที่ซ้ำกันข้ามแบบประเมินครั้งเดียว แล้วเผยแพร่ไปยังทุกจุดที่ใช้ร่วมกัน — เหมือนหน้าแก้ไขทีละแบบประเมิน แต่แก้ครั้งเดียวได้ทุกจุด</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -206,8 +206,8 @@ function TemplateGroupsContent() {
                 className="bg-secondary/40 hover:bg-secondary/60 flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3 text-left transition-colors"
               >
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className="text-foreground shrink-0 text-sm font-bold">{i + 1}.</span>
-                  <span className="text-foreground text-sm font-semibold">{root.labelTh}</span>
+                  <span className="text-foreground shrink-0 text-base font-bold">{i + 1}.</span>
+                  <span className="text-foreground text-base font-semibold">{root.labelTh}</span>
                   {!root.facilityTagged && (
                     <span className="bg-secondary text-muted-foreground rounded-full px-2 py-0.5 text-xs">ไม่มีหมวดหมู่สิ่งอำนวยความสะดวก</span>
                   )}
@@ -253,7 +253,7 @@ function TemplateGroupsContent() {
                     <TableRow key={child.id} node={child} depth={1} onEdit={setEditing} onDelete={setDeleting} query={normalizedQuery} />
                   ))}
                   {root.children.length === 0 && (
-                    <div className="text-muted-foreground px-4 py-3 text-sm">รายการนี้ไม่มีรายการย่อย</div>
+                    <div className="text-muted-foreground px-4 py-3 text-base">รายการนี้ไม่มีรายการย่อย</div>
                   )}
                 </>
               )}
@@ -273,7 +273,7 @@ function TableHeaderRow() {
   return (
     <div className={`border-border bg-secondary/20 grid ${TABLE_GRID_COLS} border-b`}>
       {['รหัส', 'รายการ', 'โหมดที่ใช้งาน', 'สถานะ', 'การดำเนินการ'].map((label) => (
-        <div key={label} className="text-muted-foreground px-3 py-2 text-3xs font-medium tracking-wide uppercase">
+        <div key={label} className="text-muted-foreground px-3 py-2 text-xs font-medium tracking-wide uppercase">
           {label}
         </div>
       ))}
@@ -319,7 +319,7 @@ function TableRow({
       <div className={`border-border grid ${TABLE_GRID_COLS} items-center border-b last:border-0`}>
         <div className="px-2 py-2.5">
           {representative && (
-            <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 font-mono text-3xs whitespace-nowrap">{representative.nodeCode}</span>
+            <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 font-mono text-xs whitespace-nowrap">{representative.nodeCode}</span>
           )}
         </div>
 
@@ -332,7 +332,7 @@ function TableRow({
             <span className="w-[22px] shrink-0" />
           )}
           <div className="min-w-0 flex-1">
-            <p className="text-foreground text-sm leading-snug">{node.labelTh}</p>
+            <p className="text-foreground text-base leading-snug">{node.labelTh}</p>
             {node.isLeaf && representative && (
               <p className="text-muted-foreground mt-0.5 text-xs">{describeAnswerSpec(representative.answerType, representative.measurements)}</p>
             )}

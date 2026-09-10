@@ -20,7 +20,7 @@ export function LineBadge({ line, className = '' }: { line?: string | null; clas
   const color = getLineColor(line)
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-3xs font-semibold leading-tight ${color ? '' : 'bg-primary/10 text-primary'} ${className}`}
+      className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium leading-tight ${color ? '' : 'bg-primary/10 text-primary'} ${className}`}
       style={color ? { backgroundColor: `${color}1a`, color } : undefined}
     >
       {line}
@@ -277,7 +277,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
             >
               <X size={18} />
             </button>
-            <h2 className="flex-1 text-sm font-semibold text-foreground">เลือกสถานีที่จะตรวจสอบ</h2>
+            <h2 className="flex-1 text-base font-semibold text-foreground">เลือกสถานีที่จะตรวจสอบ</h2>
             {tab === 'search' && !loading && total > 0 && (
               <span className="text-xs text-muted-foreground">{total.toLocaleString()} สถานี</span>
             )}
@@ -422,15 +422,15 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
                   <p className="text-xs text-muted-foreground">กำลังระบุตำแหน่ง…</p>
                 </div>
               ) : nearbyStatus === 'denied' ? (
-                <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+                <p className="px-4 py-10 text-center text-base text-muted-foreground">
                   ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง (GPS) กรุณาเปิดใช้งานแล้วลองใหม่
                 </p>
               ) : nearbyStatus === 'error' ? (
-                <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+                <p className="px-4 py-10 text-center text-base text-muted-foreground">
                   ไม่สามารถระบุตำแหน่งได้ กรุณาลองใหม่อีกครั้ง
                 </p>
               ) : nearbyResults.length === 0 ? (
-                <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+                <p className="px-4 py-10 text-center text-base text-muted-foreground">
                   ไม่พบสถานีในระยะ 1 กม.
                 </p>
               ) : (
@@ -472,7 +472,7 @@ export function StationSearchPicker({ value, selectedStation, onSelect }: Props)
                 <p className="text-xs text-muted-foreground">กำลังโหลด…</p>
               </div>
             ) : results.length === 0 ? (
-              <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+              <p className="px-4 py-10 text-center text-base text-muted-foreground">
                 ไม่พบสถานีที่ตรงกัน
               </p>
             ) : (
