@@ -288,9 +288,19 @@ these exact class strings rather than inventing a new one:
 Focus state everywhere: `ring-3 ring-ring/50` + border color shift. Disabled: `opacity-50`,
 no pointer events. Buttons nudge down 1px on `:active`.
 
-Other available primitives: `input`, `select`, `dialog`, `sheet`, `dropdown-menu`, `alert`,
-`tooltip`, `separator`, `skeleton`, `navigation-menu`, `sidebar`, `password-input`.
-**Prefer `Dialog` over `Sheet`** for editors (established convention — see admin template editor).
+Other available primitives, actually exercised somewhere in the app: `select`, `dialog`,
+`sheet`, `dropdown-menu`, `tooltip`, `sidebar`, `password-input`. **Prefer `Dialog` over
+`Sheet`** for editors (established convention — see admin template editor).
+
+`components/ui/alert.tsx` and `navigation-menu.tsx` are scaffolded but **never rendered
+anywhere** — don't assume they're a proven, styled fit for this app. `input.tsx`,
+`skeleton.tsx`, and `separator.tsx` are similarly dead outside an unused sidebar sub-component.
+Confirm one actually renders correctly before reaching for it, or reach for the hand-rolled
+recipe already used elsewhere (see UDT-73 for the full accounting).
+
+**Confirmation dialogs:** import `ConfirmDialog` (`components/shared/confirm-dialog.tsx`) —
+don't hand-roll another one. It already exists and is styled; a hand-rolled duplicate has
+happened at least twice.
 
 ---
 
