@@ -13,6 +13,12 @@
 - **shadcn/ui only** for primitives (`@/components/ui/`), Lucide for icons. No MUI, no other kits.
 - Both **light and dark** themes must work. Every color you introduce needs a `.dark` value.
 - **No `localStorage`** for UI state (breaks in artifacts / SSR assumptions).
+- **Elevation is hairline-first.** A 1px `border-border` on `bg-card` defines a surface — that's
+  the default (Level 0). Reach for a shadow (`shadow-1`) only when something genuinely _floats_
+  (popover, tooltip, dragged card). Never a heavy drop shadow. See **Elevation & depth**.
+- **The decorative accent palette is decoration only.** The sticker colors (`accent-teal`,
+  `accent-pink`, …) are for dashboard dots / illustration tints / empty-state art — **never** a
+  button, structural fill, or transport-mode badge. See **Decorative accent palette**.
 
 ---
 
@@ -118,9 +124,38 @@ etc. In JS/inline styles use the raw var: `color: 'var(--status-pass)'`.
 
 ### Chart palette (`recharts`)
 
-`--chart-1` navy `#1a3557` · `--chart-2` teal `#0097a7` · `--chart-3` green `#52aa4e` ·
-`--chart-4` amber `#ffc107` · `--chart-5` red `#f44336`. Use in order; they double as the
-status ramp for pass/warn/fail series.
+Two distinct ramps — don't conflate them:
+
+- **Status ramp** (`--status-pass` / `--status-warn` / `--status-fail`, + `--muted-foreground`
+  for N/A) is what every chart uses **today** — pass/warn/fail bars and the checklist donut all
+  read from it, so a slice's color always means the same thing as the same-colored badge.
+- **Categorical ramp** `--chart-1..5` (navy `#1a3557` · teal `#0097a7` · green `#52aa4e` ·
+  amber `#ffc107` · red `#f44336`) is reserved for **non-status** series — e.g. one color per
+  transport mode or agency. It exists and is mapped (`bg-chart-1`, …) but is **not yet used**;
+  reach for it only when a series isn't a pass/warn/fail measure. Use in order.
+
+Full chart chrome rules (gridlines, tooltip, label sizes) live under **Charts & data-viz**.
+
+### Decorative accent palette (สติกเกอร์ — UDT-72)
+
+Borrowed from Notion's playful multi-color "sticker" set, these six add personality to the
+dashboard **without ever structuring it**. They are **decoration only**: category dots,
+illustration/section tints, empty-state art. **Never** a button, CTA, structural fill, focus
+signal, or transport-mode badge — those stay on brand navy/teal (and the per-mode hues in
+`badges.tsx`). Defined in both themes (brighter in `.dark`) and mapped in `@theme inline`.
+
+| Token | Light hex | Typical use |
+| ----- | --------- | ----------- |
+| `--accent-sky` | `#62aef0` | category dot / tint |
+| `--accent-purple` | `#9333ea` | category dot / tint |
+| `--accent-pink` | `#db2777` | category dot / tint |
+| `--accent-orange` | `#dd5b00` | category dot / tint |
+| `--accent-teal` | `#2a9d99` | category dot / tint |
+| `--accent-green` | `#1aae39` | category dot / tint |
+
+Use as utilities: `bg-accent-teal/10`, `text-accent-pink`, a `size-2 rounded-full` dot with
+`style={{ background: 'var(--accent-purple)' }}`, etc. Because they never carry meaning (unlike
+the status ramp), pick them for _variety_, not semantics.
 
 ### Sidebar (dashboard layout)
 
@@ -180,6 +215,26 @@ Badges & pills use `rounded-full`. Buttons default to `rounded-md`.
 
 ---
 
+## Elevation & depth
+
+Depth here is **barely-there** — the app already works this way, this just names the rule.
+
+| Level | Treatment | Use |
+| ----- | --------- | --- |
+| **0 — Flat** | 1px `border-border` on `bg-card`, **no shadow** | the default. Every card, panel, filter bar, KPI tile. |
+| **1 — Soft** (`shadow-1`) | soft multi-layer near-transparent shadow (`--elevation-1`) | genuinely floating surfaces — popovers, tooltips, dropdowns, a dragged card. |
+| **2 — Elevated** (`shadow-2`) | deeper layered stack (`--elevation-2`) | modals / large overlays that must clearly lift off the page. |
+
+- **Default to Level 0.** A hairline is enough to separate a card from the canvas; don't add a
+  shadow just to make something "pop." Reference: the checklist donut's custom tooltip uses
+  `shadow-1` (`components/charts/ChecklistItemPieChart.tsx`) — that's the intended Level-1 look.
+- Shadows are built from several **near-transparent** layers (Notion-style), never one hard cast.
+  Use the tokens (`shadow-1` / `shadow-2`); don't hand-roll `shadow-lg` / `shadow-xl`.
+- **Dark mode** separates surfaces with border + a lighter `bg-card`, not shadow — the dark
+  `--elevation-*` values are deliberately faint. Depth in dark comes from the surface step.
+
+---
+
 ## Spacing & layout
 
 - **Spacing scale:** Tailwind default 4px step. Common gaps: `gap-1.5` (chrome), `gap-2`/`gap-3`
@@ -193,17 +248,42 @@ Badges & pills use `rounded-full`. Buttons default to `rounded-md`.
 - **Sticky headers:** `sticky top-0 z-30` + `backdrop-blur` + translucent `bg-card/80`.
 - **Scrollbars:** add class `themed-scrollbar` to on-theme scroll containers (thin, rounded,
   muted thumb) — see `globals.css`.
+- **Canonical card:** there is no shared `<Card>` component (yet) — cards are built inline, so
+  keep the recipe consistent: outer card `bg-card border-border rounded-xl border p-5`; nested
+  sub-cards `border-border rounded-lg border p-3` (or `px-4`). Always `bg-card` + hairline, never
+  a shadow at rest (see **Elevation & depth**). Don't invent per-card padding/radius, and never
+  paint a card with inline hex — use the semantic tokens.
+- **KPI / stat cards** — two legitimate recipes, pick by whether the number needs a status color:
+  the **big tile** (`bg-card border-border rounded-xl border p-5`, icon chip
+  `rounded-lg p-1.5 bg-{token}/10` + `text-{token}` icon, label `text-muted-foreground text-xs
+  font-medium uppercase tracking-wide`, number `text-3xl font-bold`) for dashboard/overview
+  KPIs; the plain **`StatCard`** (`components/shared/StatCard.tsx` — `rounded-lg p-4`, no icon,
+  `text-2xl font-bold`) for a smaller summary row with no icon/status meaning. Import
+  `StatCard`, don't re-copy its markup.
+- **Whitespace is the grouping device.** Separate sections with space (`space-y-6` between major
+  blocks, `gap-4` in grids), not heavy rules. Where a divider is needed, prefer a hairline
+  (`divide-border divide-y`, `border-b`) over a boxed border. Let cards breathe on the canvas
+  rather than crowding them — airy and scannable beats dense and framed.
 
 ---
 
 ## Component primitives
 
-Buttons come from `components/ui/button.tsx` (CVA variants). Use these, don't reinvent:
+`components/ui/button.tsx` exists (CVA variants — `default`/`outline`/`secondary`/`ghost`/
+`destructive`/`link`, sizes `default`/`xs`/`sm`/`lg`/`icon*`) but in practice almost every
+button in the app is a hand-rolled `<button className="...">`, not this component — so
+"consistent" means matching the recipe below, not passing a `variant`/`size` prop. **New
+code should still prefer importing `Button`** where reasonable; where it isn't, copy one of
+these exact class strings rather than inventing a new one:
 
-**Variants:** `default` (primary navy) · `outline` · `secondary` · `ghost` · `destructive`
-(red tint, not solid red) · `link`.
-**Sizes:** `default` (h-9) · `xs` (h-6) · `sm` (h-8) · `lg` (h-10) · `icon` / `icon-xs` /
-`icon-sm` / `icon-lg`.
+| Role | Recipe |
+| ---- | ------ |
+| Primary CTA (save/submit, inline) | `bg-primary text-primary-foreground flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium` |
+| Primary CTA (small, field-level save) | `bg-primary text-primary-foreground flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium` |
+| Outline / Cancel / Close | `border-border rounded-lg border px-4 py-2 text-sm font-medium` |
+| Chrome icon button (navbar, audit header) | `rounded-lg border p-1.5` + `border-border text-muted-foreground hover:bg-secondary hover:text-foreground` |
+| Pagination prev/next | `border-border hover:bg-secondary rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:opacity-40` |
+| Table row action (edit/approve) | `rounded-lg px-3 py-1.5 text-xs` (outline or tinted per action's semantics) |
 
 Focus state everywhere: `ring-3 ring-ring/50` + border color shift. Disabled: `opacity-50`,
 no pointer events. Buttons nudge down 1px on `:active`.
@@ -214,10 +294,70 @@ Other available primitives: `input`, `select`, `dialog`, `sheet`, `dropdown-menu
 
 ---
 
+## Navigation & active state
+
+The current page must always be visible in nav chrome — never rely on hover alone.
+
+- **Sidebar** (`components/sidebar/AppSidebar.tsx`): pass `isActive` to `SidebarMenuButton`,
+  computed from `usePathname()` (exact match or a sub-path). The primitive already renders the
+  active look (`data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground`) —
+  it only needs the prop.
+- **Audit-layout header tabs** (`app/(audit-layout)/layout.tsx`): chrome icon links use
+  `--accent` (documented above as "highlights, active nav, focus accents") for the active
+  state — `border-accent/30 bg-accent/10 text-accent` — vs. the default neutral outline.
+- Route-matching helper: active on `pathname === href || pathname.startsWith(href + '/')`, so
+  a detail sub-route still lights up its parent nav item.
+
+---
+
+## Tables
+
+No shared `<Table>` component — every table is hand-built, so matching this recipe is what
+"consistent" means here. Outer wrapper is the canonical card (`bg-card border-border
+rounded-xl border`, optionally `themed-scrollbar overflow-x-auto` for a wide table).
+
+- **Header row:** `border-border bg-secondary/30 border-b`, cells
+  `text-muted-foreground px-3 py-2/2.5/3 text-left text-xs font-medium uppercase tracking-wide`.
+  Always give the header a bottom border — never bg-only or border-only.
+- **Body rows:** `border-border border-b last:border-0` (or `tbody.divide-border.divide-y` —
+  pick one per table, don't mix) + `hover:bg-secondary/30 transition-colors` if the row is
+  interactive. A non-interactive row skips the hover, not the divider.
+- **Score/status color:** never re-derive the pass/warn/fail threshold inline — import
+  `statusColor` from `components/checklist/ChecklistSummaryPanel.tsx` (`score >= 75` pass,
+  `>= 50` warn, else fail) and use `style={{ color: statusColor(score) }}`.
+- **Pagination:** see the button recipe table above — every pager uses the same prev/next class
+  string, whatever the page's own copy for the item-count label.
+
+---
+
 ## Icons
 
 `lucide-react` only. Default size ~16px (`size-4` via button styles); in mobile chrome, icons
 are set explicitly `size={13–15}`. Keep icon size consistent within a cluster.
+
+---
+
+## Charts & data-viz
+
+`recharts` only. Charts carry the same **quiet chrome** as the rest of the UI — the data is the
+figure, the frame recedes. The two shipped charts (`components/charts/StationBarChart.tsx`,
+`ChecklistItemPieChart.tsx`) are the reference implementations.
+
+- **Color:** fills come from tokens, never hex. Status series use the **status ramp**
+  (`var(--status-pass/warn/fail)`, `var(--muted-foreground)` for N/A); a same-colored slice and
+  badge must always mean the same thing. Non-status/categorical series use `--chart-1..5`.
+- **Gridlines:** hairline only — `<CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />`.
+  Drop axis lines and tick lines (`axisLine={false} tickLine={false}`); the numbers carry the axis.
+- **Text floor:** tick, legend, and tooltip text is **≥12px** (`fontSize: 12`) — the same 12px
+  floor as everywhere else (UDT-69). Never smaller, even in a dense chart.
+- **Tooltip:** prefer a small custom tooltip matching card chrome —
+  `bg-card border-border rounded-lg border px-2.5 py-1.5 text-xs shadow-1`, with a
+  `size-2 rounded-full` color dot next to the label (see `SliceTooltip`). It floats, so it earns
+  its `shadow-1` (Level 1).
+- **Legend:** for **many small repeated charts** (e.g. a ranked list of donuts), render **one**
+  shared legend above the list rather than a legend per chart — see the exported `HistogramLegend`.
+- **Shape:** bars round their top corners (`radius={[4,4,0,0]}`); donuts use an inner radius
+  (`innerRadius="45%"`) with a small `paddingAngle`. Keep it restrained — no heavy 3D/gradients.
 
 ---
 
@@ -236,8 +376,15 @@ and translucent white borders (`rgba(255,255,255,0.1)`).
 - Reach for a semantic Tailwind class (`bg-card`, `text-muted-foreground`) first.
 - Add new shared colors as tokens in `globals.css` (both themes) + map in `@theme inline`.
 - Keep Thai copy; respect role-based read-only rules (EXECUTIVE and admin station page).
+- Use the canonical card recipe and let hairlines + whitespace do the layout work.
+- Keep chart text ≥12px and chart fills on the status/`--chart` tokens.
+- Pull from the decorative accent palette for _decoration_ — dashboard dots, tints, empty states.
 
 **Don't**
 - Hardcode hex in components (existing badge hexes are legacy — don't add more).
 - Add a `tailwind.config`, install UI libs, or use non-shipped font weights.
 - Break the transport-mode / status color conventions above.
+- Paint a CTA, structural fill, or mode badge in an accent-palette (sticker) color.
+- Drop a heavy shadow (`shadow-lg`/`shadow-xl`) — use `shadow-1`/`shadow-2`, and only when a
+  surface truly floats. A card at rest is a hairline, not a shadow.
+- Set chart tick/legend/tooltip text below 12px.

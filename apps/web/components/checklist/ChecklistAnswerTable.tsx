@@ -172,7 +172,7 @@ function AnswerRow({
     <>
       <tr
         data-code={node.code}
-        className={`${hasDetail && !collapsed ? '' : 'border-b border-border last:border-0'} align-top transition-colors ${reviewFlag ? 'bg-orange-50/40' : ''}`}
+        className={`${hasDetail && !collapsed ? '' : 'border-b border-border last:border-0'} align-top transition-colors ${reviewFlag ? 'bg-orange-50/40' : 'hover:bg-secondary/30'}`}
       >
         <td className="px-3 py-3 whitespace-nowrap" style={{ paddingLeft: indentPx }}>
           <div className="flex items-center gap-1.5">
@@ -324,7 +324,7 @@ export function ChecklistAnswerTable({ nodes, getReviewFlag, onToggleFlag, isFla
     <div className="themed-scrollbar overflow-x-auto rounded-xl border border-border bg-card">
       <table className="w-full min-w-[720px] text-sm">
         <thead>
-          <tr className="border-b border-border bg-secondary/20">
+          <tr className="border-b border-border bg-secondary/30">
             {HEADERS.map((h) => (
               <th key={h} className="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {h}

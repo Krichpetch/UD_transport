@@ -8,6 +8,7 @@ import { useGroupsByLaw } from '@/hooks/use-facility-groups'
 import { ClassificationBadge, ConflictBadge } from '@/components/admin/templates/GroupedItemBadges'
 import { InstanceBreakdownChips } from '@/components/admin/templates/InstanceBreakdownChips'
 import { GroupedItemEditDialog } from '@/components/admin/templates/GroupedItemEditDialog'
+import { StatCard } from '@/components/shared/StatCard'
 import { describeAnswerSpec } from '@/lib/template-format'
 import { INPUT_CLS } from '@/lib/ui-classes'
 import { GROUPED_EDITOR_VERSION, type GroupNodeRow, type LawGroupRow } from '@/lib/api/facility-groups'
@@ -156,15 +157,6 @@ function TemplateLawsContent() {
   )
 }
 
-function StatCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="bg-card border-border rounded-lg border p-4">
-      <p className="text-muted-foreground text-xs uppercase">{label}</p>
-      <p className="text-foreground text-2xl font-bold">{value}</p>
-    </div>
-  )
-}
-
 function LawSection({
   section,
   isOpen,
@@ -230,7 +222,7 @@ function LawSection({
 
 function TableHeaderRow() {
   return (
-    <div className={`border-border bg-secondary/20 grid ${TABLE_GRID_COLS} border-b`}>
+    <div className={`border-border bg-secondary/30 grid ${TABLE_GRID_COLS} border-b`}>
       {['รหัส', 'รายการ', 'สถานะ', 'การดำเนินการ'].map((label) => (
         <div key={label} className="text-muted-foreground px-3 py-2 text-xs font-medium tracking-wide uppercase">
           {label}
@@ -245,7 +237,7 @@ function TableHeaderRow() {
 function LawItemRow({ item, onEdit }: { item: GroupNodeRow; onEdit: (n: GroupNodeRow) => void }) {
   const representative = item.instances[0]
   return (
-    <div className={`border-border grid ${TABLE_GRID_COLS} items-center border-b last:border-0`}>
+    <div className={`border-border hover:bg-secondary/30 grid ${TABLE_GRID_COLS} items-center border-b transition-colors last:border-0`}>
       <div className="px-2 py-2.5">
         {representative && (
           <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 font-mono text-xs whitespace-nowrap">{representative.nodeCode}</span>

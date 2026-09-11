@@ -81,7 +81,7 @@ export function LabelByLawEditor({ templateId, node, readOnly }: { templateId: s
                     body: { lawCode, entry: { labelTh: draft.labelTh, sourceText: draft.sourceText || undefined } },
                   })
                 }
-                className="bg-primary text-primary-foreground mt-1.5 flex items-center gap-1 rounded px-2 py-1 text-xs font-medium disabled:opacity-50"
+                className="bg-primary text-primary-foreground mt-1.5 flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
               >
                 {editLabelByLaw.isPending ? <Loader2 size={10} className="animate-spin" /> : null}
                 บันทึกข้อความตามกฎหมายนี้

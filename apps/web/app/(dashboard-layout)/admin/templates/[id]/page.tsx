@@ -15,6 +15,7 @@ import { ApiError } from '@/lib/api'
 import { DIALOG_HEADER_CLS, DIALOG_TITLE_CLS } from '@/lib/ui-classes'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { TransportBadge } from '@/components/shared/badges'
+import { StatCard } from '@/components/shared/StatCard'
 import { TemplateStatusBadge } from '@/components/admin/templates/TemplateStatusBadge'
 import { TemplateTree } from '@/components/admin/templates/TemplateTree'
 import { TemplateNodeEditorDialog } from '@/components/admin/templates/TemplateNodeEditorDialog'
@@ -239,31 +240,18 @@ function TemplateDetailContent({ params }: { params: Promise<{ id: string }> }) 
       )}
 
       <div className="grid gap-3 sm:grid-cols-5">
-        <div className="bg-card border-border rounded-lg border p-4">
-          <p className="text-muted-foreground text-xs uppercase">รายการ</p>
-          <p className="text-foreground text-2xl font-bold">{data.summary.itemCount}</p>
-        </div>
-        <div className="bg-card border-border rounded-lg border p-4">
-          <p className="text-muted-foreground text-xs uppercase">จุดตรวจ (leaves)</p>
-          <p className="text-foreground text-2xl font-bold">{data.summary.leafCount}</p>
-        </div>
-        <div className="bg-card border-border rounded-lg border p-4">
-          <p className="text-muted-foreground text-xs uppercase">เกณฑ์ตัวเลข ยืนยันแล้ว</p>
-          <p className="text-foreground text-2xl font-bold">
-            {data.summary.confirmedCount}/{data.summary.measurementCount}
-          </p>
-        </div>
-        <div className="bg-card border-border rounded-lg border p-4">
-          <p className="text-muted-foreground text-xs uppercase">รายการตรวจที่ผูกกับแบบประเมินนี้</p>
-          <p className="text-foreground text-2xl font-bold">{data.stampedChecklistCount}</p>
-        </div>
-        {/* Session S3b, Part D.3 — coverage indicator: tagged vs untagged lawRefs, live. */}
-        <div className="bg-card border-border rounded-lg border p-4">
-          <p className="text-muted-foreground text-xs uppercase">ระบุข้อยกเว้นทางกฎหมายแล้ว</p>
-          <p className="text-foreground text-2xl font-bold">
-            {data.summary.lawRefsTaggedCount}/{data.summary.lawRefsTaggedCount + data.summary.lawRefsUntaggedCount}
-          </p>
-        </div>
+        <StatCard label="รายการ" value={data.summary.itemCount} />
+        <StatCard label="จุดตรวจ (leaves)" value={data.summary.leafCount} />
+        <StatCard
+          label="เกณฑ์ตัวเลข ยืนยันแล้ว"
+          value={`${data.summary.confirmedCount}/${data.summary.measurementCount}`}
+        />
+        <StatCard label="รายการตรวจที่ผูกกับแบบประเมินนี้" value={data.stampedChecklistCount} />
+        {/* coverage indicator: tagged vs untagged lawRefs, live */}
+        <StatCard
+          label="ระบุข้อยกเว้นทางกฎหมายแล้ว"
+          value={`${data.summary.lawRefsTaggedCount}/${data.summary.lawRefsTaggedCount + data.summary.lawRefsUntaggedCount}`}
+        />
       </div>
 
       {data.status === 'RETIRED' && (

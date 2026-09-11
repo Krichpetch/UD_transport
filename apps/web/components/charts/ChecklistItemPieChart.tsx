@@ -39,7 +39,7 @@ function SliceTooltip({ active, payload }: { active?: boolean; payload?: SliceTo
   if (!entry) return null
   const color = entry.payload?.color ?? entry.color
   return (
-    <div className="bg-card border-border rounded-lg border px-2.5 py-1.5 text-xs shadow-lg">
+    <div className="bg-card border-border rounded-lg border px-2.5 py-1.5 text-xs shadow-1">
       <div className="flex items-center gap-1.5">
         <span className="size-2 shrink-0 rounded-full" style={{ background: color }} />
         <span className="text-foreground font-medium">{entry.name}</span>
@@ -87,7 +87,7 @@ export function ChecklistItemPieChart({
           {slices.map(s => <Cell key={s.name} fill={s.color} />)}
         </Pie>
         <Tooltip content={<SliceTooltip />} />
-        {showLegend && <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} iconType="circle" iconSize={8} />}
+        {showLegend && <Legend wrapperStyle={{ fontSize: 12, paddingTop: 4 }} iconType="circle" iconSize={8} />}
       </PieChart>
     </ResponsiveContainer>
   )

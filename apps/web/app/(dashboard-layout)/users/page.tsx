@@ -36,11 +36,11 @@ function RoleBadge({ role }: { role: UserRole }) {
 
 function ActiveBadge({ isActive }: { isActive: boolean }) {
   return isActive ? (
-    <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+    <span className="bg-status-pass/10 text-status-pass inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
       ใช้งานอยู่
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+    <span className="bg-secondary text-muted-foreground inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
       ปิดใช้งาน
     </span>
   )

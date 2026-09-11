@@ -94,7 +94,7 @@ function GroupedItemEditDialogContent({ version, item, onClose }: { version: num
         </div>
 
         <div className="border-border shrink-0 border-t px-6 py-4">
-          <button type="button" onClick={onClose} className="bg-primary text-primary-foreground w-full rounded-lg py-2 text-sm font-medium">
+          <button type="button" onClick={onClose} className="border-border w-full rounded-lg border px-4 py-2 text-sm font-medium">
             ปิด
           </button>
         </div>

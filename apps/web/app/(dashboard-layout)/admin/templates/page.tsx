@@ -135,7 +135,7 @@ function TemplatesAdminContent() {
                           <div className="mt-1.5">
                             <div className="bg-secondary h-1 w-full overflow-hidden rounded-full">
                               <div
-                                className="h-full rounded-full bg-[#52aa4e] transition-all"
+                                className="bg-status-pass h-full rounded-full transition-all"
                                 style={{ width: `${Math.round((row.summary.confirmedCount / row.summary.measurementCount) * 100)}%` }}
                               />
                             </div>
