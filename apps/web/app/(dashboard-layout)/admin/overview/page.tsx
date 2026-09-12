@@ -57,6 +57,46 @@ function IconChip({ icon: Icon, accent }: { icon: LucideIcon; accent: Accent }) 
   )
 }
 
+// Whole days a submission has been waiting; drives the queue's oldest-first sort + escalation pill.
+function daysWaiting(iso: string | null): number | null {
+  if (!iso) return null
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000))
+}
+
+function AgingPill({ iso }: { iso: string | null }) {
+  const days = daysWaiting(iso)
+  if (days === null) return <span className="text-muted-foreground text-xs">—</span>
+  const tone =
+    days >= 7
+      ? 'bg-status-fail/10 text-status-fail'
+      : days >= 3
+        ? 'bg-status-warn/10 text-status-warn-foreground'
+        : 'bg-secondary text-muted-foreground'
+  return (
+    <span
+      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}
+      title={new Date(iso as string).toLocaleDateString('th-TH')}
+    >
+      {days === 0 ? 'วันนี้' : `รอมา ${days} วัน`}
+    </span>
+  )
+}
+
+// Header count pill; hidden at zero so a cleared queue reads as done, not "0".
+function QueueCount({ count, tone }: { count: number; tone: string }) {
+  if (count === 0) return null
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}>{count}</span>
+}
+
+function AllClear({ label }: { label: string }) {
+  return (
+    <div className="text-muted-foreground flex flex-col items-center gap-2 p-8 text-xs">
+      <CheckCircle2 size={22} className="text-status-pass" />
+      {label}
+    </div>
+  )
+}
+
 export default function AdminOverviewPage() {
   return (
     <RequireRole roles={['ADMIN']}>
@@ -102,6 +142,13 @@ function AdminOverviewContent() {
   const barPct = (n: number) => (total > 0 ? (n / total) * 100 : 0)
 
   const overviewKeys = ['submissionsLast7Days', 'approximateOrPendingCoords', 'activeAuditors7d']
+
+  // Oldest-waiting first so the most overdue review sits at the top of the queue; nulls last.
+  const pendingSorted = [...data.pendingReviewsList].sort(
+    (a, b) =>
+      (a.submittedAt ? new Date(a.submittedAt).getTime() : Infinity) -
+      (b.submittedAt ? new Date(b.submittedAt).getTime() : Infinity),
+  )
 
   return (
     <div className="space-y-6">
@@ -229,16 +276,22 @@ function AdminOverviewContent() {
       <div className="grid gap-4 lg:grid-cols-2">
         <div id="pending-queue" className="bg-card border-border rounded-xl border">
           <div className="border-border flex items-center justify-between border-b px-5 py-3">
-            <h2 className="text-foreground text-base font-semibold">งานที่รอการอนุมัติ</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-foreground text-base font-semibold">งานที่รอการอนุมัติ</h2>
+              <QueueCount
+                count={data.pendingReviewsList.length}
+                tone="bg-status-warn/10 text-status-warn-foreground"
+              />
+            </div>
             <Link href="/stations" className="text-accent text-xs hover:underline">
               ดูทั้งหมด →
             </Link>
           </div>
           <div className="themed-scrollbar max-h-80 overflow-y-auto">
-            {data.pendingReviewsList.length === 0 ? (
-              <p className="text-muted-foreground p-5 text-xs">ไม่มีรายการรอการอนุมัติ</p>
+            {pendingSorted.length === 0 ? (
+              <AllClear label="ไม่มีงานรอการอนุมัติในขณะนี้" />
             ) : (
-              data.pendingReviewsList.map((row) => (
+              pendingSorted.map((row) => (
                 <Link
                   key={row.checklistId}
                   href={`/stations/${row.stationId}`}
@@ -249,9 +302,7 @@ function AdminOverviewContent() {
                     <p className="text-muted-foreground truncate">ผู้ตรวจ: {row.auditorUsername}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <span className="text-muted-foreground">
-                      {row.submittedAt ? new Date(row.submittedAt).toLocaleDateString('th-TH') : '—'}
-                    </span>
+                    <AgingPill iso={row.submittedAt} />
                     <ChevronRight size={14} className="text-muted-foreground" />
                   </div>
                 </Link>
@@ -262,14 +313,20 @@ function AdminOverviewContent() {
 
         <div id="rejected-queue" className="bg-card border-border rounded-xl border">
           <div className="border-border flex items-center justify-between border-b px-5 py-3">
-            <h2 className="text-foreground text-base font-semibold">รายงานที่ถูกปฏิเสธ รอส่งใหม่</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-foreground text-base font-semibold">รายงานที่ถูกปฏิเสธ รอส่งใหม่</h2>
+              <QueueCount
+                count={data.returnedWorkList.length}
+                tone="bg-status-fail/10 text-status-fail"
+              />
+            </div>
             <Link href="/stations" className="text-accent text-xs hover:underline">
               ดูทั้งหมด →
             </Link>
           </div>
           <div className="themed-scrollbar max-h-80 overflow-y-auto">
             {data.returnedWorkList.length === 0 ? (
-              <p className="text-muted-foreground p-5 text-xs">ไม่มีรายการที่ถูกปฏิเสธ</p>
+              <AllClear label="ไม่มีรายงานที่ถูกปฏิเสธ" />
             ) : (
               data.returnedWorkList.map((row) => (
                 <Link
