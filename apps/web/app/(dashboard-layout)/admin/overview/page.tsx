@@ -91,7 +91,7 @@ function AdminOverviewContent() {
                 <Link
                   key={row.checklistId}
                   href={`/stations/${row.stationId}`}
-                  className="border-border hover:bg-secondary/40 flex items-center justify-between border-b px-5 py-3 text-xs transition-colors last:border-0"
+                  className="border-border hover:bg-secondary/30 flex items-center justify-between border-b px-5 py-3 text-xs transition-colors last:border-0"
                 >
                   <div className="min-w-0">
                     <p className="text-foreground truncate font-medium">{row.stationNameTh}</p>
@@ -121,7 +121,7 @@ function AdminOverviewContent() {
                 <Link
                   key={`${row.stationId}-${row.auditorUsername}`}
                   href={`/stations/${row.stationId}`}
-                  className="border-border hover:bg-secondary/40 flex items-center justify-between gap-3 border-b px-5 py-3 text-xs transition-colors last:border-0"
+                  className="border-border hover:bg-secondary/30 flex items-center justify-between gap-3 border-b px-5 py-3 text-xs transition-colors last:border-0"
                 >
                   <div className="min-w-0">
                     <p className="text-foreground truncate font-medium">{row.stationNameTh}</p>

@@ -21,7 +21,7 @@ import {
   Eye,
 } from 'lucide-react'
 import { ChecklistPhotoGallery } from '@/components/checklist/ChecklistPhotoGallery'
-import { ChecklistSummaryPanel } from '@/components/checklist/ChecklistSummaryPanel'
+import { ChecklistSummaryPanel, statusColor } from '@/components/checklist/ChecklistSummaryPanel'
 import { ChecklistAnswerTable } from '@/components/checklist/ChecklistAnswerTable'
 import { PageNavigatorTrigger, type NavigatorPage } from '@/components/audit/PageNavigator'
 import { useAuditFormStore } from '@/stores/audit-form.store'
@@ -80,7 +80,7 @@ function ScoreCircle({ score }: { score: number }) {
   const r = 52
   const circ = 2 * Math.PI * r
   const offset = circ * (1 - score / 100)
-  const color = score >= 75 ? '#52aa4e' : score >= 50 ? '#ffc107' : '#f44336'
+  const color = statusColor(score)
   return (
     <div className="flex flex-col items-center gap-1">
       <svg width="128" height="128" viewBox="0 0 128 128">
@@ -205,10 +205,10 @@ function ChecklistRow({ item, onToggleFlag, flagPending }: {
 // ─── Checklist status badge (Checklist.status, distinct domain from Station's StatusBadge) ───
 function ChecklistStatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    DRAFT: 'bg-gray-100 text-gray-500',
-    SUBMITTED: 'bg-amber-100 text-amber-700',
-    APPROVED: 'bg-green-100 text-green-700',
-    REJECTED: 'bg-red-100 text-red-700',
+    DRAFT: 'bg-secondary text-muted-foreground',
+    SUBMITTED: 'bg-status-warn/10 text-status-warn-foreground',
+    APPROVED: 'bg-status-pass/10 text-status-pass',
+    REJECTED: 'bg-status-fail/10 text-status-fail',
   }
   const label: Record<string, string> = {
     DRAFT: 'แบบร่าง',
@@ -274,7 +274,12 @@ function HistoryTab({ stationId, onViewCurrent }: { stationId: string; onViewCur
                           )}
                         </td>
                         <td className="px-3 py-3"><ChecklistStatusBadge status={cl.status} /></td>
-                        <td className="px-3 py-3 text-right font-semibold">{cl.score ?? '—'}</td>
+                        <td
+                          className="px-3 py-3 text-right font-semibold"
+                          style={cl.score != null ? { color: statusColor(cl.score) } : undefined}
+                        >
+                          {cl.score ?? '—'}
+                        </td>
                         <td className="px-3 py-3 text-muted-foreground">
                           {cl.submittedAt ? new Date(cl.submittedAt).toLocaleString('th-TH') : '—'}
                         </td>
@@ -307,14 +312,14 @@ function HistoryTab({ stationId, onViewCurrent }: { stationId: string; onViewCur
                 <button
                   onClick={() => setPage((p) => p - 1)}
                   disabled={page === 1}
-                  className="border-border rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:opacity-40"
+                  className="border-border hover:bg-secondary rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:opacity-40"
                 >
                   ก่อนหน้า
                 </button>
                 <button
                   onClick={() => setPage((p) => p + 1)}
                   disabled={page >= data.totalPages}
-                  className="border-border rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:opacity-40"
+                  className="border-border hover:bg-secondary rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:opacity-40"
                 >
                   ถัดไป
                 </button>
@@ -1050,10 +1055,10 @@ function StationChecklistPageContent({
               {[
                 { label: 'จำนวนรายการ (ไม่รวม N/A)', value: facility.total,          color: 'text-foreground' },
                 { label: 'จำนวนรายการที่มีสิ่งอำนวยฯ', value: facility.hasItem,        color: 'text-blue-600' },
-                { label: 'จำนวนรายการที่ได้มาตรฐาน',   value: facility.meetsStandard,  color: 'text-[#52aa4e]' },
-                { label: 'ร้อยละความสำเร็จ',             value: `${pctSuccess}%`,       color: 'text-[#52aa4e]' },
+                { label: 'จำนวนรายการที่ได้มาตรฐาน',   value: facility.meetsStandard,  color: 'text-status-pass' },
+                { label: 'ร้อยละความสำเร็จ',             value: `${pctSuccess}%`,       color: 'text-status-pass' },
                 { label: 'ร้อยละการจัดให้มีสิ่งอำนวยฯ', value: `${pctHasFacility}%`,   color: 'text-blue-600' },
-                { label: 'ร้อยละการได้มาตรฐาน',          value: `${pctMeetsStandard}%`, color: 'text-[#52aa4e]' },
+                { label: 'ร้อยละการได้มาตรฐาน',          value: `${pctMeetsStandard}%`, color: 'text-status-pass' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="flex items-center justify-between">
                   <span className="text-muted-foreground">{label}</span>
@@ -1064,7 +1069,7 @@ function StationChecklistPageContent({
               {/* Secondary counts */}
               <div className="border-t border-border pt-2.5 space-y-2">
                 {[
-                  { label: 'ไม่มี',            value: maiMiCount, color: 'text-[#f44336]' },
+                  { label: 'ไม่มี',            value: maiMiCount, color: 'text-status-fail' },
                   { label: 'ไม่เกี่ยวข้อง (N/A)', value: naCount,    color: 'text-gray-400' },
                   ...(flaggedCount > 0 ? [{ label: 'พบปัญหา', value: flaggedCount, color: 'text-orange-500' }] : []),
                 ].map(({ label, value, color }) => (

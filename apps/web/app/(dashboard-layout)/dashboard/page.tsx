@@ -7,6 +7,7 @@ import {
   useCabinetApprovedIds, useIssueSummary,
 } from '@/hooks/use-stations'
 import { StatusBadge, TransportBadge } from '@/components/shared/badges'
+import { statusColor } from '@/components/checklist/ChecklistSummaryPanel'
 import type { TransportMode, ChecklistSubItem, Station } from '@repo/types'
 import { TRANSPORT_MODES, UNSPECIFIED_REGION, RESPONSIBLE_AGENCIES, classifyAgency } from '@repo/types'
 import { StationBarChart } from '@/components/charts/StationBarChart'
@@ -423,13 +424,13 @@ export default function DashboardPage() {
             <div className="bg-card border-border rounded-xl border p-5">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">ผ่านมาตรฐาน</p>
-                <div className="rounded-lg bg-[#52aa4e]/10 p-1.5">
-                  <CheckCircle2 size={14} className="text-[#52aa4e]" />
+                <div className="rounded-lg bg-status-pass/10 p-1.5">
+                  <CheckCircle2 size={14} className="text-status-pass" />
                 </div>
               </div>
-              <p className="text-3xl font-bold text-[#52aa4e]">{mapNodesLoading ? '…' : kpi.passing.toLocaleString()}</p>
+              <p className="text-3xl font-bold text-status-pass">{mapNodesLoading ? '…' : kpi.passing.toLocaleString()}</p>
               <div className="mt-1 flex items-center gap-1">
-                <TrendingUp size={11} className="text-[#52aa4e]" />
+                <TrendingUp size={11} className="text-status-pass" />
                 <p className="text-muted-foreground text-xs">{mapNodesLoading ? '…' : `${kpi.passRate}%`} ของทั้งหมด</p>
               </div>
             </div>
@@ -437,24 +438,24 @@ export default function DashboardPage() {
             <div className="bg-card border-border rounded-xl border p-5">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">ต้องปรับปรุง</p>
-                <div className="rounded-lg bg-[#ffc107]/10 p-1.5">
-                  <AlertTriangle size={14} className="text-[#ffc107]" />
+                <div className="rounded-lg bg-status-warn/10 p-1.5">
+                  <AlertTriangle size={14} className="text-status-warn" />
                 </div>
               </div>
-              <p className="text-3xl font-bold text-[#ffc107]">{mapNodesLoading ? '…' : kpi.needsImprovement.toLocaleString()}</p>
+              <p className="text-3xl font-bold text-status-warn">{mapNodesLoading ? '…' : kpi.needsImprovement.toLocaleString()}</p>
               <p className="text-muted-foreground mt-1 text-xs">รอการแก้ไข</p>
             </div>
 
             <div className="bg-card border-border rounded-xl border p-5">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">ไม่ผ่านมาตรฐาน</p>
-                <div className="rounded-lg bg-[#f44336]/10 p-1.5">
-                  <XCircle size={14} className="text-[#f44336]" />
+                <div className="rounded-lg bg-status-fail/10 p-1.5">
+                  <XCircle size={14} className="text-status-fail" />
                 </div>
               </div>
-              <p className="text-3xl font-bold text-[#f44336]">{mapNodesLoading ? '…' : kpi.failing.toLocaleString()}</p>
+              <p className="text-3xl font-bold text-status-fail">{mapNodesLoading ? '…' : kpi.failing.toLocaleString()}</p>
               <div className="mt-1 flex items-center gap-1">
-                <TrendingDown size={11} className="text-[#f44336]" />
+                <TrendingDown size={11} className="text-status-fail" />
                 <p className="text-muted-foreground text-xs">ต้องดำเนินการเร่งด่วน</p>
               </div>
             </div>
@@ -500,7 +501,7 @@ export default function DashboardPage() {
           <div className="grid gap-4 lg:grid-cols-5">
             <div className={`bg-card border-border ${STATION_LIST_CARD_H} flex flex-col rounded-xl border p-5 lg:col-span-2`}>
               <div className="mb-4 flex shrink-0 items-center gap-2">
-                <AlertCircle size={14} className="text-[#f44336]" />
+                <AlertCircle size={14} className="text-status-fail" />
                 <h2 className="text-foreground text-base font-semibold">
                   สถานีที่ต้องดำเนินการเร่งด่วน
                   {hasFilters && <span className="ml-1 text-muted-foreground font-normal">({urgentStations.length})</span>}
@@ -523,7 +524,7 @@ export default function DashboardPage() {
                         <ul className="space-y-0.5">
                           {station.urgentIssues.map((issue, i) => (
                             <li key={i} className="text-muted-foreground flex items-start gap-1 text-xs">
-                              <span className="mt-1 size-1 shrink-0 rounded-full bg-[#f44336]" />
+                              <span className="mt-1 size-1 shrink-0 rounded-full bg-status-fail" />
                               {issue}
                             </li>
                           ))}
@@ -577,7 +578,7 @@ export default function DashboardPage() {
                       pagedStations.map(station => (
                         <tr
                           key={station.id}
-                          className="border-border hover:bg-secondary/50 h-14 border-b transition-colors last:border-0"
+                          className="border-border hover:bg-secondary/30 h-14 border-b transition-colors last:border-0"
                         >
                           <td className="truncate px-5">
                             <p className="text-foreground truncate font-medium">{station.nameTh}</p>
@@ -590,16 +591,7 @@ export default function DashboardPage() {
                             <span className="text-foreground truncate font-medium">{station.responsibleAgency}</span>
                           </td>
                           <td className="px-3 text-right">
-                            <span
-                              className="font-bold"
-                              style={{
-                                color: station.score >= 75
-                                  ? 'var(--status-pass)'
-                                  : station.score >= 50
-                                    ? 'var(--status-warn)'
-                                    : 'var(--status-fail)',
-                              }}
-                            >
+                            <span className="font-bold" style={{ color: statusColor(station.score) }}>
                               {station.score}
                             </span>
                           </td>
@@ -629,14 +621,14 @@ export default function DashboardPage() {
                   <button
                     onClick={() => setTablePage(p => p - 1)}
                     disabled={tablePage === 1}
-                    className="border-border text-foreground rounded-lg border px-3 py-1 text-xs disabled:opacity-40"
+                    className="border-border text-foreground hover:bg-secondary rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:opacity-40"
                   >
                     ← ก่อนหน้า
                   </button>
                   <button
                     onClick={() => setTablePage(p => p + 1)}
                     disabled={tablePage === tablePageCount}
-                    className="border-border text-foreground rounded-lg border px-3 py-1 text-xs disabled:opacity-40"
+                    className="border-border text-foreground hover:bg-secondary rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:opacity-40"
                   >
                     ถัดไป →
                   </button>

@@ -61,7 +61,7 @@ function ReviewQueueContent() {
             </div>
             <div className="bg-secondary h-2 w-full overflow-hidden rounded-full">
               <div
-                className="h-full rounded-full bg-[#52aa4e] transition-all"
+                className="bg-status-pass h-full rounded-full transition-all"
                 style={{ width: `${data.overall.total > 0 ? (data.overall.confirmed / data.overall.total) * 100 : 0}%` }}
               />
             </div>
@@ -89,8 +89,8 @@ function ReviewQueueContent() {
 
           <div className="bg-card border-border overflow-hidden rounded-xl border">
             <table className="w-full text-xs">
-              <thead className="bg-secondary/40 text-muted-foreground">
-                <tr>
+              <thead>
+                <tr className="border-border bg-secondary/30 text-muted-foreground border-b">
                   <th className="px-3 py-2 text-left font-medium">ประเภท</th>
                   <th className="px-3 py-2 text-left font-medium">รหัส</th>
                   <th className="px-3 py-2 text-left font-medium">รายการ</th>
@@ -108,7 +108,7 @@ function ReviewQueueContent() {
                   </tr>
                 )}
                 {data.rows.map((row) => (
-                  <tr key={`${row.templateId}-${row.nodeCode}-${row.measurementKey}`} className="hover:bg-secondary/20">
+                  <tr key={`${row.templateId}-${row.nodeCode}-${row.measurementKey}`} className="hover:bg-secondary/30 transition-colors">
                     <td className="px-3 py-2">
                       <TransportBadge type={row.mode} />
                     </td>

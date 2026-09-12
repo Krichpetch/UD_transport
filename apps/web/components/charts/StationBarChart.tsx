@@ -22,12 +22,12 @@ export function StationBarChart({ data, height = '100%' }: { data: ChartRow[]; h
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis
           dataKey="type"
-          tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+          tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }}
           axisLine={false}
           tickLine={false}
         />
         <YAxis
-          tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+          tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }}
           axisLine={false}
           tickLine={false}
         />
@@ -40,7 +40,7 @@ export function StationBarChart({ data, height = '100%' }: { data: ChartRow[]; h
           }}
         />
         <Legend
-          wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+          wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
           iconType="circle"
           iconSize={8}
         />

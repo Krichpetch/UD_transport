@@ -70,8 +70,8 @@ function GroupedReviewQueueContent() {
 
       <div className="bg-card border-border overflow-hidden rounded-xl border">
         <table className="w-full text-sm">
-          <thead className="bg-secondary/40 text-muted-foreground">
-            <tr>
+          <thead>
+            <tr className="border-border bg-secondary/30 text-muted-foreground border-b">
               <th className="px-3 py-2.5 text-left font-medium">รหัส</th>
               <th className="px-3 py-2.5 text-left font-medium">รายการ</th>
               <th className="px-3 py-2.5 text-left font-medium">เกณฑ์</th>
@@ -84,7 +84,7 @@ function GroupedReviewQueueContent() {
             {sortByNodeCode(data.rows, (r) => r.sampleNodeCode).map((row) => {
               const key = `${row.canonicalItemId}::${row.measurementKey}`
               return (
-                <tr key={key} className="hover:bg-secondary/20">
+                <tr key={key} className="hover:bg-secondary/30 transition-colors">
                   <td className="text-muted-foreground px-3 py-2.5 font-mono text-xs">{row.sampleNodeCode}</td>
                   <td className="text-foreground max-w-xs truncate px-3 py-2.5">{row.labelTh}</td>
                   <td className="text-muted-foreground px-3 py-2.5">

@@ -179,7 +179,7 @@ function EraOverridesSection({
                   body: { lawCode, entry: buildEraEntryPatch(measurement.operator, draftFor(lawCode)) },
                 })
               }
-              className="bg-primary text-primary-foreground mt-1.5 flex items-center gap-1 rounded px-2 py-1 text-xs font-medium disabled:opacity-50"
+              className="bg-primary text-primary-foreground mt-1.5 flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
             >
               {editEra.isPending ? <Loader2 size={10} className="animate-spin" /> : null}
               บันทึกค่าตามกฎหมายนี้

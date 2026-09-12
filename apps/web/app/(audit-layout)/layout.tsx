@@ -2,15 +2,22 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { Settings, LogOut, RotateCcw, ClipboardList, ClipboardCheck } from 'lucide-react'
 import { RequireRole } from '@/components/auth/require-role'
 import { useAuthStore } from '@/stores/auth.store'
 import { signOut } from '@/lib/sign-out'
 import { useMyRejectedCount } from '@/hooks/use-checklists'
 
+// Chrome header icon — active tab uses the documented --accent "active nav" token, default
+// stays the neutral outline treatment.
+const HEADER_ICON_CLASS = 'rounded-lg border p-1.5 transition-colors'
+const HEADER_ICON_DEFAULT = 'border-border text-muted-foreground hover:bg-secondary hover:text-foreground'
+const HEADER_ICON_ACTIVE = 'border-accent/30 bg-accent/10 text-accent'
+
 export default function AuditLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname()
   const ready = useAuthStore((s) => s.ready)
   const user = useAuthStore((s) => s.user)
   // Session E3, Part B.1 — persistent header badge, one cheap dedicated query, never the full
@@ -65,7 +72,7 @@ export default function AuditLayout({ children }: { children: React.ReactNode })
               <Link
                 href="/stations"
                 title="ตรวจ/อนุมัติงาน"
-                className="border-border text-muted-foreground hover:bg-secondary hover:text-foreground rounded-lg border p-1.5 transition-colors"
+                className={`${HEADER_ICON_CLASS} ${pathname.startsWith('/stations') ? HEADER_ICON_ACTIVE : HEADER_ICON_DEFAULT}`}
               >
                 <ClipboardCheck size={15} />
               </Link>
@@ -73,21 +80,21 @@ export default function AuditLayout({ children }: { children: React.ReactNode })
             <Link
               href="/audit/my-work"
               title="งานของฉัน"
-              className="border-border text-muted-foreground hover:bg-secondary hover:text-foreground rounded-lg border p-1.5 transition-colors"
+              className={`${HEADER_ICON_CLASS} ${pathname.startsWith('/audit/my-work') ? HEADER_ICON_ACTIVE : HEADER_ICON_DEFAULT}`}
             >
               <ClipboardList size={15} />
             </Link>
             <Link
               href="/audit/settings"
               title="บัญชีของฉัน"
-              className="border-border text-muted-foreground hover:bg-secondary hover:text-foreground rounded-lg border p-1.5 transition-colors"
+              className={`${HEADER_ICON_CLASS} ${pathname.startsWith('/audit/settings') ? HEADER_ICON_ACTIVE : HEADER_ICON_DEFAULT}`}
             >
               <Settings size={15} />
             </Link>
             <button
               onClick={handleLogout}
               title="ออกจากระบบ"
-              className="border-border text-muted-foreground hover:bg-secondary hover:text-foreground rounded-lg border p-1.5 transition-colors"
+              className={`${HEADER_ICON_CLASS} ${HEADER_ICON_DEFAULT}`}
             >
               <LogOut size={15} />
             </button>

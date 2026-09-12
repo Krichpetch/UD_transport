@@ -165,6 +165,12 @@ Column order: รหัส | รายการ | มี | ไม่มี | ไ
 
 ---
 
+## Code comment rules
+
+- **Do not make comments inside the code longer than a line**
+- Comments should only be about the mechanism of the code snippets or blocks,
+  do not put any session or when it was fixed/create in the code
+
 ## Git workflow rules
 
 - **Always work in the main worktree.** Do not create or use separate

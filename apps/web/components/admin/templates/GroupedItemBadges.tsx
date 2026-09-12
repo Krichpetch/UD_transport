@@ -23,7 +23,7 @@ export function ConflictBadge({ item }: { item: GroupNodeRow }) {
   return (
     <span
       title="ข้อมูล (ประเภทคำตอบ/เกณฑ์ตัวเลข) ไม่ตรงกันระหว่างแบบประเมิน — ต้องแก้ไขความขัดแย้งก่อนจึงจะเผยแพร่การแก้ไขพร้อมกันได้"
-      className="inline-flex items-center rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-600"
+      className="bg-status-fail/10 text-status-fail inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
     >
       ข้อมูลไม่ตรงกัน{item.conflictAcknowledged ? ' (รับทราบแล้ว)' : ''}
     </span>

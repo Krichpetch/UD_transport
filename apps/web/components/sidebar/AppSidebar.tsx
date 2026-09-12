@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/sidebar'
 import { LayoutDashboard, BarChart3, Building2, Settings, LogOut, User, Users, ClipboardCheck, ClipboardList, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
 import { signOut } from '@/lib/sign-out'
 import type { UserRole } from '@repo/types'
@@ -54,8 +54,15 @@ const NAV_ITEMS: { labelTh: string; icon: LucideIcon; href: string; roles: UserR
   { labelTh: 'โหมดตรวจประเมิน', icon: ClipboardList,   href: '/audit',           roles: ['REVIEWER'] },
 ]
 
+// A route is active on an exact match or any of its sub-paths (e.g. /stations/[id] activates
+// the /stations nav item).
+function isNavActive(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(href + '/')
+}
+
 export function AppSidebar() {
   const router = useRouter()
+  const pathname = usePathname()
   const user = useAuthStore((s) => s.user)
   const items = NAV_ITEMS.filter((item) => !!user && item.roles.includes(user.role))
 
@@ -76,7 +83,12 @@ export function AppSidebar() {
             <SidebarMenu className="gap-0.5">
               {items.map((item) => (
                 <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton asChild tooltip={item.labelTh} className="rounded-lg">
+                  <SidebarMenuButton
+                    asChild
+                    tooltip={item.labelTh}
+                    className="rounded-lg"
+                    isActive={isNavActive(pathname, item.href)}
+                  >
                     <Link href={item.href}>
                       <item.icon size={18} />
                       <span>{item.labelTh}</span>

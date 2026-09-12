@@ -4,14 +4,7 @@ import * as React from 'react'
 import type { FacilityMetrics, GroupSummaryEntry, ItemSummaryEntry } from '@/lib/api/stations'
 import type { ValueHistogram } from '@repo/types'
 import { ChecklistItemPieChart, HistogramLegend } from '@/components/charts/ChecklistItemPieChart'
-
-// Score → color, same exact threshold DESIGN.md mandates everywhere a raw score/percentage
-// drives a color (see ScoreBar).
-function pctColor(pct: number): string {
-  if (pct >= 75) return 'var(--status-pass)'
-  if (pct >= 50) return 'var(--status-warn)'
-  return 'var(--status-fail)'
-}
+import { statusColor as pctColor } from '@/components/checklist/ChecklistSummaryPanel'
 
 type ViewMode = 'groups' | 'items'
 

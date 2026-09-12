@@ -168,7 +168,7 @@ export function SettingsPanel() {
         <button
           type="submit"
           disabled={nameMutation.isPending || !displayName.trim()}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
         >
           {nameMutation.isPending ? 'กำลังบันทึก…' : 'บันทึกชื่อ'}
         </button>
@@ -226,7 +226,7 @@ export function SettingsPanel() {
             !confirmPassword ||
             newPassword !== confirmPassword
           }
-          className="bg-primary text-primary-foreground hover:bg-primary/90 mt-2 w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 mt-2 w-full rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
         >
           {passwordMutation.isPending ? 'กำลังบันทึก…' : 'เปลี่ยนรหัสผ่าน'}
         </button>

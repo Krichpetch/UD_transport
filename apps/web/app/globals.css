@@ -133,6 +133,20 @@ a {
   --chart-4: #ffc107;
   --chart-5: #f44336;
 
+  /* Decoration only — dots/tints/empty states, never a CTA/structural fill/mode badge. */
+  --accent-sky: #62aef0;
+  --accent-purple: #9333ea;
+  --accent-pink: #db2777;
+  --accent-orange: #dd5b00;
+  --accent-teal: #2a9d99;
+  --accent-green: #1aae39;
+
+  /* Soft layered shadows for floating surfaces only; resting surfaces use a border, no shadow. */
+  --elevation-1: 0 0.5px 1px rgba(0, 0, 0, 0.02), 0 2px 4px rgba(0, 0, 0, 0.03),
+    0 4px 12px rgba(0, 0, 0, 0.04);
+  --elevation-2: 0 1px 2px rgba(0, 0, 0, 0.03), 0 4px 12px rgba(0, 0, 0, 0.06),
+    0 16px 32px rgba(0, 0, 0, 0.08);
+
   /* Radius */
   --radius: 0.625rem;
 
@@ -195,6 +209,20 @@ a {
   --chart-3: #4ade80;
   --chart-4: #facc15;
   --chart-5: #ef4444;
+
+  /* Brighter variants for dark surfaces. */
+  --accent-sky: #7cc0f5;
+  --accent-purple: #c084fc;
+  --accent-pink: #f472b6;
+  --accent-orange: #fb923c;
+  --accent-teal: #34c1bc;
+  --accent-green: #4ade80;
+
+  /* Near-invisible — dark surfaces separate via border/bg lift, not shadow. */
+  --elevation-1: 0 0.5px 1px rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.25),
+    0 4px 12px rgba(0, 0, 0, 0.3);
+  --elevation-2: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.35),
+    0 16px 32px rgba(0, 0, 0, 0.45);
 
   --sidebar: #1e293b;
   --sidebar-foreground: #f8fafc;
@@ -267,6 +295,18 @@ a {
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+
+  /* e.g. bg-accent-teal/10, text-accent-pink. */
+  --color-accent-sky: var(--accent-sky);
+  --color-accent-purple: var(--accent-purple);
+  --color-accent-pink: var(--accent-pink);
+  --color-accent-orange: var(--accent-orange);
+  --color-accent-teal: var(--accent-teal);
+  --color-accent-green: var(--accent-green);
+
+  /* shadow-1 / shadow-2 utilities. */
+  --shadow-1: var(--elevation-1);
+  --shadow-2: var(--elevation-2);
 
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
