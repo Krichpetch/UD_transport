@@ -2,7 +2,17 @@
 
 import type { StationStatus, TransportMode, RailSubtype } from '@repo/types'
 
-export function StatusBadge({ status }: { status: StationStatus }) {
+// notInspected overrides the status pill with a neutral "ยังไม่ตรวจ" — a station whose status
+// column still holds the un-inspected schema default (see dashboard KPI fix, UDT-75) should never
+// read as a real ต้องปรับปรุง result.
+export function StatusBadge({ status, notInspected }: { status: StationStatus; notInspected?: boolean }) {
+  if (notInspected) {
+    return (
+      <span className="bg-secondary text-muted-foreground inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
+        ยังไม่ตรวจ
+      </span>
+    )
+  }
   const map: Record<StationStatus, string> = {
     'ผ่านมาตรฐาน': 'bg-status-pass/10 text-status-pass',
     'ต้องปรับปรุง': 'bg-status-warn/10 text-status-warn-foreground',
