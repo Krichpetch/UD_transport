@@ -5,7 +5,6 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -34,6 +33,10 @@ const ROLE_LABEL: Record<string, string> = {
 // mutating controls (approve/reject/edit/import), so they're ADMIN-only here; EXECUTIVE keeps
 // the read-only /dashboard as their home instead of the admin operational overview.
 //
+// Items are grouped into three sections (ภาพรวม / การจัดการ / ระบบ); a section renders only when
+// the current role has at least one visible item in it, so EXECUTIVE never sees an empty
+// การจัดการ header. Management labels drop the "จัดการ" prefix because the group header carries it.
+//
 // Session F3, Part F — "เอาหน้า Dashboard ของ Executive มาใส่ให้ Admin ด้วย" (สนข. 2026-08-03).
 // ADMIN now sees the SAME /dashboard entry, not a fork of it: the page, its guards and its three
 // backing endpoints (/stations/summary, /stations/metrics, /stations/map-nodes) already admitted
@@ -42,16 +45,33 @@ const ROLE_LABEL: Record<string, string> = {
 // two are relabelled to tell them apart (both used to read plain "ภาพรวม").
 // Admin checklist-review refresh — REVIEWER gets the executive dashboard + station/approval list
 // + settings, same as before, but NOT /admin/templates or /users (the template/era/station-editing
-// and user-management surfaces stay ADMIN-only). Her one ADDED entry is "โหมดตรวจประเมิน" below,
+// and user-management surfaces stay ADMIN-only). Her one ADDED entry is "ดูแบบประเมิน" under ระบบ,
 // jumping back to /audit — every other role already has an obvious way back to their own home.
-const NAV_ITEMS: { labelTh: string; icon: LucideIcon; href: string; roles: UserRole[] }[] = [
-  { labelTh: 'ภาพรวมระบบ',     icon: LayoutDashboard, href: '/admin/overview',  roles: ['ADMIN'] },
-  { labelTh: 'แดชบอร์ดผู้บริหาร', icon: BarChart3,       href: '/dashboard',       roles: ['ADMIN', 'EXECUTIVE', 'REVIEWER'] },
-  { labelTh: 'จัดการสถานี',    icon: Building2,       href: '/stations',        roles: ['ADMIN', 'REVIEWER'] },
-  { labelTh: 'จัดการแบบประเมิน', icon: ClipboardCheck,  href: '/admin/templates', roles: ['ADMIN'] },
-  { labelTh: 'จัดการผู้ใช้งาน', icon: Users,           href: '/users',           roles: ['ADMIN'] },
-  { labelTh: 'ตั้งค่าระบบ',     icon: Settings,        href: '/settings',       roles: ['ADMIN', 'EXECUTIVE', 'REVIEWER'] },
-  { labelTh: 'โหมดตรวจประเมิน', icon: ClipboardList,   href: '/audit',           roles: ['REVIEWER'] },
+type NavItem = { labelTh: string; icon: LucideIcon; href: string; roles: UserRole[] }
+
+const NAV_GROUPS: { labelTh: string; items: NavItem[] }[] = [
+  {
+    labelTh: 'ภาพรวม',
+    items: [
+      { labelTh: 'ภาพรวมระบบ',     icon: LayoutDashboard, href: '/admin/overview', roles: ['ADMIN'] },
+      { labelTh: 'แดชบอร์ดผู้บริหาร', icon: BarChart3,       href: '/dashboard',      roles: ['ADMIN', 'EXECUTIVE', 'REVIEWER'] },
+    ],
+  },
+  {
+    labelTh: 'การจัดการ',
+    items: [
+      { labelTh: 'สถานี',      icon: Building2,      href: '/stations',        roles: ['ADMIN', 'REVIEWER'] },
+      { labelTh: 'แบบประเมิน',  icon: ClipboardCheck, href: '/admin/templates', roles: ['ADMIN'] },
+      { labelTh: 'ผู้ใช้งาน',   icon: Users,          href: '/users',           roles: ['ADMIN'] },
+    ],
+  },
+  {
+    labelTh: 'ระบบ',
+    items: [
+      { labelTh: 'ตั้งค่าระบบ',   icon: Settings,      href: '/settings', roles: ['ADMIN', 'EXECUTIVE', 'REVIEWER'] },
+      { labelTh: 'ดูแบบประเมิน', icon: ClipboardList, href: '/audit',    roles: ['REVIEWER'] },
+    ],
+  },
 ]
 
 // A route is active on an exact match or any of its sub-paths (e.g. /stations/[id] activates
@@ -64,7 +84,11 @@ export function AppSidebar() {
   const router = useRouter()
   const pathname = usePathname()
   const user = useAuthStore((s) => s.user)
-  const items = NAV_ITEMS.filter((item) => !!user && item.roles.includes(user.role))
+  // Filter each group's items by role, then drop groups that end up empty for this role.
+  const groups = NAV_GROUPS.map((group) => ({
+    labelTh: group.labelTh,
+    items: group.items.filter((item) => !!user && item.roles.includes(user.role)),
+  })).filter((group) => group.items.length > 0)
 
   async function handleLogout() {
     await signOut()
@@ -74,31 +98,33 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" style={{ '--sidebar-width-icon': '4rem' } as React.CSSProperties}>
       {/* ── Nav ── */}
-      <SidebarContent>
-        <SidebarGroup className="px-2 py-2">
-          <SidebarGroupLabel className="text-sidebar-foreground/50 mb-1 text-xs tracking-widest uppercase group-data-[collapsible=icon]:hidden">
-            เมนูหลัก
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">
-              {items.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    tooltip={item.labelTh}
-                    className="rounded-lg"
-                    isActive={isNavActive(pathname, item.href)}
-                  >
-                    <Link href={item.href}>
-                      <item.icon size={18} />
-                      <span>{item.labelTh}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+      <SidebarContent className="px-2 py-2">
+        {groups.map((group) => (
+          <SidebarGroup key={group.labelTh} className="py-1">
+            <SidebarGroupLabel className="text-sidebar-foreground/50 mb-1 text-xs tracking-widest uppercase group-data-[collapsible=icon]:hidden">
+              {group.labelTh}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="gap-0.5">
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      asChild
+                      tooltip={item.labelTh}
+                      className="rounded-lg"
+                      isActive={isNavActive(pathname, item.href)}
+                    >
+                      <Link href={item.href}>
+                        <item.icon size={18} />
+                        <span>{item.labelTh}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       {/* ── Footer: user profile + logout ── */}
