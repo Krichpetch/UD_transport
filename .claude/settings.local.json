@@ -1,3 +1,6 @@
 {
-  "worktree": { "bgIsolation": "none" }
+  "worktree": {
+    "bgIsolation": "none"
+  },
+  "outputStyle": "default"
 }

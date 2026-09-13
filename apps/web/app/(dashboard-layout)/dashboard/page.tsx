@@ -20,7 +20,7 @@ import { isWithinTimeframe, resolveTimeframeRange } from '@/lib/timeframe'
 import { useDashboardFiltersStore } from '@/stores/dashboard-filters.store'
 import {
   TrendingUp, TrendingDown, Building2, CheckCircle2, AlertTriangle,
-  XCircle, AlertCircle, Filter, X, Loader2, Maximize2,
+  XCircle, AlertCircle, Filter, X, Loader2, Maximize2, Clock,
 } from 'lucide-react'
 
 function MetricRow({ label, value, pct }: { label: string; value: number; pct?: number }) {
@@ -84,7 +84,7 @@ export default function DashboardPage() {
   const [agencyFilter,   setAgencyFilter]   = React.useState('')
   const [categoryFilter, setCategoryFilter] = React.useState<'A' | 'B' | 'C' | ''>('')
   const [subItemFilter,  setSubItemFilter]  = React.useState('')
-  // UDT-18 — "ผ่านมติ ครม." toggle: computed on the fly, fetched only while this is on.
+  // UDT-18 — มติ ครม. toggle: computed on the fly, fetched only while this is on.
   const [cabinetOnly, setCabinetOnly] = React.useState(false)
   const [mapExpanded,    setMapExpanded]    = React.useState(false)
   const PAGE_SIZE = 10
@@ -168,14 +168,18 @@ export default function DashboardPage() {
     s => s.status === 'ไม่ผ่าน' || s.urgentIssues.length > 0
   )
 
+  // UDT-75 — same never-inspected split as `kpi` above: ผ่าน/ต้องปรับปรุง/ไม่ผ่าน only count
+  // stations that have actually been inspected, with un-inspected stations broken out into their
+  // own ยังไม่ตรวจ series instead of inflating ต้องปรับปรุง.
   const chartData = React.useMemo(() =>
     TRANSPORT_MODES.map(mode => {
       const inMode = filteredStations.filter(s => s.mode === mode)
       return {
         type: mode,
-        ผ่าน:         inMode.filter(s => s.status === 'ผ่านมาตรฐาน').length,
-        ต้องปรับปรุง: inMode.filter(s => s.status === 'ต้องปรับปรุง').length,
-        ไม่ผ่าน:      inMode.filter(s => s.status === 'ไม่ผ่าน').length,
+        ผ่าน:         inMode.filter(s => s.lastInspected !== null && s.status === 'ผ่านมาตรฐาน').length,
+        ต้องปรับปรุง: inMode.filter(s => s.lastInspected !== null && s.status === 'ต้องปรับปรุง').length,
+        ไม่ผ่าน:      inMode.filter(s => s.lastInspected !== null && s.status === 'ไม่ผ่าน').length,
+        ยังไม่ตรวจ:   inMode.filter(s => s.lastInspected === null).length,
       }
     }),
     [filteredStations],
@@ -213,17 +217,33 @@ export default function DashboardPage() {
   // UDT-16/18 decision: KPI cards recompute from the filtered station set so every filter
   // (mode/region/agency/timeframe/cabinet) drives them — the nationwide total stays only in the
   // page header above, via the unfiltered `summary`.
+  //
+  // UDT-75 — a station with no approved checklist carries the Prisma schema default
+  // status='ต้องปรับปรุง' (see apps/api/prisma/schema.prisma), which used to make un-inspected
+  // stations show up as "needs improvement". lastInspected === null is the real never-inspected
+  // signal, so those stations are split into their own ยังไม่ได้ตรวจ bucket and excluded from
+  // pass/improve/fail entirely.
   const kpi = React.useMemo(() => {
     const total = filteredStations.length
-    const passing           = filteredStations.filter(s => s.status === 'ผ่านมาตรฐาน').length
-    const needsImprovement  = filteredStations.filter(s => s.status === 'ต้องปรับปรุง').length
-    const failing           = filteredStations.filter(s => s.status === 'ไม่ผ่าน').length
+    const inspectedStations = filteredStations.filter(s => s.lastInspected !== null)
+    const inspected         = inspectedStations.length
+    const notInspected      = total - inspected
+    const passing           = inspectedStations.filter(s => s.status === 'ผ่านมาตรฐาน').length
+    const needsImprovement  = inspectedStations.filter(s => s.status === 'ต้องปรับปรุง').length
+    const failing           = inspectedStations.filter(s => s.status === 'ไม่ผ่าน').length
     return {
       totalStations: total,
+      inspected,
+      notInspected,
       passing,
       needsImprovement,
       failing,
-      passRate: total > 0 ? Math.round((passing / total) * 1000) / 10 : 0,
+      // passRate = % of ALL filtered stations (matches this tile's own "ของทั้งหมด" caption).
+      passRate:      total > 0 ? Math.round((passing / total) * 1000) / 10 : 0,
+      // readinessPct = % of INSPECTED stations — the ticket's "ความพร้อมของสถานี" headline KPI,
+      // deliberately a different denominator so it isn't just passRate restated.
+      readinessPct:  inspected > 0 ? Math.round((passing / inspected) * 1000) / 10 : 0,
+      progressPct:   total > 0 ? Math.round((inspected / total) * 1000) / 10 : 0,
     }
   }, [filteredStations])
 
@@ -237,10 +257,13 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Shared filter bar — mode/region/province/agency/ผ่านมติ ครม. scope both tabs below;
+      {/* Shared filter bar — mode/region/province/agency/มติ ครม. scope both tabs below;
           category/รายการย่อย only matter to the overview tab's own drill-down, so they're hidden
           on the issues tab. Timeframe lives in the navbar above (UDT-16, shared via
-          useDashboardFiltersStore). */}
+          useDashboardFiltersStore).
+          UDT-75 — grouped into ประเภทการขนส่ง | พื้นที่ (ภาค+จังหวัด) | หน่วยงาน | หมวดรายการ |
+          มติ ครม., separated by hairline dividers, so the row reads as related filter groups
+          instead of an unstructured list of dropdowns. */}
       <div className="bg-card border-border rounded-xl border p-3">
         <div className="flex flex-wrap items-center gap-2">
           <Filter size={13} className="text-muted-foreground shrink-0" />
@@ -253,6 +276,10 @@ export default function DashboardPage() {
             triggerClassName={SELECT_TRIGGER_CLS}
           />
 
+          <div className="bg-border h-5 w-px shrink-0" aria-hidden="true" />
+
+          {/* พื้นที่ group — ภาค + จังหวัด (จังหวัด narrows within the selected ภาค). */}
+          <span className="text-muted-foreground shrink-0 text-xs">พื้นที่</span>
           <FilterSelect
             value={regionFilter}
             onChange={setRegionFilter}
@@ -260,7 +287,6 @@ export default function DashboardPage() {
             allLabel="ทุกภาค"
             triggerClassName={SELECT_TRIGGER_CLS}
           />
-
           {PROVINCES.length > 0 && (
             <FilterSelect
               value={provinceFilter}
@@ -271,6 +297,8 @@ export default function DashboardPage() {
             />
           )}
 
+          <div className="bg-border h-5 w-px shrink-0" aria-hidden="true" />
+
           <FilterSelect
             value={agencyFilter}
             onChange={setAgencyFilter}
@@ -280,29 +308,35 @@ export default function DashboardPage() {
           />
 
           {activeTab === 'overview' && (
-            <FilterSelect
-              value={categoryFilter}
-              onChange={v => setCategoryFilter(v as 'A' | 'B' | 'C' | '')}
-              options={CHECKLIST_CATEGORIES.map(c => ({ value: c.value, label: c.label }))}
-              allLabel="ทุกหมวดรายการ"
-              triggerClassName={SELECT_TRIGGER_CLS}
-            />
+            <>
+              <div className="bg-border h-5 w-px shrink-0" aria-hidden="true" />
+              <FilterSelect
+                value={categoryFilter}
+                onChange={v => setCategoryFilter(v as 'A' | 'B' | 'C' | '')}
+                options={CHECKLIST_CATEGORIES.map(c => ({ value: c.value, label: c.label }))}
+                allLabel="ทุกหมวดรายการ"
+                triggerClassName={SELECT_TRIGGER_CLS}
+              />
+              {categoryFilter && subItemOptions.length > 0 && (
+                <FilterSelect
+                  value={subItemFilter}
+                  onChange={setSubItemFilter}
+                  options={subItemOptions.map(si => ({
+                    value: si.id,
+                    label: `${si.id} ${si.labelTh}${si.cabinetPriority ? ' ★' : ''}`,
+                  }))}
+                  allLabel="รายการย่อย"
+                  triggerClassName={SELECT_TRIGGER_CLS}
+                />
+              )}
+            </>
           )}
 
-          {activeTab === 'overview' && categoryFilter && subItemOptions.length > 0 && (
-            <FilterSelect
-              value={subItemFilter}
-              onChange={setSubItemFilter}
-              options={subItemOptions.map(si => ({
-                value: si.id,
-                label: `${si.id} ${si.labelTh}${si.cabinetPriority ? ' ★' : ''}`,
-              }))}
-              allLabel="รายการย่อย"
-              triggerClassName={SELECT_TRIGGER_CLS}
-            />
-          )}
+          <div className="bg-border h-5 w-px shrink-0" aria-hidden="true" />
 
-          {/* UDT-18 — ผ่านมติ ครม. filter, computed on the fly only while this is on. */}
+          {/* UDT-18/75 — มติ ครม. filter (computed on the fly only while active), labeled as a
+              filter name rather than reading like an already-applied value. */}
+          <span className="text-muted-foreground shrink-0 text-xs">มติ ครม.</span>
           <button
             onClick={() => setCabinetOnly(v => !v)}
             className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
@@ -311,7 +345,7 @@ export default function DashboardPage() {
                 : 'border-border text-muted-foreground hover:bg-secondary hover:text-foreground'
             }`}
           >
-            ผ่านมติ ครม.
+            {cabinetOnly ? 'เฉพาะที่ผ่าน' : 'ทั้งหมด'}
             {cabinetOnly && cabinetIdsQuery.isLoading && <Loader2 size={11} className="animate-spin" />}
           </button>
 
@@ -408,8 +442,10 @@ export default function DashboardPage() {
 
           {/* KPI Cards — recomputed from the filtered station set (UDT-16/18 decision) so every
               active filter, including timeframe and ผ่านมติ ครม., drives these numbers. The
-              nationwide total lives only in the page header above (unfiltered `summary`). */}
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              nationwide total lives only in the page header above (unfiltered `summary`).
+              UDT-75 — ยังไม่ได้ตรวจ is its own tile so a never-inspected station is never read as
+              a real ต้องปรับปรุง result (see the `kpi` memo above). */}
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
             <div className="bg-card border-border rounded-xl border p-5">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">สถานีทั้งหมด</p>
@@ -459,14 +495,67 @@ export default function DashboardPage() {
                 <p className="text-muted-foreground text-xs">ต้องดำเนินการเร่งด่วน</p>
               </div>
             </div>
+
+            <div className="bg-card border-border rounded-xl border p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">ยังไม่ได้ตรวจ</p>
+                <div className="bg-muted/10 rounded-lg p-1.5">
+                  <Clock size={14} className="text-muted-foreground" />
+                </div>
+              </div>
+              <p className="text-muted-foreground text-3xl font-bold">{mapNodesLoading ? '…' : kpi.notInspected.toLocaleString()}</p>
+              <p className="text-muted-foreground mt-1 text-xs">รอการตรวจครั้งแรก</p>
+            </div>
+          </div>
+
+          {/* Progress + readiness — UDT-75 items #2/#3. ความคืบหน้า explains why the status
+              tiles above read low/zero while most stations are still ยังไม่ได้ตรวจ; ความพร้อม is
+              the single "how good so far" number an executive can read without combining the 4
+              status tiles themselves. Progress-bar recipe follows admin/overview/page.tsx. */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="bg-card border-border rounded-xl border p-5">
+              <h2 className="text-foreground mb-4 text-base font-semibold">ความคืบหน้าการตรวจประเมิน</h2>
+              <p className="text-foreground text-3xl font-bold">
+                {mapNodesLoading ? '…' : kpi.inspected.toLocaleString()}
+                <span className="text-muted-foreground text-lg font-normal"> / {mapNodesLoading ? '…' : kpi.totalStations.toLocaleString()}</span>
+              </p>
+              <p className="text-muted-foreground mb-3 text-xs">สถานีที่ตรวจแล้ว</p>
+              <div className="bg-secondary h-2 w-full overflow-hidden rounded-full">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${kpi.progressPct}%`, background: 'var(--accent)' }}
+                />
+              </div>
+              <p className="text-muted-foreground mt-2 text-xs font-medium">{mapNodesLoading ? '…' : `${kpi.progressPct}%`}</p>
+            </div>
+
+            <div className="bg-card border-border rounded-xl border p-5">
+              <h2 className="text-foreground mb-4 text-base font-semibold">ความพร้อมของสถานี</h2>
+              {kpi.inspected === 0 ? (
+                <>
+                  <p className="text-muted-foreground text-3xl font-bold">—%</p>
+                  <p className="text-muted-foreground mt-1 text-xs">ยังไม่มีสถานีที่ตรวจแล้วในกลุ่มนี้</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-3xl font-bold" style={{ color: statusColor(kpi.readinessPct) }}>
+                    {kpi.readinessPct}%
+                  </p>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    ผ่านมาตรฐาน {kpi.passing.toLocaleString()} / {kpi.inspected.toLocaleString()} สถานีที่ตรวจแล้ว
+                  </p>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Main content: Chart + Map — a shared fixed card height (DASHBOARD_CARD_H) keeps every
               panel visually consistent (equal heights, aligned edges) regardless of how much content
               each one holds; content past that height scrolls inside its own card instead of
-              stretching the page. */}
-          <div className="grid gap-4 lg:grid-cols-5">
-            <div className={`bg-card border-border ${DASHBOARD_CARD_H} flex flex-col rounded-xl border p-5 lg:col-span-3`}>
+              stretching the page. UDT-75 — chart:map is 55/45, via an explicit 11fr/9fr track
+              ratio (a 5-col grid can't hit 55/45 with whole col-spans). */}
+          <div className="grid gap-4 lg:grid-cols-[11fr_9fr]">
+            <div className={`bg-card border-border ${DASHBOARD_CARD_H} flex flex-col rounded-xl border p-5`}>
               <div className="mb-4 shrink-0">
                 <h2 className="text-foreground text-base font-semibold">สถานะสิ่งอำนวยความสะดวก แยกตามประเภทการขนส่ง</h2>
                 <p className="text-muted-foreground text-xs">จำแนกตามสถานะการตรวจสอบล่าสุด</p>
@@ -476,7 +565,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className={`bg-card border-border ${DASHBOARD_CARD_H} flex flex-col rounded-xl border p-5 lg:col-span-2`}>
+            <div className={`bg-card border-border ${DASHBOARD_CARD_H} flex flex-col rounded-xl border p-5`}>
               <div className="mb-4 flex shrink-0 items-center justify-between">
                 <div>
                   <h2 className="text-foreground text-base font-semibold">แผนที่สถานีทั่วประเทศ</h2>
@@ -515,7 +604,7 @@ export default function DashboardPage() {
                     <div key={station.id} className="border-border rounded-lg border p-3">
                       <div className="mb-1.5 flex items-start justify-between gap-2">
                         <p className="text-foreground text-xs font-medium leading-snug">{station.nameTh}</p>
-                        <StatusBadge status={station.status} />
+                        <StatusBadge status={station.status} notInspected={station.lastInspected === null} />
                       </div>
                       <p className="text-muted-foreground mb-2 text-xs">
                         {station.province} · {getTransportLabel(station)} · {station.responsibleAgency}
@@ -591,12 +680,16 @@ export default function DashboardPage() {
                             <span className="text-foreground truncate font-medium">{station.responsibleAgency}</span>
                           </td>
                           <td className="px-3 text-right">
-                            <span className="font-bold" style={{ color: statusColor(station.score) }}>
-                              {station.score}
-                            </span>
+                            {station.lastInspected === null ? (
+                              <span className="text-muted-foreground">—</span>
+                            ) : (
+                              <span className="font-bold" style={{ color: statusColor(station.score) }}>
+                                {station.score}
+                              </span>
+                            )}
                           </td>
                           <td className="px-5">
-                            <StatusBadge status={station.status} />
+                            <StatusBadge status={station.status} notInspected={station.lastInspected === null} />
                           </td>
                         </tr>
                       ))
